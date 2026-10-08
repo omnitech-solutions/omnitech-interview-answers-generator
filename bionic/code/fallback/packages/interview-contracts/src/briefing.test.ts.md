@@ -2,4 +2,4 @@
 
 _Source: `packages/interview-contracts/src/briefing.test.ts` (header-comment fallback)_
 
-_No leading comment block found._
+The copy is optional, and so is each of its fields.

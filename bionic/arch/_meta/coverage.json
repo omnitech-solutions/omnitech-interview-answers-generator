@@ -1171,6 +1171,7 @@
         "scripts/dev-build-graph.test.ts",
         "scripts/dev-env.mjs",
         "scripts/dev-env.test.ts",
+        "scripts/dev-log.test.ts",
         "scripts/dev-stop.mjs",
         "scripts/dev.mjs",
         "scripts/docker-tests.mjs",
@@ -1207,7 +1208,7 @@
         "vitest.package.config.ts"
       ],
       "n_entities": 81,
-      "n_sources": 1189,
+      "n_sources": 1190,
       "verdict": "populated"
     },
     {
@@ -2369,6 +2370,7 @@
         "scripts/dev-build-graph.test.ts",
         "scripts/dev-env.mjs",
         "scripts/dev-env.test.ts",
+        "scripts/dev-log.test.ts",
         "scripts/dev-stop.mjs",
         "scripts/dev.mjs",
         "scripts/docker-tests.mjs",
@@ -2405,8 +2407,8 @@
         "vitest.config.ts",
         "vitest.package.config.ts"
       ],
-      "n_entities": 3118,
-      "n_sources": 1190,
+      "n_entities": 3119,
+      "n_sources": 1191,
       "verdict": "populated"
     },
     {

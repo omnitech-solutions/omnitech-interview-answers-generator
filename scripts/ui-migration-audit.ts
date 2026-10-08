@@ -495,7 +495,9 @@ export const rawAllowList: readonly AllowEntry[] = [
   },
   {
     file: `${FRONTEND}/studio/briefings/`,
-    max: { button: 27, textarea: 4, input: 5, select: 1, checkable: 2 },
+    // +1 button: "Condense for the assistant" in the pack's Edit setup
+    // (behavioural/setup-card.tsx), a `bp-link` like the links beside it.
+    max: { button: 28, textarea: 4, input: 5, select: 1, checkable: 2 },
     reason: STUDIO_WEB,
   },
   {

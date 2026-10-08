@@ -375,6 +375,10 @@ describe("createBriefingClient", () => {
       replaceId: "q1",
     });
     await client.prepare("pack", { expectedRevision: 3 });
+    expect(
+      (await client.condense("pa/ck", { expectedRevision: 3 })).origin
+        .artifactRevision,
+    ).toBe(3);
     expect(requests).toEqual([
       {
         url: "/api/interview/briefing/artifacts/pack/ask",
@@ -386,7 +390,17 @@ describe("createBriefingClient", () => {
         method: "POST",
         body: { expectedRevision: 3 },
       },
+      {
+        url: "/api/interview/briefing/artifacts/pa%2Fck/condense",
+        method: "POST",
+        body: { expectedRevision: 3 },
+      },
     ]);
+    // An input the contract refuses never reaches the network.
+    await expect(
+      client.condense("pack", { expectedRevision: -1 }),
+    ).rejects.toThrow();
+    expect(requests).toHaveLength(3);
     fail = true;
     await expect(
       client.ask("pack", { expectedRevision: 3, question: "One more?" }),
@@ -394,6 +408,6 @@ describe("createBriefingClient", () => {
     await expect(
       client.ask("pack", { expectedRevision: 3, question: " " }),
     ).rejects.toThrow();
-    expect(requests).toHaveLength(3);
+    expect(requests).toHaveLength(4);
   });
 });

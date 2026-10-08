@@ -2,4 +2,4 @@
 
 _Source: `products/interview/src/backend/structured.test.ts` (header-comment fallback)_
 
-_No leading comment block found._
+The shape a direct model reads in its instructions is the same schema.

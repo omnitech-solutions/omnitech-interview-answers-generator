@@ -1,11 +1,28 @@
 import { createHash } from "node:crypto";
-import { afterAll, beforeAll, expect, it } from "vitest";
+import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import type {
   WorkspaceDatabasePort,
   WorkspaceScope,
 } from "../assistant/workspace";
 import { disposablePostgres } from "../assistant/workspace-fixture";
 import { createBriefingApi } from "./api";
+
+// Every log line the product writes, as the JSON a deployment would emit
+// (through the real logger and its redaction), so a test can read an event.
+const logged = vi.hoisted(() => [] as string[]);
+vi.mock("@omnitech/logging", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@omnitech/logging")>();
+  return {
+    ...actual,
+    createLogger: (options: Parameters<typeof actual.createLogger>[0]) =>
+      actual.createLogger({
+        ...options,
+        level: "info",
+        format: "json",
+        write: (line) => logged.push(line),
+      }),
+  };
+});
 
 let pg: Awaited<ReturnType<typeof disposablePostgres>>;
 const scope = {
@@ -1466,6 +1483,181 @@ it("prepares the briefing as grounded cards the person can tick off", async () =
   expect(invalid.status).toBe(503);
   expect((await invalid.json()).error.message).toMatch(
     /did not match the required format, even after one correction: call\.summary/,
+  );
+});
+
+it("condenses only the long setup fields, keeps the originals and tells the model its budget", async () => {
+  const path = "/api/interview/briefing/artifacts/condensed";
+  const posting = `POSTING-ORIGINAL ${"Own the platform roadmap. ".repeat(800)}`;
+  const research = "RESEARCH-ORIGINAL the interviewer joined from ecobee";
+  expect(posting.length).toBeGreaterThanOrEqual(20_000);
+  const created = await request(path, "PUT", {
+    expectedRevision: 0,
+    briefing: { ...briefing, context: { ...context, research } },
+  });
+  const short = await created.json();
+  prompts.length = 0;
+  logged.length = 0;
+
+  // [GUARD] Nothing long: the pack comes back as it is, and no model runs.
+  const untouched = await request(`${path}/condense`, "POST", {
+    expectedRevision: short.origin.artifactRevision,
+  });
+  expect(untouched.status).toBe(200);
+  expect(await untouched.json()).toEqual(short);
+  expect(prompts).toEqual([]);
+  expect(logged.filter((line) => line.includes("briefing.condensed"))).toEqual(
+    [],
+  );
+
+  const edited = await (
+    await request(path, "PUT", {
+      expectedRevision: short.origin.artifactRevision,
+      briefing: {
+        ...briefing,
+        context: { ...context, jobDescription: posting, research },
+      },
+    })
+  ).json();
+  const start = edited.origin.artifactRevision;
+
+  // [GUARD] A stale revision is refused before any model runs.
+  const stale = await request(`${path}/condense`, "POST", {
+    expectedRevision: start - 1,
+  });
+  expect(stale.status).toBe(409);
+  expect((await stale.json()).error.code).toBe("revision-conflict");
+  expect(
+    (
+      await request(`${path}/condense`, "POST", {
+        expectedRevision: start,
+        x: 1,
+      })
+    ).status,
+  ).toBe(400);
+  expect(
+    (
+      await request(
+        "/api/interview/briefing/artifacts/no-such-pack/condense",
+        "POST",
+        { expectedRevision: 0 },
+      )
+    ).status,
+  ).toBe(404);
+  expect(prompts).toEqual([]);
+
+  // The short field is left alone even when the model returns text for it.
+  generated = {
+    jobDescription: "  CONDENSED-POSTING owns the platform roadmap  ",
+    research: "CONDENSED-RESEARCH",
+  };
+  const response = await request(`${path}/condense`, "POST", {
+    expectedRevision: start,
+  });
+  expect(response.status).toBe(200);
+  const record = await response.json();
+  expect(record.origin.artifactRevision).toBe(start + 1);
+  expect(record.value.briefing.context).toEqual({
+    ...context,
+    jobDescription: posting,
+    research,
+    condensed: {
+      jobDescription: "CONDENSED-POSTING owns the platform roadmap",
+    },
+  });
+  expect(prompts).toHaveLength(1);
+  expect(prompts[0]!.system).toContain(
+    "You condense interview preparation material",
+  );
+  expect(JSON.parse(prompts[0]!.prompt)).toEqual({
+    company: "Acme",
+    role: "Engineer",
+    stage: "recruiter",
+    // A quarter of the original, never under 3,000 characters.
+    budget: {
+      jobDescription: Math.round(posting.length / 4),
+      research: 3_000,
+    },
+    material: { jobDescription: posting, research: "" },
+  });
+
+  // The log line carries sizes only, never the text.
+  const lines = logged.filter((line) => line.includes("briefing.condensed"));
+  expect(lines).toHaveLength(1);
+  expect(JSON.parse(lines[0]!)).toMatchObject({
+    service: "briefing",
+    event: "briefing.condensed",
+    artifactId: "condensed",
+    jobDescriptionChars: posting.length,
+    jobDescriptionCondensed: "CONDENSED-POSTING owns the platform roadmap"
+      .length,
+    researchChars: 0,
+    researchCondensed: 0,
+  });
+  expect(logged.join("\n")).not.toMatch(/POSTING-ORIGINAL|CONDENSED-POSTING/);
+
+  // The pack's own generation reads the originals, never the condensed copy.
+  generated = {
+    questions: [
+      {
+        id: "q",
+        answerMarkdown: "I mentored engineers.",
+        talkingPoints: ["I mentored engineers", "b", "c"],
+        citations: [
+          {
+            field: "answerMarkdown",
+            text: "mentored engineers",
+            sourceKind: "candidate",
+            pointer: "/roles/0/proof_points/0",
+            quote: "Mentored engineers",
+          },
+        ],
+        gaps: [],
+      },
+    ],
+  };
+  prompts.length = 0;
+  const asked = await request(`${path}/ask`, "POST", {
+    expectedRevision: start + 1,
+    question: "Tell me about mentoring",
+  });
+  expect(asked.status).toBe(200);
+  expect(prompts[0]!.prompt).not.toContain("CONDENSED-POSTING");
+  const askedPrompt = JSON.parse(prompts[0]!.prompt);
+  expect(askedPrompt.context).not.toHaveProperty("condensed");
+  expect(askedPrompt.context).not.toHaveProperty("jobDescription");
+  expect(
+    askedPrompt.sources.find(
+      (source: { pointer: string }) =>
+        source.pointer === "/context/jobDescription",
+    ).text,
+  ).toBe(posting);
+  // The answer did not touch the setup: the condensed copy is still there.
+  expect((await asked.json()).value.briefing.context.condensed).toEqual({
+    jobDescription: "CONDENSED-POSTING owns the platform roadmap",
+  });
+
+  // [GUARD] A result no shorter than its original is not kept, and the copy
+  // made before goes with it.
+  generated = { jobDescription: `${posting} and more`, research: "" };
+  const longer = await (
+    await request(`${path}/condense`, "POST", { expectedRevision: start + 2 })
+  ).json();
+  expect(longer.origin.artifactRevision).toBe(start + 3);
+  expect(longer.value.briefing.context).toEqual({
+    ...context,
+    jobDescription: posting,
+    research,
+  });
+
+  // A reply that is not the two fields fails safely and changes nothing.
+  generated = { jobDescription: "CONDENSED-POSTING" };
+  const invalid = await request(`${path}/condense`, "POST", {
+    expectedRevision: start + 3,
+  });
+  expect(invalid.status).toBe(503);
+  expect((await (await request(path)).json()).origin.artifactRevision).toBe(
+    start + 3,
   );
 });
 

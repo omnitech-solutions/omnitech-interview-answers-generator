@@ -2,4 +2,4 @@
 
 _Source: `packages/interview-api-client/src/briefing.test.ts` (header-comment fallback)_
 
-_No leading comment block found._
+An input the contract refuses never reaches the network.

@@ -18,6 +18,11 @@ const seen: {
 let scenario: "text" | "tool-use" | "structured" | "max-turns" | "odd-subtype" =
   "text";
 
+// What a run streams as text before the SDK stops it without a success, and a
+// hold that keeps the result back until the run is interrupted.
+let written: string[] = [];
+let held: { wait: Promise<void>; release: () => void } | undefined;
+
 const toolStart = (name: string) => ({
   type: "stream_event",
   session_id: "s1",
@@ -43,6 +48,16 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
         }
         if (scenario === "max-turns" || scenario === "odd-subtype") {
           yield { type: "system", session_id: "s1" };
+          for (const text of written)
+            yield {
+              type: "stream_event",
+              session_id: "s1",
+              event: {
+                type: "content_block_delta",
+                delta: { type: "text_delta", text },
+              },
+            };
+          await held?.wait;
           yield {
             type: "result",
             subtype:
@@ -120,7 +135,16 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
           duration_api_ms: 1234,
         };
       })(),
-      { close: () => {}, interrupt: async () => {} },
+      {
+        close: () => {},
+        // An interrupted CLI ends its turn with a result; the short wait lets
+        // the adapter read that result before the cancel goes on.
+        interrupt: async () => {
+          if (!held) return;
+          held.release();
+          await new Promise((resolve) => setTimeout(resolve, 25));
+        },
+      },
     ),
 }));
 
@@ -321,6 +345,130 @@ describe("Claude runtime session path", () => {
     const unknown = odd.at(-1);
     expect(unknown).toMatchObject({ type: "failed" });
     expect(unknown).not.toHaveProperty("error.reason");
+  });
+
+  it("completes a run stopped on max turns with the whole object it wrote out", async () => {
+    scenario = "max-turns";
+    const outcomes: Record<string, AgentEvent | undefined> = {};
+    for (const [name, parts] of [
+      ["object", ['{"title":"Cach', 'ing","points":["a","b"]}']],
+      ["padded", ['\n  {"title":"Caching","points":["a","b"]}  \n']],
+      [
+        "fenced",
+        ["```json\n", '{"title":"Caching",', '"points":["a","b"]}', "\n```"],
+      ],
+      ["bare fence", ['```\n{"title":"Caching","points":["a","b"]}\n```\n']],
+    ] as const) {
+      written = [...parts];
+      const events = await run({
+        toolless: true,
+        outputSchema: { type: "object" },
+      });
+      expect(
+        events.some((event) => event.type === "failed"),
+        name,
+      ).toBe(false);
+      // The answer was streamed as it was written, before the run ended.
+      expect(
+        events.filter((event) => event.type === "text-delta"),
+        name,
+      ).toHaveLength(parts.length);
+      outcomes[name] = events.at(-1);
+    }
+    written = [];
+    scenario = "text";
+    for (const name of ["object", "padded", "fenced", "bare fence"])
+      expect(outcomes[name], name).toEqual({
+        type: "completed",
+        result: {
+          sessionId: "s1",
+          output: { title: "Caching", points: ["a", "b"] },
+        },
+      });
+  });
+
+  it("still fails a run stopped on max turns that wrote anything but one whole object", async () => {
+    scenario = "max-turns";
+    const outcomes: [string, AgentEvent | undefined][] = [];
+    for (const [name, parts] of [
+      ["nothing", []],
+      ["prose", ["Here is the brief you asked for."]],
+      ["cut short", ['{"title":"Caching","points":["a"']],
+      ["a list", ['[{"title":"Caching"}]']],
+      ["a string", ['"Caching"']],
+      ["an object after prose", ['Here it is: {"title":"Caching"}']],
+    ] as const) {
+      written = [...parts];
+      outcomes.push([name, (await run({ toolless: true })).at(-1)]);
+    }
+    // Any other way of ending fails, whatever was written.
+    scenario = "odd-subtype";
+    written = ['{"title":"Caching"}'];
+    const odd = (await run({ toolless: true })).at(-1);
+    written = [];
+    scenario = "text";
+    for (const [name, outcome] of outcomes)
+      expect(outcome, name).toEqual({
+        type: "failed",
+        error: {
+          code: "provider",
+          message: "Claude ended with error_max_turns.",
+          reason: "error_max_turns",
+          retryable: false,
+        },
+      });
+    expect(odd).toEqual({
+      type: "failed",
+      error: {
+        code: "provider",
+        message: "Claude ended with error_novel_case.",
+        retryable: false,
+      },
+    });
+  });
+
+  it("reports a cancelled run as cancelled, even with a whole object written", async () => {
+    scenario = "max-turns";
+    written = ['{"title":"Caching"}'];
+    let release = () => {};
+    held = {
+      wait: new Promise<void>((resolve) => {
+        release = resolve;
+      }),
+      release: () => release(),
+    };
+    const adapter = createClaudeRuntimeAdapter();
+    const events: AgentEvent[] = [];
+    try {
+      for await (const event of adapter.run({
+        runId: "r-cancel",
+        profile,
+        prompt: "Hi",
+        workingDirectory: "/tmp",
+        additionalDirectories: [],
+        attachments: [],
+        timeoutMs: 1000,
+        toolless: true,
+      })) {
+        events.push(event);
+        // The answer is written out; the run is cancelled before it ends.
+        if (event.type === "text-delta") void adapter.cancel?.("r-cancel");
+      }
+    } finally {
+      held = undefined;
+      written = [];
+      scenario = "text";
+    }
+    expect(events.some((event) => event.type === "completed")).toBe(false);
+    expect(events.at(-1)).toEqual({
+      type: "failed",
+      error: {
+        code: "cancelled",
+        message: "Claude ended with error_max_turns.",
+        reason: "error_max_turns",
+        retryable: false,
+      },
+    });
   });
 
   it("allows the synthetic StructuredOutput tool_use and completes with its output", async () => {

@@ -13,6 +13,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StudioContext, type StudioViewBinding } from "../../context";
 import { BehaviouralPack } from "./behavioural-pack";
+import { contextOf, setupOf } from "./setup-card";
 
 vi.mock("../../../markdown-content", () => ({
   MarkdownContent: ({ children }: { children: string }) => (
@@ -147,6 +148,8 @@ let calls: { method: string; path: string; body?: Sent }[];
 let failAsk: string | null;
 // When set, a write from an older revision is refused, as the server does.
 let strictRevisions = false;
+// When set, the server holds its condensed reply until this resolves.
+let condenseHeld: Promise<void> | null = null;
 // When set, packs come back with object keys in Postgres jsonb order (shorter
 // keys first, then bytewise), as the real server returns them.
 let storedOrder = false;
@@ -183,6 +186,7 @@ function installServer() {
   failAsk = null;
   strictRevisions = false;
   storedOrder = false;
+  condenseHeld = null;
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: string, init?: RequestInit) => {
@@ -232,6 +236,20 @@ function installServer() {
                   : item,
               )
             : [...questions, answer(body.question, `q${questions.length + 1}`)],
+        };
+        revision += 1;
+        return Response.json(envelope());
+      }
+      if (path.endsWith("/condense")) {
+        await condenseHeld;
+        // The originals stay; the copy sits beside them.
+        const { condensed: _previous, ...rest } = pack!.context;
+        pack = {
+          ...pack!,
+          context: {
+            ...rest,
+            condensed: { jobDescription: "Condensed posting" },
+          },
         };
         revision += 1;
         return Response.json(envelope());
@@ -659,6 +677,189 @@ describe("an open pack", () => {
       "Tell me about yourself.",
       "When could you start?",
     ]);
+  });
+
+  it("condenses a long posting for the assistant, writing pending edits first", async () => {
+    const posting = "Own the platform roadmap. ".repeat(160);
+    expect(posting.trim().length).toBeGreaterThanOrEqual(4000);
+    pack = {
+      kind: "non-technical-briefing",
+      title: "Northwind · Tech Lead",
+      context: {
+        ...context,
+        jobDescription: posting.trim(),
+        research: "Short research",
+      },
+      expected: ["Tell me about yourself."],
+      questions: [answer("Tell me about yourself.", "q1")],
+    };
+    revision = 2;
+    const props = handlers();
+    render(<BehaviouralPack artifactId="prep-1" {...props} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Edit setup" }));
+    const run = screen.getByTestId("bp-condense-run");
+    const status = screen.getByTestId("bp-condense-status");
+    const count = (characters: number) => characters.toLocaleString("en-US");
+    expect(run).toBeEnabled();
+    expect(run).toHaveTextContent("Condense for the assistant");
+    expect(status).toHaveTextContent(
+      `The assistant reads all ${count(posting.trim().length + "Short research".length)} characters on every turn. Condensing keeps what you pasted and gives it a shorter copy.`,
+    );
+
+    // An edit still waiting to be written goes first, so the copy is made
+    // from what is on screen and at the revision that edit produced.
+    let release = () => {};
+    condenseHeld = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    fireEvent.change(screen.getByLabelText("Research"), {
+      target: { value: "Fresh research" },
+    });
+    fireEvent.click(run);
+    await waitFor(() =>
+      expect(calls.at(-1)).toEqual({
+        method: "POST",
+        path: "/artifacts/prep-1/condense",
+        body: { expectedRevision: 3 },
+      }),
+    );
+    const written = calls.at(-2)!;
+    expect(written.method).toBe("PUT");
+    expect(written.body).toMatchObject({ expectedRevision: 2 });
+    expect(written.body!.briefing!.context.research).toBe("Fresh research");
+    expect(run).toBeDisabled();
+    expect(run).toHaveTextContent("Condensing…");
+    expect(props.onChanged).not.toHaveBeenCalled();
+
+    release();
+    await waitFor(() => expect(run).toHaveTextContent("Condense again"));
+    expect(run).toBeEnabled();
+    expect(status).toHaveTextContent(
+      `The assistant reads a condensed copy: ${count("Condensed posting".length + "Fresh research".length)} of ${count(posting.trim().length + "Fresh research".length)} characters. What you pasted is kept.`,
+    );
+    expect(props.onChanged).toHaveBeenCalledTimes(1);
+    // What was pasted is still in the field and in the pack.
+    expect(screen.getByLabelText("Job description")).toHaveValue(
+      posting.trim(),
+    );
+    expect(pack!.context.jobDescription).toBe(posting.trim());
+
+    // An edit elsewhere keeps the copy.
+    fireEvent.change(screen.getByLabelText("Interviewer"), {
+      target: { value: "Johnnie" },
+    });
+    await waitFor(() => expect(pack!.context.interviewer).toBe("Johnnie"), {
+      timeout: 2000,
+    });
+    expect(pack!.context.condensed).toEqual({
+      jobDescription: "Condensed posting",
+    });
+    expect(run).toHaveTextContent("Condense again");
+
+    // An edit to a condensed field drops the copy: at once on screen, then
+    // in the pack.
+    fireEvent.change(screen.getByLabelText("Job description"), {
+      target: { value: `${posting.trim()} And mentor the team.` },
+    });
+    expect(run).toHaveTextContent("Condense for the assistant");
+    expect(status).toHaveTextContent(/^The assistant reads all /);
+    await waitFor(
+      () => expect(pack!.context.jobDescription).toMatch(/mentor the team\.$/),
+      { timeout: 2000 },
+    );
+    expect(pack!.context).not.toHaveProperty("condensed");
+  });
+
+  it("has nothing to condense while the posting and research are short", async () => {
+    pack = {
+      kind: "non-technical-briefing",
+      title: "Northwind · Tech Lead",
+      context,
+      expected: ["Tell me about yourself."],
+      questions: [answer("Tell me about yourself.", "q1")],
+    };
+    revision = 2;
+    render(<BehaviouralPack artifactId="prep-1" {...handlers()} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Edit setup" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /Job posting, research and notes/ }),
+    );
+    const run = screen.getByTestId("bp-condense-run");
+    expect(screen.getByTestId("bp-condense")).toContainElement(run);
+    expect(run).toBeDisabled();
+    expect(run).toHaveTextContent("Condense for the assistant");
+    expect(screen.getByTestId("bp-condense-status")).toHaveTextContent(
+      "Short enough as it is: nothing to condense.",
+    );
+    fireEvent.click(run);
+    expect(calls.some((call) => call.path.endsWith("/condense"))).toBe(false);
+
+    // Research alone can make it worth condensing.
+    fireEvent.change(screen.getByLabelText("Research"), {
+      target: { value: "r".repeat(4000) },
+    });
+    expect(run).toBeEnabled();
+    expect(screen.getByTestId("bp-condense-status")).toHaveTextContent(
+      "The assistant reads all 4,000 characters on every turn.",
+    );
+  });
+
+  it("offers no condensing on a pack that is not saved yet", async () => {
+    render(<BehaviouralPack artifactId={null} {...handlers()} />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: /Job posting, research and notes/,
+      }),
+    );
+    expect(screen.getByLabelText("Research")).toBeVisible();
+    expect(screen.queryByTestId("bp-condense")).toBeNull();
+  });
+
+  it("keeps the condensed copy only while the posting and research are what it was made from", () => {
+    const previous = {
+      ...context,
+      interviewer: "Sam",
+      jobDescription: "The posting",
+      research: "The research",
+      condensed: { jobDescription: "Posting", research: "Research" },
+    };
+    const setup = setupOf(previous);
+    expect(contextOf(setup, previous)).toEqual(previous);
+    // Surrounding whitespace is not an edit, and other fields are free to change.
+    expect(
+      contextOf(
+        {
+          ...setup,
+          jobDescription: "  The posting\n",
+          interviewer: "Johnnie",
+          employerNotes: "New notes",
+        },
+        previous,
+      )?.condensed,
+    ).toEqual(previous.condensed);
+    for (const edit of [
+      { jobDescription: "The posting, edited" },
+      { research: "The research, edited" },
+      { jobDescription: "" },
+      { research: "" },
+    ])
+      expect(contextOf({ ...setup, ...edit }, previous)).not.toHaveProperty(
+        "condensed",
+      );
+    // A copy made when one field was empty holds while it stays empty.
+    const postingOnly = {
+      ...context,
+      jobDescription: "The posting",
+      condensed: { jobDescription: "Posting" },
+    };
+    expect(contextOf(setupOf(postingOnly), postingOnly)?.condensed).toEqual({
+      jobDescription: "Posting",
+    });
+    expect(
+      contextOf({ ...setupOf(postingOnly), research: "Added" }, postingOnly),
+    ).not.toHaveProperty("condensed");
+    // Nothing is invented without a previous context.
+    expect(contextOf(setup)).not.toHaveProperty("condensed");
   });
 
   it("switches matrix, makes it the default and resets suggestions", async () => {

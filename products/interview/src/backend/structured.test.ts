@@ -31,6 +31,38 @@ describe("generateChecked", () => {
     expect(input.prompt).toBe("Topic: caching");
   });
 
+  it("hands the generator the reply's JSON Schema without zod's draft reference, on every turn", async () => {
+    const generate = vi
+      .fn()
+      .mockResolvedValueOnce({ title: "Caching", points: ["a"] })
+      .mockResolvedValueOnce({ title: "Caching", points: ["a", "b", "c"] });
+    await generateChecked(generate, request, schema, scope);
+    expect(generate).toHaveBeenCalledTimes(2);
+    for (const [input, calledScope] of generate.mock.calls as [
+      { system: string; schema: Record<string, unknown> },
+      typeof scope,
+    ][]) {
+      expect(calledScope).toBe(scope);
+      expect(input.schema).toMatchObject({
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          points: { type: "array", items: { type: "string" } },
+        },
+        required: ["title", "points"],
+        additionalProperties: false,
+      });
+      expect(input.schema).not.toHaveProperty("$schema");
+    }
+    // The shape a direct model reads in its instructions is the same schema.
+    const first = generate.mock.calls[0]![0] as {
+      system: string;
+      schema: Record<string, unknown>;
+    };
+    expect(first.system).toContain(JSON.stringify(first.schema));
+    expect(first.system).not.toContain("$schema");
+  });
+
   it("gives one correction turn listing what failed", async () => {
     const generate = vi
       .fn()

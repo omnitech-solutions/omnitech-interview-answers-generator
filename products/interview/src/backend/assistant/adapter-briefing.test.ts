@@ -1,10 +1,27 @@
 import type { BriefingDraft } from "@omnitech/interview-contracts";
 import type { Proposal } from "@omnitech-assistant/contracts";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { BriefingRepository } from "../briefing/repository";
 import { createInterviewAdapter, describeChanges } from "./adapter";
 import { InterviewWorkspaceRepository } from "./workspace";
 import { disposablePostgres } from "./workspace-fixture";
+
+// Every log line the adapter writes, as the JSON a deployment would emit
+// (through the real logger and its redaction), so a test can read an event.
+const logged = vi.hoisted(() => [] as string[]);
+vi.mock("@omnitech/logging", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@omnitech/logging")>();
+  return {
+    ...actual,
+    createLogger: (options: Parameters<typeof actual.createLogger>[0]) =>
+      actual.createLogger({
+        ...options,
+        level: "info",
+        format: "json",
+        write: (line) => logged.push(line),
+      }),
+  };
+});
 
 const scope = {
   tenantId: "ground",
@@ -130,6 +147,85 @@ describe("the assistant on a behavioural pack", () => {
     expect(employer).not.toHaveProperty("profile");
     expect(employer).not.toHaveProperty("request");
     expect(context.evidence).toEqual([]);
+  });
+
+  it("reads a condensed field in place of its original, and logs the context's sizes only", async () => {
+    const posting = `POSTING-ORIGINAL ${"Own the roadmap. ".repeat(400)}`;
+    const research = "RESEARCH-ORIGINAL the interviewer joined from ecobee";
+    const at = { ...origin, artifactId: "condensed-pack" };
+    const condensed: BriefingDraft = {
+      ...pack,
+      context: {
+        ...pack.context,
+        jobDescription: posting,
+        research,
+        employerNotes: "NOTES-ORIGINAL",
+        // Only the posting was long enough to condense.
+        condensed: { jobDescription: "CONDENSED-POSTING owns the roadmap" },
+      },
+    };
+    await workspace.create(scope, at, {
+      question: condensed.title,
+      briefing: condensed,
+    });
+    logged.length = 0;
+    const context = await adapter().getContext(scope, at);
+    // What the turn costs is the pack as the assistant sees it, without the
+    // prompt's own version stamp.
+    const { prompt: _prompt, ...seen } = context.context as {
+      prompt: unknown;
+      employer: Record<string, unknown>;
+      you: { answers: unknown };
+      preparedBriefing: unknown;
+    };
+    expect(seen.employer).toEqual({
+      company: "Acme",
+      role: "Tech Lead",
+      stage: "recruiter",
+      interviewer: "Sam",
+      jobDescription: "CONDENSED-POSTING owns the roadmap",
+      research,
+      employerNotes: "NOTES-ORIGINAL",
+    });
+    expect(JSON.stringify(context)).not.toContain("POSTING-ORIGINAL");
+    // The pack itself still holds what was pasted.
+    expect(
+      (await workspace.read(scope, "briefings", at.artifactId)).value.briefing!
+        .context.jobDescription,
+    ).toBe(posting);
+
+    const size = (value: unknown) => JSON.stringify(value).length;
+    const lines = logged.filter((line) => line.includes("assistant.context"));
+    expect(lines).toHaveLength(1);
+    const { time: _time, ...event } = JSON.parse(lines[0]!);
+    expect(event).toEqual({
+      level: "info",
+      service: "assistant",
+      event: "assistant.context",
+      artifactId: "condensed-pack",
+      revision: 0,
+      totalChars: size(seen),
+      jobDescriptionChars: size("CONDENSED-POSTING owns the roadmap"),
+      researchChars: size(research),
+      answersChars: size(seen.you.answers),
+      // No prepared briefing counts as the two quotes of an empty string.
+      preparedChars: 2,
+      condensed: true,
+    });
+    expect(logged.join("\n")).not.toMatch(/ORIGINAL|CONDENSED-POSTING/);
+
+    // A pack with no condensed copy is read whole, and the log says so.
+    logged.length = 0;
+    await adapter().getContext(scope, origin);
+    expect(
+      JSON.parse(logged.find((line) => line.includes("assistant.context"))!),
+    ).toMatchObject({
+      artifactId: "pack",
+      condensed: false,
+      // Absent fields count as the two quotes of an empty string.
+      jobDescriptionChars: 2,
+      researchChars: 2,
+    });
   });
 
   it("proposes answer edits by id, for review one answer at a time", async () => {

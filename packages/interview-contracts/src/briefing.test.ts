@@ -1,5 +1,10 @@
 import { expect, it } from "vitest";
-import { briefingDraftSchema, candidateMatrixSchema } from "./briefing";
+import {
+  briefingCondenseSchema,
+  briefingContextSchema,
+  briefingDraftSchema,
+  candidateMatrixSchema,
+} from "./briefing";
 
 it("accepts a synthetic matrix with known nested role fields and preserves extensions", () => {
   const matrix = candidateMatrixSchema.parse({
@@ -67,4 +72,56 @@ it("requires exactly three talking points and bounded pack size", () => {
       }),
     }).success,
   ).toBe(false);
+});
+
+it("keeps a condensed copy of the two long setup fields beside the originals", () => {
+  const context = {
+    company: "Acme",
+    role: "Engineer",
+    stage: "recruiter" as const,
+    profile: { id: "p", revision: 1 },
+    jobDescription: "The whole posting",
+    research: "The whole research",
+  };
+  // The copy is optional, and so is each of its fields.
+  expect(briefingContextSchema.parse(context).condensed).toBeUndefined();
+  expect(
+    briefingContextSchema.parse({ ...context, condensed: {} }).condensed,
+  ).toEqual({});
+  expect(
+    briefingContextSchema.parse({
+      ...context,
+      condensed: { jobDescription: "Posting, short", research: "Notes" },
+    }),
+  ).toMatchObject({
+    jobDescription: "The whole posting",
+    research: "The whole research",
+    condensed: { jobDescription: "Posting, short", research: "Notes" },
+  });
+  // Only the two long fields can be condensed, within the field's own bound.
+  expect(
+    briefingContextSchema.safeParse({
+      ...context,
+      condensed: { employerNotes: "Notes" },
+    }).success,
+  ).toBe(false);
+  expect(
+    briefingContextSchema.safeParse({
+      ...context,
+      condensed: { research: "x".repeat(32_001) },
+    }).success,
+  ).toBe(false);
+});
+
+it("asks to condense a pack by the revision it was read at, and nothing else", () => {
+  expect(briefingCondenseSchema.parse({ expectedRevision: 3 })).toEqual({
+    expectedRevision: 3,
+  });
+  for (const input of [
+    {},
+    { expectedRevision: -1 },
+    { expectedRevision: 1.5 },
+    { expectedRevision: 3, jobDescription: "Condense this instead" },
+  ])
+    expect(briefingCondenseSchema.safeParse(input).success).toBe(false);
 });

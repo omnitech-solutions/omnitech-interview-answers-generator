@@ -616,6 +616,34 @@ describe("agent jobs", () => {
     );
   });
 
+  it("does not offer the local draft stand-in beside the agents", async () => {
+    const assistant = async () =>
+      (await createPlatformAiGateway().listAvailableTargets(context())).find(
+        (target) => target.id === "interview-assistant",
+      );
+    // With no agents the stand-in is all there is, so the picker names it.
+    expect((await assistant())?.listing).toMatchObject({ name: "Draft model" });
+
+    // Agents can run and no language model is configured: the profile stays
+    // (the product still names it), but the picker does not list it.
+    vi.stubEnv("AGENT_PAYLOAD_SECRET", "a-payload-secret-of-32-characters!");
+    const beside = await assistant();
+    expect(beside).toMatchObject({
+      id: "interview-assistant",
+      family: "direct-model",
+    });
+    expect(beside).not.toHaveProperty("listing");
+
+    // A configured language model is a real choice beside the agents.
+    vi.stubEnv("AI_BASE_URL", "https://models.example.com/v1");
+    vi.stubEnv("AI_MODEL", "vendor/large-model");
+    vi.stubEnv("AI_API_KEY", "test-key");
+    expect((await assistant())?.listing).toMatchObject({
+      name: "vendor/large-model",
+      shortName: "large-model",
+    });
+  });
+
   // The agent worker is the boundary: the test plays it, writing events to
   // the job the turn queued.
   async function assistantTurn(

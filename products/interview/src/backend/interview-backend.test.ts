@@ -134,7 +134,12 @@ async function resolveContext(slug: string): Promise<PlatformContext | null> {
   } as PlatformContext;
 }
 
-function backend(overrides: { answersConfigured?: boolean } = {}) {
+function backend(
+  overrides: {
+    answersConfigured?: boolean;
+    assistantDefaultModel?: string;
+  } = {},
+) {
   return createInterviewBackend({
     ai,
     database,
@@ -145,6 +150,9 @@ function backend(overrides: { answersConfigured?: boolean } = {}) {
     contextCharacters: 10_000,
     onDeviceModel: true,
     localDefaultProfile: true,
+    ...(overrides.assistantDefaultModel
+      ? { assistantDefaultModel: overrides.assistantDefaultModel }
+      : {}),
   });
 }
 const json = (body: unknown, tenant = "local") => ({
@@ -348,4 +356,105 @@ describe("Interview Studio's backend as the platform mounts it", () => {
     expect(stranger.status).toBe(401);
     expect(await stranger.json()).toEqual({ error: { code: "unauthorized" } });
   });
+
+  // The studio is built once per process, so each default model below gets a
+  // studio of its own; the last one built is the plain one other tests expect.
+  it("runs a pack's one-shot generation on the agent when that is the default model, with the reply's schema", async () => {
+    const path = join(matrices, "default-experience-matrix.json");
+    writeFileSync(
+      path,
+      JSON.stringify({
+        candidate: { name: "Synthetic Candidate" },
+        roles: [{ company: "Acme", title: "Engineer" }],
+      }),
+    );
+    vi.stubEnv("INTERVIEW_DEFAULT_MATRIX_PATH", path);
+    const headers = { "x-omnitech-tenant": "local" };
+    const base = "http://studio.test/api/interview/briefing";
+    // What a pack's generation asked the gateway for, under a default model.
+    async function condensedOn(
+      artifactId: string,
+      assistantDefaultModel?: string,
+    ) {
+      globalThis.interviewStudio = undefined;
+      const app = backend(
+        assistantDefaultModel ? { assistantDefaultModel } : {},
+      ).app;
+      const { profiles } = await (
+        await app.request(`${base}/profiles`, { headers })
+      ).json();
+      const created = await app.request(`${base}/artifacts/${artifactId}`, {
+        ...json({
+          expectedRevision: 0,
+          briefing: {
+            kind: "non-technical-briefing",
+            title: "Recruiter",
+            context: {
+              company: "Acme",
+              role: "Engineer",
+              stage: "recruiter",
+              profile: { id: profiles[0].id, revision: profiles[0].revision },
+              jobDescription: "Own the roadmap. ".repeat(300),
+            },
+            questions: [],
+          },
+        }),
+        method: "PUT",
+      });
+      expect(created.status).toBe(200);
+      executed.length = 0;
+      const condensed = await app.request(
+        `${base}/artifacts/${artifactId}/condense`,
+        json({
+          expectedRevision: (await created.json()).origin.artifactRevision,
+        }),
+      );
+      // The fake model's reply is not the two fields: one correction, then
+      // the product reports the generation failed.
+      expect(condensed.status).toBe(503);
+      expect(executed).toHaveLength(2);
+      return executed.map(({ profileId, task }) => ({
+        profileId,
+        type: task.type,
+        schema: (task as { schema?: Record<string, unknown> }).schema,
+      }));
+    }
+
+    const onAgent = await condensedOn("on-agent", "agent/claude-code");
+    for (const request of onAgent) {
+      expect(request).toMatchObject({
+        profileId: "agent/claude-code",
+        type: "structured-generation",
+        schema: {
+          type: "object",
+          properties: {
+            jobDescription: { type: "string" },
+            research: { type: "string" },
+          },
+          required: ["jobDescription", "research"],
+        },
+      });
+      // The runtime's own check cannot resolve zod's draft reference.
+      expect(request.schema).not.toHaveProperty("$schema");
+    }
+
+    // A direct model reads the shape from the instructions: no schema travels,
+    // whether the default is another model or none is named.
+    for (const [artifactId, model] of [
+      ["on-model", "lm-studio/some-model"],
+      ["on-default", undefined],
+    ] as const)
+      expect(await condensedOn(artifactId, model)).toEqual([
+        {
+          profileId: "interview-assistant",
+          type: "structured-generation",
+          schema: undefined,
+        },
+        {
+          profileId: "interview-assistant",
+          type: "structured-generation",
+          schema: undefined,
+        },
+      ]);
+  }, 30_000);
 });

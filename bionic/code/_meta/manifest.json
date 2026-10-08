@@ -1454,7 +1454,7 @@
       "doc_path": "fallback/packages/interview-api-client/src/briefing.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "72ea859c81d36f2b68572da93f744a4230b5f87961d664cddc02b73e297fd842",
+      "sha256": "8a2335f1cbbe4ae4b961ef369b360171888e85ebb72d87d11cb01cff10601da5",
       "source_path": "packages/interview-api-client/src/briefing.test.ts"
     },
     {
@@ -1594,7 +1594,7 @@
       "doc_path": "fallback/packages/interview-contracts/src/briefing.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "afe4029ac42e91db23780e9f9a261a860501755c5efdf7fea8992f34c3b83f39",
+      "sha256": "b48068bab204c843e29fc87b4ef3a5ec906f48ec589da35a1323babcdf5f0670",
       "source_path": "packages/interview-contracts/src/briefing.test.ts"
     },
     {
@@ -2147,7 +2147,7 @@
       "doc_path": "fallback/products/interview/src/backend/assistant/adapter-briefing.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "165953bdfd0e8a0addf7ee6a7e58805acc65ef9c472e3b5debea34fe4482c61c",
+      "sha256": "f81472837e3bab46ffea5506005fbe5b3dce0063ed1b9ba7bc0b564da6befe4b",
       "source_path": "products/interview/src/backend/assistant/adapter-briefing.test.ts"
     },
     {
@@ -2266,7 +2266,7 @@
       "doc_path": "fallback/products/interview/src/backend/briefing/api.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "719282fb5298b6ea042c672161b27989cf834f683de63638ef9f479a5070c69c",
+      "sha256": "60ee541d9eb7c19949ec9dd62b5d3af4d02425131932ec90fca7427aa5d30e88",
       "source_path": "products/interview/src/backend/briefing/api.test.ts"
     },
     {
@@ -3799,7 +3799,7 @@
       "doc_path": "fallback/products/interview/src/backend/structured.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "63a8ee117cc0bc4d337da7e49b585bc0da7f20372153d0399eccaf1dee4a9bdd",
+      "sha256": "10123b1c0d6f5c806b9eb8dee9115ffae6477863a71622218c78e32e835b805a",
       "source_path": "products/interview/src/backend/structured.test.ts"
     },
     {

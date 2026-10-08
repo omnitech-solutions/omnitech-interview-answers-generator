@@ -1,6 +1,6 @@
 # Architecture overview
 
-<!-- arch-spine-hash: sha256:f933fcebff7ecc549b718091f79c8266ce1a768c250b890c314a612a8dfe4bbb -->
+<!-- arch-spine-hash: sha256:4150e01a730595604cba0d999c8ac733c23c04abd55e80b5595ccfd28a00bc4c -->
 
 _Derived from the spine; regenerated whenever the spine moves. Stands on its own; ADR references live in `decision-index.md` as footnotes._
 

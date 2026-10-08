@@ -73,6 +73,14 @@ The macOS app (step 7) also needs Xcode's Swift toolchain.
    (3001) and the agent worker. The first start builds the whole workspace
    first, so it is the slow one.
 
+   **Development log.** Everything the servers and the build watcher print is
+   also written to `.dev-local/dev.log` (ignored by Git), with colours
+   stripped, so a failure can be read after the terminal has scrolled past it.
+   The file is started afresh on every `pnpm dev` and holds that run only. The
+   servers write to a pipe, so `pnpm dev` sets `FORCE_COLOR=1` to keep the
+   terminal's colours; set `NO_COLOR` (any value) to turn them off, or
+   `FORCE_COLOR` yourself to choose the level.
+
    **Database roles.** The app connects as `omnitech`, which has read/write
    grants only; migrations connect as `omnitech_owner`, which owns the schemas
    (`DATABASE_URL` and `DATABASE_OWNER_URL` in `.env.example`). The Postgres
