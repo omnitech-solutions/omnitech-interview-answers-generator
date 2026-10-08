@@ -7,6 +7,8 @@
 // panes. It takes the one panel session and renders it; none of it fetches or
 // decides anything itself.
 import {
+  ActionMenu,
+  Button,
   IconButton,
   Input,
   Panel,
@@ -30,7 +32,17 @@ import { Icon } from "../../../icon";
 import { copyText } from "../../shared/copy-text";
 import { followUpNote } from "../../shared/revisions";
 import { captureEventChips } from "./answer-meta";
+import {
+  CHAT_VIEWS,
+  type ChatView,
+  hasCallSlot,
+  isConversation,
+  setChatView,
+  useChatView,
+} from "./chat-view-pref";
+import { useCoachNotes } from "./coach-notes";
 import { FOCUS_INPUT_EVENT } from "./commands";
+import { CallSlot, ConversationView } from "./conversation-view";
 import {
   clock,
   draftProblemRow,
@@ -251,6 +263,12 @@ export function ChatPanel({ s }: { s: PanelSession }) {
     return () => clearInterval(timer);
   }, [staged]);
   const last = shown[shown.length - 1]?.row;
+  // The pane's layout: the conversation (questions with the coach's notes
+  // under them) or the plain transcript. The notes are read only for the
+  // conversation; in the transcript layout the coach panel shows them.
+  const view = useChatView();
+  const conversation = isConversation(view);
+  const coach = useCoachNotes(s.open && conversation);
   const log = useRef<HTMLDivElement>(null);
   const choose = useChooseAnswers(log, shown, s.selected?.taskId, s.select);
 
@@ -289,16 +307,43 @@ export function ChatPanel({ s }: { s: PanelSession }) {
   const followUp =
     s.selected && s.card ? followUpNote(s.selected, s.card.revision) : null;
 
-  return (
+  const panel = (
     <Panel
-      title="Transcript & chat"
+      title={conversation ? "Conversation" : "Transcript & chat"}
       data-testid="pn-chat"
       bodyPadding="sm"
+      actions={
+        <ActionMenu
+          label="How the conversation is laid out"
+          title="View"
+          width={260}
+          sections={[
+            {
+              id: "view",
+              selection: "single",
+              value: view,
+              items: CHAT_VIEWS.map(({ id, label }) => ({ id, label })),
+            },
+          ]}
+          onValueChange={(_group, id) => setChatView(id as ChatView)}
+          trigger={
+            <Button
+              buttonSize="sm"
+              variant="ghost"
+              iconAfter={<Icon name="expand_more" />}
+              aria-label="Conversation view"
+              data-testid="pn-chat-view"
+            >
+              View
+            </Button>
+          }
+        />
+      }
       scroll={{
         fade: true,
         thinScrollbar: true,
         stickToBottom: true,
-        lines: shown.length,
+        lines: shown.length + (conversation ? coach.notes.length : 0),
         activity: `${answering}-${last?.stage?.label}-${last?.items?.length ?? 0}-${s.live.interim}`,
         jumpLabel: JUMP_LABEL,
       }}
@@ -371,18 +416,28 @@ export function ChatPanel({ s }: { s: PanelSession }) {
         </div>
       }
     >
-      <Transcript
-        ref={log}
-        aria-label="Transcript and chat"
-        entries={shown.map(({ entry }) => entry)}
-        copyIcon={<Icon name="content_copy" />}
-        copiedIcon={<Icon name="check" />}
-        copyLabel="Copy message"
-        onCopy={(entry) => void copyBubble(entry)}
-        copiedId={copied}
-        highlight={highlightLines}
-        {...choose}
-      />
+      {conversation ? (
+        <ConversationView
+          rows={shown.flatMap(({ row }) => (row ? [row] : []))}
+          notes={coach.notes}
+          interim={s.live.interim}
+          selectedTaskId={s.selected?.taskId}
+          onSelectTask={s.select}
+        />
+      ) : (
+        <Transcript
+          ref={log}
+          aria-label="Transcript and chat"
+          entries={shown.map(({ entry }) => entry)}
+          copyIcon={<Icon name="content_copy" />}
+          copiedIcon={<Icon name="check" />}
+          copyLabel="Copy message"
+          onCopy={(entry) => void copyBubble(entry)}
+          copiedId={copied}
+          highlight={highlightLines}
+          {...choose}
+        />
+      )}
       {answering && (
         <p
           role="status"
@@ -397,5 +452,23 @@ export function ChatPanel({ s }: { s: PanelSession }) {
         </p>
       )}
     </Panel>
+  );
+  if (!hasCallSlot(view)) return panel;
+  // The call window's room sits above the pane, outside its card, so the call
+  // shows through it; the conversation reads directly beneath the call.
+  return (
+    <div
+      style={{
+        display: "flex",
+        flex: "1 1 0",
+        flexDirection: "column",
+        gap: 8,
+        minWidth: 0,
+        minHeight: 0,
+      }}
+    >
+      <CallSlot />
+      {panel}
+    </div>
   );
 }

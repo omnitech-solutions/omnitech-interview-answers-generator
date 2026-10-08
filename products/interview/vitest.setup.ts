@@ -1,7 +1,23 @@
 import "@testing-library/jest-dom/vitest";
 
 import { cleanup, configure } from "@testing-library/react";
-import { afterEach } from "vitest";
+import { afterEach, vi } from "vitest";
+
+// The transcript pane has two layouts. The suite's existing tests describe the
+// transcript layout, so that is what a test gets unless it asks for another
+// (`chatViewForTests.view = "conversation"`); the choice itself is tested in
+// chat-view-pref.test.ts against the real module.
+const chatViewForTests = vi.hoisted(() => ({ view: "transcript" }));
+Object.assign(globalThis, { chatViewForTests });
+vi.mock(
+  "./src/frontend/studio/live/overlay/panels/chat-view-pref",
+  async (original) => ({
+    ...(await original<
+      typeof import("./src/frontend/studio/live/overlay/panels/chat-view-pref")
+    >()),
+    useChatView: () => chatViewForTests.view,
+  }),
+);
 
 // The default 1 s wait for findBy/waitFor is too tight when hundreds of test
 // files run in parallel (dynamic imports such as Mermaid can take longer); it
@@ -58,3 +74,7 @@ if (typeof window !== "undefined") {
   proto.releasePointerCapture ??= () => undefined;
   proto.scrollIntoView ??= () => undefined;
 }
+
+afterEach(() => {
+  chatViewForTests.view = "transcript";
+});

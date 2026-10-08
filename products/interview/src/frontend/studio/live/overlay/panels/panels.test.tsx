@@ -476,7 +476,7 @@ describe("chat", () => {
     expect(screen.queryByTestId("pn-loading")).toBeNull();
     expect(
       document.querySelector('[data-slot="panel-header"]'),
-    ).toHaveTextContent(/^Transcript & chat$/);
+    ).toHaveTextContent(/^Transcript & chat/);
   });
 });
 

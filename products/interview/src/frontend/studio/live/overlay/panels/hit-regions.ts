@@ -36,6 +36,7 @@ export const HIT_SELECTORS = [
   ".pn-toast", // a toast
   ".ss-viewer-scrim", // the screenshot viewer, when open: covers the window
   "[data-oui-surface]", // every portalled library surface (menus, popovers, tooltips, dialogs, toasts)
+  "[data-hit-surface]", // a control that stands outside any card (the call slot's resize bar)
 ] as const;
 
 // What always drags the window (around its controls): the toolbar, the footer,

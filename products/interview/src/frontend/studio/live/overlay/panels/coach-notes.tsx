@@ -19,6 +19,7 @@ import {
 import { Icon } from "../../../icon";
 import { TENANT_HEADER } from "../../../studio-fetch";
 import { openExternalThroughHost } from "../../host-adapter";
+import { isConversation, useChatView } from "./chat-view-pref";
 import { windowTenant } from "./use-account";
 
 const POLL_MS = 2_000;
@@ -189,6 +190,7 @@ const STYLE = {
     fontSize: 18,
     lineHeight: 1.5,
   },
+  inlineNote: { fontSize: 16, lineHeight: 1.5 },
   head: { display: "flex", alignItems: "center", gap: 10, marginBottom: 8 },
   title: { fontSize: 20, fontWeight: 700, lineHeight: 1.25 },
   heading: {
@@ -382,19 +384,30 @@ function Diagram({ source }: { source: string }) {
   );
 }
 
-function Prompter({ note }: { note: CoachNote }) {
+// One note, drawn. `inline` is the note under its question in the conversation:
+// it takes the height it needs (the conversation scrolls, not the note) and
+// leaves its title to the row above it.
+export function Prompter({
+  note,
+  inline = false,
+}: {
+  note: CoachNote;
+  inline?: boolean;
+}) {
   const blocks = noteBlocks(noteMarkdown(note));
   return (
     <article
-      style={STYLE.prompter}
+      style={inline ? STYLE.inlineNote : STYLE.prompter}
       data-tone={note.tone}
       data-text-surface=""
       data-testid="pn-coach-note"
     >
-      <header style={STYLE.head}>
-        <Tag>{note.tone === "watch" ? "Watch" : "Say"}</Tag>
-        <strong style={STYLE.title}>{note.title}</strong>
-      </header>
+      {!inline && (
+        <header style={STYLE.head}>
+          <Tag>{note.tone === "watch" ? "Watch" : "Say"}</Tag>
+          <strong style={STYLE.title}>{note.title}</strong>
+        </header>
+      )}
       {blocks.map((block, at) => {
         const key = `${at}:${block.kind}`;
         if (block.kind === "code")
@@ -462,7 +475,10 @@ export function CoachNotes({
     | ((size: { width: number; height?: number }) => unknown)
     | undefined;
 }) {
-  const { notes, clear } = useCoachNotes(enabled);
+  // In a conversation view the notes sit under their questions in the
+  // transcript pane, so this panel stands down (and stops reading).
+  const apart = !isConversation(useChatView());
+  const { notes, clear } = useCoachNotes(enabled && apart);
   const [dock, setDockState] = useState<CoachDock>(savedDock);
   const setDock = (next: CoachDock) => {
     setDockState(next);
@@ -517,7 +533,7 @@ export function CoachNotes({
   });
   // A panel at the side stands beside the panes: the window's content keeps
   // clear of it with a margin on that side.
-  const shownAtSide = side && enabled && notes.length > 0;
+  const shownAtSide = side && enabled && apart && notes.length > 0;
   useEffect(() => {
     const root = document.querySelector<HTMLElement>(".pn-root");
     if (!root || !shownAtSide) return;
@@ -558,7 +574,7 @@ export function CoachNotes({
     setPicked(null);
     setOpen(true);
   }, [newest]);
-  if (!enabled || notes.length === 0) return null;
+  if (!enabled || !apart || notes.length === 0) return null;
   const found = notes.filter((note) => matchesNote(note, query));
   const shown = found.find((note) => note.id === picked) ?? found[0];
   return (

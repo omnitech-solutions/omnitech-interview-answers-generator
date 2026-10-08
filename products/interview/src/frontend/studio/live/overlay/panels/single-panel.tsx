@@ -13,6 +13,11 @@ import {
   useState,
 } from "react";
 import { Footer, failureNote } from "../overlay-footer";
+import {
+  CONVERSATION_WIDTH,
+  isConversation,
+  useChatView,
+} from "./chat-view-pref";
 import { CoachNotes, coachReserve } from "./coach-notes";
 import { FOCUS_INPUT_EVENT } from "./commands";
 import { EndedCard } from "./ended-card";
@@ -50,6 +55,12 @@ import type { PanelWindowMode } from "./window-mode";
 // Set here as well as in the stylesheet, which the native window keeps until
 // it reloads.
 const ANSWER_SHARE = { flexGrow: 1.7 } as const;
+// The conversation is read from while speaking and stands under the call
+// window, so its pane is wider than the transcript's.
+const CONVERSATION_SHARE = {
+  flex: `0 0 ${CONVERSATION_WIDTH}px`,
+} as const;
+const CHAT_WIDTH = PANES.find((pane) => pane.id === "chat")?.width ?? 0;
 
 export const ENDED_LOCK = "The session has ended. Start a new session.";
 
@@ -88,6 +99,9 @@ export function SinglePanel({
   windowMode: PanelWindowMode;
 }) {
   const { shown, show } = panes;
+  const conversation = isConversation(useChatView());
+  // Beside other panes the conversation takes its own width; alone it has the row.
+  const wideChat = conversation && shown.chat && (shown.analysis || shown.code);
   // What each pane shows. The ids and sizes live in PANES.
   const view: Record<PaneId, (session: PanelSession) => ReactNode> = {
     chat: (session) => <ChatPanel s={session} />,
@@ -186,7 +200,8 @@ export function SinglePanel({
       // Plus the room a coach panel docked at the side stands in.
       const width =
         windowWidthFor(holdBody ? NO_PANES : shown, toolbar) +
-        coachReserve.width;
+        coachReserve.width +
+        (wideChat && !holdBody ? CONVERSATION_WIDTH - CHAT_WIDTH : 0);
       let height: number | undefined;
       if (!anyPane && root) {
         const content =
@@ -220,6 +235,7 @@ export function SinglePanel({
     return () => watch.disconnect();
   }, [
     shown,
+    wideChat,
     holdBody,
     anyPane,
     ended,
@@ -268,7 +284,13 @@ export function SinglePanel({
               data-which={pane.id}
               // The answer takes the larger share of the width beside the
               // code: it is what is read from while speaking.
-              style={pane.id === "analysis" ? ANSWER_SHARE : undefined}
+              style={
+                pane.id === "analysis"
+                  ? ANSWER_SHARE
+                  : pane.id === "chat" && wideChat
+                    ? CONVERSATION_SHARE
+                    : undefined
+              }
             >
               {view[pane.id](s)}
             </div>
