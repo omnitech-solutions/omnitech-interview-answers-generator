@@ -15,6 +15,7 @@
 // What is drawn comes from the UI library; the few inline styles left size
 // the layout's own boxes (the columns, the call's room).
 import {
+  ActionMenu,
   Button,
   Divider,
   Empty,
@@ -37,9 +38,13 @@ import { Icon } from "../../../icon";
 import { ChatPanel } from "./chat-panel";
 import { type ChatView, QUESTIONS_WIDTH, RIGHT_WIDTH } from "./chat-view-pref";
 import {
+  COACH_LAYOUTS,
+  type CoachLayoutId,
   type CoachTextSize,
   HEIGHT_FLOOR,
   holdWindowDrag,
+  QUESTIONS_FLOOR,
+  SIDE_FLOOR,
   setCoachTextSize,
   setCoachWindowHeight,
   setCoachWindowWidth,
@@ -252,7 +257,7 @@ function NotesPane({
   questions,
   onPick,
   onLive,
-  onReset,
+  onLayout,
   waiting,
   following,
   compact,
@@ -271,8 +276,8 @@ function NotesPane({
   onPick(key: string): void;
   // Back to the question on the table.
   onLive(): void;
-  // Puts every size in the layout back: the columns and the call's room.
-  onReset(): void;
+  // Arranges the layout: the default sizes, the whole screen, panes folded.
+  onLayout(layout: CoachLayoutId): void;
 }) {
   const textSize = useCoachTextSize();
   const at = question ? questions.indexOf(question) : -1;
@@ -318,13 +323,31 @@ function NotesPane({
             }))}
             data-testid="pn-coach-text-size"
           />
-          <IconButton
-            variant="ghost"
-            iconSize="sm"
-            icon={<Icon name="fit_screen" />}
-            label="Reset layout: put the columns, the call's room and the window back to their sizes"
-            onClick={onReset}
-            data-testid="pn-coach-reset"
+          <ActionMenu
+            label="Layout"
+            title="Layout"
+            width={300}
+            sections={[
+              {
+                id: "layout",
+                selection: "none",
+                items: COACH_LAYOUTS.map((layout) => ({
+                  id: layout.id,
+                  label: layout.label,
+                  description: layout.description,
+                  onSelect: () => onLayout(layout.id),
+                })),
+              },
+            ]}
+            trigger={
+              <IconButton
+                variant="ghost"
+                iconSize="sm"
+                icon={<Icon name="fit_screen" />}
+                label="Layout"
+                data-testid="pn-coach-layout-menu"
+              />
+            }
           />
           <IconButton
             variant="ghost"
@@ -551,7 +574,25 @@ export function CoachLayout({
     resizable: true,
     // Sizes are given only once one has been dragged: until then every
     // panel has its own default.
-    ...(sizes.sizes ? { sizes: sizes.sizes } : {}),
+    // A width kept from before the side columns had a floor is lifted to it.
+    ...(sizes.sizes
+      ? {
+          sizes: {
+            ...sizes.sizes,
+            ...(sizes.sizes["questions"] !== undefined
+              ? {
+                  questions: Math.max(
+                    sizes.sizes["questions"],
+                    QUESTIONS_FLOOR,
+                  ),
+                }
+              : {}),
+            ...(sizes.sizes["side"] !== undefined
+              ? { side: Math.max(sizes.sizes["side"], SIDE_FLOOR) }
+              : {}),
+          },
+        }
+      : {}),
     onSizesChange: sizes.keep,
     resetKey: sizes.resetKey,
     handleProps: { "data-hit-surface": "" },
@@ -568,7 +609,7 @@ export function CoachLayout({
       following={pickedQuestion === undefined}
       compact={view === "prompter"}
       waiting={pickedQuestion === undefined ? waiting : undefined}
-      onReset={sizes.reset}
+      onLayout={sizes.arrange}
     />
   );
   // [DOMAIN] Room for the call window (or the captured screen), above the
@@ -637,7 +678,7 @@ export function CoachLayout({
         id="questions"
         label="the questions"
         defaultSize={QUESTIONS_WIDTH}
-        minSize={0}
+        minSize={QUESTIONS_FLOOR}
         maxSize={QUESTIONS_CEILING}
         style={STYLE.panelFill}
       >
@@ -654,7 +695,7 @@ export function CoachLayout({
         id="side"
         label="the answer"
         defaultSize={RIGHT_WIDTH}
-        minSize={0}
+        minSize={SIDE_FLOOR}
         style={{ ...STYLE.panelFill, gap: 8 }}
       >
         {view === "coach" ? (

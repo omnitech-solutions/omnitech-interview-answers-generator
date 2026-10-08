@@ -22,6 +22,44 @@ function saved(): Sizes | undefined {
   }
 }
 
+// The narrowest the side columns go: still readable, never folded away.
+export const QUESTIONS_FLOOR = 180;
+export const SIDE_FLOOR = 300;
+
+// The layouts offered from the notes pane's Layout menu, as data.
+export const COACH_LAYOUTS = [
+  {
+    id: "default",
+    label: "Default",
+    description:
+      "Every column, the call's room and the window at their own sizes",
+  },
+  {
+    id: "fill",
+    label: "Fill the screen",
+    description: "The window takes the whole screen",
+  },
+  {
+    id: "notes",
+    label: "Widest notes",
+    description:
+      "The questions and the answer at their narrowest, no room for the call",
+  },
+  {
+    id: "no-call",
+    label: "No room for the call",
+    description: "The notes take the height of the centre column",
+  },
+] as const;
+export type CoachLayoutId = (typeof COACH_LAYOUTS)[number]["id"];
+const LAYOUT_SIZES: Record<
+  Exclude<CoachLayoutId, "default" | "fill">,
+  Sizes
+> = {
+  notes: { questions: QUESTIONS_FLOOR, side: SIDE_FLOOR, call: 0 },
+  "no-call": { call: 0 },
+};
+
 // [DOMAIN] The sizes are the Splitter's, by panel id ("questions", "side",
 // "call"). Until one is dragged there are none kept and every panel has its
 // own default; a reset forgets them and tells the Splitters to go back.
@@ -51,7 +89,22 @@ export function useCoachSizes() {
       // Nothing was kept.
     }
   }, []);
-  return { sizes, keep, reset, resetKey };
+  // [DOMAIN] A named layout: the default, or sizes set in one go. The window
+  // fills the screen by asking for all of it; the call's room is folded away by
+  // giving it none (its handle stays, to bring it back).
+  const arrange = useCallback(
+    (layout: CoachLayoutId) => {
+      if (layout === "default") return reset();
+      if (layout === "fill") {
+        setCoachWindowWidth(window.screen.availWidth);
+        setCoachWindowHeight(window.screen.availHeight);
+        return;
+      }
+      keep(LAYOUT_SIZES[layout]);
+    },
+    [keep, reset],
+  );
+  return { sizes, keep, reset, resetKey, arrange };
 }
 
 // [SAFETY] The native shell moves the window when a press travels over an
