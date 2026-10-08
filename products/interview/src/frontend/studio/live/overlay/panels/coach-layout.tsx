@@ -39,6 +39,7 @@ import { ChatPanel } from "./chat-panel";
 import { type ChatView, QUESTIONS_WIDTH, RIGHT_WIDTH } from "./chat-view-pref";
 import {
   COACH_LAYOUTS,
+  COLUMN_HANDLES,
   type CoachLayoutId,
   type CoachTextSize,
   HEIGHT_FLOOR,
@@ -51,6 +52,7 @@ import {
   TEXT_SIZES,
   useCoachSizes,
   useCoachTextSize,
+  useToolbarWidth,
   WINDOW_FLOOR,
 } from "./coach-columns";
 import { CoachNoteView } from "./coach-note-view";
@@ -74,7 +76,6 @@ const LINE = "#2c2c2f";
 // The room the call opens with, and what the notes and the centre always keep.
 const CALL_HEIGHT = 250;
 const NOTES_FLOOR = 160;
-const CENTRE_FLOOR = 320;
 const QUESTIONS_CEILING = 360;
 
 const TEXT_SIZE_LABEL: Record<CoachTextSize, string> = {
@@ -567,6 +568,8 @@ export function CoachLayout({
     if (answered?.taskId) s.select(answered.taskId);
   };
   const sizes = useCoachSizes();
+  // The centre column is the toolbar's width at least.
+  const toolbarWidth = useToolbarWidth();
   // A handle of the library's Splitter is a surface of its own (so the
   // see-through window gives it the mouse), and while one is held the page
   // tells the shell not to move the window.
@@ -639,7 +642,12 @@ export function CoachLayout({
     edges: ["start", "end"],
     edgeAnchor: "centre",
     extent: window.innerWidth,
-    minExtent: WINDOW_FLOOR,
+    // Never narrower than the side columns at their least with the centre at
+    // the toolbar's width.
+    minExtent:
+      view === "prompter"
+        ? WINDOW_FLOOR
+        : QUESTIONS_FLOOR + toolbarWidth + SIDE_FLOOR + COLUMN_HANDLES,
     maxExtent: window.screen.availWidth,
     onExtentChange: (width: number) => setCoachWindowWidth(width),
     onExtentReset: () => setCoachWindowWidth(null),
@@ -688,7 +696,7 @@ export function CoachLayout({
           onPick={pick}
         />
       </SplitterPanel>
-      <SplitterPanel id="main" minSize={CENTRE_FLOOR} style={STYLE.panelFill}>
+      <SplitterPanel id="main" minSize={toolbarWidth} style={STYLE.panelFill}>
         {centre}
       </SplitterPanel>
       <SplitterPanel

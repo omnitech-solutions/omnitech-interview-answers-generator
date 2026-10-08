@@ -3,7 +3,13 @@
 // remembered), and the window's own width and height, which the Splitters'
 // outer edges ask for.
 // "Reset layout" puts all of it back.
-import { useCallback, useRef, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 
 const KEY = "omnitech.interview.coach.sizes";
 type Sizes = Record<string, number>;
@@ -252,4 +258,28 @@ export function useCoachTextSize(): CoachTextSize {
     },
     () => TEXT_DEFAULT,
   );
+}
+
+// ---- The centre column and the toolbar -------------------------------------------
+
+// [DOMAIN] The centre column (the call's room over the notes) is as wide as
+// the toolbar above it by default, and never narrower. The toolbar grows with
+// its labels, so its width is measured, not assumed.
+export const TOOLBAR_FALLBACK = 560;
+// The Splitter's handles in a row of three columns: one per side column and
+// one at each outer edge, 8px each.
+export const COLUMN_HANDLES = 32;
+export function useToolbarWidth(): number {
+  const [width, setWidth] = useState(TOOLBAR_FALLBACK);
+  useLayoutEffect(() => {
+    const pill = document.querySelector<HTMLElement>(".pn-toolbar");
+    if (!pill) return;
+    const read = () => setWidth(pill.offsetWidth || TOOLBAR_FALLBACK);
+    read();
+    if (typeof ResizeObserver === "undefined") return;
+    const watch = new ResizeObserver(read);
+    watch.observe(pill);
+    return () => watch.disconnect();
+  }, []);
+  return width;
 }

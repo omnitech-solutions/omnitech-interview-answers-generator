@@ -13,8 +13,19 @@ import {
   useState,
 } from "react";
 import { Footer, failureNote } from "../overlay-footer";
-import { COACH_WINDOW, useChatView } from "./chat-view-pref";
-import { useCoachWindowHeight, useCoachWindowWidth } from "./coach-columns";
+import {
+  COACH_WINDOW,
+  QUESTIONS_WIDTH,
+  RIGHT_WIDTH,
+  useChatView,
+} from "./chat-view-pref";
+import {
+  COLUMN_HANDLES,
+  QUESTIONS_FLOOR,
+  SIDE_FLOOR,
+  useCoachWindowHeight,
+  useCoachWindowWidth,
+} from "./coach-columns";
 import { CoachLayout } from "./coach-layout";
 import { CoachNotes, coachReserve } from "./coach-notes";
 import { FOCUS_INPUT_EVENT } from "./commands";
@@ -208,7 +219,15 @@ export function SinglePanel({
       // A coach layout has its own width: its columns, not the panes'.
       const width =
         coachView && !holdBody
-          ? Math.max(draggedWidth ?? COACH_WINDOW[coachView].width, toolbar)
+          ? coachView === "prompter"
+            ? Math.max(draggedWidth ?? COACH_WINDOW[coachView].width, toolbar)
+            : // The centre column is the toolbar's width by default and at
+              // least: the side columns stand at each side of it.
+              Math.max(
+                draggedWidth ??
+                  QUESTIONS_WIDTH + toolbar + RIGHT_WIDTH + COLUMN_HANDLES,
+                QUESTIONS_FLOOR + toolbar + SIDE_FLOOR + COLUMN_HANDLES,
+              )
           : windowWidthFor(holdBody ? NO_PANES : shown, toolbar) +
             coachReserve.width;
       let height: number | undefined;
