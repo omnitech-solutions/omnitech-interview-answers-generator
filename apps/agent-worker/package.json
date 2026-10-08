@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "node ../../scripts/bundle-node-app.mjs src/main.ts dist/main.js",
-    "dev": "tsx src/main.ts",
+    "dev": "tsx watch --clear-screen=false --include \"../../products/*/dist/**/*.js\" --include \"../../packages/*/dist/**/*.js\" src/main.ts",
     "start": "node dist/main.js",
     "lint": "biome lint src",
     "typecheck": "tsc --noEmit",
