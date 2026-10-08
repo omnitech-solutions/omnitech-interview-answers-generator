@@ -73,6 +73,8 @@ const TRANSCRIPT_ONLY: PaneState = {
   code: false,
 };
 const NO_PANES: PaneState = { chat: false, analysis: false, code: false };
+// The share of the screen's height a coach layout opens at.
+const COACH_SCREEN_SHARE = 0.75;
 // The least height a window with panes showing is asked for (the shell opens at 640).
 const PANE_HEIGHT = 640;
 
@@ -246,6 +248,13 @@ export function SinglePanel({
         const least = coachView ? COACH_WINDOW[coachView].height : PANE_HEIGHT;
         // A height dragged from the layout's bottom edge stands as given.
         if (coachView && draggedHeight !== null) height = draggedHeight;
+        // [DOMAIN] A coach layout opens three quarters of the screen tall,
+        // until its bottom edge is dragged.
+        else if (coachView)
+          height = Math.round(
+            (window.screen?.availHeight || least / COACH_SCREEN_SHARE) *
+              COACH_SCREEN_SHARE,
+          );
         else if (current >= least) paneHeight.current = current;
         else height = Math.max(paneHeight.current ?? 0, least);
       }
