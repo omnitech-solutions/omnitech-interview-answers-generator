@@ -53,7 +53,7 @@ export type SourceLimits = {
 export const TASK_VIEW_LIMITS: SourceLimits = {
   maxSources: 40,
   maxSourceChars: 400,
-  maxTotalChars: 6_500,
+  maxTotalChars: 5_000,
 };
 // Lines of the employer brief a task view carries ahead of the matrix.
 export const MAX_BRIEF_SOURCES = 20;

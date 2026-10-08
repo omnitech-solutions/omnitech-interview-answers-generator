@@ -59,15 +59,20 @@ async function contextOf(
   // The owner edits the job spec and its brief while a session runs: the
   // context is re-read once it is older than CONTEXT_TTL_MS (one cheap read),
   // and a failed re-read keeps the context already in hand.
+  // A context handed to the run (a rebuilt or test run) counts as read now.
+  if (run.context && run.contextLoadedAt === undefined)
+    run.contextLoadedAt = Date.now();
   const fresh =
     run.context && Date.now() - (run.contextLoadedAt ?? 0) < CONTEXT_TTL_MS;
   if (run.context && fresh) return run.context;
   try {
-    run.context = await store.loadContext(run.scope, run.claim.sessionId);
+    const next = await store.loadContext(run.scope, run.claim.sessionId);
+    if (next) run.context = next;
     run.contextLoadedAt = Date.now();
     return run.context;
   } catch {
-    // [SAFETY] The error is never read: only that it failed is recorded.
+    // [SAFETY] The error is never read: only that it failed is recorded; the
+    // context already in hand (if any) stays.
     return run.context;
   }
 }
