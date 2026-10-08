@@ -34,6 +34,16 @@ vi.mock("./panel-views", async (original) => ({
   AnswerPanel: () => <div data-testid="pane-answer" />,
   CodePanel: () => <div data-testid="pane-code" />,
 }));
+// The Context pane reads the brief and the matrix (context-pane.test.tsx);
+// here it is a stand-in that says which notes it was given.
+vi.mock("./context-pane", () => ({
+  ContextPane: ({ notes }: { notes: readonly CoachNote[] }) => (
+    <div
+      data-testid="pane-context"
+      data-notes={notes.map((each) => each.title).join(" | ")}
+    />
+  ),
+}));
 
 const QUESTION_ONE =
   "How do you decide when a feature should be its own microservice rather than a module?";
@@ -222,7 +232,7 @@ afterEach(() => {
 });
 
 describe("the three layouts", () => {
-  it("coach: the questions, the call over the coach's notes, and the answer, transcript and code as tabs", async () => {
+  it("coach: the questions, the call over the coach's notes, and the answer, transcript, code and context as tabs", async () => {
     await show("coach");
     expect(layout()).toHaveAttribute("data-view", "coach");
     expect(screen.getByTestId("pn-coach-questions")).toHaveAccessibleName(
@@ -231,12 +241,15 @@ describe("the three layouts", () => {
     expect(screen.getByTestId("pn-call-slot")).toBeInTheDocument();
     expect(notesPane()).toHaveAccessibleName("Coach");
     expect(
-      screen.getByRole("tablist", { name: "Answer, transcript or code" }),
+      screen.getByRole("tablist", {
+        name: "Answer, transcript, code or context",
+      }),
     ).toBeInTheDocument();
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
       "Answer",
       "Transcript",
       "Code",
+      "Context",
     ]);
     // Left to right: questions, the call and the notes, the tabs.
     const order = [
@@ -864,7 +877,7 @@ describe("a note that arrives while reading", () => {
 });
 
 describe("the right column of the coach view", () => {
-  const tab = (id: "answer" | "transcript" | "code") =>
+  const tab = (id: "answer" | "transcript" | "code" | "context") =>
     screen.getByTestId(`pn-coach-tab-${id}`);
   const selected = () =>
     screen
@@ -905,6 +918,50 @@ describe("the right column of the coach view", () => {
     expect(selected()).toEqual(["Answer"]);
     expect(within(panel()).getByTestId("pane-answer")).toBeInTheDocument();
     expect(screen.queryByTestId("pane-code")).toBeNull();
+  });
+
+  it("the Context tab shows what the answers are built from, in the answer's place", async () => {
+    await show("coach");
+    expect(screen.queryByTestId("pane-context")).toBeNull();
+    fireEvent.click(tab("context"));
+    expect(selected()).toEqual(["Context"]);
+    expect(within(panel()).getByTestId("pane-context")).toBeInTheDocument();
+    expect(screen.queryByTestId("pane-answer")).toBeNull();
+    expect(screen.queryByTestId("pn-chat")).toBeNull();
+    expect(screen.queryByTestId("pane-code")).toBeNull();
+    fireEvent.click(tab("answer"));
+    expect(screen.queryByTestId("pane-context")).toBeNull();
+  });
+
+  it("the Context tab is given the notes of the question on show, and follows it", async () => {
+    post(note(3, 80, { title: "Then the Saga", askId: "q-consistency" }));
+    await show("coach");
+    fireEvent.click(tab("context"));
+    const given = () =>
+      screen.getByTestId("pane-context").getAttribute("data-notes");
+    expect(given()).toBe("Name the techniques | Then the Saga");
+    pickListed(1);
+    expect(given()).toBe("Name the criteria");
+    fireEvent.click(screen.getByTestId("pn-coach-live"));
+    expect(given()).toBe("Name the techniques | Then the Saga");
+  });
+
+  it("the Context tab is given no notes before anything is asked", async () => {
+    posted = [];
+    await show("coach", session([]));
+    fireEvent.click(tab("context"));
+    expect(screen.getByTestId("pane-context")).toHaveAttribute(
+      "data-notes",
+      "",
+    );
+  });
+
+  it("there is no Context tab outside the coach view", async () => {
+    await show("conversation");
+    expect(screen.queryByTestId("pn-coach-tab-context")).toBeNull();
+    cleanup();
+    await show("prompter");
+    expect(screen.queryByTestId("pn-coach-tab-context")).toBeNull();
   });
 
   it("switching tabs leaves the question on show and its notes alone", async () => {
