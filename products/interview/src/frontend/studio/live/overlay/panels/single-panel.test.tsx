@@ -2760,3 +2760,308 @@ describe("the answer style trigger", () => {
     ).toBe(true);
   });
 });
+
+// The suite's setup replaces useChatView with this value (reset after each test).
+const chosenView = (
+  globalThis as unknown as { chatViewForTests: { view: string } }
+).chatViewForTests;
+const VIEW_KEY = "omnitech.interview.view";
+
+describe("the View menu", () => {
+  const trigger = () => screen.getByTestId("pn-view");
+
+  it("sits in the toolbar before the answer style and names the layout on show", async () => {
+    await show();
+    expect(toolbar()).toContainElement(trigger());
+    expect(trigger()).toHaveAccessibleName("View: Original");
+    expect(trigger()).toHaveTextContent("Original");
+    expect(
+      trigger().compareDocumentPosition(
+        screen.getByRole("button", { name: /^Answer style/ }),
+      ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("lists the coach layouts and the classic ones in two groups, and checks the one on show", async () => {
+    await show();
+    pointerOpen(trigger());
+    const menu = screen.getByRole("menu", { name: "View" });
+    expect(
+      within(menu)
+        .getAllByRole("group")
+        .map((group) => group.getAttribute("aria-label")),
+    ).toEqual(["Coach", "Classic"]);
+    const rows = (group: string) =>
+      within(within(menu).getByRole("group", { name: group }))
+        .getAllByRole("menuitemradio")
+        .map((item) => item.textContent);
+    expect(rows("Coach")).toEqual([
+      expect.stringContaining("Call-first coach"),
+      expect.stringContaining("Conversation under the call"),
+      expect.stringContaining("Prompter only"),
+    ]);
+    expect(rows("Classic")).toEqual([
+      expect.stringContaining("Original"),
+      expect.stringContaining("Transcript only"),
+    ]);
+    expect(
+      within(menu)
+        .getAllByRole("menuitemradio")
+        .filter((item) => item.getAttribute("aria-checked") === "true")
+        .map((item) => item.textContent),
+    ).toEqual([expect.stringContaining("Original")]);
+  });
+
+  it.each([
+    ["coach", "Call-first coach"],
+    ["conversation", "Conversation under the call"],
+    ["prompter", "Prompter only"],
+    ["transcript", "Transcript only"],
+  ])(
+    "checks %s when it is the layout on show, and says so on the button",
+    async (view, label) => {
+      chosenView.view = view;
+      await show();
+      expect(trigger()).toHaveAccessibleName(`View: ${label}`);
+      pointerOpen(trigger());
+      expect(
+        within(screen.getByRole("menu", { name: "View" }))
+          .getAllByRole("menuitemradio")
+          .filter((item) => item.getAttribute("aria-checked") === "true")
+          .map((item) => item.textContent),
+      ).toEqual([expect.stringContaining(label)]);
+    },
+  );
+
+  it.each([
+    ["Prompter only", "prompter"],
+    ["Call-first coach", "coach"],
+    ["Conversation under the call", "conversation"],
+    ["Transcript only", "transcript"],
+    ["Original", "original"],
+  ])(
+    "choosing %s keeps it as the view for the next session and closes the menu",
+    async (label, id) => {
+      await show();
+      expect(window.localStorage.getItem(VIEW_KEY)).toBeNull();
+      pointerOpen(trigger());
+      fireEvent.click(
+        within(screen.getByRole("menu", { name: "View" })).getByRole(
+          "menuitemradio",
+          { name: new RegExp(`^${label}`) },
+        ),
+      );
+      await flush();
+      expect(window.localStorage.getItem(VIEW_KEY)).toBe(id);
+      expect(screen.queryByRole("menu", { name: "View" })).toBeNull();
+    },
+  );
+
+  it("opens from the keyboard and closes on Escape with nothing chosen", async () => {
+    await show();
+    keyOpen(trigger());
+    expect(screen.getByRole("menu", { name: "View" })).toBeInTheDocument();
+    fireEvent.keyDown(document.activeElement as Element, { key: "Escape" });
+    await flush();
+    expect(screen.queryByRole("menu", { name: "View" })).toBeNull();
+    expect(window.localStorage.getItem(VIEW_KEY)).toBeNull();
+  });
+
+  it("is locked, saying why, once the session has ended", async () => {
+    serve(live({ status: "ended", endedAt: minutesAfter(1, 9) }));
+    await show();
+    expect(trigger()).toBeDisabled();
+    expect(trigger()).toHaveAttribute(
+      "title",
+      "The session has ended. Start a new session.",
+    );
+  });
+
+  it("is live while the session runs or is paused", async () => {
+    await show();
+    expect(trigger()).toBeEnabled();
+    cleanup();
+    serve(live({ status: "paused" }));
+    await show();
+    expect(trigger()).toBeEnabled();
+  });
+});
+
+describe("the layout chosen in the View menu", () => {
+  const QUESTION =
+    "How do you handle data consistency between multiple services?";
+  const NOTE = {
+    id: "00000000-0000-4000-8000-000000000001",
+    createdAt: minutesAfter(1),
+    title: "Name the techniques",
+    tone: "say",
+    points: ["Name the Outbox pattern"],
+    links: [],
+  };
+  // The coach's notes are read with the page's own fetch, not the session's.
+  const serveNotes = () => {
+    const fetched = vi.fn(
+      async () => new Response(JSON.stringify({ revision: 1, notes: [NOTE] })),
+    );
+    vi.stubGlobal("fetch", fetched);
+    return fetched;
+  };
+  const asked = () =>
+    serve(
+      live(),
+      [],
+      [
+        snapshot(1),
+        transcript(2, QUESTION, { sourceId: "application-audio-r1" }),
+      ],
+    );
+  const panesShown = () =>
+    [...document.querySelectorAll(".pn-single-pane")].map((pane) =>
+      pane.getAttribute("data-which"),
+    );
+  function sizes() {
+    const asked: { width: number; height?: number }[] = [];
+    nativeHost({
+      capabilities: ["always-on-top"],
+      setWindowSize: async (size: { width: number; height?: number }) => {
+        asked.push(size);
+        return true;
+      },
+      setFullScreen: async () => true,
+      quit: async () => true,
+    });
+    return asked;
+  }
+
+  it("original: the transcript, the answer and the code, with the coach panel docked beside them", async () => {
+    serveNotes();
+    asked();
+    await show();
+    await flush();
+    expect(panesShown()).toEqual(["chat", "analysis", "code"]);
+    expect(screen.queryByTestId("pn-coach-layout")).toBeNull();
+    expect(screen.getByTestId("pn-coach")).toHaveTextContent("Coach · 1 note");
+  });
+
+  it("transcript: only the chat pane, whatever panes are switched on, and the coach panel stays docked", async () => {
+    chosenView.view = "transcript";
+    serveNotes();
+    asked();
+    await show();
+    await flush();
+    expect(panesShown()).toEqual(["chat"]);
+    expect(screen.getByTestId("pn-chat")).toHaveTextContent(QUESTION);
+    expect(screen.queryByTestId("pn-coach-layout")).toBeNull();
+    expect(screen.queryByTestId("pn-call-slot")).toBeNull();
+    expect(screen.getByTestId("pn-coach")).toBeInTheDocument();
+    // The toggles still say what the original layout would show.
+    for (const label of ["Chat", "Answer", "Code"])
+      expect(screen.getByRole("button", { name: label })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+  });
+
+  it("transcript: asks for a narrower window than the three panes", async () => {
+    const asked = sizes();
+    await show();
+    const three = asked.at(-1)?.width as number;
+    cleanup();
+    chosenView.view = "transcript";
+    await show();
+    expect(asked.at(-1)?.width as number).toBeLessThan(three);
+  });
+
+  it.each(["coach", "conversation", "prompter"] as const)(
+    "%s: the coach layout takes the panes' place and draws the notes itself, so the docked coach panel stands down",
+    async (view) => {
+      chosenView.view = view;
+      const fetched = serveNotes();
+      asked();
+      await show();
+      await flush();
+      const layout = screen.getByTestId("pn-coach-layout");
+      expect(layout).toHaveAttribute("data-view", view);
+      expect(layout).toHaveClass("pn-single-body");
+      expect(document.querySelectorAll(".pn-single-body")).toHaveLength(1);
+      expect(panesShown()).toEqual([]);
+      expect(screen.queryByTestId("pn-coach")).toBeNull();
+      // The notes are read by the layout.
+      expect(fetched).toHaveBeenCalledWith(
+        "/api/v1/coach-notes",
+        expect.objectContaining({ method: "GET" }),
+      );
+      expect(screen.getByTestId("pn-coach-asked")).toHaveTextContent(QUESTION);
+      expect(screen.getByTestId("pn-coach-block")).toHaveTextContent(
+        "Name the Outbox pattern",
+      );
+      // The toolbar above it and the footer beneath it are the same ones.
+      expect(toolbar()).toBeVisible();
+      expect(document.querySelector(".pn-single-foot")).not.toBeNull();
+    },
+  );
+
+  it("coach: the answer, the transcript and the code are the real panes behind the tabs", async () => {
+    chosenView.view = "coach";
+    serveNotes();
+    asked();
+    await show();
+    const panel = () => screen.getByRole("tabpanel");
+    expect(within(panel()).getByTestId("pn-analysis")).toHaveAccessibleName(
+      "Answer",
+    );
+    fireEvent.click(screen.getByTestId("pn-coach-tab-transcript"));
+    expect(within(panel()).getByTestId("pn-chat")).toHaveTextContent(QUESTION);
+    fireEvent.click(screen.getByTestId("pn-coach-tab-code"));
+    expect(
+      within(panel()).getByRole("region", { name: "Code" }),
+    ).toBeInTheDocument();
+    expect(within(panel()).queryByTestId("pn-chat")).toBeNull();
+  });
+
+  it.each([
+    ["coach", 1340, 860],
+    ["conversation", 1340, 860],
+    ["prompter", 720, 780],
+  ])(
+    "%s: asks the window for %i px across and at least %i px of height",
+    async (view, width, height) => {
+      chosenView.view = view;
+      serveNotes();
+      const asked = sizes();
+      await show();
+      expect(asked.at(-1)).toEqual({ width, height });
+    },
+  );
+
+  it("a coach layout leaves a window that is already tall enough at the person's own height", async () => {
+    chosenView.view = "coach";
+    serveNotes();
+    vi.stubGlobal("innerHeight", 1_000);
+    const asked = sizes();
+    await show();
+    expect(asked.at(-1)).toEqual({ width: 1340 });
+  });
+
+  it.each(["coach", "prompter"] as const)(
+    "%s: a paused session holds the layout back and sizes the window for the toolbar alone",
+    async (view) => {
+      chosenView.view = view;
+      serveNotes();
+      const asked = sizes();
+      serve(live({ status: "paused" }));
+      await show();
+      expect(screen.queryByTestId("pn-coach-layout")).toBeNull();
+      expect(asked.at(-1)?.width as number).toBeLessThan(720);
+    },
+  );
+
+  it("an ended session shows the ended card, not the coach layout", async () => {
+    chosenView.view = "coach";
+    serveNotes();
+    serve(live({ status: "ended", endedAt: minutesAfter(1, 9) }));
+    await show();
+    expect(screen.queryByTestId("pn-coach-layout")).toBeNull();
+    expect(screen.getByTestId("pn-ended")).toBeVisible();
+  });
+});
