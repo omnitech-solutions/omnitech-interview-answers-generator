@@ -11,6 +11,7 @@ import {
   type CSSProperties,
   type ReactNode,
   useEffect,
+  useId,
   useRef,
   useState,
 } from "react";
@@ -135,6 +136,18 @@ const STYLE = {
     fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
     fontSize: "0.88em",
   },
+  pre: {
+    margin: "8px 0",
+    padding: "8px 10px",
+    borderRadius: 8,
+    background: "rgba(127,127,127,0.18)",
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+    fontSize: 13,
+    lineHeight: 1.45,
+    overflow: "auto",
+    whiteSpace: "pre",
+  },
+  figure: { margin: "8px 0", overflow: "auto", textAlign: "center" },
   links: { display: "flex", flexWrap: "wrap", gap: 4, marginTop: 10 },
   side: { display: "flex", flexDirection: "column", gap: 6, minHeight: 0 },
   sideHead: {
@@ -179,16 +192,36 @@ function inlineMarkdown(text: string): ReactNode[] {
 }
 
 type Block =
+  | { kind: "code"; language: string; source: string }
   | { kind: "heading"; text: string }
   | { kind: "list"; ordered: boolean; items: string[] }
   | { kind: "text"; text: string };
 
 // [DOMAIN] The Markdown a coach's note uses, and no more: headings, bullets,
-// numbered steps, paragraphs, bold and inline code. Anything else is shown as
-// the text it is; nothing in a note is ever rendered as HTML.
+// numbered steps, paragraphs, bold and inline code, and fenced blocks. A
+// fenced block marked "mermaid" is drawn as a diagram (a flow, a sequence, an
+// architecture sketch); any other is shown as code. Anything else is shown as
+// the text it is; nothing a note says is ever rendered as HTML.
 export function noteBlocks(markdown: string): Block[] {
   const blocks: Block[] = [];
+  let fence: { language: string; lines: string[] } | null = null;
   for (const raw of markdown.split(/\r?\n/)) {
+    const mark = /^\s*```\s*([\w-]*)\s*$/.exec(raw);
+    if (fence) {
+      if (mark) {
+        blocks.push({
+          kind: "code",
+          language: fence.language,
+          source: fence.lines.join("\n"),
+        });
+        fence = null;
+      } else fence.lines.push(raw);
+      continue;
+    }
+    if (mark) {
+      fence = { language: (mark[1] ?? "").toLowerCase(), lines: [] };
+      continue;
+    }
     const line = raw.trim();
     if (line === "") continue;
     const heading = /^#{1,6}\s+(.+)$/.exec(line);
@@ -204,7 +237,75 @@ export function noteBlocks(markdown: string): Block[] {
       else blocks.push({ kind: "list", ordered, items: [text] });
     } else blocks.push({ kind: "text", text: line });
   }
+  // A fence left open (a note cut short) still shows what it holds.
+  if (fence && fence.lines.length > 0)
+    blocks.push({
+      kind: "code",
+      language: fence.language,
+      source: fence.lines.join("\n"),
+    });
   return blocks;
+}
+
+// [SAFETY] The diagram is drawn by Mermaid at its strict security level, which
+// escapes the text in the source and allows no script or link in the result;
+// that drawing is the only markup a note ever puts on the page. Mermaid is
+// loaded only when a note carries a diagram.
+function Diagram({ source }: { source: string }) {
+  const id = `pn-coach-diagram-${useId().replaceAll(":", "")}`;
+  const [svg, setSvg] = useState("");
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let live = true;
+    setFailed(false);
+    void import("mermaid")
+      .then(async ({ default: mermaid }) => {
+        const root = document.querySelector<HTMLElement>(".pn-root");
+        const light =
+          (root?.dataset["theme"] ??
+            document.documentElement.dataset["theme"]) === "light";
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: "strict",
+          theme: light ? "default" : "dark",
+          flowchart: { useMaxWidth: true, htmlLabels: false },
+        });
+        const drawn = await mermaid.render(id, source);
+        // Mermaid pins the drawing to its natural width; here it is scaled
+        // to the prompter instead, so a wide flow is seen whole.
+        if (live)
+          setSvg(
+            drawn.svg.replace(
+              /style="max-width:[^"]*"/,
+              'style="max-width:100%;height:auto;max-height:210px"',
+            ),
+          );
+      })
+      .catch(() => {
+        if (live) setFailed(true);
+      });
+    return () => {
+      live = false;
+    };
+  }, [id, source]);
+  // A diagram that cannot be drawn shows its source, so nothing is lost.
+  if (failed)
+    return (
+      <pre style={STYLE.pre} data-testid="pn-coach-diagram-source">
+        {source}
+      </pre>
+    );
+  return (
+    <figure
+      style={STYLE.figure}
+      role="img"
+      aria-label="Diagram"
+      data-testid="pn-coach-diagram"
+      // Mermaid's own drawing at its strict security level (escaped text, no
+      // script, no link): never the note's text.
+      dangerouslySetInnerHTML={{ __html: svg }}
+    />
+  );
 }
 
 function Prompter({ note }: { note: CoachNote }) {
@@ -222,6 +323,14 @@ function Prompter({ note }: { note: CoachNote }) {
       </header>
       {blocks.map((block, at) => {
         const key = `${at}:${block.kind}`;
+        if (block.kind === "code")
+          return block.language === "mermaid" ? (
+            <Diagram key={key} source={block.source} />
+          ) : (
+            <pre key={key} style={STYLE.pre}>
+              {block.source}
+            </pre>
+          );
         if (block.kind === "heading")
           return (
             <h4 key={key} style={STYLE.heading}>
