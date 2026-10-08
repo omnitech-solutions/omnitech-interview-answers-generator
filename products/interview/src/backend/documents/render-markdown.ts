@@ -35,7 +35,7 @@ export function wrapDocumentPreview(body: string): string {
 export function escapeMarkdownValue(value: string): string {
   return value
     .replace(/\\/g, "\\\\")
-    .replace(/([`*_{}\[\]()#+.!|>~-])/g, "\\$1")
+    .replace(/([`*_{}[\]()#+.!|>~-])/g, "\\$1")
     .replace(/</g, "&lt;")
     .replace(/&(?!(?:lt|gt|amp|quot|#\d+);)/g, "&amp;");
 }

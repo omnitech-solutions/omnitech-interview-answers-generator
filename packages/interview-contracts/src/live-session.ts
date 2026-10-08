@@ -886,6 +886,9 @@ const briefLine = z.string().trim().min(1).max(240);
 export const employerBriefSchema = z.strictObject({
   company: z.string().trim().min(1).max(200),
   role: z.string().trim().min(1).max(200),
+  // What the company is, in facts the candidate can say: what it does and for
+  // whom, how it describes itself, recognition with years, scale, products.
+  companyFacts: z.array(briefLine).max(10).optional(),
   summary: z.string().trim().max(600),
   mustHaves: z.array(briefLine).max(12),
   niceToHaves: z.array(briefLine).max(12),

@@ -67,6 +67,7 @@ export function briefLines(brief: EmployerBrief): string {
   };
   return [
     `Employer brief: ${brief.role} at ${brief.company}`,
+    ...list(`About ${brief.company}`, brief.companyFacts ?? []),
     ...(brief.summary ? [`Role summary: ${flat(brief.summary)}`] : []),
     ...list("Must-haves", brief.mustHaves),
     ...list("Nice-to-haves", brief.niceToHaves),
