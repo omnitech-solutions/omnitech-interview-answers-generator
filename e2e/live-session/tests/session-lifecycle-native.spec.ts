@@ -4,7 +4,7 @@
 // holds or the bridge call the shell would have received, never the label.
 import type { Page } from "@playwright/test";
 import { expect, test } from "../src/fixtures/test";
-import { controlSession, startSessionViaApi } from "../src/helpers/api";
+import { startSessionViaApi } from "../src/helpers/api";
 import { db } from "../src/helpers/sql";
 import type { NativePanel } from "../src/pages/native-panel";
 
@@ -168,7 +168,11 @@ test("@native native ended card Start a new session: leaves the ended session fo
 }) => {
   const { id } = await startSessionViaApi();
   const { page } = await openPanel(native, id);
-  await controlSession(id, "end");
+  // Ended from this window, so the ended card stays (a session ended
+  // elsewhere is a lost one and goes straight to the start screen).
+  await page.getByRole("button", { name: "End session" }).click();
+  await endDialog(page).getByRole("button", { name: "End now" }).click();
+  await expect.poll(async () => (await db.session(id))?.status).toBe("ended");
   await expect(page.getByTestId("pn-ended")).toBeVisible();
   const before = (await db.sessions()).length;
 
