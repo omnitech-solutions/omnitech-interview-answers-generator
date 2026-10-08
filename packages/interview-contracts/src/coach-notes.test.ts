@@ -126,6 +126,45 @@ describe("a coach note as posted", () => {
     ).toBe(false);
   });
 
+  it("may restate the question in up to 80 characters, never a blank one", () => {
+    const ask = (text: unknown) => accepts({ title: "T", ask: text });
+    expect(ask("Data consistency across services")).toBe(true);
+    expect(ask("a".repeat(80))).toBe(true);
+    expect(ask("a".repeat(81))).toBe(false);
+    expect(ask("")).toBe(false);
+    expect(ask("   ")).toBe(false);
+    expect(ask(7)).toBe(false);
+    expect(ask(null)).toBe(false);
+  });
+
+  it("may name its question with an id of up to 64 characters, never a blank one", () => {
+    const askId = (id: unknown) => accepts({ title: "T", askId: id });
+    expect(askId("q-consistency")).toBe(true);
+    expect(askId("a".repeat(64))).toBe(true);
+    expect(askId("a".repeat(65))).toBe(false);
+    expect(askId("")).toBe(false);
+    expect(askId("   ")).toBe(false);
+    expect(askId(3)).toBe(false);
+  });
+
+  it("trims the restatement and the id, and measures them trimmed", () => {
+    expect(
+      coachNoteInputSchema.parse({
+        title: "T",
+        ask: "  Data consistency  ",
+        askId: " q-consistency ",
+      }),
+    ).toMatchObject({ ask: "Data consistency", askId: "q-consistency" });
+    expect(accepts({ title: "T", ask: ` ${"a".repeat(80)} ` })).toBe(true);
+    expect(accepts({ title: "T", askId: ` ${"a".repeat(64)} ` })).toBe(true);
+  });
+
+  it("leaves the restatement and the id out when they are not given", () => {
+    const parsed = coachNoteInputSchema.parse({ title: "T" });
+    expect(parsed).not.toHaveProperty("ask");
+    expect(parsed).not.toHaveProperty("askId");
+  });
+
   it("refuses a key it does not know, so a coach cannot set the id or the time", () => {
     expect(accepts({ title: "T", id: stored.id })).toBe(false);
     expect(accepts({ title: "T", html: "<b>bold</b>" })).toBe(false);
@@ -141,6 +180,24 @@ describe("a coach note as kept", () => {
     expect(
       coachNoteSchema.safeParse({ ...stored, createdAt: "yesterday" }).success,
     ).toBe(false);
+  });
+
+  it("keeps the restatement and the id it was posted with, within the same bounds", () => {
+    const kept = { ...stored, ask: "Data consistency", askId: "q-consistency" };
+    expect(coachNoteSchema.parse(kept)).toMatchObject({
+      ask: "Data consistency",
+      askId: "q-consistency",
+    });
+    expect(
+      coachNoteSchema.safeParse({ ...stored, ask: "a".repeat(81) }).success,
+    ).toBe(false);
+    expect(
+      coachNoteSchema.safeParse({ ...stored, askId: "a".repeat(65) }).success,
+    ).toBe(false);
+    expect(
+      coachNotesResponseSchema.safeParse({ revision: 2, notes: [kept] })
+        .success,
+    ).toBe(true);
   });
 
   it("is listed with a revision that is a whole number from 0", () => {
