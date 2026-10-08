@@ -433,3 +433,204 @@ describe("how large the notes read", () => {
     expect(window.localStorage.getItem(TEXT_KEY)).toBe("xl");
   });
 });
+
+describe("the layouts offered from the notes pane", () => {
+  const mount = async () => {
+    const columns = await load();
+    return {
+      columns,
+      ...renderHook(() => ({
+        sizes: columns.useCoachSizes(),
+        width: columns.useCoachWindowWidth(),
+        height: columns.useCoachWindowHeight(),
+      })),
+    };
+  };
+
+  it("are four, the default first, each with a name and what it does", async () => {
+    const { COACH_LAYOUTS } = await load();
+    expect(COACH_LAYOUTS.map((each) => [each.id, each.label])).toEqual([
+      ["default", "Default"],
+      ["fill", "Fill the screen"],
+      ["notes", "Widest notes"],
+      ["no-call", "No room for the call"],
+    ]);
+    for (const each of COACH_LAYOUTS)
+      expect(each.description.length).toBeGreaterThan(10);
+  });
+
+  it("the side columns' floors are 180 and 300 px", async () => {
+    const columns = await load();
+    expect([columns.QUESTIONS_FLOOR, columns.SIDE_FLOOR]).toEqual([180, 300]);
+  });
+
+  it("default is the reset: every kept size and the window's own are forgotten, and the Splitters are told to go back", async () => {
+    const { result, columns } = await mount();
+    act(() => {
+      result.current.sizes.keep({ questions: 200, side: 520, call: 90 });
+      columns.setCoachWindowWidth(1_200);
+      columns.setCoachWindowHeight(800);
+    });
+    act(() => result.current.sizes.arrange("default"));
+    expect(result.current.sizes.sizes).toBeUndefined();
+    expect(result.current.sizes.resetKey).toBe(1);
+    expect([result.current.width, result.current.height]).toEqual([null, null]);
+    expect(window.localStorage.getItem(KEY)).toBeNull();
+    expect(window.localStorage.getItem(WIDTH_KEY)).toBeNull();
+    expect(window.localStorage.getItem(HEIGHT_KEY)).toBeNull();
+  });
+
+  it("fill asks for the whole of the screen, keeps that, and leaves every column as it is", async () => {
+    const { result } = await mount();
+    act(() => result.current.sizes.keep({ questions: 200 }));
+    act(() => result.current.sizes.arrange("fill"));
+    expect([result.current.width, result.current.height]).toEqual([
+      SCREEN.availWidth,
+      SCREEN.availHeight,
+    ]);
+    expect(window.localStorage.getItem(WIDTH_KEY)).toBe("1600");
+    expect(window.localStorage.getItem(HEIGHT_KEY)).toBe("1000");
+    expect(result.current.sizes.sizes).toEqual({ questions: 200 });
+    expect(result.current.sizes.resetKey).toBe(0);
+  });
+
+  it("notes takes the side columns to their floors and gives the call no room; the window is left alone", async () => {
+    const { result } = await mount();
+    act(() => result.current.sizes.arrange("notes"));
+    expect(result.current.sizes.sizes).toEqual({
+      questions: 180,
+      side: 300,
+      call: 0,
+    });
+    expect(kept()).toEqual({ questions: 180, side: 300, call: 0 });
+    expect([result.current.width, result.current.height]).toEqual([null, null]);
+    expect(result.current.sizes.resetKey).toBe(0);
+  });
+
+  it("no-call gives the call no room and leaves the columns as they were kept", async () => {
+    const { result } = await mount();
+    act(() =>
+      result.current.sizes.keep({ questions: 200, side: 520, call: 90 }),
+    );
+    act(() => result.current.sizes.arrange("no-call"));
+    expect(result.current.sizes.sizes).toEqual({
+      questions: 200,
+      side: 520,
+      call: 0,
+    });
+    expect(kept()).toEqual({ questions: 200, side: 520, call: 0 });
+  });
+
+  it("no-call with nothing kept keeps only the call's room", async () => {
+    const { result } = await mount();
+    act(() => result.current.sizes.arrange("no-call"));
+    expect(result.current.sizes.sizes).toEqual({ call: 0 });
+  });
+
+  it("default after another layout brings everything back", async () => {
+    const { result } = await mount();
+    act(() => result.current.sizes.arrange("notes"));
+    act(() => result.current.sizes.arrange("fill"));
+    act(() => result.current.sizes.arrange("default"));
+    expect(result.current.sizes.sizes).toBeUndefined();
+    expect([result.current.width, result.current.height]).toEqual([null, null]);
+  });
+
+  it("arrange is the same function from draw to draw", async () => {
+    const { result, rerender } = await mount();
+    const before = result.current.sizes.arrange;
+    act(() => result.current.sizes.arrange("notes"));
+    rerender();
+    expect(result.current.sizes.arrange).toBe(before);
+  });
+});
+
+describe("useToolbarWidth: the centre column is as wide as the toolbar", () => {
+  // The toolbar's pill, as wide as the test says (jsdom lays nothing out).
+  function toolbar(width: number) {
+    const pill = document.createElement("div");
+    pill.className = "pn-toolbar";
+    let now = width;
+    Object.defineProperty(pill, "offsetWidth", {
+      configurable: true,
+      get: () => now,
+    });
+    document.body.append(pill);
+    return { pill, grow: (next: number) => (now = next) };
+  }
+  // A ResizeObserver the test fires by hand.
+  function observers() {
+    const made: { fire(): void; watched: Element[]; stopped: boolean }[] = [];
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        watched: Element[] = [];
+        stopped = false;
+        fire: () => void;
+        constructor(callback: () => void) {
+          this.fire = callback;
+          made.push(this);
+        }
+        observe(element: Element) {
+          this.watched.push(element);
+        }
+        unobserve() {}
+        disconnect() {
+          this.stopped = true;
+        }
+      },
+    );
+    return made;
+  }
+  afterEach(() => {
+    for (const pill of document.querySelectorAll(".pn-toolbar")) pill.remove();
+  });
+
+  it("the handles in a row of three columns take 32 px, and the fallback is 560 px", async () => {
+    const columns = await load();
+    expect(columns.COLUMN_HANDLES).toBe(32);
+    expect(columns.TOOLBAR_FALLBACK).toBe(560);
+  });
+
+  it("is 560 px where there is no toolbar to measure", async () => {
+    const columns = await load();
+    const { result } = renderHook(() => columns.useToolbarWidth());
+    expect(result.current).toBe(560);
+  });
+
+  it("is the toolbar's own width where there is one", async () => {
+    toolbar(640);
+    const columns = await load();
+    const { result } = renderHook(() => columns.useToolbarWidth());
+    expect(result.current).toBe(640);
+  });
+
+  it("is 560 px while the toolbar has no width yet", async () => {
+    toolbar(0);
+    const columns = await load();
+    const { result } = renderHook(() => columns.useToolbarWidth());
+    expect(result.current).toBe(560);
+  });
+
+  it("follows the toolbar as it grows with its labels, and stops once its reader has gone", async () => {
+    const made = observers();
+    const { pill, grow } = toolbar(640);
+    const columns = await load();
+    const { result, unmount } = renderHook(() => columns.useToolbarWidth());
+    expect(made).toHaveLength(1);
+    expect(made[0]?.watched).toEqual([pill]);
+    grow(712);
+    act(() => made[0]?.fire());
+    expect(result.current).toBe(712);
+    unmount();
+    expect(made[0]?.stopped).toBe(true);
+  });
+
+  it("still measures once where the window has no ResizeObserver", async () => {
+    vi.stubGlobal("ResizeObserver", undefined);
+    toolbar(640);
+    const columns = await load();
+    const { result } = renderHook(() => columns.useToolbarWidth());
+    expect(result.current).toBe(640);
+  });
+});

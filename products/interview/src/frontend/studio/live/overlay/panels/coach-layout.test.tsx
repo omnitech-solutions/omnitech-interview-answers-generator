@@ -1,7 +1,8 @@
 // The coach layouts over a scripted session and scripted coach notes: which
-// columns each one has, the question on the table and an earlier one, how a
-// note is drawn, what happens to a note that arrives while the person reads
-// further up, and the tabs of the right column.
+// columns each one has, the room for the call, the question on the table and
+// an earlier one, how a note is drawn and how large it reads, the tabs of the
+// right column, and the library Splitter's bars and outer edges that resize
+// the columns, the call's room and the window itself.
 import type { CoachNote } from "@omnitech/interview-contracts";
 import {
   act,
@@ -22,6 +23,16 @@ import {
   transcript,
 } from "../../testing/session-fixtures";
 import { codingAnswer } from "../../testing/session-result-fixtures";
+import {
+  COACH_LAYOUTS,
+  COLUMN_HANDLES,
+  QUESTIONS_FLOOR,
+  SIDE_FLOOR,
+  setCoachTextSize,
+  setCoachWindowHeight,
+  setCoachWindowWidth,
+  TOOLBAR_FALLBACK,
+} from "./coach-columns";
 import { CoachLayout } from "./coach-layout";
 import type { PanelSession } from "./panel-views";
 
@@ -145,10 +156,46 @@ async function show(
   return drawn;
 }
 
+// Where the layout's sizes are kept (coach-columns.test.tsx covers the store).
+const SIZES_KEY = "omnitech.interview.coach.sizes";
+const WIDTH_KEY = "omnitech.interview.coach.window-width";
+const HEIGHT_KEY = "omnitech.interview.coach.window-height";
+const TEXT_KEY = "omnitech.interview.coach.text-size";
+const keptSizes = () =>
+  JSON.parse(window.localStorage.getItem(SIZES_KEY) ?? "null");
+// React reads the pointer's place from a mouse event; jsdom's pointer events
+// may not carry it.
+const pointer = (
+  element: Element,
+  type: "down" | "move" | "up" | "cancel",
+  at: { x?: number; y?: number } = {},
+) => {
+  const event = new MouseEvent(`pointer${type}`, {
+    bubbles: true,
+    cancelable: true,
+    button: 0,
+    clientX: at.x ?? 0,
+    clientY: at.y ?? 0,
+    screenX: at.x ?? 0,
+    screenY: at.y ?? 0,
+  });
+  Object.defineProperty(event, "pointerId", { value: 1 });
+  fireEvent(element, event);
+};
+
 const layout = () => screen.getByTestId("pn-coach-layout");
 const notesPane = () => screen.getByTestId("pn-coach-notes");
-const asked = () => screen.getByTestId("pn-coach-asked");
-const heard = () => screen.queryByTestId("pn-coach-heard");
+// [DOMAIN] The question on show is the library's HeardLine: a label (its
+// number, whether it is live, its time), the question in the coach's few
+// words as its title, and what was actually said beneath, small.
+const askedLine = () => screen.getByTestId("pn-coach-asked");
+const slot = (within: Element | null, name: string) =>
+  within?.querySelector<HTMLElement>(`[data-slot="${name}"]`) ?? null;
+const asked = () => slot(askedLine(), "heard-line-title") as HTMLElement;
+const askedLabel = () => slot(askedLine(), "heard-line-label") as HTMLElement;
+// What was said, as heard: cut to two lines, the whole of it in its title.
+const heard = (line: Element | null = askedLine()) =>
+  slot(line, "heard-line-text");
 // A question's few words where the coach gave none: what was heard, cut.
 const cut = (text: string) =>
   text.length > 60 ? `${text.slice(0, 60).trimEnd()}…` : text;
@@ -162,58 +209,72 @@ function onShow(said: string, label = cut(said)) {
     expect(heard()).toHaveAttribute("title", said);
   }
 }
-// The question on show with everything under it: dimmed while it is only the
-// previous question's.
-const questionOnShow = () =>
-  asked().parentElement?.parentElement?.parentElement as HTMLElement;
 const sectionsOf = (block: Element | undefined) =>
-  [...(block?.querySelectorAll("[data-section]") ?? [])].map((section) =>
-    section.getAttribute("data-section"),
+  [...(block?.querySelectorAll('[data-slot="cue-card-section"]') ?? [])].map(
+    (section) => section.getAttribute("data-kind"),
   );
-// The lines of a note as drawn: one paragraph or anchor to a line.
+// The lines of a note as drawn: one sentence or anchor to a line.
 const linesOf = (block: Element | undefined) =>
-  [...(block?.querySelectorAll("[data-section] p") ?? [])].map(
+  [...(block?.querySelectorAll('[data-slot="cue-card-line"]') ?? [])].map(
     (line) => line.textContent,
   );
-// The small line over a note: its kind, its time and (unless it is the
+// The quiet line over a note: its kind, its time and (unless it is the
 // question) its title.
 const metaOf = (block: Element | undefined) =>
-  block?.firstElementChild?.textContent ?? "";
-// The rows of the questions list as drawn: the newest question first.
-const listed = () => screen.getAllByTestId("pn-coach-question");
+  slot(block ?? null, "cue-card-meta")?.textContent ?? "";
+// The rows of the questions list as drawn (the library's OutlineList): the
+// newest question first. There are none in the prompter, which has no list.
+const rows = () => [
+  ...document.querySelectorAll<HTMLElement>('[data-slot="outline-list-row"]'),
+];
+const numberOf = (row: Element) =>
+  slot(row, "outline-list-number")?.textContent ?? "";
+const nameOf = (row: Element) =>
+  slot(row, "outline-list-label")?.textContent ?? "";
+const metaOfRow = (row: Element) =>
+  slot(row, "outline-list-meta")?.textContent ?? "";
 // A row by its question's number (1 is the first one asked).
 const question = (number: number) => {
-  const row = listed().find((each) =>
-    each.textContent?.startsWith(String(number)),
-  );
+  const row = rows().find((each) => numberOf(each) === String(number));
   if (!row) throw new Error(`no question ${number} in the list`);
   return row;
 };
-const blocks = () => screen.queryAllByTestId("pn-coach-block");
+const isLive = (row: Element) => row.getAttribute("data-state") === "live";
+// The notes on show, each the library's CueCard.
+const blocks = () => screen.queryAllByTestId("pn-coach-note");
 const pickListed = (number: number) => fireEvent.click(question(number));
-// The pane the notes scroll in. jsdom lays nothing out, so a test gives it a size.
-function scroller(scrollHeight = 1_000, clientHeight = 300) {
-  const element = notesPane().querySelector<HTMLElement>(
-    ":scope > [data-text-surface]",
+const follows = (before: Element, after: Element) =>
+  Boolean(
+    before.compareDocumentPosition(after) & Node.DOCUMENT_POSITION_FOLLOWING,
   );
-  if (!element) throw new Error("the notes pane has no scroller");
-  Object.defineProperty(element, "scrollHeight", {
-    configurable: true,
-    value: scrollHeight,
-  });
-  Object.defineProperty(element, "clientHeight", {
-    configurable: true,
-    value: clientHeight,
-  });
-  return element;
-}
-function scrollTo(element: HTMLElement, top: number) {
-  element.scrollTop = top;
-  fireEvent.scroll(element);
-}
+const held = () => document.documentElement.hasAttribute("data-no-drag");
+// The notes pane's Layout menu (the library's ActionMenu): opened with a
+// press, and a row is chosen with a click.
+const layoutMenu = () => screen.getByTestId("pn-coach-layout-menu");
+const openLayouts = () => {
+  fireEvent.pointerDown(layoutMenu(), { button: 0, ctrlKey: false });
+};
+const layoutRow = (name: string) =>
+  screen.getByRole("menuitem", { name: new RegExp(`^${name}`) });
+const chooseLayout = (name: string) => {
+  openLayouts();
+  fireEvent.click(layoutRow(name));
+};
+const resetLayout = () => chooseLayout("Default");
+
+// The window and the screen it is on: the Splitters' outer edges read both.
+const WINDOW = { width: 1_000, height: 768 };
+const SCREEN = { availWidth: 1_600, availHeight: 1_000 };
 
 beforeEach(() => {
   vi.useFakeTimers();
+  // [DOMAIN] A question waits for its notes three minutes at most. The
+  // scripted call is read three minutes in: inside the wait of the last
+  // thing asked in it (1:00, or 2:30 where a test adds a third question).
+  vi.setSystemTime(Date.parse(minutesAfter(3)));
+  vi.stubGlobal("innerWidth", WINDOW.width);
+  vi.stubGlobal("innerHeight", WINDOW.height);
+  vi.stubGlobal("screen", SCREEN);
   window.localStorage.clear();
   posted = [FIRST, SECOND];
   revision = 1;
@@ -226,9 +287,16 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  // The window's width and height and the notes' size are kept in the module.
+  act(() => {
+    setCoachWindowWidth(null);
+    setCoachWindowHeight(null);
+    setCoachTextSize("lg");
+  });
   vi.unstubAllGlobals();
   vi.useRealTimers();
   window.localStorage.clear();
+  document.documentElement.removeAttribute("data-no-drag");
 });
 
 describe("the three layouts", () => {
@@ -236,7 +304,7 @@ describe("the three layouts", () => {
     await show("coach");
     expect(layout()).toHaveAttribute("data-view", "coach");
     expect(screen.getByTestId("pn-coach-questions")).toHaveAccessibleName(
-      "Questions",
+      "Questions · 2",
     );
     expect(screen.getByTestId("pn-call-slot")).toBeInTheDocument();
     expect(notesPane()).toHaveAccessibleName("Coach");
@@ -260,11 +328,7 @@ describe("the three layouts", () => {
     ];
     for (const [at, element] of order.entries()) {
       const next = order[at + 1];
-      if (next)
-        expect(
-          element.compareDocumentPosition(next) &
-            Node.DOCUMENT_POSITION_FOLLOWING,
-        ).toBeTruthy();
+      if (next) expect(follows(element, next)).toBe(true);
     }
   });
 
@@ -291,21 +355,27 @@ describe("the three layouts", () => {
     expect(notesPane()).toHaveAccessibleName("Notes");
     expect(screen.getByText("Outbox")).toBeVisible();
     expect(screen.queryByTestId("pn-coach-questions")).toBeNull();
-    expect(screen.queryByTestId("pn-coach-question")).toBeNull();
+    expect(rows()).toEqual([]);
     expect(screen.queryByRole("tab")).toBeNull();
     expect(screen.queryByTestId("pn-chat")).toBeNull();
     expect(screen.queryByTestId("pane-answer")).toBeNull();
   });
 
   it.each(["coach", "conversation", "prompter"] as const)(
-    "%s: the room for the call sits directly above the notes, with the bar to resize it",
+    "%s: the layout is the window's one body, and each view has the panels it should",
     async (view) => {
       await show(view);
-      const slot = screen.getByTestId("pn-call-slot");
-      const bar = screen.getByTestId("pn-call-slot-resize");
-      expect(slot.parentElement).toBe(notesPane().parentElement);
-      expect(bar.nextElementSibling).toBe(notesPane());
-      expect(slot.nextElementSibling).toBe(bar);
+      expect(layout()).toHaveClass("pn-single-body");
+      expect(layout()).toHaveAttribute("data-slot", "splitter");
+      expect(
+        [...layout().querySelectorAll("[data-panel]")]
+          .filter((each) => each.getAttribute("data-slot") === "splitter-panel")
+          .map((each) => each.getAttribute("data-panel")),
+      ).toEqual(
+        view === "prompter"
+          ? ["columns", "main", "call", "notes"]
+          : ["columns", "questions", "main", "call", "notes", "side"],
+      );
     },
   );
 
@@ -323,44 +393,130 @@ describe("the three layouts", () => {
   });
 });
 
+describe("the room for the call", () => {
+  const slotPanel = () => screen.getByTestId("pn-call-slot");
+  const bar = () =>
+    screen.getByRole("separator", { name: /room for the call/ });
+
+  it.each(["coach", "conversation", "prompter"] as const)(
+    "%s: sits directly above the notes, with the bar to resize it between them",
+    async (view) => {
+      await show(view);
+      expect(slotPanel()).toHaveAttribute("data-panel", "call");
+      expect(slotPanel().nextElementSibling).toBe(bar());
+      expect(bar().nextElementSibling).toContainElement(notesPane());
+      expect(bar().nextElementSibling).toHaveAttribute("data-panel", "notes");
+    },
+  );
+
+  it("opens 250 px tall, says what it is for, is only an outline and lets clicks through to the call", async () => {
+    await show("coach");
+    expect(slotPanel()).toHaveAccessibleName("Room for the call window");
+    expect(slotPanel()).toHaveStyle({ flex: "0 0 250px" });
+    expect(slotPanel().style.pointerEvents).toBe("none");
+    expect(slotPanel().style.border).toContain("dashed");
+    expect(slotPanel().style.background).toBe("");
+    // Nothing is drawn in it, and it is not one of the window's surfaces.
+    expect(slotPanel()).toBeEmptyDOMElement();
+    expect(slotPanel()).not.toHaveAttribute("data-hit-surface");
+  });
+
+  it("its bar is a horizontal separator that says the room's height, starts at nothing, and takes the mouse", async () => {
+    await show("coach");
+    expect(bar()).toHaveAttribute("aria-orientation", "horizontal");
+    expect(bar()).toHaveAttribute("aria-valuenow", "250");
+    expect(bar()).toHaveAttribute("aria-valuemin", "0");
+    expect(bar()).toHaveAttribute("tabindex", "0");
+    expect(bar()).toHaveAttribute("data-hit-surface");
+  });
+
+  it("the arrows on the bar make the room shorter and taller, 24 px a press, and the height is kept", async () => {
+    await show("coach");
+    fireEvent.keyDown(bar(), { key: "ArrowUp" });
+    expect(bar()).toHaveAttribute("aria-valuenow", "226");
+    expect(slotPanel()).toHaveStyle({ flex: "0 0 226px" });
+    expect(keptSizes()).toMatchObject({ call: 226 });
+    fireEvent.keyDown(bar(), { key: "ArrowDown" });
+    expect(bar()).toHaveAttribute("aria-valuenow", "250");
+    expect(keptSizes()).toMatchObject({ call: 250 });
+  });
+
+  it("dragging the bar up makes the room shorter by as much, and holds the window still until it is let go", async () => {
+    await show("prompter");
+    pointer(bar(), "down", { y: 250 });
+    expect(held()).toBe(true);
+    pointer(bar(), "move", { y: 150 });
+    expect(bar()).toHaveAttribute("aria-valuenow", "150");
+    expect(slotPanel()).toHaveStyle({ flex: "0 0 150px" });
+    expect(held()).toBe(true);
+    pointer(bar(), "cancel", { y: 150 });
+    expect(held()).toBe(false);
+    expect(keptSizes()).toMatchObject({ call: 150 });
+  });
+
+  it("takes the height kept from an earlier session; a room folded away stays folded", async () => {
+    window.localStorage.setItem(SIZES_KEY, JSON.stringify({ call: 90 }));
+    await show("conversation");
+    expect(slotPanel()).toHaveStyle({ flex: "0 0 90px" });
+    expect(bar()).toHaveAttribute("aria-valuenow", "90");
+    cleanup();
+    window.localStorage.setItem(SIZES_KEY, JSON.stringify({ call: 0 }));
+    await show("prompter");
+    expect(slotPanel()).toHaveStyle({ flex: "0 0 0px" });
+  });
+
+  it("the Default layout brings a folded room back to 250 px, in the prompter too", async () => {
+    window.localStorage.setItem(SIZES_KEY, JSON.stringify({ call: 0 }));
+    await show("prompter");
+    resetLayout();
+    expect(slotPanel()).toHaveStyle({ flex: "0 0 250px" });
+    expect(bar()).toHaveAttribute("aria-valuenow", "250");
+  });
+});
+
 describe("the questions list", () => {
+  it("is the library's panel with its outline list inside", async () => {
+    await show("coach");
+    const questions = screen.getByTestId("pn-coach-questions");
+    expect(questions.tagName).toBe("ASIDE");
+    expect(questions).toHaveAttribute("data-slot", "panel");
+    expect(within(questions).getByRole("list", { name: "Questions" })).toBe(
+      rows()[0]?.closest("ul"),
+    );
+  });
+
   it("lists what was asked newest first, numbered in the order asked, with the coach's wording where there is some", async () => {
     await show("coach");
     const questions = screen.getByTestId("pn-coach-questions");
     expect(questions).toHaveTextContent("Questions · 2");
     expect(questions).toHaveTextContent("newest first");
-    const rows = listed();
-    expect(rows).toHaveLength(2);
+    expect(rows()).toHaveLength(2);
     // The top row is the newest question, so it has the highest number.
-    expect(rows[0]).toHaveTextContent(/^2/);
-    expect(rows[0]).toHaveAccessibleName(ASK_TWO);
-    expect(rows[0]).toHaveTextContent(ASK_TWO);
-    // The first has no restatement: what was heard, cut to 60 characters.
-    const cut = `${QUESTION_ONE.slice(0, 60).trimEnd()}…`;
-    expect(rows[1]).toHaveTextContent(/^1/);
-    expect(rows[1]).toHaveAccessibleName(cut);
-    expect(rows[1]).toHaveTextContent(cut);
+    expect(rows().map(numberOf)).toEqual(["2", "1"]);
+    expect(nameOf(rows()[0] as HTMLElement)).toBe(ASK_TWO);
     // The whole question is one hover away.
-    expect(rows[1]).toHaveAttribute("title", QUESTION_ONE);
+    expect(rows()[0]).toHaveAttribute("title", QUESTION_TWO);
+    // The first has no restatement: what was heard, cut to 60 characters.
+    expect(nameOf(rows()[1] as HTMLElement)).toBe(cut(QUESTION_ONE));
+    expect(rows()[1]).toHaveAttribute("title", QUESTION_ONE);
   });
 
   it("each row is a real button, so the keyboard reaches it and the shell never drags the window from it", async () => {
     await show("coach");
-    for (const row of listed()) {
+    for (const row of rows()) {
       expect(row.tagName).toBe("BUTTON");
       expect(row).toHaveAttribute("type", "button");
     }
     expect(
       within(screen.getByTestId("pn-coach-questions")).getAllByRole("button"),
-    ).toEqual(listed());
+    ).toEqual(rows());
   });
 
-  it("a new question goes to the top and brings the list back to its top", async () => {
+  it("a new question goes to the top", async () => {
     // No coach yet: every question heard has a row.
     posted = [];
     const drawn = await show("coach");
-    const list = question(1).parentElement as HTMLElement;
-    list.scrollTop = 140;
+    expect(rows().map(numberOf)).toEqual(["2", "1"]);
     drawn.rerender(
       <CoachLayout
         s={session(
@@ -374,12 +530,10 @@ describe("the questions list", () => {
       />,
     );
     await settle();
-    expect(listed().map((row) => row.textContent?.[0])).toEqual([
-      "3",
-      "2",
-      "1",
-    ]);
-    expect(list.scrollTop).toBe(0);
+    expect(rows().map(numberOf)).toEqual(["3", "2", "1"]);
+    expect(screen.getByTestId("pn-coach-questions")).toHaveTextContent(
+      "Questions · 3",
+    );
   });
 
   it("once a coach is writing, a question has a row only when it has notes", async () => {
@@ -395,27 +549,32 @@ describe("the questions list", () => {
     expect(screen.getByTestId("pn-coach-questions")).toHaveTextContent(
       "Questions · 2",
     );
-    expect(listed()).toHaveLength(2);
-    expect(question(2)).toHaveAttribute("data-live");
+    expect(rows()).toHaveLength(2);
+    expect(isLive(question(2))).toBe(true);
     post(note(5, 160, { title: "Pick one with numbers", askId: "q-project" }));
     await poll();
-    expect(listed()).toHaveLength(3);
+    expect(rows()).toHaveLength(3);
     expect(question(3)).toHaveAttribute("title", NEXT);
-    expect(question(3)).toHaveAttribute("data-live");
-    expect(question(2)).not.toHaveAttribute("data-live");
+    expect(isLive(question(3))).toBe(true);
+    expect(isLive(question(2))).toBe(false);
   });
 
-  it("marks only the question on the table as live, and says how many notes each has", async () => {
+  it("marks only the question on the table as live, and says when each was asked and how many notes it has", async () => {
     await show("coach");
-    const [first, last] = [question(1), question(2)];
-    expect(first).not.toHaveAttribute("data-live");
-    expect(last).toHaveAttribute("data-live");
-    expect(first).toHaveTextContent("1 note");
-    expect(first).not.toHaveTextContent("live");
-    expect(last).toHaveTextContent("1 note · live");
+    expect(rows().map(isLive)).toEqual([true, false]);
+    expect(metaOfRow(question(1))).toMatch(/^\d+:\d\d[^·]* · 1 note$/);
+    expect(metaOfRow(question(2))).toMatch(/^\d+:\d\d[^·]* · 1 note · live$/);
     post(note(3, 80, { askId: "q-consistency" }));
     await poll();
-    expect(question(2)).toHaveTextContent("2 notes · live");
+    expect(metaOfRow(question(2))).toMatch(/ · 2 notes · live$/);
+    expect(metaOfRow(question(1))).toMatch(/ · 1 note$/);
+  });
+
+  it("a question with no notes says only when it was asked", async () => {
+    posted = [];
+    await show("coach");
+    expect(metaOfRow(question(1))).toMatch(/^\d+:\d\d[^·]*$/);
+    expect(metaOfRow(question(1))).not.toContain("note");
   });
 
   it("the person's own lines and the interviewer's closing remarks are not questions", async () => {
@@ -432,8 +591,8 @@ describe("the questions list", () => {
         ]),
       ),
     );
-    expect(listed()).toHaveLength(2);
-    expect(question(2)).toHaveAttribute("data-live");
+    expect(rows()).toHaveLength(2);
+    expect(isLive(question(2))).toBe(true);
   });
 
   it("is empty before anything is asked, and the notes pane says what will appear", async () => {
@@ -442,27 +601,34 @@ describe("the questions list", () => {
     expect(screen.getByTestId("pn-coach-questions")).toHaveTextContent(
       "Questions · 0",
     );
-    expect(screen.queryByTestId("pn-coach-question")).toBeNull();
+    expect(rows()).toEqual([]);
     expect(screen.queryByTestId("pn-coach-asked")).toBeNull();
-    expect(within(notesPane()).getByRole("status")).toHaveTextContent(
-      "The question being asked appears here",
+    expect(notesPane()).toHaveTextContent(
+      "The question being asked appears here, with the coach's notes for it beneath.",
     );
     expect(screen.queryByTestId("pn-coach-live")).toBeNull();
+    // Nothing is followed yet, and there is nowhere to step to.
+    expect(
+      screen.getByRole("button", { name: "Previous question" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Next question" }),
+    ).toBeDisabled();
   });
 });
 
 describe("the question on the table", () => {
-  it("is shown whole with its notes beneath, marked as being asked and followed live", async () => {
+  it("is shown whole with its notes beneath, marked as live in green and followed live", async () => {
     await show("coach");
     onShow(QUESTION_TWO, ASK_TWO);
-    expect(notesPane()).toHaveTextContent(/Live · \d+:\d\d/);
-    expect(questionOnShow().style.opacity).toBe("1");
+    expect(askedLabel().textContent).toMatch(/^Q2 · Live · \d+:\d\d/);
+    expect(askedLine()).toHaveAttribute("data-tone", "ask");
     expect(notesPane()).toHaveTextContent(`Q2 · ${ASK_TWO}`);
     expect(notesPane()).toHaveTextContent("Following live");
     expect(screen.queryByTestId("pn-coach-live")).toBeNull();
     expect(blocks()).toHaveLength(1);
-    expect(blocks()[0]).toHaveTextContent("Name the techniques");
-    expect(blocks()[0]).toHaveTextContent("Outbox: one transaction");
+    expect(metaOf(blocks()[0])).toContain("Name the techniques");
+    expect(linesOf(blocks()[0])).toEqual(["Outbox: one transaction"]);
     // Its row in the list is the current one.
     expect(question(2)).toHaveAttribute("aria-current", "true");
     expect(question(1)).not.toHaveAttribute("aria-current");
@@ -474,9 +640,7 @@ describe("the question on the table", () => {
     // No coach, so no restatement: what was heard, cut, with the whole beneath.
     onShow(QUESTION_TWO);
     expect(blocks()).toHaveLength(0);
-    expect(within(notesPane()).getByRole("status")).toHaveTextContent(
-      "No notes for this question yet.",
-    );
+    expect(notesPane()).toHaveTextContent("No notes for this question yet.");
     expect(notesPane()).toHaveTextContent("Following live");
     expect(screen.queryByTestId("pn-coach-waiting")).toBeNull();
   });
@@ -502,7 +666,7 @@ describe("the question on the table", () => {
     await poll();
     onShow(NEXT);
     expect(blocks()).toHaveLength(1);
-    expect(blocks()[0]).toHaveTextContent("Pick one with numbers");
+    expect(metaOf(blocks()[0])).toContain("Pick one with numbers");
     expect(notesPane()).toHaveTextContent("Following live");
     expect(screen.queryByTestId("pn-coach-waiting")).toBeNull();
   });
@@ -518,66 +682,61 @@ describe("a new question whose notes have not arrived", () => {
 
   it("never empties the pane: the last notes stay, with the new question named above them", async () => {
     await show("coach", withNext());
-    expect(waiting()).toHaveTextContent(
+    expect(slot(waiting(), "heard-line-label")?.textContent).toMatch(
       /^Current question · listening · \d+:\d\d/,
     );
-    expect(waiting()).toHaveTextContent(NEXT);
+    expect(slot(waiting(), "heard-line-title")?.textContent).toBe(NEXT);
     expect(waiting()).toHaveTextContent(/Preparing response…$/);
     // Beneath it, the last question the coach answered, with its notes.
     onShow(QUESTION_TWO, ASK_TWO);
     expect(blocks()).toHaveLength(1);
-    expect(blocks()[0]).toHaveTextContent("Name the techniques");
-    expect(
-      waiting().compareDocumentPosition(asked()) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    expect(metaOf(blocks()[0])).toContain("Name the techniques");
+    expect(follows(waiting(), askedLine())).toBe(true);
     expect(notesPane()).toContainElement(waiting());
     expect(notesPane()).not.toHaveTextContent("No notes for this question yet");
   });
 
-  it("the notes beneath are marked as the previous question's and dimmed: they never read as the answer to what was just asked", async () => {
+  it("the notes beneath are marked as the previous question's, and no longer in the live green: they never read as the answer to what was just asked", async () => {
     await show("coach", withNext());
     const divider = within(notesPane()).getByText("Previous coaching note");
-    const follows = (before: Element, after: Element) =>
-      Boolean(
-        before.compareDocumentPosition(after) &
-          Node.DOCUMENT_POSITION_FOLLOWING,
-      );
     expect(follows(waiting(), divider)).toBe(true);
-    expect(follows(divider, asked())).toBe(true);
-    expect(notesPane()).toHaveTextContent(/Previous question · \d+:\d\d/);
+    expect(follows(divider, askedLine())).toBe(true);
+    expect(askedLabel().textContent).toMatch(
+      /^Q2 · Previous question · \d+:\d\d/,
+    );
     expect(notesPane()).not.toHaveTextContent("Live · ");
-    expect(questionOnShow().style.opacity).toBe("0.55");
-    expect(questionOnShow()).toContainElement(blocks()[0] as HTMLElement);
-    // The box itself is never dimmed.
-    expect(questionOnShow()).not.toContainElement(waiting());
-    expect(waiting().style.opacity).toBe("");
+    expect(askedLine()).toHaveAttribute("data-tone", "accent");
+    // The green is the box's: the question being asked now.
+    expect(waiting()).toHaveAttribute("data-tone", "ask");
+    expect(waiting()).not.toContainElement(askedLine());
   });
 
-  it("once its notes arrive nothing is dimmed, nothing is marked previous, and it is the live question", async () => {
+  it("once its notes arrive nothing is marked previous, and it is the live question", async () => {
     await show("coach", withNext());
     post(note(5, 160, { title: "Pick one with numbers", askId: "q-project" }));
     await poll();
-    expect(questionOnShow().style.opacity).toBe("1");
     expect(notesPane()).not.toHaveTextContent("Previous coaching note");
     expect(notesPane()).not.toHaveTextContent("Previous question ·");
-    expect(notesPane()).toHaveTextContent(/Live · \d+:\d\d/);
+    expect(askedLabel().textContent).toMatch(/^Q3 · Live · \d+:\d\d/);
+    expect(askedLine()).toHaveAttribute("data-tone", "ask");
   });
 
-  it("a picked question is never dimmed or marked previous, even while another waits", async () => {
+  it("a picked question is never marked previous, even while another waits", async () => {
     await show("coach", withNext());
     pickListed(1);
-    expect(questionOnShow().style.opacity).toBe("1");
     expect(notesPane()).not.toHaveTextContent("Previous coaching note");
-    expect(notesPane()).toHaveTextContent(/Asked · \d+:\d\d/);
+    expect(askedLabel().textContent).toMatch(/^Q1 · Asked · \d+:\d\d/);
+    expect(askedLine()).toHaveAttribute("data-tone", "accent");
   });
 
-  it("is written larger than a follow-up and never cut: it is what is being asked now", async () => {
+  it("is a box of its own and is never cut: it is what is being asked now", async () => {
     await show("coach", withNext());
-    const said = within(waiting()).getByText(NEXT);
+    expect(waiting()).toHaveAttribute("data-variant", "boxed");
+    expect(askedLine()).toHaveAttribute("data-variant", "line");
+    const said = slot(waiting(), "heard-line-title") as HTMLElement;
     expect(said.style.getPropertyValue("-webkit-line-clamp")).toBe("");
-    expect(said.style.overflow).toBe("");
-    expect(Number.parseFloat(said.style.fontSize)).toBeGreaterThan(14);
+    // The whole of it is its title: there is no cut line beneath.
+    expect(heard(waiting())).toBeNull();
   });
 
   it("is still following live, and has no row of its own until its notes arrive", async () => {
@@ -585,7 +744,7 @@ describe("a new question whose notes have not arrived", () => {
     expect(notesPane()).toHaveTextContent("Following live");
     expect(screen.queryByTestId("pn-coach-live")).toBeNull();
     expect(notesPane()).toHaveTextContent(`Q2 · ${ASK_TWO}`);
-    expect(listed()).toHaveLength(2);
+    expect(rows()).toHaveLength(2);
     expect(question(2)).toHaveAttribute("aria-current", "true");
     expect(screen.getByTestId("pn-coach-questions")).not.toHaveTextContent(
       "Tell me about a project",
@@ -598,7 +757,7 @@ describe("a new question whose notes have not arrived", () => {
     expect(waiting()).toHaveTextContent(QUESTION_TWO);
     onShow(QUESTION_ONE);
     expect(blocks()).toHaveLength(1);
-    expect(blocks()[0]).toHaveTextContent("Name the criteria");
+    expect(metaOf(blocks()[0])).toContain("Name the criteria");
   });
 
   it("the box goes when its notes arrive, and the pane moves on to it", async () => {
@@ -608,7 +767,7 @@ describe("a new question whose notes have not arrived", () => {
     await poll();
     expect(screen.queryByTestId("pn-coach-waiting")).toBeNull();
     onShow(NEXT);
-    expect(blocks()[0]).toHaveTextContent("Pick one with numbers");
+    expect(metaOf(blocks()[0])).toContain("Pick one with numbers");
   });
 
   it("there is no box while the question on the table has notes", async () => {
@@ -637,13 +796,33 @@ describe("a new question whose notes have not arrived", () => {
     await show("coach", withNext());
     expect(screen.queryByTestId("pn-coach-waiting")).toBeNull();
     onShow(NEXT);
-    expect(listed()).toHaveLength(3);
+    expect(rows()).toHaveLength(3);
   });
 
   it("is shown in the prompter too", async () => {
     await show("prompter", withNext());
     expect(waiting()).toHaveTextContent(NEXT);
     onShow(QUESTION_TWO, ASK_TWO);
+  });
+
+  it("waits three minutes at most: a question asked longer ago than that is drawn as a follow-up of the last answered one, with no box", async () => {
+    // Read three minutes and a second after the third question (2:30).
+    vi.setSystemTime(Date.parse(minutesAfter(5, 31)));
+    await show("coach", withNext());
+    expect(screen.queryByTestId("pn-coach-waiting")).toBeNull();
+    expect(notesPane()).not.toHaveTextContent("Previous coaching note");
+    onShow(QUESTION_TWO, ASK_TWO);
+    expect(askedLabel().textContent).toMatch(/^Q2 · Live · /);
+    const followUp = screen.getByTestId("pn-coach-follow-up");
+    expect(heard(followUp)?.textContent).toBe(NEXT);
+    expect(rows()).toHaveLength(2);
+  });
+
+  it("still waits at exactly three minutes", async () => {
+    vi.setSystemTime(Date.parse(minutesAfter(5, 30)));
+    await show("coach", withNext());
+    expect(waiting()).toHaveTextContent(NEXT);
+    expect(screen.queryByTestId("pn-coach-follow-up")).toBeNull();
   });
 });
 
@@ -652,25 +831,35 @@ describe("an earlier question", () => {
     await show("coach");
     pickListed(1);
     onShow(QUESTION_ONE);
-    expect(notesPane()).toHaveTextContent(/Asked · \d+:\d\d/);
+    expect(askedLabel().textContent).toMatch(/^Q1 · Asked · \d+:\d\d/);
     expect(notesPane()).not.toHaveTextContent("Live · ");
     expect(notesPane()).not.toHaveTextContent("Previous question · ");
     expect(notesPane()).not.toHaveTextContent("Following live");
     expect(blocks()).toHaveLength(1);
-    expect(blocks()[0]).toHaveTextContent("Name the criteria");
-    expect(blocks()[0]).toHaveTextContent("Team boundary");
+    expect(metaOf(blocks()[0])).toContain("Name the criteria");
+    expect(linesOf(blocks()[0])).toEqual([
+      "Team boundary",
+      "Independent scaling",
+    ]);
     expect(notesPane()).not.toHaveTextContent("Outbox");
     const back = screen.getByTestId("pn-coach-live");
     expect(back).toHaveTextContent("Back to live");
     // The list shows which is on show; the live one is still marked live.
     expect(question(1)).toHaveAttribute("aria-current", "true");
-    expect(question(2)).toHaveAttribute("data-live");
-    expect(question(1)).not.toHaveAttribute("data-live");
+    expect(question(2)).not.toHaveAttribute("aria-current");
+    expect(rows().map(isLive)).toEqual([true, false]);
 
     fireEvent.click(back);
     onShow(QUESTION_TWO, ASK_TWO);
     expect(screen.queryByTestId("pn-coach-live")).toBeNull();
     expect(notesPane()).toHaveTextContent("Following live");
+  });
+
+  it("is marked in the list's blue, never the live green", async () => {
+    await show("coach");
+    expect(askedLine()).toHaveAttribute("data-tone", "ask");
+    pickListed(1);
+    expect(askedLine()).toHaveAttribute("data-tone", "accent");
   });
 
   it("picking the live question from the list is following it again", async () => {
@@ -722,10 +911,23 @@ describe("an earlier question", () => {
     onShow(QUESTION_TWO, ASK_TWO);
     expect(screen.queryByTestId("pn-coach-live")).toBeNull();
   });
+
+  it("opens in a pane of its own, so it is read from its top", async () => {
+    await show("coach");
+    const before = notesPane();
+    pickListed(1);
+    expect(notesPane()).not.toBe(before);
+    expect(before).not.toBeInTheDocument();
+    // A note for the question on show is added to the pane that is there.
+    const shown = notesPane();
+    post(note(3, 90, { title: "Add the team-size point" }));
+    await poll();
+    expect(notesPane()).toBe(shown);
+  });
 });
 
 describe("how a note is drawn", () => {
-  it("a note to say is a plain block under its title; a note to watch is all caution, in the amber box", async () => {
+  it("a note to say is the library's cue card under its quiet line; a note to watch is all caution", async () => {
     post(
       note(3, 80, {
         title: "Do not promise exactly-once",
@@ -737,34 +939,26 @@ describe("how a note is drawn", () => {
     await show("coach");
     const [say, watch] = blocks();
     expect(blocks()).toHaveLength(2);
-    expect(say).toHaveAttribute("data-tone", "say");
-    expect(watch).toHaveAttribute("data-tone", "watch");
+    for (const block of blocks())
+      expect(block).toHaveAttribute("data-slot", "cue-card");
+    expect(metaOf(say)).toContain("Name the techniques");
     expect(metaOf(watch)).toContain("Do not promise exactly-once");
     expect(linesOf(watch)).toEqual([
       "Say at-least-once with idempotent consumers",
     ]);
     expect(sectionsOf(say)).toEqual(["say"]);
     expect(sectionsOf(watch)).toEqual(["caution"]);
-    // Amber marks a warning and nothing else: the box is the caution's own.
-    const box = watch?.querySelector<HTMLElement>('[data-section="caution"]');
-    expect(box?.style.border).toContain("245, 184, 74");
-    expect(box?.style.background).toContain("245, 184, 74");
-    expect(watch?.style.border).toBe("");
-    expect(say?.style.border).toBe("");
-    expect(say?.style.background).toBe("");
   });
 
   it("a follow-up that names the question is added beneath the earlier note, never in its place", async () => {
     await show("coach");
-    expect(blocks().map((block) => block.getAttribute("data-tone"))).toEqual([
-      "say",
-    ]);
+    expect(blocks()).toHaveLength(1);
     post(
       note(3, 80, { title: "Then the Saga", askId: "q-consistency" }),
       note(4, 85, { title: "Pace", tone: "watch", askId: "q-consistency" }),
     );
     await poll();
-    expect(blocks().map((block) => block.textContent)).toEqual([
+    expect(blocks().map(metaOf)).toEqual([
       expect.stringContaining("Name the techniques"),
       expect.stringContaining("Then the Saga"),
       expect.stringContaining("Pace"),
@@ -777,102 +971,98 @@ describe("how a note is drawn", () => {
     post(note(3, 90, { title: "Add the team-size point", askId: "q-service" }));
     await poll();
     expect(blocks()).toHaveLength(1);
-    expect(question(1)).toHaveTextContent("2 notes");
+    expect(metaOfRow(question(1))).toMatch(/ · 2 notes$/);
     pickListed(1);
-    expect(blocks().map((block) => block.textContent)).toEqual([
+    expect(blocks().map(metaOf)).toEqual([
       expect.stringContaining("Name the criteria"),
       expect.stringContaining("Add the team-size point"),
     ]);
   });
-});
-
-describe("a note that arrives while reading", () => {
-  const FOLLOW_UP = note(3, 80, {
-    title: "Then the Saga",
-    askId: "q-consistency",
-  });
-
-  it("is followed to the bottom when the reader is already there", async () => {
-    await show("coach");
-    const pane = scroller();
-    scrollTo(pane, 700);
-    post(FOLLOW_UP);
-    await poll();
-    expect(blocks()).toHaveLength(2);
-    expect(pane.scrollTop).toBe(1_000);
-    expect(screen.queryByTestId("pn-coach-below")).toBeNull();
-  });
-
-  it("counts as at the bottom within 48 px of it", async () => {
-    await show("coach");
-    const pane = scroller();
-    scrollTo(pane, 652);
-    post(FOLLOW_UP);
-    await poll();
-    expect(screen.queryByTestId("pn-coach-below")).toBeNull();
-    expect(pane.scrollTop).toBe(1_000);
-  });
-
-  it("leaves the scroll where it is when the reader is further up, and shows the pill instead", async () => {
-    await show("coach");
-    const pane = scroller();
-    scrollTo(pane, 120);
-    expect(screen.queryByTestId("pn-coach-below")).toBeNull();
-    post(FOLLOW_UP);
-    await poll();
-    expect(blocks()).toHaveLength(2);
-    expect(pane.scrollTop).toBe(120);
-    expect(screen.getByTestId("pn-coach-below")).toHaveTextContent(
-      "New note added below",
-    );
-    // The pill sits after the notes, inside the pane that scrolls.
-    expect(pane).toContainElement(screen.getByTestId("pn-coach-below"));
-  });
-
-  it("the pill takes the reader to the new note and goes", async () => {
-    await show("coach");
-    const pane = scroller();
-    scrollTo(pane, 120);
-    post(FOLLOW_UP);
-    await poll();
-    fireEvent.click(screen.getByTestId("pn-coach-below"));
-    expect(pane.scrollTop).toBe(1_000);
-    expect(screen.queryByTestId("pn-coach-below")).toBeNull();
-  });
-
-  it("the pill goes when the reader scrolls down to the bottom", async () => {
-    await show("coach");
-    const pane = scroller();
-    scrollTo(pane, 120);
-    post(FOLLOW_UP);
-    await poll();
-    expect(screen.getByTestId("pn-coach-below")).toBeInTheDocument();
-    scrollTo(pane, 400);
-    expect(screen.getByTestId("pn-coach-below")).toBeInTheDocument();
-    scrollTo(pane, 700);
-    expect(screen.queryByTestId("pn-coach-below")).toBeNull();
-  });
-
-  it("the pill goes with the question it was for", async () => {
-    await show("coach");
-    const pane = scroller();
-    scrollTo(pane, 120);
-    post(FOLLOW_UP);
-    await poll();
-    expect(screen.getByTestId("pn-coach-below")).toBeInTheDocument();
-    pickListed(1);
-    expect(screen.queryByTestId("pn-coach-below")).toBeNull();
-  });
 
   it("a poll that brings nothing new changes nothing", async () => {
     await show("coach");
-    const pane = scroller();
-    scrollTo(pane, 120);
+    const [before] = blocks();
     await poll();
     await poll();
-    expect(pane.scrollTop).toBe(120);
-    expect(screen.queryByTestId("pn-coach-below")).toBeNull();
-    expect(blocks()).toHaveLength(1);
+    expect(blocks()).toEqual([before]);
+  });
+});
+
+describe("how large the notes read", () => {
+  const control = () => screen.getByTestId("pn-coach-text-size");
+  const option = (name: string) =>
+    within(control()).getByRole("radio", { name });
+  const chosen = () =>
+    within(control())
+      .getAllByRole("radio")
+      .filter((each) => each.getAttribute("aria-checked") === "true")
+      .map((each) => each.textContent);
+
+  it.each(["coach", "conversation", "prompter"] as const)(
+    "%s: the notes pane offers four sizes, S to XL, and opens on large",
+    async (view) => {
+      await show(view);
+      expect(notesPane()).toContainElement(control());
+      expect(
+        within(control())
+          .getAllByRole("radio")
+          .map((each) => [each.textContent, each.getAttribute("aria-label")]),
+      ).toEqual([
+        ["S", "Small text"],
+        ["M", "Medium text"],
+        ["L", "Large text"],
+        ["XL", "Extra large text"],
+      ]);
+      expect(chosen()).toEqual(["L"]);
+      expect(blocks()[0]).toHaveAttribute("data-size", "lg");
+      expect(askedLine()).toHaveAttribute("data-size", "lg");
+    },
+  );
+
+  it("the size chosen is every note's, the question's and the follow-ups', and is kept", async () => {
+    post(note(3, 80, { title: "Then the Saga", askId: "q-consistency" }));
+    await show("coach");
+    act(() => setCoachTextSize("xl"));
+    expect(chosen()).toEqual(["XL"]);
+    expect(blocks()).toHaveLength(2);
+    for (const block of blocks())
+      expect(block).toHaveAttribute("data-size", "xl");
+    expect(askedLine()).toHaveAttribute("data-size", "xl");
+    expect(window.localStorage.getItem(TEXT_KEY)).toBe("xl");
+  });
+
+  it("the box for a question that waits takes the size too", async () => {
+    await show(
+      "coach",
+      session(
+        heardSoFar([
+          transcript(150, "Tell me about a project you are proud of.", {
+            sourceId: "application-audio-r1",
+          }),
+        ]),
+      ),
+    );
+    act(() => setCoachTextSize("sm"));
+    expect(screen.getByTestId("pn-coach-waiting")).toHaveAttribute(
+      "data-size",
+      "sm",
+    );
+  });
+
+  it("a size kept from an earlier session is the one the control shows", async () => {
+    act(() => setCoachTextSize("md"));
+    await show("prompter");
+    expect(chosen()).toEqual(["M"]);
+    expect(blocks()[0]).toHaveAttribute("data-size", "md");
+    expect(option("Medium text")).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("the Default layout leaves the size as chosen", async () => {
+    await show("coach");
+    act(() => setCoachTextSize("xl"));
+    resetLayout();
+    expect(chosen()).toEqual(["XL"]);
+    expect(blocks()[0]).toHaveAttribute("data-size", "xl");
   });
 });
 
@@ -888,6 +1078,10 @@ describe("the right column of the coach view", () => {
       .filter((each) => each.getAttribute("aria-selected") === "true")
       .map((each) => each.textContent);
   const panel = () => screen.getByRole("tabpanel");
+  // Every tab panel, open or not (a closed one is hidden from roles).
+  const panels = () => [
+    ...document.querySelectorAll<HTMLElement>('[role="tabpanel"]'),
+  ];
 
   it("opens on the answer, and draws one pane at a time", async () => {
     await show("coach");
@@ -895,6 +1089,45 @@ describe("the right column of the coach view", () => {
     expect(within(panel()).getByTestId("pane-answer")).toBeInTheDocument();
     expect(screen.queryByTestId("pn-chat")).toBeNull();
     expect(screen.queryByTestId("pane-code")).toBeNull();
+  });
+
+  it("the tab bar is a surface of its own, so the see-through window gives it the mouse", async () => {
+    await show("coach");
+    expect(screen.getByRole("tablist")).toHaveAttribute("data-hit-surface");
+  });
+
+  it("only the open panel is laid out, and it draws no box of its own; the closed ones stay hidden", async () => {
+    await show("coach");
+    const laidOut = () =>
+      panels().map((each) => [
+        each.getAttribute("aria-labelledby") === tabId(),
+        each.hidden,
+        each.style.display,
+      ]);
+    const tabId = () =>
+      screen
+        .getAllByRole("tab")
+        .find((each) => each.getAttribute("aria-selected") === "true")?.id;
+    expect(panels()).toHaveLength(4);
+    expect(laidOut()).toEqual([
+      [true, false, "flex"],
+      [false, true, ""],
+      [false, true, ""],
+      [false, true, ""],
+    ]);
+    const open = panel();
+    expect(open.style.background).toBe("transparent");
+    expect(open.style.boxShadow).toBe("none");
+    openTab("code");
+    expect(laidOut()).toEqual([
+      [false, true, ""],
+      [false, true, ""],
+      [true, false, "flex"],
+      [false, true, ""],
+    ]);
+    // The answer's panel was given its layout back to the library.
+    expect(panels()[0]?.style.background).toBe("");
+    expect(panels()[0]?.style.display).toBe("");
   });
 
   it("the Transcript tab shows the transcript and its message box in the answer's place", async () => {
@@ -973,8 +1206,15 @@ describe("the right column of the coach view", () => {
     openTab("transcript");
     openTab("code");
     onShow(QUESTION_ONE);
-    expect(blocks()[0]).toHaveTextContent("Name the criteria");
+    expect(metaOf(blocks()[0])).toContain("Name the criteria");
     expect(screen.getByTestId("pn-coach-live")).toBeInTheDocument();
+  });
+
+  it("picking a question leaves the open tab open", async () => {
+    await show("coach");
+    openTab("transcript");
+    pickListed(1);
+    expect(selected()).toEqual(["Transcript"]);
   });
 });
 
@@ -1021,7 +1261,6 @@ describe("a note named as its question", () => {
       }),
     );
     await show("coach");
-    expect(blocks()[1]).toHaveAttribute("data-tone", "watch");
     expect(metaOf(blocks()[1])).toMatch(/^Answer · [^·]+$/);
     expect(sectionsOf(blocks()[1])).toEqual(["caution"]);
   });
@@ -1079,9 +1318,11 @@ describe("a note under the call", () => {
     });
     expect(sectionsOf(block)).toEqual(["say", "say", "caution"]);
     expect(
-      [...block.querySelectorAll('[data-section="say"] > span')].map(
-        (label) => label.textContent,
-      ),
+      [
+        ...block.querySelectorAll(
+          '[data-kind="say"] [data-slot="cue-card-label"]',
+        ),
+      ].map((label) => label.textContent),
     ).toEqual(["Say this", "If pushed"]);
     expect(linesOf(block)).toEqual([
       "Each step has its own undo",
@@ -1113,10 +1354,6 @@ describe("a note under the call", () => {
       expect(metaOf(block)).toMatch(
         new RegExp(`^${label} · \\d+:\\d\\d[^·]* · Then the Saga$`),
       );
-      expect(within(block).getByTestId("pn-coach-note")).toHaveAttribute(
-        "data-kind",
-        kind,
-      );
     },
   );
 
@@ -1139,10 +1376,7 @@ describe("a note under the call", () => {
     "%s: the note is drawn in full",
     async (view) => {
       const block = await add(FULL, view);
-      expect(within(block).getByTestId("pn-coach-note")).toHaveAttribute(
-        "data-mode",
-        "detail",
-      );
+      expect(block).toHaveAttribute("data-mode", "detail");
       expect(sectionsOf(block)).toEqual(["say", "anchors", "ask", "context"]);
       expect(block).toHaveTextContent("Anchor Five");
       expect(within(block).getByTestId("pn-coach-link")).toHaveTextContent(
@@ -1153,10 +1387,7 @@ describe("a note under the call", () => {
 
   it("prompter: the note is the compact one: the response and three anchors, nothing to read, no links", async () => {
     const block = await add(FULL, "prompter");
-    expect(within(block).getByTestId("pn-coach-note")).toHaveAttribute(
-      "data-mode",
-      "compact",
-    );
+    expect(block).toHaveAttribute("data-mode", "compact");
     expect(sectionsOf(block)).toEqual(["say", "anchors"]);
     expect(block).toHaveTextContent("Anchor Three");
     expect(block).not.toHaveTextContent("Anchor Four");
@@ -1174,10 +1405,7 @@ describe("a note under the call", () => {
         { kind: "say", lines: [spoken("Each step has its own undo")] },
       ],
     });
-    expect(within(block).getByTestId("pn-coach-note")).toHaveAttribute(
-      "data-status",
-      "pending",
-    );
+    expect(block).toHaveAttribute("data-status", "pending");
     expect(linesOf(block)).toEqual(["Each step has its own undo"]);
     expect(within(block).getByRole("status")).toHaveTextContent(/^Updating…$/);
   });
@@ -1209,34 +1437,39 @@ describe("a note under the call", () => {
 describe("the question on show: the coach's few words, and what was said beneath", () => {
   const strong = (element: Element | null) =>
     [...(element?.querySelectorAll("span") ?? [])]
-      .filter((piece) => piece.style.fontWeight === "500")
+      .filter((piece) => piece.className.includes("font-medium"))
       .map((piece) => piece.textContent);
 
-  it("shows the coach's restatement large, and what was heard small beneath it with the whole of it on hover", async () => {
+  it("shows the coach's restatement as the line's title, and what was heard beneath it, cut to two lines with the whole of it on hover", async () => {
     await show("coach");
+    expect(askedLine()).toHaveAttribute("data-slot", "heard-line");
     expect(asked().textContent).toBe(ASK_TWO);
     expect(heard()?.textContent).toBe(QUESTION_TWO);
     expect(heard()).toHaveAttribute("title", QUESTION_TWO);
-    expect(
-      asked().compareDocumentPosition(heard() as HTMLElement) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    // Small, grey and cut to two lines: it places the question, it is not read.
-    const said = heard() as HTMLElement;
-    expect(said.style.overflow).toBe("hidden");
-    expect(said.style.getPropertyValue("-webkit-line-clamp")).toBe("2");
-    expect(Number.parseFloat(said.style.fontSize)).toBeLessThan(
-      Number.parseFloat(asked().style.fontSize),
-    );
+    expect(follows(askedLabel(), asked())).toBe(true);
+    expect(follows(asked(), heard() as HTMLElement)).toBe(true);
+    // Cut to two lines: it places the question, it is not read.
+    expect(heard()?.style.getPropertyValue("-webkit-line-clamp")).toBe("2");
+    expect(asked().style.getPropertyValue("-webkit-line-clamp")).toBe("");
   });
 
   it("lifts the words that carry what was heard, and leaves the rest quiet", async () => {
     await show("coach");
+    expect(
+      [...(heard()?.querySelectorAll("span") ?? [])].map(
+        (piece) => piece.textContent,
+      ),
+    ).toEqual([
+      "How do you ",
+      "handle ",
+      "data ",
+      "consistency between multiple services?",
+    ]);
     expect(strong(heard())).toEqual([
       "handle ",
       "consistency between multiple services?",
     ]);
-    // The large line is plain: one run of text, nothing lifted.
+    // The title is plain: one run of text, nothing lifted.
     expect(asked().querySelector("span")).toBeNull();
   });
 
@@ -1274,225 +1507,616 @@ describe("the question on show: the coach's few words, and what was said beneath
     expect(heard()).toBeNull();
   });
 
-  it("the header over the pane names the question by the same few words", async () => {
+  it("the header over the pane names the question by its number and the same few words", async () => {
     await show("coach");
-    expect(notesPane()).toHaveTextContent(`Q2 · ${ASK_TWO}`);
+    const subtitle = () => slot(notesPane(), "panel-subtitle")?.textContent;
+    expect(subtitle()).toBe(`Q2 · ${ASK_TWO}`);
     pickListed(1);
-    expect(notesPane()).toHaveTextContent(`Q1 · ${cut(QUESTION_ONE)}`);
+    expect(subtitle()).toBe(`Q1 · ${cut(QUESTION_ONE)}`);
+  });
+
+  it("the line under it carries the same number as its row in the list", async () => {
+    await show("coach");
+    expect(askedLabel().textContent).toMatch(/^Q2 · /);
+    expect(
+      numberOf(
+        rows().find((each) => each.hasAttribute("aria-current")) as HTMLElement,
+      ),
+    ).toBe("2");
+    pickListed(1);
+    expect(askedLabel().textContent).toMatch(/^Q1 · /);
+    expect(
+      numberOf(
+        rows().find((each) => each.hasAttribute("aria-current")) as HTMLElement,
+      ),
+    ).toBe("1");
   });
 });
 
-describe("where the notes pane opens and what moves it", () => {
-  it("a picked question opens at its top, with no pill", async () => {
-    await show("coach");
-    const pane = scroller();
-    scrollTo(pane, 500);
-    pickListed(1);
-    onShow(QUESTION_ONE);
-    expect(pane.scrollTop).toBe(0);
-    expect(screen.queryByTestId("pn-coach-below")).toBeNull();
-  });
-
-  it("going back to live opens the live question at its top too", async () => {
-    await show("coach");
-    pickListed(1);
-    const pane = scroller();
-    scrollTo(pane, 500);
-    fireEvent.click(screen.getByTestId("pn-coach-live"));
-    onShow(QUESTION_TWO, ASK_TWO);
-    expect(pane.scrollTop).toBe(0);
-  });
-
-  it("a note for another question neither scrolls the one on show nor shows the pill", async () => {
-    posted = [{ ...FIRST, askId: "q-service" }, SECOND];
-    await show("coach");
-    const pane = scroller();
-    scrollTo(pane, 120);
-    post(note(3, 90, { title: "Add the team-size point", askId: "q-service" }));
-    await poll();
-    expect(question(1)).toHaveTextContent("2 notes");
-    expect(blocks()).toHaveLength(1);
-    expect(pane.scrollTop).toBe(120);
-    expect(screen.queryByTestId("pn-coach-below")).toBeNull();
-  });
-
-  it("a note for another question leaves a reader at the bottom where they are", async () => {
-    posted = [{ ...FIRST, askId: "q-service" }, SECOND];
-    await show("coach");
-    const pane = scroller();
-    scrollTo(pane, 700);
-    post(note(3, 90, { title: "Add the team-size point", askId: "q-service" }));
-    await poll();
-    expect(pane.scrollTop).toBe(700);
-  });
-
-  it("a question that fits its pane counts as read to the bottom: its next note is followed, not announced", async () => {
-    await show("coach");
-    pickListed(1);
-    pickListed(2);
-    const pane = scroller(300, 300);
-    post(note(3, 80, { title: "Then the Saga", askId: "q-consistency" }));
-    await poll();
-    expect(blocks()).toHaveLength(2);
-    expect(pane.scrollTop).toBe(300);
-    expect(screen.queryByTestId("pn-coach-below")).toBeNull();
-  });
-});
-
-describe("the bars that resize the layout", () => {
-  const COLUMNS_KEY = "omnitech.interview.coach.columns";
-  const SLOT_KEY = "omnitech.interview.call-slot.height";
-  const splitter = (side: "left" | "right") =>
-    screen.getByTestId(`pn-coach-splitter-${side}`);
-  const edge = (side: "left" | "right") =>
-    screen.getByTestId(`pn-coach-edge-${side}`);
-  const follows = (before: Element, after: Element) =>
-    Boolean(
-      before.compareDocumentPosition(after) & Node.DOCUMENT_POSITION_FOLLOWING,
+describe("the bars that resize the columns", () => {
+  const bar = (panel: "questions" | "side") =>
+    document.querySelector<HTMLElement>(
+      `[data-slot="splitter-handle"][data-panel="${panel}"]`,
+    ) as HTMLElement;
+  const column = (panel: "questions" | "main" | "side") =>
+    document.querySelector<HTMLElement>(
+      `[data-slot="splitter-panel"][data-panel="${panel}"]`,
+    ) as HTMLElement;
+  const widths = () =>
+    (["questions", "side"] as const).map((panel) =>
+      Number(bar(panel).getAttribute("aria-valuenow")),
     );
 
   it.each(["coach", "conversation"] as const)(
     "%s: a bar stands between the questions and the centre, and between the centre and the right column",
     async (view) => {
       await show(view);
-      const row = [...layout().children];
-      expect(row.map((each) => each.getAttribute("data-testid"))).toEqual([
-        "pn-coach-edge-left",
-        null,
-        "pn-coach-splitter-left",
-        null,
-        "pn-coach-splitter-right",
-        null,
-        "pn-coach-edge-right",
+      const row = [...(column("main").parentElement?.children ?? [])];
+      expect(
+        row.map(
+          (each) =>
+            `${each.getAttribute("data-slot")}:${each.getAttribute("data-panel") ?? each.getAttribute("data-edge")}`,
+        ),
+      ).toEqual([
+        "splitter-edge:start",
+        "splitter-panel:questions",
+        "splitter-handle:questions",
+        "splitter-panel:main",
+        "splitter-handle:side",
+        "splitter-panel:side",
+        "splitter-edge:end",
       ]);
-      expect(row[1]).toContainElement(screen.getByTestId("pn-coach-questions"));
-      expect(row[3]).toContainElement(notesPane());
-      expect(row[3]).toContainElement(screen.getByTestId("pn-call-slot"));
-      expect(row[5]).toContainElement(
+      expect(column("questions")).toContainElement(
+        screen.getByTestId("pn-coach-questions"),
+      );
+      expect(column("main")).toContainElement(notesPane());
+      expect(column("main")).toContainElement(
+        screen.getByTestId("pn-call-slot"),
+      );
+      expect(column("side")).toContainElement(
         view === "coach"
           ? screen.getByRole("tablist")
           : screen.getByTestId("pn-chat"),
       );
-      expect(splitter("left")).toHaveAccessibleName(
-        "Width of the questions column",
-      );
-      expect(splitter("right")).toHaveAccessibleName(
-        "Width of the right column",
-      );
+      expect(bar("questions")).toHaveAccessibleName("Resize the questions");
+      expect(bar("side")).toHaveAccessibleName("Resize the answer");
       // The side columns open 250 and 400 px wide; the centre takes the rest.
-      expect(splitter("left")).toHaveAttribute("aria-valuenow", "250");
-      expect(splitter("right")).toHaveAttribute("aria-valuenow", "400");
-      expect(row[1]).toHaveStyle({ flex: "0 0 250px" });
-      expect(row[5]).toHaveStyle({ flex: "0 0 400px" });
+      expect(widths()).toEqual([250, 400]);
+      expect(column("questions")).toHaveStyle({ flex: "0 0 250px" });
+      expect(column("side")).toHaveStyle({ flex: "0 0 400px" });
     },
   );
 
-  it("prompter: no columns to resize, only the window's own edges around the centre", async () => {
-    await show("prompter");
-    expect(screen.queryByTestId("pn-coach-splitter-left")).toBeNull();
-    expect(screen.queryByTestId("pn-coach-splitter-right")).toBeNull();
-    expect(layout().firstElementChild).toBe(edge("left"));
-    expect(layout().lastElementChild).toBe(edge("right"));
-    expect(layout().children).toHaveLength(3);
-    expect(layout().children[1]).toContainElement(notesPane());
+  it("each bar is a vertical separator that says its column's width and its floor, and takes the mouse and the keyboard", async () => {
+    await show("coach");
+    for (const panel of ["questions", "side"] as const) {
+      expect(bar(panel)).toHaveAttribute("role", "separator");
+      expect(bar(panel)).toHaveAttribute("aria-orientation", "vertical");
+      expect(bar(panel)).toHaveAttribute("tabindex", "0");
+      expect(bar(panel)).toHaveAttribute("data-hit-surface");
+    }
+    // A side column is never folded away: each has a floor it stays readable at.
+    expect(bar("questions")).toHaveAttribute(
+      "aria-valuemin",
+      String(QUESTIONS_FLOOR),
+    );
+    expect(bar("side")).toHaveAttribute("aria-valuemin", String(SIDE_FLOOR));
+    // The questions are never wider than 360 px.
+    expect(bar("questions")).toHaveAttribute("aria-valuemax", "360");
   });
 
-  it.each(["coach", "conversation", "prompter"] as const)(
-    "%s: the window's edges are the first and last thing in the row, which keeps no gap of its own",
-    async (view) => {
-      await show(view);
-      expect(layout().firstElementChild).toBe(edge("left"));
-      expect(layout().lastElementChild).toBe(edge("right"));
-      expect(follows(edge("left"), notesPane())).toBe(true);
-      expect(follows(notesPane(), edge("right"))).toBe(true);
-      expect(layout().style.gap).toMatch(/^0(px)?$/);
+  it("the centre is never narrower than the toolbar above it: 560 px where there is none to measure, the toolbar's own width where there is", async () => {
+    const drawn = await show("coach");
+    expect(column("main").style.minWidth).toBe(`${TOOLBAR_FALLBACK}px`);
+    drawn.unmount();
+    const pill = document.createElement("div");
+    pill.className = "pn-toolbar";
+    Object.defineProperty(pill, "offsetWidth", {
+      configurable: true,
+      value: 640,
+    });
+    document.body.append(pill);
+    try {
+      await show("conversation");
+      expect(column("main").style.minWidth).toBe("640px");
+    } finally {
+      pill.remove();
+    }
+  });
+
+  it("nothing is kept until a column is resized", async () => {
+    await show("coach");
+    expect(window.localStorage.getItem(SIZES_KEY)).toBeNull();
+  });
+
+  it("the arrows on the questions' bar widen and narrow them 24 px a press, Home takes them to their 180 px floor and End to 360 px", async () => {
+    await show("coach");
+    fireEvent.keyDown(bar("questions"), { key: "ArrowRight" });
+    expect(widths()).toEqual([274, 400]);
+    expect(column("questions")).toHaveStyle({ flex: "0 0 274px" });
+    expect(keptSizes()).toMatchObject({ questions: 274 });
+    fireEvent.keyDown(bar("questions"), { key: "ArrowLeft" });
+    fireEvent.keyDown(bar("questions"), { key: "ArrowLeft" });
+    expect(widths()).toEqual([226, 400]);
+    fireEvent.keyDown(bar("questions"), { key: "Home" });
+    expect(widths()).toEqual([QUESTIONS_FLOOR, 400]);
+    expect(keptSizes()).toMatchObject({ questions: QUESTIONS_FLOOR });
+    fireEvent.keyDown(bar("questions"), { key: "End" });
+    expect(widths()).toEqual([360, 400]);
+  });
+
+  it("on the right bar the arrows are mirrored: the bar moves the way the arrow points", async () => {
+    await show("coach");
+    fireEvent.keyDown(bar("side"), { key: "ArrowRight" });
+    expect(widths()).toEqual([250, 376]);
+    expect(keptSizes()).toMatchObject({ side: 376 });
+    fireEvent.keyDown(bar("side"), { key: "ArrowLeft" });
+    expect(widths()).toEqual([250, 400]);
+    // Home is the right column's floor: it is never folded away either.
+    fireEvent.keyDown(bar("side"), { key: "Home" });
+    expect(widths()[1]).toBe(SIDE_FLOOR);
+  });
+
+  it("a width kept from before the columns had a floor is lifted to it", async () => {
+    window.localStorage.setItem(
+      SIZES_KEY,
+      JSON.stringify({ questions: 0, side: 120, call: 0 }),
+    );
+    await show("coach");
+    expect(widths()).toEqual([QUESTIONS_FLOOR, SIDE_FLOOR]);
+    expect(column("questions")).toHaveStyle({
+      flex: `0 0 ${QUESTIONS_FLOOR}px`,
+    });
+    expect(column("side")).toHaveStyle({ flex: `0 0 ${SIDE_FLOOR}px` });
+    // The call's room has no floor: folded away stays folded.
+    expect(screen.getByTestId("pn-call-slot")).toHaveStyle({ flex: "0 0 0px" });
+  });
+
+  it("a kept width at or above its floor is used as kept", async () => {
+    window.localStorage.setItem(
+      SIZES_KEY,
+      JSON.stringify({ questions: QUESTIONS_FLOOR, side: SIDE_FLOOR + 1 }),
+    );
+    await show("conversation");
+    expect(widths()).toEqual([QUESTIONS_FLOOR, SIDE_FLOOR + 1]);
+  });
+
+  it("a bar takes the keys it uses and leaves every other key alone", async () => {
+    await show("coach");
+    expect(fireEvent.keyDown(bar("questions"), { key: "ArrowRight" })).toBe(
+      false,
+    );
+    const before = widths();
+    expect(fireEvent.keyDown(bar("questions"), { key: "x" })).toBe(true);
+    expect(fireEvent.keyDown(bar("questions"), { key: "Tab" })).toBe(true);
+    expect(widths()).toEqual(before);
+  });
+
+  it("dragging a bar: the column follows the pointer from where the drag began, and the width is kept", async () => {
+    await show("coach");
+    pointer(bar("questions"), "down", { x: 250 });
+    pointer(bar("questions"), "move", { x: 200 });
+    expect(widths()).toEqual([200, 400]);
+    pointer(bar("questions"), "move", { x: 230 });
+    expect(widths()).toEqual([230, 400]);
+    pointer(bar("questions"), "up", { x: 230 });
+    expect(keptSizes()).toMatchObject({ questions: 230 });
+    expect(column("questions")).toHaveStyle({ flex: "0 0 230px" });
+  });
+
+  it("a pointer that only passes over a bar does nothing", async () => {
+    await show("coach");
+    pointer(bar("questions"), "move", { x: 100 });
+    expect(widths()).toEqual([250, 400]);
+    pointer(bar("questions"), "down", { x: 250 });
+    pointer(bar("questions"), "up", { x: 250 });
+    pointer(bar("questions"), "move", { x: 100 });
+    expect(widths()).toEqual([250, 400]);
+    expect(held()).toBe(false);
+  });
+
+  it.each([
+    ["questions", "up"],
+    ["questions", "cancel"],
+    ["side", "up"],
+    ["side", "cancel"],
+  ] as const)(
+    "the %s bar tells the shell not to move the window while it is held, until pointer %s",
+    async (panel, end) => {
+      await show("coach");
+      expect(held()).toBe(false);
+      pointer(bar(panel), "down", { x: 300 });
+      expect(held()).toBe(true);
+      pointer(bar(panel), "move", { x: 320 });
+      expect(held()).toBe(true);
+      pointer(bar(panel), end, { x: 320 });
+      expect(held()).toBe(false);
     },
   );
+
+  it("the keys and a double click never hold the window", async () => {
+    await show("coach");
+    fireEvent.keyDown(bar("questions"), { key: "ArrowRight" });
+    expect(held()).toBe(false);
+    fireEvent.doubleClick(bar("side"));
+    expect(held()).toBe(false);
+  });
 
   it("a column takes the width kept from an earlier session", async () => {
     window.localStorage.setItem(
-      COLUMNS_KEY,
-      JSON.stringify({ left: 180, right: 520 }),
+      SIZES_KEY,
+      JSON.stringify({ questions: 200, side: 520 }),
     );
     await show("conversation");
-    expect(splitter("left")).toHaveAttribute("aria-valuenow", "180");
-    expect(splitter("right")).toHaveAttribute("aria-valuenow", "520");
-    expect(layout().children[1]).toHaveStyle({ flex: "0 0 180px" });
-    expect(layout().children[5]).toHaveStyle({ flex: "0 0 520px" });
+    expect(widths()).toEqual([200, 520]);
+    expect(column("questions")).toHaveStyle({ flex: "0 0 200px" });
+    expect(column("side")).toHaveStyle({ flex: "0 0 520px" });
   });
 
   it("a double click on a bar puts that column back and leaves the other", async () => {
     window.localStorage.setItem(
-      COLUMNS_KEY,
-      JSON.stringify({ left: 180, right: 520 }),
+      SIZES_KEY,
+      JSON.stringify({ questions: 200, side: 520 }),
     );
     await show("coach");
-    fireEvent.doubleClick(splitter("right"));
-    expect(splitter("right")).toHaveAttribute("aria-valuenow", "400");
-    expect(splitter("left")).toHaveAttribute("aria-valuenow", "180");
-    expect(layout().children[5]).toHaveStyle({ flex: "0 0 400px" });
+    fireEvent.doubleClick(bar("side"));
+    expect(widths()).toEqual([200, 400]);
+    expect(column("side")).toHaveStyle({ flex: "0 0 400px" });
+    expect(keptSizes()).toMatchObject({ questions: 200, side: 400 });
   });
 
+  it("prompter: no columns to resize, only the window's own edges around the centre", async () => {
+    await show("prompter");
+    expect(
+      document.querySelector(
+        '[data-slot="splitter-handle"][data-panel="questions"]',
+      ),
+    ).toBeNull();
+    expect(
+      document.querySelector(
+        '[data-slot="splitter-handle"][data-panel="side"]',
+      ),
+    ).toBeNull();
+    const row = [...(column("main").parentElement?.children ?? [])];
+    expect(row.map((each) => each.getAttribute("data-slot"))).toEqual([
+      "splitter-edge",
+      "splitter-panel",
+      "splitter-edge",
+    ]);
+    expect(column("main")).toContainElement(notesPane());
+    // With no column beside it, the centre has no floor of its own.
+    expect(column("main").style.minWidth).toMatch(/^0(px)?$/);
+  });
+});
+
+describe("the window's own edges", () => {
+  const edge = (side: "left" | "right" | "bottom") =>
+    screen.getByRole("separator", { name: `Resize from the ${side} edge` });
+  const width = () => window.localStorage.getItem(WIDTH_KEY);
+  const height = () => window.localStorage.getItem(HEIGHT_KEY);
+
   it.each(["coach", "conversation", "prompter"] as const)(
-    "%s: Reset layout is in the notes' header, before the previous and next buttons",
+    "%s: the left and right edges are the first and last thing in the row of columns, and the bottom edge is the last thing in the layout",
     async (view) => {
       await show(view);
-      const reset = screen.getByTestId("pn-coach-reset");
-      expect(notesPane()).toContainElement(reset);
-      expect(reset).toHaveTextContent("Reset layout");
-      expect(reset).toHaveAttribute(
-        "title",
-        "Put the columns and the call's room back to their sizes",
-      );
-      expect(
-        follows(
-          reset,
-          screen.getByRole("button", { name: "Previous question" }),
-        ),
-      ).toBe(true);
+      const row = edge("left").parentElement as HTMLElement;
+      expect(row.firstElementChild).toBe(edge("left"));
+      expect(row.lastElementChild).toBe(edge("right"));
+      expect(follows(edge("left"), notesPane())).toBe(true);
+      expect(follows(notesPane(), edge("right"))).toBe(true);
+      expect(layout().lastElementChild).toBe(edge("bottom"));
+      expect(layout().children).toHaveLength(2);
+      expect(layout().firstElementChild).toContainElement(row);
+      // The edges are part of the Splitters: the layout keeps no gap of its own.
+      expect(layout().style.gap).toMatch(/^0(px)?$/);
     },
   );
 
-  it("Reset layout puts both columns and the call's room back, and keeps that for the next session", async () => {
-    window.localStorage.setItem(
-      COLUMNS_KEY,
-      JSON.stringify({ left: 180, right: 520 }),
-    );
-    window.localStorage.setItem(SLOT_KEY, "90");
-    vi.stubGlobal("innerHeight", 768);
+  it("with columns at its sides the window is never narrower than they are at their least with the centre at the toolbar's width", async () => {
     await show("coach");
-    expect(screen.getByTestId("pn-call-slot")).toHaveStyle({
-      flex: "0 0 90px",
+    const least =
+      QUESTIONS_FLOOR + TOOLBAR_FALLBACK + SIDE_FLOOR + COLUMN_HANDLES;
+    expect(least).toBe(1_072);
+    for (const side of ["left", "right"] as const)
+      expect(edge(side)).toHaveAttribute("aria-valuemin", String(least));
+    pointer(edge("right"), "down", { x: 900 });
+    pointer(edge("right"), "move", { x: 100 });
+    pointer(edge("right"), "up", { x: 100 });
+    expect(width()).toBe(String(least));
+  });
+
+  it("the side edges say the window's width between 480 px and the screen's, the bottom its height between 420 px and the screen's; each takes the mouse and the keyboard", async () => {
+    await show("prompter");
+    for (const side of ["left", "right"] as const) {
+      expect(edge(side)).toHaveAttribute("aria-orientation", "vertical");
+      expect(edge(side)).toHaveAttribute("aria-valuenow", "1000");
+      expect(edge(side)).toHaveAttribute("aria-valuemin", "480");
+      expect(edge(side)).toHaveAttribute("aria-valuemax", "1600");
+    }
+    expect(edge("left")).toHaveAttribute("data-edge", "start");
+    expect(edge("right")).toHaveAttribute("data-edge", "end");
+    expect(edge("bottom")).toHaveAttribute("data-edge", "end");
+    expect(edge("bottom")).toHaveAttribute("aria-orientation", "horizontal");
+    expect(edge("bottom")).toHaveAttribute("aria-valuenow", "768");
+    expect(edge("bottom")).toHaveAttribute("aria-valuemin", "420");
+    expect(edge("bottom")).toHaveAttribute("aria-valuemax", "1000");
+    for (const side of ["left", "right", "bottom"] as const) {
+      expect(edge(side)).toHaveAttribute("tabindex", "0");
+      expect(edge(side)).toHaveAttribute("data-hit-surface");
+    }
+  });
+
+  it("nothing is asked of the window until an edge is moved", async () => {
+    await show("coach");
+    expect(width()).toBeNull();
+    expect(height()).toBeNull();
+  });
+
+  it.each([
+    ["left", 100, 60, "1080"],
+    ["left", 100, 150, "900"],
+    ["right", 900, 940, "1080"],
+    ["right", 900, 850, "900"],
+  ] as const)(
+    "dragging the %s edge from %i to %i asks for %s px: twice the distance, since the window grows about its centre",
+    async (side, from, to, asked) => {
+      await show("prompter");
+      pointer(edge(side), "down", { x: from });
+      pointer(edge(side), "move", { x: to });
+      expect(width()).toBe(asked);
+      pointer(edge(side), "up", { x: to });
+      expect(width()).toBe(asked);
+      expect(height()).toBeNull();
+    },
+  );
+
+  it.each([
+    [760, 800, "808"],
+    [760, 700, "708"],
+  ] as const)(
+    "dragging the bottom edge from %i to %i asks for %s px: the bottom follows the pointer one for one",
+    async (from, to, asked) => {
+      await show("prompter");
+      pointer(edge("bottom"), "down", { y: from });
+      pointer(edge("bottom"), "move", { y: to });
+      pointer(edge("bottom"), "up", { y: to });
+      expect(height()).toBe(asked);
+      expect(width()).toBeNull();
+    },
+  );
+
+  it("a drag stops at 480 px wide and at the screen's width", async () => {
+    await show("prompter");
+    pointer(edge("right"), "down", { x: 900 });
+    pointer(edge("right"), "move", { x: 100 });
+    expect(width()).toBe("480");
+    pointer(edge("right"), "move", { x: 5_000 });
+    expect(width()).toBe("1600");
+    pointer(edge("right"), "up", { x: 5_000 });
+  });
+
+  it("a drag stops at 420 px tall and at the screen's height", async () => {
+    await show("coach");
+    pointer(edge("bottom"), "down", { y: 760 });
+    pointer(edge("bottom"), "move", { y: 0 });
+    expect(height()).toBe("420");
+    pointer(edge("bottom"), "move", { y: 5_000 });
+    expect(height()).toBe("1000");
+    pointer(edge("bottom"), "up", { y: 5_000 });
+  });
+
+  it.each([
+    ["left", "up"],
+    ["right", "cancel"],
+    ["bottom", "up"],
+    ["bottom", "cancel"],
+  ] as const)(
+    "the %s edge tells the shell not to move the window while it is held, until pointer %s",
+    async (side, end) => {
+      await show("coach");
+      pointer(edge(side), "down", { x: 500, y: 500 });
+      expect(held()).toBe(true);
+      pointer(edge(side), "move", { x: 520, y: 520 });
+      expect(held()).toBe(true);
+      pointer(edge(side), end, { x: 520, y: 520 });
+      expect(held()).toBe(false);
+    },
+  );
+
+  it.each([
+    ["left", "ArrowLeft", "1048"],
+    ["left", "ArrowRight", "952"],
+    ["right", "ArrowRight", "1048"],
+    ["right", "ArrowLeft", "952"],
+  ] as const)(
+    "on the %s edge %s moves that edge 24 px, so the window is asked for %s px",
+    async (side, key, asked) => {
+      await show("prompter");
+      fireEvent.keyDown(edge(side), { key });
+      expect(width()).toBe(asked);
+      expect(held()).toBe(false);
+    },
+  );
+
+  it.each([
+    ["ArrowDown", "792"],
+    ["ArrowUp", "744"],
+  ] as const)("on the bottom edge %s asks for %s px", async (key, asked) => {
+    await show("coach");
+    fireEvent.keyDown(edge("bottom"), { key });
+    expect(height()).toBe(asked);
+  });
+
+  it("a double click on a side edge gives the window its own width back, and on the bottom edge its own height; each leaves the other", async () => {
+    await show("coach");
+    act(() => {
+      setCoachWindowWidth(1_200);
+      setCoachWindowHeight(800);
     });
-    fireEvent.click(screen.getByTestId("pn-coach-reset"));
-    expect(splitter("left")).toHaveAttribute("aria-valuenow", "250");
-    expect(splitter("right")).toHaveAttribute("aria-valuenow", "400");
+    fireEvent.doubleClick(edge("left"));
+    expect(width()).toBeNull();
+    expect(height()).toBe("800");
+    act(() => setCoachWindowWidth(1_200));
+    fireEvent.doubleClick(edge("bottom"));
+    expect(height()).toBeNull();
+    expect(width()).toBe("1200");
+    fireEvent.doubleClick(edge("right"));
+    expect(width()).toBeNull();
+  });
+
+  it("moving an edge resizes no column and no room", async () => {
+    await show("coach");
+    pointer(edge("right"), "down", { x: 900 });
+    pointer(edge("right"), "move", { x: 1_040 });
+    pointer(edge("right"), "up", { x: 1_040 });
+    expect(width()).toBe("1280");
+    fireEvent.keyDown(edge("bottom"), { key: "ArrowDown" });
+    expect(window.localStorage.getItem(SIZES_KEY)).toBeNull();
     expect(screen.getByTestId("pn-call-slot")).toHaveStyle({
       flex: "0 0 250px",
     });
-    expect(JSON.parse(window.localStorage.getItem(COLUMNS_KEY) ?? "")).toEqual({
-      left: 250,
-      right: 400,
-    });
-    expect(window.localStorage.getItem(SLOT_KEY)).toBe("250");
+  });
+});
+
+describe("the Layout menu", () => {
+  const valueOf = (panel: string) =>
+    Number(
+      document
+        .querySelector(`[data-slot="splitter-handle"][data-panel="${panel}"]`)
+        ?.getAttribute("aria-valuenow"),
+    );
+  const values = () => ["questions", "side", "call"].map(valueOf);
+  const window_ = () => [
+    window.localStorage.getItem(WIDTH_KEY),
+    window.localStorage.getItem(HEIGHT_KEY),
+  ];
+
+  it.each(["coach", "conversation", "prompter"] as const)(
+    "%s: is a button in the notes' header, before the previous and next buttons, and is closed until pressed",
+    async (view) => {
+      await show(view);
+      expect(notesPane()).toContainElement(layoutMenu());
+      expect(layoutMenu().tagName).toBe("BUTTON");
+      expect(layoutMenu()).toHaveAccessibleName("Layout");
+      expect(layoutMenu()).toHaveAttribute("aria-haspopup", "menu");
+      expect(layoutMenu()).toHaveAttribute("aria-expanded", "false");
+      expect(screen.queryByRole("menu")).toBeNull();
+      expect(
+        follows(
+          layoutMenu(),
+          screen.getByRole("button", { name: "Previous question" }),
+        ),
+      ).toBe(true);
+      // The old reset button is gone: the menu's first row is the reset.
+      expect(screen.queryByTestId("pn-coach-reset")).toBeNull();
+    },
+  );
+
+  it("offers the layouts, each with what it does, in the order they are listed", async () => {
+    await show("coach");
+    openLayouts();
+    expect(screen.getByRole("menu")).toHaveAccessibleName("Layout");
+    const offered = screen.getAllByRole("menuitem");
+    expect(offered.map((row) => row.getAttribute("data-item-id"))).toEqual([
+      "default",
+      "fill",
+      "notes",
+      "no-call",
+    ]);
+    expect(offered.map((row) => row.textContent)).toEqual(
+      COACH_LAYOUTS.map((each) => `${each.label}${each.description}`),
+    );
   });
 
-  it("Reset layout leaves the question on show and its notes alone", async () => {
+  it("Default puts both columns and the call's room back, and the next session opens with them", async () => {
+    window.localStorage.setItem(
+      SIZES_KEY,
+      JSON.stringify({ questions: 200, side: 520, call: 90 }),
+    );
+    await show("coach");
+    expect(values()).toEqual([200, 520, 90]);
+    resetLayout();
+    expect(values()).toEqual([250, 400, 250]);
+    expect(screen.getByTestId("pn-call-slot")).toHaveStyle({
+      flex: "0 0 250px",
+    });
+    cleanup();
+    await show("coach");
+    expect(values()).toEqual([250, 400, 250]);
+  });
+
+  it("Default gives the window its own width and height back", async () => {
+    await show("coach");
+    act(() => {
+      setCoachWindowWidth(1_200);
+      setCoachWindowHeight(800);
+    });
+    expect(window_()).toEqual(["1200", "800"]);
+    resetLayout();
+    expect(window_()).toEqual([null, null]);
+  });
+
+  it("Fill the screen asks for the whole of the screen and resizes no column", async () => {
+    await show("coach");
+    chooseLayout("Fill the screen");
+    expect(window_()).toEqual([
+      String(SCREEN.availWidth),
+      String(SCREEN.availHeight),
+    ]);
+    expect(values()).toEqual([250, 400, 250]);
+  });
+
+  it("Widest notes takes the questions and the answer to their narrowest and folds the call's room away", async () => {
+    await show("coach");
+    chooseLayout("Widest notes");
+    expect(values()).toEqual([QUESTIONS_FLOOR, SIDE_FLOOR, 0]);
+    expect(screen.getByTestId("pn-call-slot")).toHaveStyle({ flex: "0 0 0px" });
+    expect(keptSizes()).toMatchObject({
+      questions: QUESTIONS_FLOOR,
+      side: SIDE_FLOOR,
+      call: 0,
+    });
+    expect(window_()).toEqual([null, null]);
+  });
+
+  it("No room for the call folds only the call's room away, and its bar stays to bring it back", async () => {
+    window.localStorage.setItem(
+      SIZES_KEY,
+      JSON.stringify({ questions: 200, side: 520 }),
+    );
+    await show("coach");
+    chooseLayout("No room for the call");
+    expect(values()).toEqual([200, 520, 0]);
+    const bar = screen.getByRole("separator", { name: /room for the call/ });
+    fireEvent.keyDown(bar, { key: "ArrowDown" });
+    expect(valueOf("call")).toBe(24);
+  });
+
+  it("in the prompter, No room for the call gives the notes the whole height, and Default brings the room back", async () => {
+    await show("prompter");
+    chooseLayout("No room for the call");
+    expect(screen.getByTestId("pn-call-slot")).toHaveStyle({ flex: "0 0 0px" });
+    resetLayout();
+    expect(screen.getByTestId("pn-call-slot")).toHaveStyle({
+      flex: "0 0 250px",
+    });
+  });
+
+  it("a layout leaves the question on show and its notes alone, and never holds the window", async () => {
     await show("coach");
     pickListed(1);
-    fireEvent.click(screen.getByTestId("pn-coach-reset"));
-    onShow(QUESTION_ONE);
-    expect(screen.getByTestId("pn-coach-live")).toBeInTheDocument();
+    for (const each of COACH_LAYOUTS) {
+      chooseLayout(each.label);
+      onShow(QUESTION_ONE);
+      expect(screen.getByTestId("pn-coach-live")).toBeInTheDocument();
+      expect(held()).toBe(false);
+    }
   });
 
-  it("Reset layout brings a folded call room back in the prompter too", async () => {
-    window.localStorage.setItem(SLOT_KEY, "0");
-    vi.stubGlobal("innerHeight", 768);
-    await show("prompter");
-    fireEvent.click(screen.getByTestId("pn-coach-reset"));
-    expect(screen.getByTestId("pn-call-slot")).toHaveStyle({
-      flex: "0 0 250px",
-    });
+  it("the menu closes once a layout is chosen", async () => {
+    await show("coach");
+    chooseLayout("Widest notes");
+    expect(screen.queryByRole("menu")).toBeNull();
   });
 });
 
@@ -1526,7 +2150,7 @@ describe("a rephrasing or a follow-up the coach did not answer separately", () =
     expect(screen.getByTestId("pn-coach-questions")).toHaveTextContent(
       "Questions · 2",
     );
-    expect(listed()).toHaveLength(2);
+    expect(rows()).toHaveLength(2);
     expect(screen.getByTestId("pn-coach-questions")).not.toHaveTextContent(
       "And how would you test",
     );
@@ -1538,46 +2162,46 @@ describe("a rephrasing or a follow-up the coach did not answer separately", () =
     pickListed(1);
     onShow(QUESTION_ONE);
     expect(followUps()).toHaveLength(1);
-    expect(followUps()[0]).toHaveTextContent(/^Follow-up · \d+:\d\d/);
+    expect(
+      slot(followUps()[0] as HTMLElement, "heard-line-label")?.textContent,
+    ).toMatch(/^Follow-up · \d+:\d\d/);
     expect(followUps()[0]).toHaveTextContent(FOLLOW_UP);
     expect(notesPane()).toContainElement(followUps()[0] as HTMLElement);
   });
 
-  it("is small, grey and cut to two lines, with the whole of it one hover away: it places the notes, it is not read out", async () => {
+  it("is what was heard, cut to two lines, with the whole of it one hover away: it places the notes, it is not read out", async () => {
     await show("coach", withFollowUp());
     pickListed(1);
-    const said = followUps()[0]?.querySelector("p") as HTMLElement;
+    const line = followUps()[0] as HTMLElement;
+    expect(line).toHaveAttribute("data-slot", "heard-line");
+    const said = heard(line) as HTMLElement;
     expect(said.textContent).toBe(FOLLOW_UP);
     expect(said).toHaveAttribute("title", FOLLOW_UP);
-    expect(said.style.overflow).toBe("hidden");
     expect(said.style.getPropertyValue("-webkit-line-clamp")).toBe("2");
-    // Smaller than the question above it.
-    expect(Number.parseFloat(said.style.fontSize)).toBeLessThan(
-      Number.parseFloat(asked().style.fontSize),
-    );
+    // It has no large title of its own: only the question on show has one.
+    expect(slot(line, "heard-line-title")).toBeNull();
   });
 
-  it("lifts the words that carry it, the rest left quiet, and a rule sets it apart from the notes above", async () => {
+  it("is the interviewer speaking: in the asking green, with the words that carry it lifted and the rest left quiet, and a rule sets it apart from the notes above", async () => {
     await show("coach", withFollowUp());
     pickListed(1);
-    const block = followUps()[0] as HTMLElement;
-    const pieces = [...block.querySelectorAll("p > span")] as HTMLElement[];
+    const line = followUps()[0] as HTMLElement;
+    expect(line).toHaveAttribute("data-tone", "ask");
+    const pieces = [...(heard(line)?.querySelectorAll("span") ?? [])];
     expect(pieces.map((piece) => piece.textContent)).toEqual([
       "And how would you test that ",
       "split ",
       "in ",
       "production?",
     ]);
-    expect(pieces.map((piece) => piece.style.fontWeight)).toEqual([
-      "",
-      "500",
-      "",
-      "500",
-    ]);
-    expect(pieces[1]?.style.color).not.toBe("");
-    expect(pieces[0]?.style.color).toBe("");
-    expect(block.style.borderTop).toContain("1px solid");
-    expect(block.style.paddingTop).toBe("20px");
+    expect(
+      pieces.map((piece) => piece.className.includes("font-medium")),
+    ).toEqual([false, true, false, true]);
+    // The rule stands between the note above and the follow-up.
+    const rule = line.previousElementSibling as HTMLElement;
+    expect(rule).toHaveAttribute("data-orientation", "horizontal");
+    expect(rule.textContent).toBe("");
+    expect(rule.previousElementSibling).toBe(blocks()[0]);
   });
 
   it("sits among the notes in the order they came", async () => {
@@ -1589,22 +2213,18 @@ describe("a rephrasing or a follow-up the coach did not answer separately", () =
     await show("coach", withFollowUp());
     pickListed(1);
     const order = [blocks()[0], followUps()[0], blocks()[1]] as HTMLElement[];
-    expect(order[0]).toHaveTextContent("Name the criteria");
-    expect(order[2]).toHaveTextContent("Canary, then a probe");
+    expect(metaOf(order[0])).toContain("Name the criteria");
+    expect(metaOf(order[2])).toContain("Canary, then a probe");
     for (const [at, element] of order.entries()) {
       const next = order[at + 1];
-      if (next)
-        expect(
-          element.compareDocumentPosition(next) &
-            Node.DOCUMENT_POSITION_FOLLOWING,
-        ).toBeTruthy();
+      if (next) expect(follows(element, next)).toBe(true);
     }
   });
 
   it("of two asked since the coach's last note, the earlier is a follow-up and only the newest waits", async () => {
     posted = [FIRST];
     await show("coach", withFollowUp());
-    expect(listed()).toHaveLength(1);
+    expect(rows()).toHaveLength(1);
     onShow(QUESTION_ONE);
     expect(followUps()).toHaveLength(1);
     expect(followUps()[0]).toHaveTextContent(FOLLOW_UP);
@@ -1627,7 +2247,7 @@ describe("the whole session", () => {
       "coach",
       session(heardSoFar(), { entries } as unknown as Partial<PanelSession>),
     );
-    expect(listed()).toHaveLength(2);
+    expect(rows()).toHaveLength(2);
     expect(question(1)).toHaveAttribute("title", QUESTION_ONE);
     pickListed(1);
     onShow(QUESTION_ONE);
