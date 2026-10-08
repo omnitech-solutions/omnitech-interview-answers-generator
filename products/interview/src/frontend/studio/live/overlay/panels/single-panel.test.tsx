@@ -2389,7 +2389,7 @@ describe("toolbar contract: order, locks and the microphone press", () => {
       expect(states[name], name).toBe(true);
   });
 
-  it("pressing the microphone while it listens stops the engine, and the name follows the engine's report", async () => {
+  it("pressing the microphone while it listens silences the microphone only: the engine restarts with the call audio, and the name follows the engine's report", async () => {
     const calls: string[] = [];
     nativeHost();
     const ok = (name: string) => async () => {
@@ -2399,7 +2399,23 @@ describe("toolbar contract: order, locks and the microphone press", () => {
     (
       window as unknown as { studioHost: { engine: unknown } }
     ).studioHost.engine = {
-      start: ok("start"),
+      // The engine reports the microphone as listening only when it was asked
+      // to listen to it.
+      start: async (request: { sources: readonly string[] }) => {
+        calls.push(`start:${request.sources.join("+")}`);
+        return {
+          ok: true,
+          engine: {
+            ...engineState,
+            sources: {
+              ...engineState.sources,
+              microphone: request.sources.includes("microphone")
+                ? "listening"
+                : "off",
+            },
+          },
+        };
+      },
       stop: async () => {
         calls.push("stop");
         return { ok: true, engine: { ...engineState, listening: false } };
@@ -2419,7 +2435,13 @@ describe("toolbar contract: order, locks and the microphone press", () => {
     fireEvent.click(mic);
     await flush();
     await flush();
-    expect(calls).toContain("stop");
+    // Stopped, then started again without the microphone: the call's audio
+    // keeps being heard and the engine keeps answering the heartbeat.
+    expect(calls).toEqual([
+      "start:microphone+application-audio",
+      "stop",
+      "start:application-audio",
+    ]);
     expect(
       bar.getByRole("button", { name: "Start microphone" }),
     ).toHaveAttribute("aria-pressed", "false");

@@ -196,6 +196,61 @@ describe("the microphone control with a native engine (Alt+R, Stop microphone)",
     ]);
     expect(view.result.current.micOn).toBe(true);
   });
+  it("with the call audio also heard, stopping the microphone restarts the engine with the other sources only, so the call and the heartbeat keep going", async () => {
+    const calls: string[] = [];
+    const engine = fake(async (r) => {
+      calls.push(`start:${r.sources.join("+")}`);
+      return {
+        ok: true,
+        engine: state({
+          sources: {
+            microphone: r.sources.includes("microphone") ? "listening" : "off",
+            "system-audio": "listening",
+            screen: "off",
+          },
+        }),
+      };
+    });
+    const view = renderHook((p) => useEngine(p), {
+      initialProps: input({ sources: ["microphone", "application-audio"] }),
+    });
+    await settle();
+    expect(view.result.current.micOn).toBe(true);
+    act(() => view.result.current.toggleMic());
+    await settle();
+    await settle();
+    expect([...calls, ...engine.calls]).toEqual([
+      "start:microphone+application-audio",
+      "start:application-audio",
+      "stop",
+    ]);
+    // The engine still runs (it is still the listener), its microphone is off.
+    expect(view.result.current.micPending).toBe(false);
+    expect(view.result.current.micOn).toBe(false);
+    expect(view.result.current.listening).toBe(true);
+    expect(view.result.current.state?.listening).toBe(true);
+  });
+  it("when the engine will not stop, the microphone press starts nothing in its place", async () => {
+    const calls: string[] = [];
+    fake(async (r) => {
+      calls.push(`start:${r.sources.join("+")}`);
+      return { ok: true, engine: state() };
+    });
+    const host = (window as { studioHost?: { engine: EngineHost } }).studioHost
+      ?.engine as EngineHost;
+    host.stop = async () => ({ ok: false, reason: "store-failed" });
+    const view = renderHook((p) => useEngine(p), {
+      initialProps: input({ sources: ["microphone", "application-audio"] }),
+    });
+    await settle();
+    act(() => view.result.current.toggleMic());
+    await settle();
+    await settle();
+    expect(calls).toEqual(["start:microphone+application-audio"]);
+    // A failed stop is not a refusal to start: the microphone still listens.
+    expect(view.result.current.refused).toBeNull();
+    expect(view.result.current.micOn).toBe(true);
+  });
   it("Manual (Auto off) presses the browser dictation fallback, never the engine; Auto on presses the engine, never the fallback", async () => {
     const engine = fake();
     const dictation = vi.fn();
