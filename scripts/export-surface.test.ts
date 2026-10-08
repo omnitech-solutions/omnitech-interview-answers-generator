@@ -102,7 +102,7 @@ const surfaces: Record<string, SurfaceRow> = {
   // +8: the coach notes contract (coachNoteLinkSchema, coachNoteInputSchema,
   // coachNoteSchema, coachNotesResponseSchema and their four types), shared by
   // the notes route, its file store and the live window's coach panel.
-  "@omnitech/interview-contracts": { entrypoints: 1, names: 395 },
+  "@omnitech/interview-contracts": { entrypoints: 1, names: 408 },
   "@omnitech/interview-library": { entrypoints: 1, names: 5 },
   "@omnitech/interview-playground-control": { entrypoints: 1, names: 16 },
   "@omnitech/interview-storage": { entrypoints: 1, names: 8 },
