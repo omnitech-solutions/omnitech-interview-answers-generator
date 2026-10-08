@@ -53,8 +53,10 @@ export type SourceLimits = {
 export const TASK_VIEW_LIMITS: SourceLimits = {
   maxSources: 40,
   maxSourceChars: 400,
-  maxTotalChars: 5_000,
+  maxTotalChars: 6_500,
 };
+// Lines of the employer brief a task view carries ahead of the matrix.
+export const MAX_BRIEF_SOURCES = 14;
 // The smaller window of a device profile.
 export const DEVICE_MAX_TOTAL_CHARS = 2_500;
 export const DEVICE_TASK_VIEW_LIMITS: SourceLimits = {
@@ -381,9 +383,17 @@ export function selectSourcesForTask(
     isCompensationText(task.query);
   const preferences = byKind("candidate-preference");
   const employer = byKind("employer-context");
+  // [DOMAIN] The employer brief (the cleaned job spec, a dozen short labelled
+  // lines) leads every task view: an answer about the company, the role or
+  // what they value has nothing to lean on otherwise, because a full matrix
+  // alone fills the view. The raw spec's sentences follow the matrix.
+  const brief = employer
+    .filter((source) => source.pointer.startsWith("/context/employerBrief/"))
+    .slice(0, MAX_BRIEF_SOURCES);
+  const employerRest = employer.filter((source) => !brief.includes(source));
   const order = preferencesFirst
-    ? [...preferences, ...ranked, ...employer]
-    : [...ranked, ...employer, ...preferences];
+    ? [...preferences, ...brief, ...ranked, ...employerRest]
+    : [...brief, ...ranked, ...employerRest, ...preferences];
 
   const kept: ContextSource[] = [];
   let total = 0;

@@ -56,15 +56,22 @@ async function contextOf(
   run: SessionRun,
   store: SessionStorePort,
 ): Promise<SessionContext | null> {
-  if (run.context) return run.context;
+  // The owner edits the job spec and its brief while a session runs: the
+  // context is re-read once it is older than CONTEXT_TTL_MS (one cheap read),
+  // and a failed re-read keeps the context already in hand.
+  const fresh =
+    run.context && Date.now() - (run.contextLoadedAt ?? 0) < CONTEXT_TTL_MS;
+  if (run.context && fresh) return run.context;
   try {
     run.context = await store.loadContext(run.scope, run.claim.sessionId);
+    run.contextLoadedAt = Date.now();
     return run.context;
   } catch {
     // [SAFETY] The error is never read: only that it failed is recorded.
-    return null;
+    return run.context;
   }
 }
+const CONTEXT_TTL_MS = 30_000;
 
 // The restatement and constraints of every coding brief this task has had, in
 // any revision (a typed follow-up is a later revision of the same task).

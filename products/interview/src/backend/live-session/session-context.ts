@@ -34,14 +34,29 @@ import { decodeDraftKey } from "./mapping";
 import { firstRow, inOwnerScope, type OwnerScope } from "./scope";
 import { readSession } from "./session-record";
 
+const BRIEF_LINE_CHARS = 360;
+
 const textOrUndefined = (value: unknown): string | undefined =>
   typeof value === "string" && value.trim() !== "" ? value : undefined;
 
 // The brief as short labelled lines: each becomes one employer-material source
 // the prompt can cite by pointer, instead of one JSON blob.
 export function briefLines(brief: EmployerBrief): string {
-  const list = (label: string, items: readonly string[]) =>
-    items.length ? [`${label}: ${items.join("; ")}`] : [];
+  // A labelled list is split into lines that fit the task view's piece cap
+  // (context-snapshot TASK_VIEW_LIMITS.maxSourceChars), each with its label.
+  const list = (label: string, items: readonly string[]) => {
+    const lines: string[] = [];
+    let current = "";
+    for (const item of items) {
+      const next = current ? `${current}; ${item}` : `${label}: ${item}`;
+      if (next.length > BRIEF_LINE_CHARS && current) {
+        lines.push(current);
+        current = `${label}: ${item}`;
+      } else current = next;
+    }
+    if (current) lines.push(current);
+    return lines;
+  };
   return [
     `Employer brief: ${brief.role} at ${brief.company}`,
     ...(brief.summary ? [`Role summary: ${brief.summary}`] : []),

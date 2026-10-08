@@ -173,6 +173,8 @@ export type SessionRun = {
   // the run: a new fence builds a new run and reloads it, and the pinned
   // profile revision cannot change inside a session.
   context: SessionContext | null;
+  // When `context` was read (contextOf re-reads it after a while).
+  contextLoadedAt?: number;
   // Coding candidates by `${taskId}:${revision}` (the draft-answer result with
   // category coding), and the newest published solution per task.
   coding: Map<string, CodingCandidate>;
