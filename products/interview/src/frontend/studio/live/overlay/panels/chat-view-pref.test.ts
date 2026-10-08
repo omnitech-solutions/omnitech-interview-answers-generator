@@ -13,7 +13,11 @@ const load = async (): Promise<Pref> => {
 };
 
 beforeEach(() => window.localStorage.clear());
-afterEach(() => window.localStorage.clear());
+afterEach(() => {
+  // A blocked storage is one test's own: the root run does not restore spies.
+  vi.restoreAllMocks();
+  window.localStorage.clear();
+});
 
 describe("the views on offer", () => {
   it("are the three coach layouts, then the original and the transcript, each with a label and a hint", async () => {
