@@ -1889,6 +1889,68 @@ describe("answer panel header (library Panel)", () => {
 });
 
 describe("code pane", () => {
+  // Revision 2 of the task whose first revision has its code: its answer, and
+  // optionally its code job.
+  const second = (over: Record<string, unknown>) => ({
+    ...named("Rate limiter, revised"),
+    taskRevision: 2,
+    createdAt: minutesAfter(1, 9),
+    updatedAt: minutesAfter(1, 9),
+    ...over,
+  });
+  const pickRevision = (revision: number) => {
+    fireEvent.pointerDown(screen.getByTestId("pn-bar-revisions-button"), {
+      button: 0,
+      ctrlKey: false,
+    });
+    fireEvent.click(
+      within(screen.getByRole("menu", { name: "Revisions" })).getByRole(
+        "menuitemradio",
+        { name: new RegExp(`^rev ${revision}\\b`) },
+      ),
+    );
+  };
+
+  it("spins while the newest revision's approach is redrafted, never showing the code of the revision before it; an earlier revision picked still shows its code", async () => {
+    serve(live(), [
+      named("Rate limiter"),
+      solved(),
+      second({ dispatchStatus: "in_flight", result: null }),
+    ]);
+    await show();
+    const pane = screen.getByRole("region", { name: "Code" });
+    expect(pane).toHaveTextContent("Working on the new revision…");
+    expect(screen.queryByTestId("pn-code")).toBeNull();
+    pickRevision(1);
+    expect(screen.getByTestId("pn-code")).toBeVisible();
+    expect(screen.getByRole("region", { name: "Code" })).not.toHaveTextContent(
+      "Working on the new revision…",
+    );
+  });
+
+  it("says the code is being written once the newest revision's code stage runs, still without the earlier code", async () => {
+    serve(live(), [
+      named("Rate limiter"),
+      solved(),
+      second({}),
+      action({
+        actionKind: "solve-code",
+        taskRevision: 2,
+        dispatchStatus: "in_flight",
+        result: null,
+        createdAt: minutesAfter(1, 9),
+        updatedAt: minutesAfter(1, 9),
+      }),
+    ]);
+    await show();
+    const pane = screen.getByRole("region", { name: "Code" });
+    expect(pane).toHaveTextContent(/Writing code…/);
+    expect(pane).not.toHaveTextContent("Working on the new revision…");
+    expect(screen.queryByTestId("pn-code")).toBeNull();
+    pickRevision(1);
+    expect(screen.getByTestId("pn-code")).toBeVisible();
+  });
+
   it("shows the language, the server's own badges, the code and Copy code", async () => {
     serve(live(), [named("Rate limiter"), solved()]);
     const writeText = vi.fn(async () => undefined);

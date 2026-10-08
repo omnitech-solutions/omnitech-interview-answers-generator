@@ -526,7 +526,13 @@ export function CodePane({ s }: { s: PanelSession }) {
   const example = task ? answerView(task).example : null;
   // A new problem not yet applied: nothing of the previous task is shown.
   if (drafting) return <CodeEmpty text={WAITS_FOR_APPROACH} busy={false} />;
-  if (card?.code && !pending)
+  // While the newest revision's code is being written the pane spins: the
+  // code left from the revision before it is not what is coming. Picking an
+  // earlier revision shows that revision's code as it stands.
+  const working =
+    card?.stages.some((stage) => stage.state === "running") ?? false;
+  const regenerating = working && card?.revision === card?.currentRevision;
+  if (card?.code && !pending && !regenerating)
     return (
       <CodeCard
         code={card.code}
@@ -550,6 +556,10 @@ export function CodePane({ s }: { s: PanelSession }) {
         }}
       />
     );
+  // The approach of a new revision is still being redrafted: its code has
+  // not started, and the pane says so with the spinner.
+  if (regenerating && !writing && !pending)
+    return <CodeEmpty text="Working on the new revision…" busy />;
   const placeholder = codePlaceholder({
     card,
     approachPending: pending,
