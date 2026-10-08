@@ -26,7 +26,7 @@ import { Icon } from "../../../icon";
 import { CallSlot } from "./call-slot";
 import { ChatPanel } from "./chat-panel";
 import type { ChatView } from "./chat-view-pref";
-import { ColumnSplitter, useCoachColumns } from "./coach-columns";
+import { ColumnSplitter, useCoachColumns, WindowEdge } from "./coach-columns";
 import { Prompter, useCoachNotes } from "./coach-notes";
 import {
   conversationTurns,
@@ -591,11 +591,13 @@ export function CoachLayout({
     return (
       <div
         className="pn-single-body"
-        style={STYLE.body}
+        style={{ ...STYLE.body, gap: 0 }}
         data-view={view}
         data-testid="pn-coach-layout"
       >
+        <WindowEdge side="left" />
         {centre}
+        <WindowEdge side="right" />
       </div>
     );
   // The bars stand in the gaps, so the row itself keeps none.
@@ -612,6 +614,7 @@ export function CoachLayout({
       data-view={view}
       data-testid="pn-coach-layout"
     >
+      <WindowEdge side="left" />
       <div style={side("left")}>
         <QuestionsList
           questions={questions}
@@ -643,6 +646,7 @@ export function CoachLayout({
           </div>
         )}
       </div>
+      <WindowEdge side="right" />
     </div>
   );
 }
