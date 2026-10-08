@@ -2,10 +2,14 @@
 // bounds that keep a note short enough to read while speaking.
 import { describe, expect, it } from "vitest";
 import {
+  COACH_NOTE_KINDS,
   coachNoteInputSchema,
   coachNoteLinkSchema,
   coachNoteSchema,
+  coachNoteSectionSchema,
+  coachNoteSteerSchema,
   coachNotesResponseSchema,
+  TALKING_POINT_LENGTH,
 } from "./coach-notes";
 
 const accepts = (input: unknown) =>
@@ -72,7 +76,9 @@ describe("a coach note as posted", () => {
     ).toEqual({
       title: "Monolith or service",
       tone: "say",
+      kind: "answer",
       points: [],
+      sections: [],
       links: [],
     });
   });
@@ -189,6 +195,136 @@ describe("a coach note as posted", () => {
     expect(accepts({ title: "T", id: stored.id })).toBe(false);
     expect(accepts({ title: "T", createdAt: stored.createdAt })).toBe(false);
     expect(accepts({ title: "T", html: "<b>bold</b>" })).toBe(false);
+  });
+});
+
+describe("a structured coach note", () => {
+  const atMost = "a".repeat(TALKING_POINT_LENGTH);
+  const tooLong = "a".repeat(TALKING_POINT_LENGTH + 1);
+
+  it("a talking point is one sentence's worth: up to 240 characters", () => {
+    expect(TALKING_POINT_LENGTH).toBe(240);
+  });
+
+  it("is one of five kinds, an answer unless it says otherwise", () => {
+    expect(COACH_NOTE_KINDS).toEqual([
+      "answer",
+      "follow-up",
+      "steer",
+      "ask-them",
+      "close",
+    ]);
+    for (const kind of COACH_NOTE_KINDS)
+      expect(coachNoteInputSchema.parse({ title: "T", kind }).kind).toBe(kind);
+    expect(coachNoteInputSchema.parse({ title: "T" }).kind).toBe("answer");
+    expect(accepts({ title: "T", kind: "aside" })).toBe(false);
+    expect(accepts({ title: "T", kind: null })).toBe(false);
+  });
+
+  it("a section is a label of up to 24 characters over one to five talking points", () => {
+    const section = (input: unknown) =>
+      coachNoteSectionSchema.safeParse(input).success;
+    expect(
+      coachNoteSectionSchema.parse({ label: " Say ", points: [" Lead "] }),
+    ).toEqual({ label: "Say", points: ["Lead"] });
+    expect(section({ label: "a".repeat(24), points: ["P"] })).toBe(true);
+    expect(section({ label: "a".repeat(25), points: ["P"] })).toBe(false);
+    expect(section({ label: "  ", points: ["P"] })).toBe(false);
+    expect(section({ label: "Say", points: [] })).toBe(false);
+    expect(section({ label: "Say", points: Array(5).fill("P") })).toBe(true);
+    expect(section({ label: "Say", points: Array(6).fill("P") })).toBe(false);
+    expect(section({ label: "Say", points: [atMost] })).toBe(true);
+    expect(section({ label: "Say", points: [tooLong] })).toBe(false);
+    expect(section({ label: "Say", points: ["  "] })).toBe(false);
+    expect(section({ label: "Say" })).toBe(false);
+    expect(section({ label: "Say", points: ["P"], tone: "say" })).toBe(false);
+  });
+
+  it("takes up to four sections, and has none unless given", () => {
+    const sections = (count: number) =>
+      accepts({
+        title: "T",
+        sections: Array.from({ length: count }, (_, at) => ({
+          label: `Group ${at}`,
+          points: ["P"],
+        })),
+      });
+    expect(sections(4)).toBe(true);
+    expect(sections(5)).toBe(false);
+    expect(coachNoteInputSchema.parse({ title: "T" }).sections).toEqual([]);
+    expect(
+      accepts({ title: "T", sections: [{ label: "Say", points: [] }] }),
+    ).toBe(false);
+  });
+
+  it("a steer says what is off, and may give the line back; each is a talking point", () => {
+    const steer = (input: unknown) =>
+      coachNoteSteerSchema.safeParse(input).success;
+    expect(
+      coachNoteSteerSchema.parse({
+        issue: " Reads only ",
+        say: " For writes ",
+      }),
+    ).toEqual({ issue: "Reads only", say: "For writes" });
+    expect(steer({ issue: "Reads only" })).toBe(true);
+    expect(steer({ say: "For writes" })).toBe(false);
+    expect(steer({ issue: "  " })).toBe(false);
+    expect(steer({ issue: atMost, say: atMost })).toBe(true);
+    expect(steer({ issue: tooLong })).toBe(false);
+    expect(steer({ issue: "Reads only", say: tooLong })).toBe(false);
+    expect(steer({ issue: "Reads only", say: "" })).toBe(false);
+    expect(steer({ issue: "Reads only", tone: "watch" })).toBe(false);
+    expect(accepts({ title: "T", steer: { issue: "Reads only" } })).toBe(true);
+    expect(accepts({ title: "T", steer: {} })).toBe(false);
+  });
+
+  it("may say what was heard (600), what is wanted (a talking point) and a diagram (1,500), none of them blank", () => {
+    const field = (name: string, value: unknown) =>
+      accepts({ title: "T", [name]: value });
+    expect(field("heard", "a".repeat(600))).toBe(true);
+    expect(field("heard", "a".repeat(601))).toBe(false);
+    expect(field("heard", "  ")).toBe(false);
+    expect(field("wants", atMost)).toBe(true);
+    expect(field("wants", tooLong)).toBe(false);
+    expect(field("wants", "")).toBe(false);
+    expect(field("diagram", "a".repeat(1_500))).toBe(true);
+    expect(field("diagram", "a".repeat(1_501))).toBe(false);
+    expect(field("diagram", "   ")).toBe(false);
+    expect(
+      coachNoteInputSchema.parse({
+        title: "T",
+        heard: " How would you split it ",
+        wants: " A rule ",
+        diagram: " flowchart LR ",
+      }),
+    ).toMatchObject({
+      heard: "How would you split it",
+      wants: "A rule",
+      diagram: "flowchart LR",
+    });
+  });
+
+  it("leaves what was not given out, and is kept as it was posted", () => {
+    const parsed = coachNoteInputSchema.parse({ title: "T" });
+    for (const key of ["heard", "wants", "steer", "diagram"])
+      expect(parsed).not.toHaveProperty(key);
+    const kept = {
+      ...stored,
+      kind: "steer",
+      heard: "How would you split it",
+      wants: "A rule",
+      sections: [{ label: "Say", points: ["Lead with the result"] }],
+      steer: { issue: "Reads only", say: "For writes" },
+      diagram: "flowchart LR",
+    };
+    expect(coachNoteSchema.parse(kept)).toEqual(kept);
+  });
+
+  it("a note kept before notes had a structure still reads: an answer with no sections", () => {
+    expect(coachNoteSchema.parse(stored)).toMatchObject({
+      kind: "answer",
+      sections: [],
+    });
   });
 });
 

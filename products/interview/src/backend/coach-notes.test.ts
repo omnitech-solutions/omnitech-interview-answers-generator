@@ -135,6 +135,55 @@ describe("the coach notes store", () => {
     expect(notes.at(-1)?.title).toBe("Note 1");
   });
 
+  it("keeps a structured note whole, and reads it back after a restart", () => {
+    const store = createCoachNotes(file);
+    const { notes } = store.add({
+      title: "Consistency",
+      kind: "steer",
+      heard: "How do you keep two services consistent",
+      wants: "A named technique",
+      sections: [{ label: "Say", points: ["Start from the **Outbox**"] }],
+      steer: { issue: "That covers reads only", say: "For writes, the ledger" },
+      diagram: "flowchart LR\n  A --> B",
+    });
+    expect(notes[0]).toMatchObject({
+      kind: "steer",
+      heard: "How do you keep two services consistent",
+      wants: "A named technique",
+      sections: [{ label: "Say", points: ["Start from the **Outbox**"] }],
+      steer: { issue: "That covers reads only", say: "For writes, the ledger" },
+      diagram: "flowchart LR\n  A --> B",
+    });
+    expect(createCoachNotes(file).get().notes).toEqual(notes);
+  });
+
+  it("reads a file written before notes had a structure: each is an answer with no sections", () => {
+    mkdirSync(join(directory, "data"));
+    writeFileSync(
+      file,
+      JSON.stringify({
+        notes: [
+          {
+            id: "00000000-0000-4000-8000-000000000001",
+            createdAt: "2026-10-08T17:40:00.000Z",
+            title: "From before",
+            tone: "say",
+            points: ["Name the criteria"],
+            links: [],
+          },
+        ],
+      }),
+    );
+    expect(createCoachNotes(file).get().notes).toEqual([
+      expect.objectContaining({
+        title: "From before",
+        kind: "answer",
+        sections: [],
+        points: ["Name the criteria"],
+      }),
+    ]);
+  });
+
   it("keeps the newest 200 notes: the oldest fall off the end", () => {
     const store = createCoachNotes(file);
     for (let at = 1; at <= 201; at += 1) store.add({ title: `Note ${at}` });
