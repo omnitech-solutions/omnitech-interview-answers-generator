@@ -6,7 +6,7 @@
 // whole window; a double click folds it away and brings it back. The height
 // is kept for the next session.
 import { useRef, useState } from "react";
-import { useLayoutReset } from "./coach-columns";
+import { holdWindowDrag, useLayoutReset } from "./coach-columns";
 
 const KEY = "omnitech.interview.call-slot.height";
 const DEFAULT_HEIGHT = 250;
@@ -88,6 +88,7 @@ export function CallSlot() {
         }}
         onPointerDown={(event) => {
           drag.current = { y: event.clientY, height: shown };
+          holdWindowDrag(true);
           event.currentTarget.setPointerCapture(event.pointerId);
         }}
         onPointerMove={(event) => {
@@ -96,9 +97,11 @@ export function CallSlot() {
         }}
         onPointerUp={() => {
           drag.current = null;
+          holdWindowDrag(false);
         }}
         onPointerCancel={() => {
           drag.current = null;
+          holdWindowDrag(false);
         }}
         onDoubleClick={() => resize(shown > 0 ? 0 : before.current)}
         onKeyDown={(event) => {

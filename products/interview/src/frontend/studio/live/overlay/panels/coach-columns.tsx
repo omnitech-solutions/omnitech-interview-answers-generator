@@ -80,6 +80,16 @@ export function useLayoutReset(onReset: () => void): void {
   }, []);
 }
 
+// [SAFETY] The native shell moves the window when a press travels over an
+// empty drawn part of the page, and it asks about the spot the pointer has
+// reached, not the bar it started on. While a bar is being dragged the whole
+// page says "not here" (`data-no-drag`, which the shell honours), so resizing
+// never turns into moving the window.
+export function holdWindowDrag(held: boolean): void {
+  if (held) document.documentElement.setAttribute("data-no-drag", "");
+  else document.documentElement.removeAttribute("data-no-drag");
+}
+
 const LABEL: Record<Side, string> = {
   left: "Width of the questions column",
   right: "Width of the right column",
@@ -125,6 +135,7 @@ export function ColumnSplitter({
       }}
       onPointerDown={(event) => {
         drag.current = { x: event.clientX, width };
+        holdWindowDrag(true);
         event.currentTarget.setPointerCapture(event.pointerId);
       }}
       onPointerMove={(event) => {
@@ -133,9 +144,11 @@ export function ColumnSplitter({
       }}
       onPointerUp={() => {
         drag.current = null;
+        holdWindowDrag(false);
       }}
       onPointerCancel={() => {
         drag.current = null;
+        holdWindowDrag(false);
       }}
       onDoubleClick={onReset}
       onKeyDown={(event) => {
