@@ -24,7 +24,9 @@ export const CHAT_VIEWS = [
 export type ChatView = (typeof CHAT_VIEWS)[number]["id"];
 
 const KEY = "omnitech.interview.chat.view";
-const DEFAULT: ChatView = "conversation-slot";
+// The transcript with the coach panel apart is what a window opens with: the
+// conversation layouts are chosen, until their design is settled.
+const DEFAULT: ChatView = "transcript";
 const isView = (value: string | null): value is ChatView =>
   CHAT_VIEWS.some((view) => view.id === value);
 
