@@ -1,91 +1,58 @@
-// The widths of a coach layout's side columns. Each is resized by dragging the
-// bar between it and the centre (or with the arrow keys), from nothing to as
-// wide as the window allows while the centre keeps its floor; a double click
-// on a bar puts that column back, and "Reset layout" puts everything back.
-// The widths are kept for the next session.
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { QUESTIONS_WIDTH, RIGHT_WIDTH } from "./chat-view-pref";
+// The sizes a coach layout keeps: its columns and the room for the call (the
+// library's Splitter draws and resizes them; this is only where they are
+// remembered), and the window's own width, set from a bar at its far edges.
+// "Reset layout" puts all of it back.
+import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 
-const KEY = "omnitech.interview.coach.columns";
+const KEY = "omnitech.interview.coach.sizes";
 const STEP = 24;
-// What the centre (the call and the notes) always keeps.
-export const CENTRE_FLOOR = 320;
-// The questions are a list to glance at, never a column to read across: it is
-// not widened past this, however much room the window has.
-export const QUESTIONS_CEILING = 360;
-// The bar stands in the gap between two columns.
-export const SPLITTER_WIDTH = 8;
-// Sent to everything in the layout that keeps a size of its own (the call slot).
-export const COACH_LAYOUT_RESET = "omnitech:coach-layout-reset";
+const SPLITTER_WIDTH = 8;
+type Side = "left" | "right";
+type Sizes = Record<string, number>;
 
-export type Side = "left" | "right";
-type Columns = Record<Side, number>;
-const DEFAULTS: Columns = { left: QUESTIONS_WIDTH, right: RIGHT_WIDTH };
-
-function saved(): Columns {
+function saved(): Sizes | undefined {
   try {
     const kept = JSON.parse(window.localStorage.getItem(KEY) ?? "null");
-    const width = (side: Side) =>
-      Number.isFinite(kept?.[side]) && kept[side] >= 0
-        ? Math.min(
-            Number(kept[side]),
-            side === "left" ? QUESTIONS_CEILING : Number.POSITIVE_INFINITY,
-          )
-        : DEFAULTS[side];
-    return { left: width("left"), right: width("right") };
+    if (!kept || typeof kept !== "object") return undefined;
+    const sizes: Sizes = {};
+    for (const [id, size] of Object.entries(kept))
+      if (typeof size === "number" && Number.isFinite(size) && size >= 0)
+        sizes[id] = size;
+    return sizes;
   } catch {
-    return DEFAULTS;
+    return undefined;
   }
 }
 
-export function useCoachColumns() {
-  const [columns, setColumns] = useState<Columns>(saved);
-  // The row the columns stand in: its width is what there is to share.
-  const row = useRef<HTMLDivElement>(null);
-  const keep = (next: Columns) => {
-    setColumns(next);
+// [DOMAIN] The sizes are the Splitter's, by panel id ("questions", "side",
+// "call"). Until one is dragged there are none kept and every panel has its
+// own default; a reset forgets them and tells the Splitters to go back.
+export function useCoachSizes() {
+  const [sizes, setSizes] = useState<Sizes | undefined>(saved);
+  const [resetKey, setResetKey] = useState(0);
+  // Both Splitters report into the one record.
+  const latest = useRef<Sizes>(sizes ?? {});
+  const keep = useCallback((next: Sizes) => {
+    latest.current = { ...latest.current, ...next };
+    setSizes(latest.current);
     try {
-      window.localStorage.setItem(KEY, JSON.stringify(next));
+      window.localStorage.setItem(KEY, JSON.stringify(latest.current));
     } catch {
-      // The widths still hold for this window.
+      // The sizes still hold for this window.
     }
-  };
-  // [GUARD] A column is never wider than what the other column and the
-  // centre's floor leave of the row, and never narrower than nothing.
-  const ceiling = (side: Side) => {
-    const other = columns[side === "left" ? "right" : "left"];
-    const total = row.current?.clientWidth ?? Number.POSITIVE_INFINITY;
-    const room = Math.max(0, total - other - CENTRE_FLOOR - SPLITTER_WIDTH * 4);
-    return side === "left" ? Math.min(room, QUESTIONS_CEILING) : room;
-  };
-  const resize = (side: Side, width: number) =>
-    keep({
-      ...columns,
-      [side]: Math.round(Math.min(Math.max(width, 0), ceiling(side))),
-    });
-  return {
-    row,
-    columns,
-    resize,
-    ceiling,
-    resetSide: (side: Side) => keep({ ...columns, [side]: DEFAULTS[side] }),
-    reset: () => {
-      keep(DEFAULTS);
-      setCoachWindowWidth(null);
-      window.dispatchEvent(new Event(COACH_LAYOUT_RESET));
-    },
-  };
-}
-
-// Runs `onReset` when the layout is reset.
-export function useLayoutReset(onReset: () => void): void {
-  const latest = useRef(onReset);
-  latest.current = onReset;
-  useEffect(() => {
-    const reset = () => latest.current();
-    window.addEventListener(COACH_LAYOUT_RESET, reset);
-    return () => window.removeEventListener(COACH_LAYOUT_RESET, reset);
   }, []);
+  const reset = useCallback(() => {
+    latest.current = {};
+    setSizes(undefined);
+    setResetKey((now) => now + 1);
+    setCoachWindowWidth(null);
+    try {
+      window.localStorage.removeItem(KEY);
+    } catch {
+      // Nothing was kept.
+    }
+  }, []);
+  return { sizes, keep, reset, resetKey };
 }
 
 // [SAFETY] The native shell moves the window when a press travels over an
@@ -96,97 +63,6 @@ export function useLayoutReset(onReset: () => void): void {
 export function holdWindowDrag(held: boolean): void {
   if (held) document.documentElement.setAttribute("data-no-drag", "");
   else document.documentElement.removeAttribute("data-no-drag");
-}
-
-const LABEL: Record<Side, string> = {
-  left: "Width of the questions column",
-  right: "Width of the right column",
-};
-
-export function ColumnSplitter({
-  side,
-  width,
-  max,
-  onResize,
-  onReset,
-}: {
-  side: Side;
-  width: number;
-  max: number;
-  onResize(width: number): void;
-  onReset(): void;
-}) {
-  // Where the drag began: the pointer's place on screen and the column's width.
-  const drag = useRef<{ x: number; width: number } | null>(null);
-  // Dragging right widens the left column and narrows the right one.
-  const sign = side === "left" ? 1 : -1;
-  return (
-    // A slider, so the shell treats it as a control and never drags the window
-    // from it; a surface of its own, so it takes the mouse.
-    <div
-      role="slider"
-      tabIndex={0}
-      aria-label={LABEL[side]}
-      aria-orientation="horizontal"
-      aria-valuemin={0}
-      aria-valuemax={Number.isFinite(max) ? max : width}
-      aria-valuenow={width}
-      title="Drag to resize. Double-click to put this column back."
-      data-hit-surface=""
-      data-testid={`pn-coach-splitter-${side}`}
-      style={{
-        flex: `0 0 ${SPLITTER_WIDTH}px`,
-        display: "grid",
-        placeItems: "center",
-        cursor: "ew-resize",
-        touchAction: "none",
-      }}
-      onPointerDown={(event) => {
-        drag.current = { x: event.clientX, width };
-        holdWindowDrag(true);
-        event.currentTarget.setPointerCapture(event.pointerId);
-      }}
-      onPointerMove={(event) => {
-        if (!drag.current) return;
-        onResize(drag.current.width + sign * (event.clientX - drag.current.x));
-      }}
-      onPointerUp={() => {
-        drag.current = null;
-        holdWindowDrag(false);
-      }}
-      onPointerCancel={() => {
-        drag.current = null;
-        holdWindowDrag(false);
-      }}
-      onDoubleClick={onReset}
-      onKeyDown={(event) => {
-        const next =
-          event.key === "ArrowRight"
-            ? width + sign * STEP
-            : event.key === "ArrowLeft"
-              ? width - sign * STEP
-              : event.key === "Home"
-                ? 0
-                : event.key === "End"
-                  ? max
-                  : null;
-        if (next === null) return;
-        event.preventDefault();
-        onResize(next);
-      }}
-    >
-      <span
-        aria-hidden="true"
-        style={{
-          width: 4,
-          height: 44,
-          borderRadius: 2,
-          background: "var(--ov-muted, #9aa4b2)",
-          opacity: 0.6,
-        }}
-      />
-    </div>
-  );
 }
 
 // ---- The window's own width ------------------------------------------------------

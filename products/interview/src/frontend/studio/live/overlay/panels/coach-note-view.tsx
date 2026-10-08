@@ -9,11 +9,10 @@
 //   grey   supporting context: read later, never said
 // White is the sentence itself. A section's label takes its kind's colour and
 // the words inside stay white, so a note is never a wall of highlights.
-import { Button } from "@oc-tech/omni-ui-components";
+import { Button, CueCard, type CueSection } from "@oc-tech/omni-ui-components";
 import type {
   CoachLine,
   CoachNote,
-  CoachRole,
   CoachSectionKind,
   CoachSegment,
 } from "@omnitech/interview-contracts";
@@ -35,15 +34,6 @@ export const COACH_COLOUR = {
   read: "#f2f2f3",
 } as const;
 
-const ROLE_STYLE: Record<CoachRole, CSSProperties> = {
-  spoken: {},
-  // The way into the line: heavier, the same white, no colour of its own.
-  cue: { fontWeight: 650 },
-  evidence: { color: COACH_COLOUR.evidence, fontWeight: 600 },
-  caution: { color: COACH_COLOUR.caution, fontWeight: 600 },
-  context: { color: COACH_COLOUR.context },
-};
-
 const SECTION: Record<CoachSectionKind, { label: string; colour: string }> = {
   say: { label: "Say this", colour: COACH_COLOUR.act },
   anchors: { label: "Anchors", colour: COACH_COLOUR.evidence },
@@ -51,14 +41,6 @@ const SECTION: Record<CoachSectionKind, { label: string; colour: string }> = {
   caution: { label: "Careful", colour: COACH_COLOUR.caution },
   context: { label: "Context", colour: COACH_COLOUR.context },
 };
-
-// The compact note is a ready response and a few anchors: nothing to read.
-const COMPACT_KINDS: readonly CoachSectionKind[] = [
-  "say",
-  "anchors",
-  "caution",
-];
-const COMPACT_ANCHORS = 3;
 
 const LABEL_LENGTH = 28;
 
@@ -155,180 +137,26 @@ export function drawnSections(note: CoachNote): {
   };
 }
 
-const STYLE = {
-  // [DOMAIN] Space says what belongs together: a wide gap between sections,
-  // a small one between a label and its own lines.
-  note: { display: "flex", flexDirection: "column", gap: 26, minWidth: 0 },
-  section: { display: "flex", flexDirection: "column", gap: 10 },
-  label: {
-    marginBottom: 2,
-    fontSize: 11,
-    fontWeight: 700,
-    letterSpacing: "0.09em",
-    textTransform: "uppercase",
-  },
-  say: { margin: 0, fontSize: 19, lineHeight: 1.42, color: COACH_COLOUR.read },
-  ask: { margin: 0, fontSize: 18, lineHeight: 1.42, color: COACH_COLOUR.read },
-  row: { display: "flex", gap: 12, minWidth: 0 },
-  mark: {
-    flex: "0 0 6px",
-    height: 6,
-    marginTop: 11,
-    borderRadius: "50%",
-    background: "#6e6e73",
-  },
-  anchors: { display: "flex", flexDirection: "column", gap: 5 },
-  anchor: {
-    display: "flex",
-    gap: 10,
-    fontSize: 16,
-    lineHeight: 1.4,
-    color: COACH_COLOUR.read,
-  },
-  anchorMark: {
-    flex: "0 0 6px",
-    height: 6,
-    marginTop: 8,
-    borderRadius: 1.5,
-    background: COACH_COLOUR.evidence,
-  },
-  caution: {
-    display: "flex",
-    gap: 10,
-    padding: "9px 12px",
-    borderRadius: 9,
-    background: "rgba(245, 184, 74, 0.1)",
-    border: "1px solid rgba(245, 184, 74, 0.35)",
-    color: COACH_COLOUR.caution,
-  },
-  cautionLine: { margin: 0, fontSize: 16, lineHeight: 1.42 },
-  context: {
-    margin: 0,
-    fontSize: 14,
-    lineHeight: 1.45,
-    color: COACH_COLOUR.context,
-  },
-  pending: {
-    margin: 0,
-    fontSize: 14,
-    fontStyle: "italic",
-    color: COACH_COLOUR.context,
-  },
-  links: { display: "flex", flexWrap: "wrap", gap: 4 },
-} satisfies Record<string, CSSProperties>;
+// The note's own shape, as the card's: the same pieces, with nothing left
+// undefined where the card expects a field to be absent.
+const cueSection = (section: DrawnSection): CueSection => ({
+  kind: section.kind,
+  label: section.label,
+  lines: section.lines.map((line) => ({
+    segments: line.segments.map((segment) => ({
+      text: segment.text,
+      role: segment.role,
+      ...(segment.grounding ? { grounding: segment.grounding } : {}),
+      ...(segment.source ? { source: segment.source } : {}),
+    })),
+  })),
+});
 
-function Line({ line }: { line: CoachLine }) {
-  return (
-    <>
-      {line.segments.map((segment, at) => (
-        <span
-          // The pieces of one line never reorder.
-          // biome-ignore lint/suspicious/noArrayIndexKey: position is the identity
-          key={at}
-          style={
-            segment.grounding === "inferred"
-              ? {
-                  ...ROLE_STYLE[segment.role],
-                  textDecoration: `underline dotted ${COACH_COLOUR.caution}`,
-                  textUnderlineOffset: 4,
-                }
-              : ROLE_STYLE[segment.role]
-          }
-          {...(segment.grounding === "inferred"
-            ? { title: "Not confirmed in your experience: check before saying" }
-            : {})}
-          data-role={segment.role}
-          {...(segment.source ? { "data-source": segment.source } : {})}
-        >
-          {segment.text}
-        </span>
-      ))}
-    </>
-  );
-}
+const linkRow: CSSProperties = { display: "flex", flexWrap: "wrap", gap: 4 };
 
-const keyOf = (line: CoachLine) =>
-  line.segments.map((segment) => segment.text).join("");
-
-function Section({
-  section,
-  compact,
-}: {
-  section: DrawnSection;
-  compact: boolean;
-}) {
-  const lines =
-    compact && section.kind === "anchors"
-      ? section.lines.slice(0, COMPACT_ANCHORS)
-      : section.lines;
-  const label =
-    section.label === "" ? null : (
-      <span style={{ ...STYLE.label, color: SECTION[section.kind].colour }}>
-        {section.label}
-      </span>
-    );
-  if (section.kind === "caution")
-    return (
-      <div style={STYLE.caution} data-section="caution">
-        <Icon name="warning" />
-        <div style={{ ...STYLE.section, gap: 3, minWidth: 0 }}>
-          {label}
-          {lines.map((line, at) => (
-            <p
-              key={keyOf(line)}
-              style={{
-                ...STYLE.cautionLine,
-                // The first line names what is off; the rest are what to say.
-                color: at === 0 ? COACH_COLOUR.caution : COACH_COLOUR.read,
-              }}
-            >
-              <Line line={line} />
-            </p>
-          ))}
-        </div>
-      </div>
-    );
-  if (section.kind === "anchors")
-    return (
-      <div style={STYLE.section} data-section="anchors">
-        {label}
-        <div style={STYLE.anchors}>
-          {lines.map((line) => (
-            <div key={keyOf(line)} style={STYLE.anchor}>
-              <span style={STYLE.anchorMark} aria-hidden="true" />
-              <span>
-                <Line line={line} />
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  const text =
-    section.kind === "context"
-      ? STYLE.context
-      : section.kind === "ask"
-        ? STYLE.ask
-        : STYLE.say;
-  return (
-    <div style={STYLE.section} data-section={section.kind}>
-      {label}
-      {lines.map((line) => (
-        // Each sentence stands apart on its own mark, so several in a row
-        // never read as one paragraph.
-        <div key={keyOf(line)} style={STYLE.row}>
-          {section.kind !== "context" && (
-            <span style={STYLE.mark} aria-hidden="true" />
-          )}
-          <p style={text}>
-            <Line line={line} />
-          </p>
-        </div>
-      ))}
-    </div>
-  );
-}
-
+// [DOMAIN] The library's CueCard draws the note: this file only reads a note
+// (structured, or written as Markdown) into the card's sections and hands it
+// the diagram and the links.
 export function CoachNoteView({
   note,
   mode = "detail",
@@ -337,41 +165,22 @@ export function CoachNoteView({
   // "compact": the response and at most three anchors, nothing to read.
   mode?: "detail" | "compact";
 }) {
-  const compact = mode === "compact";
   const drawn = drawnSections(note);
-  const sections = compact
-    ? drawn.sections.filter((section) => COMPACT_KINDS.includes(section.kind))
-    : drawn.sections;
   return (
-    <article
-      style={STYLE.note}
+    <CueCard
+      sections={drawn.sections.map(cueSection)}
+      mode={mode}
+      status={note.status}
+      cautionIcon={<Icon name="warning" />}
       data-kind={note.kind}
-      data-status={note.status}
-      data-mode={mode}
       data-text-surface=""
       data-testid="pn-coach-note"
     >
-      {sections.map((section, at) => (
-        <Section
-          // Sections of one note never reorder.
-          // biome-ignore lint/suspicious/noArrayIndexKey: position is the identity
-          key={at}
-          section={section}
-          compact={compact}
-        />
+      {drawn.diagrams.map((source) => (
+        <Diagram key={source} source={source} />
       ))}
-      {!compact &&
-        drawn.diagrams.map((source) => (
-          <Diagram key={source} source={source} />
-        ))}
-      {/* A revision being prepared: what was ready stays above it. */}
-      {note.status === "pending" && (
-        <p style={STYLE.pending} role="status">
-          {sections.length > 0 ? "Updating…" : "Preparing response…"}
-        </p>
-      )}
-      {!compact && note.links.length > 0 && (
-        <div style={STYLE.links}>
+      {note.links.length > 0 && (
+        <div style={linkRow}>
           {note.links.map((link) => (
             <Button
               key={link.url}
@@ -387,6 +196,6 @@ export function CoachNoteView({
           ))}
         </div>
       )}
-    </article>
+    </CueCard>
   );
 }

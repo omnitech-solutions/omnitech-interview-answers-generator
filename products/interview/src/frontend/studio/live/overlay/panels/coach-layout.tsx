@@ -15,7 +15,11 @@
 // Styles are inline: the native window keeps its stylesheet until it reloads.
 import {
   Button,
+  HeardLine,
   IconButton,
+  OutlineList,
+  Splitter,
+  SplitterPanel,
   Tab,
   TabPanel,
   Tabs,
@@ -30,10 +34,9 @@ import {
   useState,
 } from "react";
 import { Icon } from "../../../icon";
-import { CallSlot } from "./call-slot";
 import { ChatPanel } from "./chat-panel";
-import type { ChatView } from "./chat-view-pref";
-import { ColumnSplitter, useCoachColumns, WindowEdge } from "./coach-columns";
+import { type ChatView, QUESTIONS_WIDTH, RIGHT_WIDTH } from "./chat-view-pref";
+import { holdWindowDrag, useCoachSizes, WindowEdge } from "./coach-columns";
 import { CoachNoteView } from "./coach-note-view";
 import { useCoachNotes } from "./coach-notes";
 import { ContextPane } from "./context-pane";
@@ -55,6 +58,11 @@ const DIM = "#8e8e93";
 const FAINT = "#6e6e73";
 const PANEL = "#1c1c1e";
 const LINE = "#2c2c2f";
+// The room the call opens with, and what the notes and the centre always keep.
+const CALL_HEIGHT = 250;
+const NOTES_FLOOR = 160;
+const CENTRE_FLOOR = 320;
+const QUESTIONS_CEILING = 360;
 // The reader counts as "at the bottom" within this many px of it.
 const FOLLOW_SLACK = 48;
 
@@ -219,6 +227,14 @@ const STYLE = {
     flex: "0 0 auto",
   },
   pane: { flex: "1 1 0", minHeight: 0, minWidth: 0, display: "flex" },
+  fill: { flex: "1 1 0", minWidth: 0, minHeight: 0 },
+  panelFill: { display: "flex", flexDirection: "column", minHeight: 0 },
+  callSlot: {
+    boxSizing: "border-box",
+    borderRadius: 12,
+    border: "1.5px dashed rgba(255, 255, 255, 0.28)",
+    pointerEvents: "none",
+  },
   tabsRoot: {
     flex: "1 1 0",
     minHeight: 0,
@@ -231,6 +247,9 @@ const STYLE = {
 
 // ---- Questions ------------------------------------------------------------------
 
+// [DOMAIN] The questions, newest first: the library's OutlineList draws them.
+// The question on the table is its live (green) row; the one being read is
+// the chosen row.
 function QuestionsList({
   questions,
   shownKey,
@@ -240,110 +259,34 @@ function QuestionsList({
   shownKey: string | undefined;
   onPick(key: string): void;
 }) {
-  // The newest question is at the top, where the eye lands first; older ones
-  // run down the column. A new question brings the list back to its top.
-  const list = useRef<HTMLDivElement>(null);
-  const count = questions.length;
-  useLayoutEffect(() => {
-    const element = list.current;
-    if (element) element.scrollTop = 0;
-  }, [count]);
   return (
-    <section
+    <OutlineList
       className="pn-card"
       style={STYLE.card}
-      aria-label="Questions"
+      title={`Questions · ${questions.length}`}
+      hint="newest first"
+      order="reversed"
+      value={shownKey ?? null}
+      items={questions.map((question) => ({
+        id: question.key,
+        label: question.label,
+        name: question.question?.text ?? question.label,
+        number: question.number,
+        state: question.live ? ("live" as const) : ("default" as const),
+        meta: [
+          clock(question.at),
+          question.notes.length > 0
+            ? `${question.notes.length} ${question.notes.length === 1 ? "note" : "notes"}`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+      }))}
+      onValueChange={(item) => onPick(item.id)}
       data-testid="pn-coach-questions"
-    >
-      <div style={STYLE.head}>
-        <span style={STYLE.caps}>{`Questions · ${count}`}</span>
-        <span style={{ flex: "1 1 auto" }} aria-hidden="true" />
-        <span style={STYLE.small}>newest first</span>
-      </div>
-      <div ref={list} style={STYLE.list}>
-        {questions.toReversed().map((question) => {
-          const shown = question.key === shownKey;
-          const colour = question.live ? ASK : shown ? READ : "#a1a1a6";
-          return (
-            // A row is a button, so the shell never drags the window from it;
-            // its label wraps, which a library Button's does not.
-            <button
-              key={question.key}
-              type="button"
-              aria-label={question.label}
-              aria-current={shown ? "true" : undefined}
-              title={question.question?.text ?? question.label}
-              data-live={question.live ? "" : undefined}
-              data-testid="pn-coach-question"
-              onClick={() => onPick(question.key)}
-              style={{
-                all: "unset",
-                boxSizing: "border-box",
-                display: "flex",
-                gap: 10,
-                padding: "9px 10px 9px 8px",
-                borderRadius: 8,
-                cursor: "pointer",
-                borderLeft: `3px solid ${
-                  question.live ? ASK : shown ? READ : "transparent"
-                }`,
-                background: question.live
-                  ? "rgba(62, 207, 114, 0.1)"
-                  : shown
-                    ? "#2a2a2d"
-                    : "transparent",
-              }}
-            >
-              <span
-                style={{
-                  flex: "0 0 16px",
-                  fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-                  fontSize: 12,
-                  color: question.live ? ASK : shown ? READ : FAINT,
-                  paddingTop: 1,
-                }}
-              >
-                {question.number}
-              </span>
-              <span
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 2,
-                  minWidth: 0,
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: 13.5,
-                    lineHeight: 1.35,
-                    color: colour,
-                    fontWeight: question.live ? 600 : shown ? 500 : 400,
-                  }}
-                >
-                  {question.label}
-                </span>
-                <span style={{ fontSize: 11.5, color: FAINT }}>
-                  {[
-                    clock(question.at),
-                    question.notes.length > 0
-                      ? `${question.notes.length} ${question.notes.length === 1 ? "note" : "notes"}`
-                      : null,
-                    question.live ? "live" : null,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </span>
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </section>
+    />
   );
 }
-
-// ---- Notes ----------------------------------------------------------------------
 
 // A note titled as its question ("Q: Data consistency…") adds nothing above it.
 const topic = (text: string) =>
@@ -352,24 +295,6 @@ const topic = (text: string) =>
     .trim()
     .toLowerCase();
 const sameTopic = (a: string, b: string) => topic(a) === topic(b);
-
-// What was said, with the words that carry it lifted out of the rest.
-function Heard({ text }: { text: string }) {
-  return (
-    <>
-      {heardEmphasis(text).map((piece, at) => (
-        <span
-          // The pieces of one sentence never reorder.
-          // biome-ignore lint/suspicious/noArrayIndexKey: position is the identity
-          key={at}
-          style={piece.strong ? STYLE.heardStrong : undefined}
-        >
-          {piece.text}
-        </span>
-      ))}
-    </>
-  );
-}
 
 // What kind of note it is, in a word, beside the time it was for.
 const KIND_LABEL: Record<CoachNote["kind"], string> = {
@@ -609,13 +534,10 @@ function NotesPane({
                 </p>
                 {question.question &&
                   question.question.text !== question.label && (
-                    <p
-                      style={STYLE.followUp}
-                      title={question.question.text}
+                    <HeardLine
+                      pieces={heardEmphasis(question.question.text)}
                       data-testid="pn-coach-heard"
-                    >
-                      <Heard text={question.question.text} />
-                    </p>
+                    />
                   )}
               </div>
             </div>
@@ -650,27 +572,16 @@ function NotesPane({
                     compact={compact}
                   />
                 ) : (
-                  <div
+                  <HeardLine
                     key={block.key}
+                    tone="ask"
+                    label={`Follow-up · ${clock(block.at)}`}
+                    pieces={heardEmphasis(block.asked.text)}
                     // Set apart from the notes above it by a rule: it is
                     // the interviewer speaking again, not more to say.
-                    style={{
-                      ...STYLE.asked,
-                      paddingTop: 20,
-                      borderTop: `1px solid ${LINE}`,
-                    }}
+                    style={{ paddingTop: 20, borderTop: `1px solid ${LINE}` }}
                     data-testid="pn-coach-follow-up"
-                  >
-                    <span style={STYLE.askBar} aria-hidden="true" />
-                    <div style={{ minWidth: 0 }}>
-                      <span style={STYLE.askLabel}>
-                        {`Follow-up · ${clock(block.at)}`}
-                      </span>
-                      <p style={STYLE.followUp} title={block.asked.text}>
-                        <Heard text={block.asked.text} />
-                      </p>
-                    </div>
-                  </div>
+                  />
                 ),
               )}
             {below && (
@@ -789,7 +700,21 @@ export function CoachLayout({
       ?.studio.findLast((row) => row.taskId !== undefined);
     if (answered?.taskId) s.select(answered.taskId);
   };
-  const sizes = useCoachColumns();
+  const sizes = useCoachSizes();
+  // A handle of the library's Splitter is a surface of its own (so the
+  // see-through window gives it the mouse), and while one is held the page
+  // tells the shell not to move the window.
+  const splitter = {
+    resizable: true,
+    // Sizes are given only once one has been dragged: until then every
+    // panel has its own default.
+    ...(sizes.sizes ? { sizes: sizes.sizes } : {}),
+    onSizesChange: sizes.keep,
+    resetKey: sizes.resetKey,
+    handleProps: { "data-hit-surface": "" },
+    onResizeStart: () => holdWindowDrag(true),
+    onResizeEnd: () => holdWindowDrag(false),
+  } as const;
   const notes = (
     <NotesPane
       label={view === "coach" ? "Coach" : "Notes"}
@@ -803,11 +728,24 @@ export function CoachLayout({
       onReset={sizes.reset}
     />
   );
+  // [DOMAIN] Room for the call window (or the captured screen), above the
+  // notes: a panel that paints only its outline and is not one of the
+  // window's surfaces, so the call shows through it and takes its own clicks.
   const centre = (
-    <div style={{ ...STYLE.column, gap: 0, flex: "1 1 0", overflow: "hidden" }}>
-      <CallSlot />
-      {notes}
-    </div>
+    <Splitter {...splitter} orientation="vertical" style={STYLE.fill}>
+      <SplitterPanel
+        id="call"
+        label="the room for the call"
+        defaultSize={CALL_HEIGHT}
+        minSize={0}
+        style={STYLE.callSlot}
+        aria-label="Room for the call window"
+        data-testid="pn-call-slot"
+      />
+      <SplitterPanel id="notes" minSize={NOTES_FLOOR} style={STYLE.panelFill}>
+        {notes}
+      </SplitterPanel>
+    </Splitter>
   );
   if (view === "prompter")
     return (
@@ -822,52 +760,48 @@ export function CoachLayout({
         <WindowEdge side="right" />
       </div>
     );
-  // The bars stand in the gaps, so the row itself keeps none.
-  const side = (which: "left" | "right") => ({
-    ...STYLE.column,
-    flex: `0 0 ${sizes.columns[which]}px`,
-    overflow: "hidden",
-  });
   return (
     <div
-      ref={sizes.row}
       className="pn-single-body"
       style={{ ...STYLE.body, gap: 0 }}
       data-view={view}
       data-testid="pn-coach-layout"
     >
       <WindowEdge side="left" />
-      <div style={side("left")}>
-        <QuestionsList
-          questions={questions}
-          shownKey={shown?.key}
-          onPick={pick}
-        />
-      </div>
-      <ColumnSplitter
-        side="left"
-        width={sizes.columns.left}
-        max={sizes.ceiling("left")}
-        onResize={(width) => sizes.resize("left", width)}
-        onReset={() => sizes.resetSide("left")}
-      />
-      {centre}
-      <ColumnSplitter
-        side="right"
-        width={sizes.columns.right}
-        max={sizes.ceiling("right")}
-        onResize={(width) => sizes.resize("right", width)}
-        onReset={() => sizes.resetSide("right")}
-      />
-      <div style={side("right")}>
-        {view === "coach" ? (
-          <RightTabs s={s} notes={shown?.notes ?? []} />
-        ) : (
-          <div style={STYLE.pane}>
-            <ChatPanel s={s} />
-          </div>
-        )}
-      </div>
+      <Splitter {...splitter} style={STYLE.fill}>
+        <SplitterPanel
+          id="questions"
+          label="the questions"
+          defaultSize={QUESTIONS_WIDTH}
+          minSize={0}
+          maxSize={QUESTIONS_CEILING}
+          style={STYLE.panelFill}
+        >
+          <QuestionsList
+            questions={questions}
+            shownKey={shown?.key}
+            onPick={pick}
+          />
+        </SplitterPanel>
+        <SplitterPanel id="main" minSize={CENTRE_FLOOR} style={STYLE.panelFill}>
+          {centre}
+        </SplitterPanel>
+        <SplitterPanel
+          id="side"
+          label="the answer"
+          defaultSize={RIGHT_WIDTH}
+          minSize={0}
+          style={{ ...STYLE.panelFill, gap: 8 }}
+        >
+          {view === "coach" ? (
+            <RightTabs s={s} notes={shown?.notes ?? []} />
+          ) : (
+            <div style={STYLE.pane}>
+              <ChatPanel s={s} />
+            </div>
+          )}
+        </SplitterPanel>
+      </Splitter>
       <WindowEdge side="right" />
     </div>
   );
