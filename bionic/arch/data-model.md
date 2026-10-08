@@ -1,6 +1,6 @@
 # Data model
 
-_Derived from `packages/database/drizzle/20261007231047_action_progress/snapshot.json` (drizzle-kit snapshot; static read, no Drizzle executed)._
+_Derived from `packages/database/drizzle/20261008000838_employer_brief/snapshot.json` (drizzle-kit snapshot; static read, no Drizzle executed)._
 
 ## Entities (67 tables)
 
@@ -207,6 +207,8 @@ _Derived from `packages/database/drizzle/20261007231047_action_progress/snapshot
 | interview.candidacies | `company_id` | uuid | no | — | — | interview.companies.id |
 | interview.candidacies | `created_at` | timestamp with time zone | no | now() | — | — |
 | interview.candidacies | `created_by` | uuid | yes | — | — | platform.users.id |
+| interview.candidacies | `employer_brief` | jsonb | yes | — | — | — |
+| interview.candidacies | `employer_brief_sha256` | text | yes | — | — | — |
 | interview.candidacies | `id` | uuid | no | gen_random_uuid() | yes | — |
 | interview.candidacies | `job_description` | text | yes | — | — | — |
 | interview.candidacies | `notes` | text | yes | — | — | — |

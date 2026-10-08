@@ -5,10 +5,10 @@
       "concern": "data-model",
       "extractor": "node",
       "inputs_found": [
-        "packages/database/drizzle/20261007231047_action_progress/snapshot.json",
+        "packages/database/drizzle/20261008000838_employer_brief/snapshot.json",
         "tools/crux/arch/drizzle_data_model.py"
       ],
-      "n_entities": 626,
+      "n_entities": 628,
       "n_sources": 2,
       "verdict": "populated"
     },
@@ -151,9 +151,6 @@
         "apps/web/src/platform/web-app-manifest.ts",
         "apps/web/vitest.config.ts",
         "apps/web/vitest.setup.ts",
-        "coverage/block-navigation.js",
-        "coverage/prettify.js",
-        "coverage/sorter.js",
         "docker/app/forward.mjs",
         "e2e/live-session/playwright.config.ts",
         "e2e/live-session/scripts/run.mjs",
@@ -840,6 +837,8 @@
         "products/interview/src/frontend/studio/live/overlay/panels/glass-guard.test.ts",
         "products/interview/src/frontend/studio/live/overlay/panels/hit-regions.test.tsx",
         "products/interview/src/frontend/studio/live/overlay/panels/hit-regions.ts",
+        "products/interview/src/frontend/studio/live/overlay/panels/interview-context-chip.tsx",
+        "products/interview/src/frontend/studio/live/overlay/panels/interview-context-modal.tsx",
         "products/interview/src/frontend/studio/live/overlay/panels/languages.ts",
         "products/interview/src/frontend/studio/live/overlay/panels/mic-menu-actions.test.tsx",
         "products/interview/src/frontend/studio/live/overlay/panels/mic-menu-model.test.ts",
@@ -1195,7 +1194,7 @@
         "vitest.package.config.ts"
       ],
       "n_entities": 81,
-      "n_sources": 1177,
+      "n_sources": 1176,
       "verdict": "populated"
     },
     {
@@ -1337,9 +1336,6 @@
         "apps/web/src/platform/web-app-manifest.ts",
         "apps/web/vitest.config.ts",
         "apps/web/vitest.setup.ts",
-        "coverage/block-navigation.js",
-        "coverage/prettify.js",
-        "coverage/sorter.js",
         "docker/app/forward.mjs",
         "e2e/live-session/playwright.config.ts",
         "e2e/live-session/scripts/run.mjs",
@@ -2026,6 +2022,8 @@
         "products/interview/src/frontend/studio/live/overlay/panels/glass-guard.test.ts",
         "products/interview/src/frontend/studio/live/overlay/panels/hit-regions.test.tsx",
         "products/interview/src/frontend/studio/live/overlay/panels/hit-regions.ts",
+        "products/interview/src/frontend/studio/live/overlay/panels/interview-context-chip.tsx",
+        "products/interview/src/frontend/studio/live/overlay/panels/interview-context-modal.tsx",
         "products/interview/src/frontend/studio/live/overlay/panels/languages.ts",
         "products/interview/src/frontend/studio/live/overlay/panels/mic-menu-actions.test.tsx",
         "products/interview/src/frontend/studio/live/overlay/panels/mic-menu-model.test.ts",
@@ -2381,8 +2379,8 @@
         "vitest.config.ts",
         "vitest.package.config.ts"
       ],
-      "n_entities": 3091,
-      "n_sources": 1178,
+      "n_entities": 3097,
+      "n_sources": 1177,
       "verdict": "populated"
     },
     {

@@ -97,7 +97,10 @@ const rows: Array<[file: string, maxCount: number, reason: string]> = [
       ["products/interview/src/backend/assistant/workspace.ts", 31],
       ["products/interview/src/backend/briefing/repository.ts", 17],
       ["products/interview/src/backend/briefs/api.ts", 4],
-      ["products/interview/src/backend/documents/api.ts", 16],
+      // 2026-10-07: +2 for the candidacy context routes (read, update, brief),
+      // written in the file's own raw-SQL style beside the candidacy routes
+      // they extend; the query builder is still the default for new modules.
+      ["products/interview/src/backend/documents/api.ts", 18],
       ["products/interview/src/backend/documents/context.ts", 3],
       ["products/interview/src/backend/interview-backend.ts", 3],
       ["products/interview/src/backend/live-session/capture-request.ts", 1],
