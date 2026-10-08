@@ -216,7 +216,7 @@ describe("OramaLibrarySearchIndex", () => {
         libraryItemInputSchema.parse(entry);
       }),
     ).not.toThrow();
-    expect(interviewLibrarySeed).toHaveLength(85);
+    expect(interviewLibrarySeed).toHaveLength(120);
     expect(
       interviewLibrarySeed.filter((entry) => entry.collection === "react"),
     ).toHaveLength(32);

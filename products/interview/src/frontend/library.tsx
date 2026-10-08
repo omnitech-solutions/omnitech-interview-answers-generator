@@ -32,6 +32,10 @@ const technologyFilters = [
   { label: "TypeScript", tag: "typescript" },
   { label: "PHP", tag: "php" },
   { label: "React", tag: "react" },
+  { label: "Next.js", tag: "nextjs" },
+  { label: "Node.js", tag: "nodejs" },
+  { label: "NestJS", tag: "nestjs" },
+  { label: "PostgreSQL", tag: "postgresql" },
   { label: "Laravel", tag: "laravel" },
   { label: "Symfony", tag: "symfony" },
 ] as const;

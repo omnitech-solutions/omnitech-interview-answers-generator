@@ -132,36 +132,53 @@ export class OramaLibrarySearchIndex implements LibrarySearchIndex {
     const startedAt = performance.now();
     const where = buildWhere(query);
     const searchTerm = searchableTechnicalTerm(query.query);
-    const result = await search(this.database, {
-      mode: "fulltext",
-      term: searchTerm,
-      properties: [
-        "title",
-        "heading",
-        "tagsText",
-        "summary",
-        "publisher",
-        "body",
-      ],
-      boost: {
-        title: 8,
-        heading: 6,
-        tagsText: 4,
-        summary: 3,
-        publisher: 2,
-        body: 1,
-      },
-      tolerance: searchTerm.length >= 5 ? 1 : 0,
-      ...(where ? { where } : {}),
-      facets: {
-        contentType: { limit: 20 },
-        collection: { limit: 50 },
-        tags: { limit: 100 },
-      },
-      offset: query.offset,
-      limit: query.limit,
-    });
+    const run = (tolerance: number) =>
+      search(this.database, {
+        mode: "fulltext",
+        term: searchTerm,
+        properties: [
+          "title",
+          "heading",
+          "tagsText",
+          "summary",
+          "publisher",
+          "body",
+        ],
+        boost: {
+          title: 8,
+          heading: 6,
+          tagsText: 4,
+          summary: 3,
+          publisher: 2,
+          body: 1,
+        },
+        tolerance,
+        ...(where ? { where } : {}),
+        facets: {
+          contentType: { limit: 20 },
+          collection: { limit: 50 },
+          tags: { limit: 100 },
+        },
+        offset: query.offset,
+        limit: query.limit,
+      });
+    // [STRATEGY] Exact before fuzzy: typo tolerance treats "nextjs" and
+    // "nestjs" as the same word, and the fuzzy title matches then crowd the
+    // exact ones off the first page. Tolerance is used only when the exact
+    // term finds nothing (a real typo).
+    const exact = await run(0);
+    const result =
+      exact.count > 0 || searchTerm.length < 5 ? exact : await run(1);
     const normalizedQuery = query.query.trim().toLocaleLowerCase();
+    // [STRATEGY] A query that IS a technology's tag ("nextjs") ranks that
+    // technology's articles first. Typo tolerance treats near spellings as
+    // matches, so without this "nextjs" surfaces NestJS ahead of Next.js.
+    const exactTag = (section: LibrarySection) =>
+      normalizedQuery !== "" &&
+      (section.collection === normalizedQuery ||
+        section.tags.includes(normalizedQuery))
+        ? 50
+        : 0;
     const hits = result.hits.map(({ document, score }) => {
       const section = document as unknown as LibrarySection;
       const exactTitle =
@@ -184,7 +201,7 @@ export class OramaLibrarySearchIndex implements LibrarySearchIndex {
           .split("\u001f")
           .filter((value) => value.length > 0),
         excerpt: excerpt(section.body, query.query),
-        score: score + exactTitle,
+        score: score + exactTitle + exactTag(section),
       };
     });
     hits.sort((left, right) => right.score - left.score);
