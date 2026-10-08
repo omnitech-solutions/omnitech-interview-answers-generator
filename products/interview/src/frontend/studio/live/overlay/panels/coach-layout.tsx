@@ -137,6 +137,15 @@ const STYLE = {
     color: READ,
     textWrap: "pretty",
   },
+  waiting: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 2,
+    padding: "10px 14px",
+    borderRadius: 10,
+    background: "rgba(62, 207, 114, 0.1)",
+    border: "1px solid rgba(62, 207, 114, 0.35)",
+  },
   followUp: {
     margin: "3px 0 0",
     fontSize: 17,
@@ -324,8 +333,15 @@ function NotesPane({
   onPick,
   onLive,
   onReset,
+  waiting,
+  following,
 }: {
   label: string;
+  // The question on the table, while the notes on show are still the last
+  // question's: its own have not arrived yet.
+  waiting: Question | undefined;
+  // Nothing was picked: the pane moves on by itself as the call does.
+  following: boolean;
   // The question on show: the one picked, or the one on the table.
   question: Question | undefined;
   questions: readonly Question[];
@@ -383,7 +399,7 @@ function NotesPane({
           >{`Q${question.number} · ${question.label}`}</span>
         )}
         <span style={{ flex: "1 1 auto" }} aria-hidden="true" />
-        {question?.live ? (
+        {following ? (
           <span
             style={{
               display: "flex",
@@ -460,6 +476,19 @@ function NotesPane({
             The question being asked appears here, with the coach's notes for it
             beneath.
           </p>
+        )}
+        {waiting && (
+          <div style={STYLE.waiting} data-testid="pn-coach-waiting">
+            <span style={STYLE.askLabel}>
+              {`Being asked · ${clock(waiting.at)}`}
+            </span>
+            <p style={STYLE.followUp}>
+              {waiting.question?.text ?? waiting.label}
+            </p>
+            <span style={STYLE.small}>
+              Notes for this are on their way. The last notes stay below.
+            </span>
+          </div>
         )}
         {question && (
           <>
@@ -613,7 +642,13 @@ export function CoachLayout({
   // The question on show: the one picked from the list, or the one on the table.
   const [picked, setPicked] = useState<string | null>(null);
   const live = questions[questions.length - 1];
-  const shown = questions.find((each) => each.key === picked) ?? live;
+  // [DOMAIN] Following the call, the notes on show are never an empty page:
+  // until the coach's notes for a new question arrive, the last notes stay,
+  // with the new question named above them.
+  const answered = questions.findLast((each) => each.notes.length > 0);
+  const followed = live && live.notes.length === 0 ? (answered ?? live) : live;
+  const pickedQuestion = questions.find((each) => each.key === picked);
+  const shown = pickedQuestion ?? followed;
   // Picking the question on the table is following it again.
   // [DOMAIN] It also brings the studio's own answer to that question into the
   // Answer pane, so the notes and the answer on show are for the same thing.
@@ -632,6 +667,10 @@ export function CoachLayout({
       questions={questions}
       onPick={pick}
       onLive={() => setPicked(null)}
+      following={pickedQuestion === undefined}
+      waiting={
+        pickedQuestion === undefined && shown !== live ? live : undefined
+      }
       onReset={sizes.reset}
     />
   );
