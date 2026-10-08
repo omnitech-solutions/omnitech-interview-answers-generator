@@ -69,7 +69,10 @@ const MAX_CLAIMS = 12;
 // profile's window is much smaller; the prompt SHRINKS (whole sources are
 // dropped) and is REFUSED, never truncated, when it still would not fit.
 export const MAX_PROMPT_BYTES = 48_000;
-export const DEVICE_MAX_PROMPT_BYTES = 12_000;
+// The system policy alone is about 12 KB (measured 2026-10-07); the device
+// window keeps roughly 4 KB beyond it for the spoken text and whole sources,
+// well inside the smallest device model's context (read from the model).
+export const DEVICE_MAX_PROMPT_BYTES = 16_000;
 
 export const ASSIST_CATEGORIES = [
   "background",

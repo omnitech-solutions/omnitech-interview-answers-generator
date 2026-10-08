@@ -134,7 +134,10 @@ const FAILURES: Readonly<
 
 export class SessionAgentError extends Error {
   readonly retryable: boolean;
-  readonly failure: AiFailure;
+  // The failure as the gateway reports it, carrying the typed session code so
+  // a stream's failed event (which forwards this object, not the error) still
+  // tells the dispatcher a pause or a failed read from a real denial.
+  readonly failure: AiFailure & { sessionCode: SessionAgentErrorCode };
   // A closed-vocabulary reason (AiFailureReason: an SDK result subtype or an
   // adapter's typed cause), never provider text. It travels as a typed field on
   // the failure, and nothing reads it back out of the message.
@@ -146,6 +149,7 @@ export class SessionAgentError extends Error {
     this.name = "SessionAgentError";
     this.failure = {
       ...FAILURES[sessionCode],
+      sessionCode,
       ...(reason === undefined ? {} : { reason }),
     };
     this.retryable = this.failure.retryable;

@@ -69,8 +69,14 @@ function spyModel(targetId: string, calls: string[]): ModelProviderAdapter {
         result: CANNED_DRAFT,
       };
     },
-    async *stream() {
+    // The draft-answer stage streams (session-dispatch.ts): the canned draft
+    // is written as text, then completed; the spy records the stream and the
+    // execute it goes through.
+    async *stream(request) {
       calls.push(`${targetId}.stream`);
+      const execution = await this.execute(request);
+      yield { type: "text-delta", text: JSON.stringify(execution.result) };
+      yield { type: "completed", result: execution.result };
     },
     async *streamStructured() {
       calls.push(`${targetId}.streamStructured`);
@@ -157,7 +163,7 @@ describe("device-only sessions through the real gateway", () => {
 
   it("run on a device-declared profile and call only the device adapter", async () => {
     const { calls, action } = await run("loc-device", "device-only", "device");
-    expect(calls).toEqual(["device-model"]);
+    expect(calls).toEqual(["device-model.stream", "device-model"]);
     expect(action).toMatchObject({ dispatchStatus: "succeeded" });
     expect(action?.result).toMatchObject({
       meta: {
@@ -173,7 +179,7 @@ describe("device-only sessions through the real gateway", () => {
       "permitted-remote",
       "device",
     );
-    expect(calls).toEqual(["remote-model"]);
+    expect(calls).toEqual(["remote-model.stream", "remote-model"]);
     expect(action).toMatchObject({ dispatchStatus: "succeeded" });
   });
 });
@@ -213,6 +219,6 @@ describe("tightening locality mid-session", () => {
     );
     for (const segment of opening()) await world.ingestor.ingest(segment);
     await settle(processor);
-    expect(calls).toEqual(["device-model"]);
+    expect(calls).toEqual(["device-model.stream", "device-model"]);
   });
 });

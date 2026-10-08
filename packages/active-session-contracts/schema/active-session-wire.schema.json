@@ -341,6 +341,39 @@
           },
           "capturing": {
             "type": "boolean"
+          },
+          "diagnostics": {
+            "type": "object",
+            "properties": {
+              "state": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_.:-]{1,32}$"
+              },
+              "sources": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_.:-]{1,32}$"
+                },
+                "additionalProperties": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_.:-]{1,32}$"
+                }
+              },
+              "speechFailure": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_.:-]{1,32}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["state", "sources"],
+            "additionalProperties": false
           }
         },
         "required": ["version", "kind", "sourceId", "sentAt", "capturing"],

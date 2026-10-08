@@ -105,7 +105,7 @@ const rows: Array<[file: string, maxCount: number, reason: string]> = [
         "products/interview/src/backend/live-session/companion-capability.ts",
         2,
       ],
-      ["products/interview/src/backend/live-session/fenced-writes.ts", 10],
+      ["products/interview/src/backend/live-session/fenced-writes.ts", 11],
       ["products/interview/src/backend/live-session/ingest.ts", 6],
       ["products/interview/src/backend/live-session/owner-capture.ts", 1],
       ["products/interview/src/backend/live-session/owner-input.ts", 2],

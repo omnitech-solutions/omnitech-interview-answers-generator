@@ -155,7 +155,11 @@ describe("footer", () => {
     show(live(true));
     const clock = screen.getByRole("timer");
     expect(clock).toHaveTextContent("1:00");
-    expect(screen.getByText("Paused")).toBeVisible();
+    // "Paused" is said twice in the footer (the clock and the microphone line):
+    // the clock's own word sits in its paused slot.
+    expect(
+      document.querySelector('[data-slot="status-clock-paused"]'),
+    ).toHaveTextContent("Paused");
   });
 
   it("offers a new session and the summary once ended, not Pause or End", () => {
@@ -230,7 +234,7 @@ describe("footer", () => {
     expect(
       [...bar.querySelectorAll("button")].map((b) => b.textContent),
     ).toEqual([
-      `${build.BUILD.id}·${build.BUILD.branch}`,
+      `${build.BUILD.id} · ${build.BUILD.branch}`,
       "Pause session",
       "End session",
     ]);

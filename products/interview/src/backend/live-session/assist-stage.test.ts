@@ -269,7 +269,7 @@ describe("talking-points policy", () => {
 
   it("always tells the closest approved story for a STAR question, never four placeholders", () => {
     expect(system).toContain("ALWAYS tell a story");
-    expect(system).toContain("never all four parts");
+    expect(system).toContain("Never write a placeholder");
     expect(system).toContain('ending "(suggested)"');
   });
 
@@ -332,11 +332,11 @@ describe("the device window", () => {
   });
 
   it("refuses, never truncates, a prompt that cannot fit even with no source", () => {
-    // About 3.6 KB of spoken text no longer fits beside the policy text, even
-    // with every source dropped.
+    // About 6 KB of spoken text no longer fits beside the policy text and the
+    // prompt's own scaffolding (about 12 KB), even with every source dropped.
     const crowded = stage.prepare(
       input(
-        "describe the order service migration to PostgreSQL ".repeat(70),
+        "describe the order service migration to PostgreSQL ".repeat(115),
         manySources,
         { deviceOnly: true },
       ),
@@ -630,7 +630,31 @@ describe("STAR outline (leadership-behavioural)", () => {
     expect(published.draft).toBe("A short spoken outline.");
   });
 
-  it("P1/P2: a draft point the grounding rejects is dropped and the rest is published, whatever the category", () => {
+  it("P1/P2: a draft point the grounding rejects loses only its failing sentences and the rest is published, whatever the category", () => {
+    const published = publishedOf(
+      output({
+        category: "experience-story",
+        draft: [
+          "- I led the migration of the order service to PostgreSQL.",
+          "- I kept the cutover staged. I led 2500 engineers and cut costs by 70%.",
+        ].join("\n"),
+        claims: [migrationClaim],
+      }),
+      SNAPSHOT,
+      ["We have 2500 engineers"],
+    );
+    expect(published.draft).toBe(
+      [
+        "- I led the migration of the order service to PostgreSQL.",
+        "- I kept the cutover staged.",
+      ].join("\n"),
+    );
+    expect(published.draft).not.toContain("2500");
+    expect(published.draft).not.toContain("70%");
+    expect(published.claims).toEqual([migrationClaim]);
+  });
+
+  it("P1/P2: a one-sentence point that fails is kept whole (never a hole) and the draft is published without its claims", () => {
     const published = publishedOf(
       output({
         category: "experience-story",
@@ -644,11 +668,13 @@ describe("STAR outline (leadership-behavioural)", () => {
       ["We have 2500 engineers"],
     );
     expect(published.draft).toBe(
-      "- I led the migration of the order service to PostgreSQL.",
+      [
+        "- I led the migration of the order service to PostgreSQL.",
+        "- I led 2500 engineers and cut costs by 70%.",
+      ].join("\n"),
     );
-    expect(published.draft).not.toContain("2500");
-    expect(published.draft).not.toContain("70%");
-    expect(published.claims).toEqual([migrationClaim]);
+    expect(published.claims).toEqual([]);
+    expect(published.sections).toEqual([]);
   });
 
   it("P1/P2: a one-point draft that still fails is published without its claims, never withheld", () => {
@@ -1192,7 +1218,7 @@ describe("coding brief", () => {
 });
 
 describe("spoken-figure hazard (7b)", () => {
-  it("drops a claim carrying a figure the interviewer said that no source carries, and a draft point that echoes it", () => {
+  it("drops a claim carrying a figure the interviewer said that no source carries; a one-sentence point that echoes it is kept whole and the draft is published without its claims", () => {
     const published = publishedOf(
       output({
         draft: [
@@ -1215,15 +1241,16 @@ describe("spoken-figure hazard (7b)", () => {
       SNAPSHOT,
       ["Did you cut latency by 85% in that migration?"],
     );
-    expect(JSON.stringify(published)).not.toContain("85%");
-    expect(published.draft).toBe("- A staged cutover keeps rollback cheap.");
-    expect(published.claims).toEqual([
-      {
-        kind: "general-knowledge",
-        text: "A staged cutover keeps rollback cheap.",
-        refs: [],
-      },
-    ]);
+    // The claim is gone: no evidence chip carries the spoken figure.
+    expect(published.claims).toEqual([]);
+    expect(published.sections).toEqual([]);
+    // The spoken point stays (owner's rule: never a hole in the draft).
+    expect(published.draft).toBe(
+      [
+        "- A staged cutover keeps rollback cheap.",
+        "- The migration cut latency by 85%.",
+      ].join("\n"),
+    );
   });
 });
 

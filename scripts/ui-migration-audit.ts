@@ -439,9 +439,9 @@ const NATIVE_PANEL_OPEN =
 export const rawAllowList: readonly AllowEntry[] = [
   {
     file: `${PANELS}/answer-dock.tsx`,
-    max: { button: 2, checkable: 1 },
+    max: { button: 2 },
     reason:
-      "Screenshot tray: thumbnail open/remove buttons and the intent radios are app-owned markup with no library equivalent (T-gap recorded in the swap reports). " +
+      "Screenshot tray: thumbnail open/remove buttons are app-owned markup with no library equivalent (T-gap recorded in the swap reports). " +
       NATIVE_PANEL_OPEN,
   },
   {
@@ -467,8 +467,8 @@ export const rawAllowList: readonly AllowEntry[] = [
   },
   {
     file: `${PANELS}/status-strip.tsx`,
-    max: { button: 2 },
-    reason: `The strip's stop action (pn-mini-button) and a chip button. ${NATIVE_PANEL_OPEN}`,
+    max: { button: 1 },
+    reason: `The strip's stop action (pn-mini-button). ${NATIVE_PANEL_OPEN}`,
   },
   {
     file: `${OVERLAY}/code-canvas.tsx`,
@@ -480,7 +480,7 @@ export const rawAllowList: readonly AllowEntry[] = [
     file: `${FRONTEND}/studio/live/`,
     max: {
       button: 35,
-      checkable: 5,
+      checkable: 4,
       select: 1,
       textarea: 1,
       input: 1,

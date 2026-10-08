@@ -71,7 +71,7 @@ describe("clear glass in panels.css", () => {
       0.5,
     );
     expect(css).toMatch(
-      /\[data-glass="clear"\]\s*:is\([^)]*\.pn-task-chip[^)]*\)\s*\{[^}]*--pn-bed/,
+      /\[data-glass="clear"\]\s*:is\([^)]*\.pn-task-bar-rev[^)]*\)\s*\{[^}]*--pn-bed/,
     );
   });
 

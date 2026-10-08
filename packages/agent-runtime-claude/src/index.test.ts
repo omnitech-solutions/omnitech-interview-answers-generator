@@ -78,6 +78,7 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
               content: [
                 { type: "tool_use", name: "StructuredOutput", input: { a: 1 } },
               ],
+              usage: { input_tokens: 3, output_tokens: 2 },
             },
           };
           yield {
@@ -115,6 +116,8 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
           result: "Hello",
           usage: { input_tokens: 3, output_tokens: 2 },
           total_cost_usd: 0,
+          num_turns: 1,
+          duration_api_ms: 1234,
         };
       })(),
       { close: () => {}, interrupt: async () => {} },
@@ -347,7 +350,11 @@ describe("Claude runtime session path", () => {
     ]);
   });
 
-  it("reports turns and API time with the usage", async () => {
+  it("reports the usage of the one turn a structured run completes on", async () => {
+    // The run completes at the StructuredOutput tool call, before the SDK's
+    // closing result message, so the usage is the assistant message's own:
+    // one turn, its tokens, and no cost or API time (those arrive only with
+    // the result the run no longer waits for).
     scenario = "structured";
     const events = await run({
       toolless: true,
@@ -360,7 +367,21 @@ describe("Claude runtime session path", () => {
         inputTokens: 3,
         outputTokens: 2,
         totalTokens: 5,
-        costUsd: 0.01,
+        turns: 1,
+      },
+    });
+  });
+
+  it("reports turns and API time with the usage of a text run", async () => {
+    scenario = "text";
+    const events = await run({ toolless: true });
+    expect(events.find((event) => event.type === "usage")).toEqual({
+      type: "usage",
+      usage: {
+        inputTokens: 3,
+        outputTokens: 2,
+        totalTokens: 5,
+        costUsd: 0,
         turns: 1,
         apiMs: 1234,
       },

@@ -6,10 +6,7 @@
 // none); an unreadable context is a retryable failure; the pinned context is
 // loaded once per run; and an oversize device prompt is refused, not cut.
 import type { AiExecutionRequest } from "@omnitech/ai-contracts";
-import {
-  liveActionSchema,
-  liveWithheldResultSchema,
-} from "@omnitech/interview-contracts";
+import { liveActionSchema } from "@omnitech/interview-contracts";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { DEVICE_MAX_PROMPT_BYTES } from "./assist-stage";
 import { type Fixture, startFixture } from "./live-session-fixture";
@@ -109,7 +106,7 @@ const notice = () =>
   HAZARD_FIXTURES["hazard-7d-notice-and-compensation"]?.phases ?? [];
 
 describe("unsupported references", () => {
-  it("publishes nothing for a reference to an existing entry that does not support its claim, and traces a code, not text", async () => {
+  it("drops a claim whose reference exists but does not support it, publishes the draft without it, and traces no text", async () => {
     const CANARY = "CANARY-UNSUPPORTED-CLAIM";
     const gateway = createFakeGateway({
       result: (request) =>
@@ -137,17 +134,12 @@ describe("unsupported references", () => {
 
     const stored = await w.actions();
     expect(stored).toHaveLength(1);
-    // The browser reads a content-free record of what was withheld: a count and
-    // codes, from the stream mapper, parsed by the contract.
+    // The unsupported claim is dropped and the draft is published without it
+    // (grounding never withholds a draft): the browser reads the draft and no
+    // evidence chip.
     expect(stored[0]).toMatchObject({
-      dispatchStatus: "suppressed",
-      suppressionReason: "invalid_output",
-      result: {
-        withheld: {
-          rejectedClaimCount: 1,
-          codes: ["unsupported_reference"],
-        },
-      },
+      dispatchStatus: "succeeded",
+      result: { draft: "A short spoken outline.", claims: [], sections: [] },
     });
     const changes = await repo.listActionChanges(w.scope, w.sessionId, {
       limit: 50,
@@ -160,21 +152,15 @@ describe("unsupported references", () => {
     const parsed = changes.actions.map((action) =>
       liveActionSchema.parse(JSON.parse(JSON.stringify(action))),
     );
-    expect(liveWithheldResultSchema.parse(parsed[0]?.result)).toEqual({
-      withheld: { rejectedClaimCount: 1, codes: ["unsupported_reference"] },
-    });
+    expect(parsed[0]?.result).toMatchObject({ claims: [] });
     // Settled: the same revision is not retried.
     expect(gateway.requests).toHaveLength(1);
-    const trace = w.trace.events.find(
-      (event) => event.event === "dispatch.suppressed",
-    );
-    expect(trace).toMatchObject({
-      outcome: "invalid-output",
-      detail: {
-        violationCount: 1,
-        firstViolation: "claims.0.refs.0:unsupported_reference",
-      },
-    });
+    expect(
+      w.trace.events.some((event) => event.event === "dispatch.published"),
+    ).toBe(true);
+    expect(
+      w.trace.events.find((event) => event.event === "dispatch.suppressed"),
+    ).toBeUndefined();
     expect(JSON.stringify(w.trace.events)).not.toContain(CANARY);
     expect(JSON.stringify(stored)).not.toContain(CANARY);
   }, 60_000);

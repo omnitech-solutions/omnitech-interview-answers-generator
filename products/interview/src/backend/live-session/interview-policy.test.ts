@@ -119,6 +119,24 @@ describe("baseline classification", () => {
     ).toEqual({ kind: "ignore" });
   });
 
+  it("never reads a speaker describing or explaining something themselves as an ask", () => {
+    // The interviewer's role monologue and a candidate's own answer carry the
+    // words of an ask without being one (replay sets: backchannel-and-monologue-only, engineering-manager).
+    for (const monologue of [
+      "Let me describe the role in some detail. The team is a mid sized group that builds internal tooling for several product lines.",
+      "For underperformance I describe the gap with specific examples early, agree a short plan with clear checkpoints, and follow it up.",
+      "I review their pull requests with comments that explain the reasoning rather than just the fix, and then step back so they own a change.",
+    ])
+      expect(verdict(monologue).decision, monologue).toEqual({
+        kind: "ignore",
+      });
+    // Addressed to the candidate, the same verbs still open a task.
+    expect(
+      verdict("Can you describe the hardest incident you handled last year")
+        .decision,
+    ).toEqual({ kind: "open", taskKey: "q-u1" });
+  });
+
   it("ignores a long statement as a monologue even with question words in it", () => {
     const monologue = `How we did it was ${"and then more context ".repeat(MONOLOGUE_WORDS)}`;
     expect(verdict(monologue)).toEqual({

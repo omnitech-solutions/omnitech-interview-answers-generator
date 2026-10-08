@@ -423,8 +423,10 @@ describe("the canary never leaves the owner's own reads", () => {
       started.scope,
       started.sessionId,
     );
+    // Revision 1 is published without its rejected claim (grounding never
+    // withholds a draft); revision 2 is published whole.
     expect(actions.map((action) => action.dispatchStatus)).toEqual([
-      "suppressed",
+      "succeeded",
       "succeeded",
     ]);
     // The published result is the owner's own stored data and holds the claim...

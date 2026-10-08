@@ -301,16 +301,18 @@ function BuildTagChip({
   tag: ReturnType<typeof useBuildTag> & object;
 }) {
   return (
-    <button
-      type="button"
+    <Button
+      variant="ghost"
+      buttonSize="sm"
       className="pn-build-tag"
       title={tag.title}
+      aria-label={tag.copied ? "Copied" : `Copy build ${tag.title ?? tag.sha}`}
       onClick={tag.onCopy}
       data-testid="pn-build-tag"
     >
       {tag.copied ? "Copied" : tag.sha}
       {tag.branch && !tag.copied ? ` · ${tag.branch}` : ""}
-    </button>
+    </Button>
   );
 }
 

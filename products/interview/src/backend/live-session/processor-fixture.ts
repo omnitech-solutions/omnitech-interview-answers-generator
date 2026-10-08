@@ -127,7 +127,13 @@ export function createFakeGateway(
       const half = Math.ceil(text.length / 2);
       yield { type: "text-delta", text: text.slice(0, half) };
       yield { type: "text-delta", text: text.slice(half) };
-      yield { type: "completed", result: execution.result };
+      yield {
+        type: "completed",
+        result: execution.result,
+        ...(execution.generatedBy
+          ? { generatedBy: execution.generatedBy }
+          : {}),
+      };
     },
     cancel: async () => undefined,
     resume: unsupported,
