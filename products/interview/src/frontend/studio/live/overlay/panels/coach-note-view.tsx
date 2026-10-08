@@ -17,7 +17,7 @@ import type {
   CoachSectionKind,
   CoachSegment,
 } from "@omnitech/interview-contracts";
-import type { CSSProperties } from "react";
+import { type CSSProperties, useLayoutEffect, useRef } from "react";
 import { Icon } from "../../../icon";
 import { useCoachTextSize } from "./coach-columns";
 import {
@@ -157,6 +157,26 @@ const cueSection = (section: DrawnSection): CueSection => ({
 const linkRow: CSSProperties = { display: "flex", flexWrap: "wrap", gap: 4 };
 
 // [DOMAIN] The library's CueCard draws the note: this file only reads a note
+// [SAFETY] The native window keeps the stylesheet it loaded: when the library
+// is updated under a running window, the card's markup is new and its rules
+// are missing (small text, no bullets). The card's base size is a rule of
+// that stylesheet, so a card that does not have it is drawn from a stale one
+// and the page loads again, once a minute at most so it can never loop.
+const CARD_PX = { sm: 14, md: 16, lg: 19, xl: 22 } as const;
+const RELOADED_KEY = "omnitech.interview.styles-reloaded-at";
+function reloadOnStaleStyles(card: HTMLElement, size: keyof typeof CARD_PX) {
+  const drawn = Number.parseFloat(getComputedStyle(card).fontSize);
+  if (!Number.isFinite(drawn) || Math.abs(drawn - CARD_PX[size]) < 0.5) return;
+  try {
+    const last = Number(window.sessionStorage.getItem(RELOADED_KEY));
+    if (Date.now() - last < 60_000) return;
+    window.sessionStorage.setItem(RELOADED_KEY, String(Date.now()));
+  } catch {
+    return;
+  }
+  window.location.reload();
+}
+
 // (structured, or written as Markdown) into the card's sections and hands it
 // the diagram and the links.
 export function CoachNoteView({
@@ -169,8 +189,13 @@ export function CoachNoteView({
 }) {
   const drawn = drawnSections(note);
   const size = useCoachTextSize();
+  const card = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    if (card.current) reloadOnStaleStyles(card.current, size);
+  }, [size]);
   return (
     <CueCard
+      ref={card}
       size={size}
       sections={drawn.sections.map(cueSection)}
       mode={mode}
