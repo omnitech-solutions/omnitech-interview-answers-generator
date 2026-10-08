@@ -1792,14 +1792,12 @@ describe("answer pane: error line and ended session", () => {
     expect(dismiss()).toBeNull();
   });
 
-  it("disables the empty-state capture and says why when the session is not taking captures", async () => {
+  it("an ended session shows no panes at all: no empty-state capture to press, only the ended card", async () => {
     serve(live({ status: "ended", endedAt: minutesAfter(1, 9) }), []);
     await show();
-    const empty = screen.getByTestId("pn-analysis-empty");
-    expect(
-      within(empty).getByRole("button", { name: /^(Analyze screen|Capture)/ }),
-    ).toBeDisabled();
-    expect(screen.getByTestId("pn-capture-off")).toBeVisible();
+    expect(screen.queryByTestId("pn-analysis-empty")).toBeNull();
+    expect(screen.queryByRole("region", { name: "Answer" })).toBeNull();
+    expect(screen.getByTestId("pn-ended")).toBeVisible();
   });
 });
 
@@ -2044,7 +2042,7 @@ describe("footer and the ended session", () => {
     ).toHaveAttribute("data-state", "paused");
   });
 
-  it("shows the ended card with counts, keeps the last answer readable, and offers the summary and a new session", async () => {
+  it("shows the ended card with counts, hides the panes and the task bar, and offers the summary and a new session", async () => {
     serve(
       live(),
       [named("Rate limiter"), solved()],
@@ -2078,7 +2076,12 @@ describe("footer and the ended session", () => {
     expect(ended).toHaveTextContent("1 task");
     expect(ended).toHaveTextContent("1 answer");
     expect(ended).toHaveTextContent("1 code draft");
-    expect(screen.getByTestId("pn-problem")).toBeVisible();
+    // Ended: the transcript, answer and code panes and the task bar are gone
+    // (the summary holds what was said and answered).
+    expect(screen.queryByTestId("pn-problem")).toBeNull();
+    expect(screen.queryByTestId("pn-task-bar")).toBeNull();
+    expect(screen.queryByRole("region", { name: "Answer" })).toBeNull();
+    expect(document.querySelector(".pn-single-body")).toBeNull();
     expect(screen.queryByTestId("pn-strip")).toBeNull();
     expect(screen.queryByRole("group", { name: /^Session time/ })).toBeNull();
     expect(
@@ -2227,18 +2230,36 @@ describe("toolbar contract: order, locks and the microphone press", () => {
     expect([...at].sort((a, b) => a - b)).toEqual(at);
   });
 
-  it("an ended session locks capture and the microphone but not see-through, answer style or the shortcuts", async () => {
+  it("an ended session locks the toolbar's session controls, each naming why", async () => {
     serve(live({ status: "ended", endedAt: minutesAfter(5) }));
     await show();
     const bar = within(
       screen.getByRole("toolbar", { name: "Session controls" }),
     );
-    expect(bar.getByRole("button", { name: "Analyze screen" })).toBeDisabled();
-    expect(
-      bar.getByRole("button", { name: "Start microphone" }),
-    ).toBeDisabled();
-    for (const name of [/^Answer style/, "See-through", "Keyboard shortcuts"])
-      expect(bar.getByRole("button", { name })).toBeEnabled();
+    const states = Object.fromEntries(
+      bar
+        .getAllByRole("button")
+        .map((button) => [
+          button.getAttribute("aria-label") ?? button.textContent ?? "",
+          (button as HTMLButtonElement).disabled ||
+            button.getAttribute("aria-disabled") === "true",
+        ]),
+    );
+    // Every session control is locked: capture, microphone, answer style, the
+    // pane toggles and the shortcuts (the same lock as before a session
+    // starts).
+    for (const name of [
+      "Analyze screen",
+      "Capture options",
+      "Start microphone",
+      "Microphone options",
+      "Answer style: Data Structures & Algorithms",
+      "Chat",
+      "Answer",
+      "Code",
+      "Keyboard shortcuts",
+    ])
+      expect(states[name], name).toBe(true);
   });
 
   it("pressing the microphone while it listens stops the engine, and the name follows the engine's report", async () => {

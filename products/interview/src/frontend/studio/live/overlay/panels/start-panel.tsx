@@ -29,7 +29,14 @@ import type {
   PresentationHost,
 } from "@omnitech/interview-contracts";
 import type { ProductMember } from "@omnitech/platform-contracts";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Icon } from "../../../icon";
 import { loadHandsFreeChoice } from "../../hands-free-choice";
 import { openExternalThroughHost } from "../../host-adapter";
@@ -91,6 +98,9 @@ import {
   windowTenant,
 } from "./use-account";
 import type { PanelWindowMode } from "./window-mode";
+
+// The window height the start screen asks for when the window is shorter.
+const START_HEIGHT = 640;
 
 const TOAST_MS = 2_400;
 const MICROPHONE_SETTINGS_URL =
@@ -170,6 +180,17 @@ export function StartPanel(props: StartPanelProps) {
         ? "local"
         : "out";
   const lock = signedIn ? LOCK_REASON.noSession : LOCK_REASON.signedOut;
+
+  // The start screen needs its own room: a window left short by what showed
+  // before it (an ended or paused session shows no panes and asks for a short
+  // window) would crop this card and make the person scroll to reach Start.
+  // A taller window is the person's own and is left alone.
+  const setWindowSize = controls.presentation.setWindowSize;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: asked again per stage
+  useLayoutEffect(() => {
+    if (window.innerHeight >= START_HEIGHT) return;
+    void setWindowSize?.({ width: window.innerWidth, height: START_HEIGHT });
+  }, [setWindowSize, stage]);
 
   return (
     <>

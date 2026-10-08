@@ -42,7 +42,11 @@ import {
   WINDOW_PAD,
   windowWidthFor,
 } from "./toolbar-config";
+import { ToolbarLock } from "./toolbar-lock";
 import type { PanelWindowMode } from "./window-mode";
+
+// Why the toolbar is locked once a session has ended.
+export const ENDED_LOCK = "The session has ended. Start a new session.";
 
 const NO_PANES: PaneState = { chat: false, analysis: false, code: false };
 // The least height a window with panes showing is asked for (the shell opens at 640).
@@ -132,8 +136,11 @@ export function SinglePanel({
     strip !== null && !ended && (strip.state !== null || strip.engine);
   const [menuOpen, setMenuOpen] = useState(false);
   // A paused session shows no body: the toolbar, the strip and the footer (with
-  // Resume session) stay; the panes come back on resume.
-  const holdBody = s.paused && !ended;
+  // Resume session) stay; the panes come back on resume. An ended session shows
+  // none either (owner's rule, 2026-10-08): only its toolbar (locked), the
+  // "Session ended" card and the footer with Open summary and Start a new
+  // session; what was said and answered is in the summary.
+  const holdBody = s.paused || ended;
   const anyPane = PANES.some((pane) => shown[pane.id]) && !holdBody;
 
   const mode = windowMode.mode;
@@ -231,16 +238,21 @@ export function SinglePanel({
 
   return (
     <>
-      <Toolbar
-        s={s}
-        controls={{
-          panes,
-          presentation,
-          glass,
-          windowMode,
-          onMenuOpen: setMenuOpen,
-        }}
-      />
+      {/* An ended session locks the toolbar's session controls, each naming
+          why (the same lock as before a session starts); the window's own
+          dots stay live. */}
+      <ToolbarLock.Provider value={ended ? ENDED_LOCK : null}>
+        <Toolbar
+          s={s}
+          controls={{
+            panes,
+            presentation,
+            glass,
+            windowMode,
+            onMenuOpen: setMenuOpen,
+          }}
+        />
+      </ToolbarLock.Provider>
       {stripShown && strip && <StatusStrip s={s} strip={strip} />}
       {!holdBody && <TaskBar s={s} />}
       {anyPane && (
