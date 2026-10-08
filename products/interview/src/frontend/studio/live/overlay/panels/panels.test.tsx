@@ -294,12 +294,18 @@ describe("analysis", () => {
     fireEvent.click(
       within(strip).getByRole("button", { name: "Looks complete" }),
     );
-    expect(screen.queryByTestId("missing-context")).toBeNull();
+    // The strip is always offered: "Looks complete" hides what the model named
+    // for this revision, and the neutral question stays.
+    const after = screen.getByTestId("missing-context");
+    expect(after).not.toHaveTextContent("Examples");
+    expect(after).not.toHaveTextContent("looks cut off");
   });
-  it("shows no strip when nothing is reported missing", async () => {
+  it("offers the neutral question, with nothing named, when nothing is reported missing", async () => {
     serve(live(), codingActions());
     await show("single");
-    expect(screen.queryByTestId("missing-context")).toBeNull();
+    const strip = screen.getByTestId("missing-context");
+    expect(strip).toHaveTextContent("Did AI miss anything?");
+    expect(strip).not.toHaveTextContent("Examples");
   });
   it("has none of the old chrome: tabs, slots, revisions, run, activity, workspace", async () => {
     serve(live(), codingActions());
@@ -460,6 +466,7 @@ describe("chat", () => {
       send: async () => ({ ok: true }),
       press: () => undefined,
       live: { mic: "listening", interim: "OK can you explain the" },
+      tray: { intent: "new", items: [] },
     } as unknown as PanelSession;
     render(<ChatPanel s={session} />);
     expect(screen.queryByTestId("pn-rec")).toBeNull();

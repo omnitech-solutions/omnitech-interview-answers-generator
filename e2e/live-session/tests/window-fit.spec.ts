@@ -25,7 +25,11 @@ test.fixme("@native native window re-fits when the toolbar grows wider than the 
   });
   // The toolbar really is that wide (the page's viewport is 1320).
   await expect
-    .poll(() => page.locator(".pn-toolbar").evaluate((el) => el.offsetWidth))
+    .poll(() =>
+      page
+        .locator(".pn-toolbar")
+        .evaluate((el) => (el as HTMLElement).offsetWidth),
+    )
     .toBeGreaterThanOrEqual(1100);
   await expect.poll(widthNow).toBeGreaterThanOrEqual(1100);
 });

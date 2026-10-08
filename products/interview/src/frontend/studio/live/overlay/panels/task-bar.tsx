@@ -94,7 +94,7 @@ export function TaskBar({ s }: { s: PanelSession }) {
       </Popconfirm>
       {/* The code language in force: the problem on show's own (a switch sets
           it), changed from the menu beside Regenerate. */}
-      <span className="pn-task-bar-rev" data-testid="pn-language">
+      <span className="pn-task-bar-rev" data-testid="pn-task-bar-language">
         {languageLabel}
       </span>
       {/* The interview this session is for: its job spec and brief, editable

@@ -65,8 +65,14 @@ function spyModel(targetId: string, calls: string[]): ModelProviderAdapter {
         result: CANNED_DRAFT,
       };
     },
-    async *stream() {
+    // The draft-answer stage streams (session-dispatch.ts): the canned draft
+    // is written as text, then completed; the spy records the stream and the
+    // execute it goes through.
+    async *stream(request) {
       calls.push(`${targetId}.stream`);
+      const execution = await this.execute(request);
+      yield { type: "text-delta", text: JSON.stringify(execution.result) };
+      yield { type: "completed", result: execution.result };
     },
     async *streamStructured() {
       calls.push(`${targetId}.streamStructured`);
@@ -161,7 +167,7 @@ async function runPath(
 describe("device-only: no remote call anywhere on the question -> draft path", () => {
   it("drafts through the device adapter alone, with nothing leaving the machine", async () => {
     const result = await runPath("egress-device", "device-only", "device");
-    expect(result.calls).toEqual(["device-model"]);
+    expect(result.calls).toEqual(["device-model.stream", "device-model"]);
     expect(
       result.actions.some((action) => action.dispatchStatus === "succeeded"),
     ).toBe(true);
@@ -208,7 +214,7 @@ describe("device-only: no remote call anywhere on the question -> draft path", (
         expect(tightened.status).toBe(200);
       },
     );
-    expect(result.calls).toEqual(["device-model"]);
+    expect(result.calls).toEqual(["device-model.stream", "device-model"]);
     expect(result.guard.blocked).toEqual([]);
   }, 60_000);
 });
@@ -220,7 +226,7 @@ describe("controls: the checks can fail", () => {
       "permitted-remote",
       "device",
     );
-    expect(result.calls).toEqual(["remote-model"]);
+    expect(result.calls).toEqual(["remote-model.stream", "remote-model"]);
   }, 60_000);
 
   it("records and refuses a real egress attempt (fetch, http and TCP)", async () => {

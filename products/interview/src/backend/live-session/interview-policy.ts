@@ -185,8 +185,12 @@ const ASK_INTENT = [
   // you've worked on" must be read as an ask in the middle of the utterance.
   /\btell (?:me|us) (?:about|how|why|what|where|when)\b/,
   /\b(?:walk|talk) (?:me|us) through\b/,
-  /\bdescribe (?:a|an|the|your|how|what)\b/,
-  /\bexplain (?:how|why|what|the|your|a|an)\b/,
+  // "describe" and "explain" are asks only when addressed to the candidate: a
+  // speaker describing or explaining something themselves ("let me describe
+  // the role", "I describe the gap", "comments that explain the reasoning")
+  // is a monologue, never a question.
+  /(?<!\b(?:let me|i|i ll|i will|i d|i would|we|that|which|to) )\bdescribe (?:a|an|the|your|how|what)\b/,
+  /(?<!\b(?:let me|i|i ll|i will|i d|i would|we|that|which|to) )\bexplain (?:how|why|what|the|your|a|an)\b/,
   /\bgive (?:me|us) (?:an example|a time|a situation|an instance)\b/,
   /\bshare (?:an example|a time|a situation|with (?:me|us))\b/,
 ];

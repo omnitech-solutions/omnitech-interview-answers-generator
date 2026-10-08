@@ -470,7 +470,13 @@ export async function beginDispatch(
         text += event.text;
         await write(false);
       } else if (event.type === "completed") {
-        return { result: event.result };
+        // The executor's display metadata rides the completed event (the
+        // agent port and a model adapter set it); it is kept for the publish
+        // exactly as execute() keeps it.
+        return {
+          result: event.result,
+          ...(event.generatedBy ? { generatedBy: event.generatedBy } : {}),
+        };
       } else if (event.type === "failed") {
         throw Object.assign(new Error(event.error.message), {
           ...event.error,

@@ -19,7 +19,6 @@ import {
   type AiExecution,
   type AiExecutionRequest,
   type ModelProviderAdapter,
-  refusedStream,
 } from "@omnitech/ai-contracts";
 import { type AiProfile, createAiExecutionGateway } from "@omnitech/ai-runtime";
 import { withDeclaredLocality } from "@omnitech/ai-runtime/config";
@@ -244,8 +243,17 @@ export function fakeModel(
         result,
       };
     },
-    stream() {
-      return refusedStream("The fake model only executes.");
+    // The draft-answer stage streams (session-dispatch.ts): the answer is
+    // written as text in two deltas, then completed, exactly as a runtime
+    // writes the structured-output JSON. It goes through execute, so
+    // `requests` still counts every call.
+    async *stream(request) {
+      const execution = await adapter.execute(request);
+      const text = JSON.stringify(execution.result) ?? "";
+      const half = Math.ceil(text.length / 2);
+      yield { type: "text-delta", text: text.slice(0, half) };
+      yield { type: "text-delta", text: text.slice(half) };
+      yield { type: "completed", result: execution.result };
     },
   };
   return { adapter, requests };

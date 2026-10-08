@@ -9,7 +9,8 @@ public enum ActiveSessionLimits {
     public static let maxObservationsPerSession = 20_000
     public static let maxScreenshotsPerSession = 400
     public static let maxIngestPerMinute = 120
-    public static let sessionDurationCapMs = 4 * 60 * 60 * 1000
+    // Sessions do not expire by default (ten years), as limits.ts says.
+    public static let sessionDurationCapMs = 10 * 365 * 24 * 60 * 60 * 1000
     public static let minHeartbeatIntervalMs = 1_000
     public static let credentialLifetimeMs = 2 * 60 * 60 * 1000
     public static let maxActiveSessionsPerOwner = 1

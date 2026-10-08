@@ -337,7 +337,6 @@ describe("(c) an ASR correction supersedes", () => {
 
 describe("(d) hazard 7a: an affirmation the approved matrix lacks", () => {
   const set = hazard("hazard-7a-unsupported-framework");
-  const claimText = (n: number) => `claims.${n}`;
 
   it("labels the framework claim not-in-matrix, publishes the section and leaves the matrix as it was", async () => {
     const gateway = createFakeGateway({
@@ -388,7 +387,7 @@ describe("(d) hazard 7a: an affirmation the approved matrix lacks", () => {
     await report("hazard-7a-unsupported-framework", w, set);
   }, 60_000);
 
-  it("rejects the same claim stated as matrix-backed with a real but unsupporting reference, publishing nothing", async () => {
+  it("drops the same claim stated as matrix-backed with a real but unsupporting reference and publishes the draft without it", async () => {
     const gateway = createFakeGateway({
       result: (request) =>
         answer({
@@ -416,27 +415,16 @@ describe("(d) hazard 7a: an affirmation the approved matrix lacks", () => {
 
     const stored = await w.actions();
     expect(stored).toHaveLength(1);
+    // The unsupported claim is dropped and the spoken draft is published
+    // without it (grounding never withholds a draft): no evidence chip ever
+    // presents the absent framework as matrix-backed.
     expect(stored[0]).toMatchObject({
-      dispatchStatus: "suppressed",
-      suppressionReason: "invalid_output",
-      result: {
-        withheld: expect.objectContaining({ rejectedClaimCount: 1 }),
-      },
+      dispatchStatus: "succeeded",
+      result: { claims: [], sections: [] },
     });
-    // Nothing is published: no result carries more than the withheld record.
-    expect(
-      stored.filter(
-        (action) =>
-          action.result !== null &&
-          !(action.result as { withheld?: unknown }).withheld,
-      ),
-    ).toEqual([]);
-    const rejection = w.trace.events.find(
-      (event) => event.event === "dispatch.suppressed",
+    expect((stored[0]?.result as { claims: unknown[] } | null)?.claims).toEqual(
+      [],
     );
-    expect(rejection?.detail).toMatchObject({
-      firstViolation: `${claimText(0)}.refs.0:unsupported_reference`,
-    });
     expect(JSON.stringify(w.trace.events)).not.toContain(ABSENT_FRAMEWORK);
     expect(await protectedTableDigests(fx)).toEqual(before);
   }, 60_000);
@@ -465,18 +453,20 @@ describe("(e) hazard 7b: a spoken metric is not a fact", () => {
     await replay(w, set.phases);
     const stored = await w.actions();
     expect(stored).toHaveLength(1);
+    // The claim carrying the spoken figure is dropped; the draft (which says
+    // no figure) is published without it, and no trace repeats the figure.
     expect(stored[0]).toMatchObject({
-      dispatchStatus: "suppressed",
-      suppressionReason: "invalid_output",
+      dispatchStatus: "succeeded",
       result: {
-        withheld: expect.objectContaining({ codes: expect.any(Array) }),
+        claims: [],
+        draft: "Describe the performance project and what was measured.",
       },
     });
-    return w.trace.events.find((event) => event.event === "dispatch.suppressed")
-      ?.detail?.["firstViolation"];
+    expect(JSON.stringify(w.trace.events)).not.toContain(SPOKEN);
+    return JSON.stringify(stored[0]?.result);
   };
 
-  it("rejects the spoken figure stated as fact in every claim kind that can carry it", async () => {
+  it("drops the spoken figure stated as fact in every claim kind that can carry it", async () => {
     expect(
       await rejectedAs("evidence-e1", {
         kind: "matrix-backed",
@@ -485,21 +475,21 @@ describe("(e) hazard 7b: a spoken metric is not a fact", () => {
           refFor(request, "APPROVED EXPERIENCE", "/roles/0/metrics/0/label"),
         ],
       }),
-    ).toBe("claims.0.refs.0:unsupported_reference");
+    ).not.toContain(SPOKEN);
     expect(
       await rejectedAs("evidence-e2", {
         kind: "suggested-interpretation",
         text: `We cut the processing cost by ${SPOKEN}`,
         refs: [],
       }),
-    ).toBe("claims.0:ungrounded_figure");
+    ).not.toContain(SPOKEN);
     expect(
       await rejectedAs("evidence-e3", {
         kind: "not-in-matrix",
         text: `Processing cost fell by ${SPOKEN}`,
         refs: [],
       }),
-    ).toBe("claims.0:ungrounded_figure");
+    ).not.toContain(SPOKEN);
   }, 120_000);
 
   it("accepts the matrix's own metric, with its label and value cited", async () => {
@@ -586,7 +576,7 @@ describe("(f) hazard 7c: leaving a role", () => {
     await report("hazard-7c-leaving-roles", w, set);
   }, 60_000);
 
-  it("rejects a generated reason and a disparaging draft, publishing nothing", async () => {
+  it("drops a disparaging sentence and a generated reason: the published draft keeps only the placeholder, with no claims", async () => {
     const disparaging = createFakeGateway({
       result: () =>
         answer({
@@ -608,22 +598,16 @@ describe("(f) hazard 7c: leaving a role", () => {
     await replay(w, set.phases);
     const stored = await w.actions();
     expect(stored).toHaveLength(1);
+    // The disparaging sentence is subtracted from the draft and its claim is
+    // dropped; what is published is the placeholder alone.
     expect(stored[0]).toMatchObject({
-      dispatchStatus: "suppressed",
-      suppressionReason: "invalid_output",
-      result: {
-        withheld: {
-          rejectedClaimCount: 1,
-          codes: expect.arrayContaining(["disparages_employer"]),
-        },
-      },
+      dispatchStatus: "succeeded",
+      result: { claims: [] },
     });
-    const trace = w.trace.events.find(
-      (event) => event.event === "dispatch.suppressed",
-    );
-    expect(trace?.detail?.["firstViolation"]).toBe(
-      "claims.0:disparages_employer",
-    );
+    const published = stored[0]?.result as AnyRow;
+    expect(published.draft).toContain(LEAVING_REASON_PLACEHOLDER);
+    expect(published.draft).not.toContain("incompetent");
+    expect(JSON.stringify(stored)).not.toContain("incompetent");
     expect(JSON.stringify(w.trace.events)).not.toContain("incompetent");
 
     const invented = createFakeGateway({
@@ -645,13 +629,14 @@ describe("(f) hazard 7c: leaving a role", () => {
       gateway: invented,
     });
     await replay(second, set.phases);
-    expect((await second.actions())[0]).toMatchObject({
-      dispatchStatus: "suppressed",
-      suppressionReason: "invalid_output",
-      result: {
-        withheld: expect.objectContaining({ codes: expect.any(Array) }),
-      },
+    const [invent] = await second.actions();
+    expect(invent).toMatchObject({
+      dispatchStatus: "succeeded",
+      result: { claims: [] },
     });
+    const draft = (invent?.result as AnyRow | undefined)?.draft as string;
+    expect(draft).toContain(LEAVING_REASON_PLACEHOLDER);
+    expect(draft).not.toContain("growth");
   }, 90_000);
 });
 

@@ -101,7 +101,9 @@ describe("technical answers without an experience matrix", () => {
     expect(result, JSON.stringify(result)).toMatchObject({ ok: true });
   });
 
-  it("still withholds a headcount claim about the candidate", () => {
+  // Grounding never withholds a technical answer (owner's rule): a personal
+  // figure the sources do not carry costs the draft its claims, never its voice.
+  it("publishes a headcount claim about the candidate without its claims", () => {
     const result = validate(
       answer({
         category: "technical-concept",
@@ -115,14 +117,14 @@ describe("technical answers without an experience matrix", () => {
       }),
       { exercise: [...EXERCISE, "at most 12 items"] },
     );
-    expect(result.ok).toBe(false);
-    if (!result.ok)
-      expect(result.violations.join(" ")).toMatch(
-        /ungrounded_figure|personal_claim_unsourced/,
-      );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.draft.claims).toEqual([]);
+      expect(result.draft.sections).toEqual([]);
+    }
   });
 
-  it("still withholds an achievement percentage and an unprovenanced team size", () => {
+  it("publishes an achievement percentage or an unprovenanced team size without its claims", () => {
     for (const text of [
       "I improved latency by 40% last year.",
       "The team of 12 shipped it.",
@@ -135,11 +137,12 @@ describe("technical answers without an experience matrix", () => {
         }),
         { exercise: EXERCISE },
       );
-      expect(result.ok, text).toBe(false);
+      expect(result.ok, text).toBe(true);
+      if (result.ok) expect(result.draft.claims, text).toEqual([]);
     }
   });
 
-  it("still withholds a salary or notice figure", () => {
+  it("publishes a salary or notice figure without its claims, and still withholds it from a logistics draft", () => {
     for (const category of ["coding", "technical-concept", "logistics"]) {
       const result = validate(
         answer({
@@ -154,11 +157,14 @@ describe("technical answers without an experience matrix", () => {
         }),
         { exercise: [...EXERCISE, "150000"] },
       );
-      expect(result.ok, category).toBe(false);
+      // A logistics draft is rebuilt from the pinned preferences, so the
+      // model's own figure is withheld; every other category keeps its draft.
+      expect(result.ok, category).toBe(category !== "logistics");
+      if (result.ok) expect(result.draft.claims, category).toEqual([]);
     }
   });
 
-  it("withholds a plain figure outside a technical category", () => {
+  it("publishes a plain figure outside a technical category without its claims", () => {
     const result = validate(
       answer({
         category: "background",
@@ -168,7 +174,8 @@ describe("technical answers without an experience matrix", () => {
         ],
       }),
     );
-    expect(result.ok).toBe(false);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.draft.claims).toEqual([]);
   });
 });
 
@@ -261,11 +268,15 @@ describe("availability wording on a coding task", () => {
     expect(result.ok).toBe(false);
   });
 
-  it("still withholds a notice period said inside a coding draft", () => {
+  it("drops the sentence that says a notice period inside a coding draft and publishes the rest", () => {
     const result = validate(
       answer({ draft: `${draft} Also, my notice period is 3 months.` }),
       { exercise: SCHEDULING, captured: ["Schedule the tasks"] },
     );
-    expect(result.ok).toBe(false);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.draft.draft).not.toContain("notice period");
+      expect(result.draft.draft).toContain("min-heap");
+    }
   });
 });

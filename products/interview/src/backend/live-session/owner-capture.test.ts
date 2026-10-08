@@ -105,7 +105,12 @@ const refused = async (promise: Promise<unknown>) => {
 
 describe("the hint enums", () => {
   it("offer nine skills and the one supported-language list the stages import", () => {
-    expect(LIVE_OWNER_LANGUAGES).toEqual(["typescript", "react"]);
+    expect(LIVE_OWNER_LANGUAGES).toEqual([
+      "typescript",
+      "react",
+      "php",
+      "ruby",
+    ]);
     expect(LIVE_OWNER_SKILLS).toHaveLength(9);
   });
 });
@@ -188,7 +193,7 @@ describe("storing a capture", () => {
         {},
         pngOf(10, 10, ACTIVE_SESSION_LIMITS.maxScreenshotBytes),
       ),
-      capture(world, { language: "php" }),
+      capture(world, { language: "cobol" }),
       capture(world, { skill: "cooking" }),
       capture(world, { label: "x".repeat(81) }),
       capture(world, { label: "bad\u0007label" }),
@@ -338,7 +343,7 @@ describe("the typed follow-up shares the hint fields", () => {
       skill: "system-design",
       language: "react",
     });
-    for (const bad of [{ language: "ruby" }, { skill: "x" }])
+    for (const bad of [{ language: "cobol" }, { skill: "x" }])
       await refused(
         repo.submitOwnerInput(world.scope, world.id, {
           requestId: "f-2",
@@ -484,7 +489,7 @@ describe("POST .../capture", () => {
         new TextEncoder().encode("<svg/>"),
         "image/svg+xml",
       ),
-      form({ requestId: "b-3", operation: "analyze", language: "php" }),
+      form({ requestId: "b-3", operation: "analyze", language: "cobol" }),
       form({ requestId: "b-4", operation: "analyze", extra: "1" }),
       form({
         requestId: "b-5",
