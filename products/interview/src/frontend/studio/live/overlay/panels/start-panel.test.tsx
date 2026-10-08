@@ -8,6 +8,7 @@ import { join } from "node:path";
 import type {
   AccountPermissions,
   AccountSignInState,
+  LiveSessionChoicesResponse,
 } from "@omnitech/interview-contracts";
 import {
   act,
@@ -74,7 +75,7 @@ const CHOICES = (scheduledAt: string | null) => ({
 
 type Providers = { providers?: string[]; configured?: boolean };
 let providers: Providers = { providers: ["google", "linkedin"] };
-let choices = CHOICES(null);
+let choices: LiveSessionChoicesResponse = CHOICES(null);
 let globalFetch: ReturnType<typeof vi.fn>;
 
 // A negotiable native bridge whose account object records its calls.
@@ -755,7 +756,8 @@ describe("idle: signed in, no live session", () => {
           interviews: [],
         },
         {
-          ...CHOICES(scheduled).candidacies[0],
+          ...(CHOICES(scheduled)
+            .candidacies[0] as LiveSessionChoicesResponse["candidacies"][number]),
           hasJobSpec: true,
           hasBrief: false,
         },
