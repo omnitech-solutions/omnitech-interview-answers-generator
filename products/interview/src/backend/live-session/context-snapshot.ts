@@ -210,6 +210,8 @@ export type BuildInput = {
         jobDescription?: string | undefined;
         employerNotes?: string | undefined;
         research?: string | undefined;
+        // The model-cleaned employer brief as labelled lines (session-context).
+        brief?: string | undefined;
       }
     | undefined;
   candidatePreferences?: string | undefined;
@@ -266,6 +268,7 @@ export function buildContextSnapshot(input: BuildInput): ContextSnapshot {
     input.employer?.employerNotes,
   );
   addContext("research", "employer-context", input.employer?.research);
+  addContext("employerBrief", "employer-context", input.employer?.brief);
   addContext(
     "candidatePreferences",
     "candidate-preference",

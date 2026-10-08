@@ -28,4 +28,5 @@ export const expectedMigrations: readonly string[] = [
   "20261005073811_screenshot_send",
   "20261006152815_session_paused_time",
   "20261007231047_action_progress",
+  "20261008000838_employer_brief",
 ];

@@ -177,6 +177,41 @@ const when = (iso: string): string => {
   return `${day}, ${time}`;
 };
 
+// Every candidacy the owner has, newest first, as something a session can be
+// started for (owner's rule, 2026-10-07: the interview's context is added in
+// the native app and need not be scheduled). A candidacy with exactly one
+// interview starts for that interview; otherwise for the candidacy alone.
+export function candidacyTargets(
+  choices: LiveSessionChoicesResponse | null,
+): StartTarget[] {
+  if (!choices) return [];
+  return choices.candidacies.map((candidacy) => {
+    const only =
+      candidacy.interviews.length === 1 ? candidacy.interviews[0] : undefined;
+    return {
+      id: `candidacy:${candidacy.id}`,
+      target: only
+        ? {
+            kind: "interview",
+            candidacyId: candidacy.id,
+            interviewId: only.id,
+          }
+        : { kind: "candidacy", candidacyId: candidacy.id },
+      icon: "work",
+      title: candidacy.title,
+      sub: [
+        candidacy.companyName,
+        candidacy.hasBrief
+          ? "Brief ready"
+          : candidacy.hasJobSpec
+            ? "Job spec, not cleaned up"
+            : "No job spec yet",
+      ].join(" · "),
+      needsAgreement: only !== undefined,
+    };
+  });
+}
+
 // The next interview that has not started yet (soonest first), then Rehearsal.
 // A local profile has no interviews to start for, so it is offered Rehearsal
 // alone. Nothing is invented: no upcoming interview, no card for one.

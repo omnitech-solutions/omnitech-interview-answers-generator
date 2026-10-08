@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "../../../icon";
 import { revisionLine, revisionList } from "../../shared/revisions";
 import { nativeChord } from "../../shared/shortcuts";
+import { InterviewContextChip } from "./interview-context-chip";
 import { taskChips } from "./panel-model";
 import type { PanelSession } from "./panel-views";
 
@@ -96,6 +97,9 @@ export function TaskBar({ s }: { s: PanelSession }) {
       <span className="pn-task-bar-rev" data-testid="pn-language">
         {languageLabel}
       </span>
+      {/* The interview this session is for: its job spec and brief, editable
+          here; a regenerate reads the change. */}
+      <InterviewContextChip candidacyId={s.model.candidacyId} />
       <div className="pn-task-bar-end">
         <ActionMenu
           label="Problem"

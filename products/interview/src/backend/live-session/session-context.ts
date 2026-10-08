@@ -19,6 +19,8 @@ import {
   briefingDraftSchema,
   type CandidateMatrix,
   candidateMatrixSchema,
+  type EmployerBrief,
+  employerBriefSchema,
 } from "@omnitech/interview-contracts";
 import { sql } from "drizzle-orm";
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
@@ -31,6 +33,30 @@ import { assertUuid, SessionError } from "./errors";
 import { decodeDraftKey } from "./mapping";
 import { firstRow, inOwnerScope, type OwnerScope } from "./scope";
 import { readSession } from "./session-record";
+
+const textOrUndefined = (value: unknown): string | undefined =>
+  typeof value === "string" && value.trim() !== "" ? value : undefined;
+
+// The brief as short labelled lines: each becomes one employer-material source
+// the prompt can cite by pointer, instead of one JSON blob.
+export function briefLines(brief: EmployerBrief): string {
+  const list = (label: string, items: readonly string[]) =>
+    items.length ? [`${label}: ${items.join("; ")}`] : [];
+  return [
+    `Employer brief: ${brief.role} at ${brief.company}`,
+    ...(brief.summary ? [`Role summary: ${brief.summary}`] : []),
+    ...list("Must-haves", brief.mustHaves),
+    ...list("Nice-to-haves", brief.niceToHaves),
+    ...list("Tech stack", brief.techStack),
+    ...list("Responsibilities", brief.responsibilities),
+    ...(brief.team ? [`Team: ${brief.team}`] : []),
+    ...list("Values", brief.values),
+    ...(brief.interviewFormat
+      ? [`Interview format: ${brief.interviewFormat}`]
+      : []),
+    ...list("Questions to ask", brief.questionsToAsk),
+  ].join("\n");
+}
 
 export type SessionContext = {
   snapshot: ContextSnapshot;
@@ -95,6 +121,39 @@ export async function loadSessionContext(
       };
     }
 
+    // The candidacy the session was started for: its job spec, notes and the
+    // model-cleaned employer brief are employer material too (untrusted,
+    // never evidence about the candidate). Read only when linked.
+    let candidacy:
+      | {
+          jobDescription?: string | undefined;
+          employerNotes?: string | undefined;
+          research?: string | undefined;
+          brief?: string | undefined;
+        }
+      | undefined;
+    if (record.candidacyId) {
+      const row = await firstRow<Record<string, unknown>>(
+        tx,
+        sql`SELECT c.title, c.job_description, c.notes, c.employer_brief,
+                   co.name AS company_name, co.research AS company_research
+            FROM interview.candidacies c
+            JOIN interview.companies co
+              ON co.tenant_id = c.tenant_id AND co.id = c.company_id
+            WHERE c.tenant_id = ${scope.tenantId}::uuid
+              AND c.id = ${record.candidacyId}::uuid`,
+      );
+      if (row) {
+        const brief = employerBriefSchema.safeParse(row["employer_brief"]);
+        candidacy = {
+          jobDescription: textOrUndefined(row["job_description"]),
+          employerNotes: textOrUndefined(row["notes"]),
+          research: textOrUndefined(row["company_research"]),
+          brief: brief.success ? briefLines(brief.data) : undefined,
+        };
+      }
+    }
+
     // The linked briefing draft: employer material (untrusted) and the
     // candidate's own preferences. A draft that is gone, or has no briefing,
     // simply adds no context.
@@ -135,12 +194,24 @@ export async function loadSessionContext(
       }
     }
 
+    // The draft's fields win where both say something; the candidacy fills the
+    // gaps and always carries its brief.
+    const merged =
+      employer || candidacy
+        ? {
+            jobDescription:
+              employer?.jobDescription ?? candidacy?.jobDescription,
+            employerNotes: employer?.employerNotes ?? candidacy?.employerNotes,
+            research: employer?.research ?? candidacy?.research,
+            brief: candidacy?.brief,
+          }
+        : undefined;
     return {
       matrix,
       snapshot: buildContextSnapshot({
         matrix,
         profile,
-        employer,
+        employer: merged,
         candidatePreferences,
         draftRevision,
       }),

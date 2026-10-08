@@ -1353,3 +1353,51 @@
   font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
   cursor: pointer;
 }
+
+/* ---- Interview context: the start panel's picker and the modal ---- */
+.pn-start-interview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pn-start-interview-actions {
+  display: flex;
+  gap: 8px;
+}
+.pn-context-modal {
+  width: min(640px, calc(100vw - 32px));
+}
+.pn-context-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: min(60vh, 520px);
+  overflow: auto;
+  padding: 4px 0;
+}
+.pn-context-brief {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--pn-chip);
+  font-size: 12px;
+}
+.pn-context-brief h4 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.pn-context-brief ul {
+  margin: 0;
+  padding-left: 16px;
+}
+.pn-context-brief li + li {
+  margin-top: 4px;
+}
+.pn-context-error {
+  margin: 0;
+  color: var(--ov-danger, #e5484d);
+  font-size: 12px;
+}
+.pn-context-chip {
+  max-width: 260px;
+}

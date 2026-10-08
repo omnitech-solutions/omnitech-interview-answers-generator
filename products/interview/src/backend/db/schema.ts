@@ -19,6 +19,7 @@ import {
   getTableConfig,
   index,
   integer,
+  jsonb,
   type PgTable,
   pgPolicy,
   pgSchema,
@@ -159,6 +160,11 @@ export const candidacies = interview.table.withRLS(
     source: candidacySource("source"),
     postingUrl: text("posting_url"),
     notes: text("notes"),
+    // The job spec and notes cleaned by the model into a compact brief the
+    // live session reads as employer material (employerBriefSchema), with the
+    // hash of the bytes it was built from so a changed spec shows as stale.
+    employerBrief: jsonb("employer_brief"),
+    employerBriefSha256: text("employer_brief_sha256"),
     closedAt: timestamp("closed_at", { withTimezone: true }),
   },
   (t) => [

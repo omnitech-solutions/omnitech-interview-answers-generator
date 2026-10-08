@@ -61,6 +61,9 @@ export type LiveViewModel = {
   // being deleted.
   phase: "none" | "open" | "finished";
   status: LiveSessionStatus | null;
+  // The candidacy the session was started for (its job spec and employer
+  // brief are the session's context); null for a rehearsal.
+  candidacyId: string | null;
   barState: BarState;
   barLabel: string;
   // The stream cannot be read (an error, or no read for a while): the model
@@ -159,6 +162,7 @@ export function deriveLiveModel(input: LiveModelInput): LiveViewModel {
       noQuestion: [],
       runs: [],
       transcript: [],
+      candidacyId: null,
       locality: null,
       cap: null,
       stats: EMPTY_STATS,
@@ -228,6 +232,7 @@ export function deriveLiveModel(input: LiveModelInput): LiveViewModel {
     noQuestion,
     runs,
     transcript,
+    candidacyId: session?.candidacyId ?? null,
     locality: localityModel(session),
     cap,
     stats: {

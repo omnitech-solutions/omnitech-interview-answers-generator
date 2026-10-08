@@ -851,6 +851,10 @@ export const liveCandidacyChoiceSchema = z.object({
   title: z.string(),
   companyName: z.string(),
   createdAt: isoTime,
+  // Whether the candidacy carries a job description and an AI-cleaned employer
+  // brief (presence only; the text stays server-side). Absent: older server.
+  hasJobSpec: z.boolean().optional(),
+  hasBrief: z.boolean().optional(),
   // An interview is agreed only through its candidacy, so start sends both ids.
   interviews: z.array(liveInterviewChoiceSchema),
 });
@@ -872,6 +876,38 @@ export const liveSessionChoicesResponseSchema = z.object({
 export type LiveSessionChoicesResponse = z.infer<
   typeof liveSessionChoicesResponseSchema
 >;
+
+// ---- Employer brief ----------------------------------------------------------
+
+// The job spec and notes of a candidacy, cleaned by the model into a compact
+// form the live session reads as employer material (never as evidence about the
+// candidate). Every line is short; the whole brief is bounded.
+const briefLine = z.string().trim().min(1).max(240);
+export const employerBriefSchema = z.strictObject({
+  company: z.string().trim().min(1).max(200),
+  role: z.string().trim().min(1).max(200),
+  summary: z.string().trim().max(600),
+  mustHaves: z.array(briefLine).max(12),
+  niceToHaves: z.array(briefLine).max(12),
+  techStack: z.array(briefLine).max(24),
+  responsibilities: z.array(briefLine).max(12),
+  team: z.string().trim().max(400).optional(),
+  values: z.array(briefLine).max(8),
+  interviewFormat: z.string().trim().max(400).optional(),
+  questionsToAsk: z.array(briefLine).max(8),
+});
+export type EmployerBrief = z.infer<typeof employerBriefSchema>;
+
+// GET/PATCH .../documents/candidacies/:id/context: what the native panel edits.
+export const candidacyContextSchema = z.object({
+  id: z.uuid(),
+  companyName: z.string(),
+  title: z.string(),
+  jobDescription: z.string().nullable(),
+  notes: z.string().nullable(),
+  brief: employerBriefSchema.nullable(),
+});
+export type CandidacyContext = z.infer<typeof candidacyContextSchema>;
 
 // ---- Companion capability ---------------------------------------------------
 

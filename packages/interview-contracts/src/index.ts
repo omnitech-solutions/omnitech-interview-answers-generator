@@ -103,6 +103,10 @@ export {
   testResultSchema,
 } from "./guide";
 export {
+  type CandidacyContext,
+  candidacyContextSchema,
+  type EmployerBrief,
+  employerBriefSchema,
   LIVE_CAPTURE_FAILURES,
   LIVE_CAPTURE_MODES,
   LIVE_CAPTURE_REFUSALS,

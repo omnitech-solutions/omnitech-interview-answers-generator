@@ -24,6 +24,8 @@ type CandidacyChoice = {
   title: string;
   companyName: string;
   createdAt: string;
+  hasJobSpec: boolean;
+  hasBrief: boolean;
   interviews: InterviewChoice[];
 };
 type ProfileChoice = {
@@ -51,7 +53,9 @@ export async function getSessionChoices(
     // join the start's link check uses.
     const candidacyRows = await rowsOf<Record<string, unknown>>(
       tx,
-      sql`SELECT c.id, c.title, c.created_at, co.name AS company_name
+      sql`SELECT c.id, c.title, c.created_at, co.name AS company_name,
+                 (c.job_description IS NOT NULL) AS has_job_spec,
+                 (c.employer_brief IS NOT NULL) AS has_brief
           FROM interview.candidacies c
           JOIN interview.member_people mp
             ON mp.tenant_id = c.tenant_id AND mp.person_id = c.candidate_person_id
@@ -116,6 +120,8 @@ export async function getSessionChoices(
         title: String(row["title"]),
         companyName: String(row["company_name"]),
         createdAt: iso(row["created_at"]),
+        hasJobSpec: row["has_job_spec"] === true,
+        hasBrief: row["has_brief"] === true,
         interviews: interviewsByCandidacy.get(String(row["id"])) ?? [],
       })),
       profiles: profileRows.map((row) => ({

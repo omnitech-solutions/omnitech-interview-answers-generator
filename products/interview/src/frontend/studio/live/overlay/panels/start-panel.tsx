@@ -20,6 +20,7 @@ import {
   Empty,
   Panel,
   Segmented,
+  Select,
   Tag,
 } from "@oc-tech/omni-ui-components";
 import type {
@@ -43,6 +44,7 @@ import {
 import { SCREEN_RECORDING_SETTINGS_URL } from "../../shared/capture-problem";
 import { useSetupChoices } from "../../use-setup-choices";
 import { Footer, failureNote } from "../overlay-footer";
+import { InterviewContextModal } from "./interview-context-modal";
 import type { PanelGlass } from "./panel-glass";
 import type { PanelSession } from "./panel-views";
 import { usePortalRoot } from "./portal-root";
@@ -52,6 +54,7 @@ import { StartIcon } from "./start-icons";
 import {
   AGREEMENT_TEXT,
   accountLines,
+  candidacyTargets,
   chipOf,
   EXPIRED_TEXT,
   footerStatus,
@@ -62,6 +65,7 @@ import {
   type PermissionRow,
   PROVIDER_NAME,
   permissionRows,
+  REHEARSAL_TARGET,
   SIGNED_OUT_TOAST,
   STAGE_TITLE,
   type StartStage,
@@ -69,7 +73,6 @@ import {
   signOutLabel,
   startBlock,
   startHint,
-  startTargets,
   TIMED_OUT_TEXT,
 } from "./start-model";
 import { Toolbar } from "./toolbar";
@@ -650,22 +653,21 @@ function Idle({
   onStarted(): void;
 }) {
   const welcome = useMemo(() => takeWelcome(), []);
-  const { state: choicesState } = useSetupChoices();
+  const { state: choicesState, reload: reloadChoices } = useSetupChoices();
   const choices = choicesState.status === "ready" ? choicesState.choices : null;
-  const targets = useMemo(
-    () => startTargets(choices, member, Date.now()),
-    [choices, member],
-  );
-  const [picked, setPicked] = useState<string | null>(null);
-  const target: StartTarget = targets.find((each) => each.id === picked) ??
-    targets[0] ?? {
-      id: "none",
-      target: { kind: "rehearsal" },
-      icon: "timer",
-      title: "",
-      sub: "",
-      needsAgreement: false,
-    };
+  // Rehearsal, or an interview: one of the owner's candidacies (newest first),
+  // added or edited here without leaving the app.
+  const interviews = useMemo(() => candidacyTargets(choices), [choices]);
+  const [mode, setMode] = useState<"rehearsal" | "interview">("rehearsal");
+  const [pickedCandidacy, setPickedCandidacy] = useState<string | null>(null);
+  const [contextOpen, setContextOpen] = useState<null | "new" | "edit">(null);
+  const interview =
+    interviews.find((each) => each.id === `candidacy:${pickedCandidacy}`) ??
+    interviews[0];
+  const target: StartTarget =
+    mode === "interview" && interview ? interview : REHEARSAL_TARGET;
+  const pickedId =
+    target.target.kind === "rehearsal" ? null : target.target.candidacyId;
   const [agreed, setAgreed] = useState(false);
   const permissions = usePermissions(host, true);
   const rows = permissionRows(permissions);
@@ -752,15 +754,77 @@ function Idle({
         <Segmented
           label="Start a session for"
           appearance="control"
-          value={target.id}
-          onChange={setPicked}
-          options={targets.map((option) => ({
-            value: option.id,
-            label: option.title,
-            icon: <Icon name={option.icon} />,
-          }))}
+          value={mode}
+          onChange={(next) => setMode(next as "rehearsal" | "interview")}
+          options={[
+            {
+              value: "rehearsal",
+              label: "Rehearsal",
+              icon: <Icon name="timer" />,
+            },
+            {
+              value: "interview",
+              label: "Interview",
+              icon: <Icon name="work" />,
+            },
+          ]}
         />
-        <p className="pn-start-target-sub">{target.sub}</p>
+        {mode === "interview" ? (
+          <div className="pn-start-interview">
+            <Select
+              label="Interview"
+              placeholder={
+                interviews.length ? "Choose an interview" : "No interview yet"
+              }
+              value={pickedId ?? ""}
+              onChange={setPickedCandidacy}
+              options={interviews.map((option) => ({
+                value: option.id.slice("candidacy:".length),
+                label: option.title,
+                description: option.sub,
+              }))}
+              footerAction={{
+                label: "Add an interview…",
+                onSelect: () => setContextOpen("new"),
+              }}
+              data-testid="pn-start-interview"
+            />
+            <div className="pn-start-interview-actions">
+              <Button
+                variant="outline"
+                buttonSize="sm"
+                onClick={() => setContextOpen("new")}
+                data-testid="pn-start-add-interview"
+              >
+                Add an interview
+              </Button>
+              {pickedId && (
+                <Button
+                  variant="ghost"
+                  buttonSize="sm"
+                  onClick={() => setContextOpen("edit")}
+                  data-testid="pn-start-edit-context"
+                >
+                  Job spec and notes
+                </Button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <p className="pn-start-target-sub">{target.sub}</p>
+        )}
+        <InterviewContextModal
+          open={contextOpen !== null}
+          candidacyId={contextOpen === "edit" ? pickedId : null}
+          onOpenChange={(open) => {
+            if (!open) setContextOpen(null);
+          }}
+          onSaved={(saved) => {
+            setPickedCandidacy(saved.id);
+            setMode("interview");
+            reloadChoices();
+          }}
+        />
       </section>
       {rows.length > 0 && (
         <section className="pn-start-group" aria-label="This Mac">

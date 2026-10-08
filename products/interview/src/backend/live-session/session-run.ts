@@ -799,6 +799,9 @@ function applyOwnerInput(run: SessionRun, pending: PendingOwnerInput): void {
       return;
     }
   }
+  // A regenerate re-reads the session's context first: the owner may have
+  // just added or cleaned the job spec, and the next draft must see it.
+  if (input.operation === "regenerate") run.context = null;
   const provenance = [
     provenanceId,
     ...input.snapshots.map((snapshot) =>
