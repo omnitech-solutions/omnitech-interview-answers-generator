@@ -63,10 +63,53 @@ public struct SystemPermissionProbe: PermissionProbe {
 }
 
 // Turns a stream of audio frames into final transcript segments for one source.
+// [DOMAIN] macOS runs ONE on-device recognition task per process: starting a
+// second (the microphone's while the application audio's is open, or the other
+// way round) ends the first within milliseconds with "No speech detected", and
+// the two then knock each other out for as long as both hear sound (measured
+// 2026-10-08: nine open/kill rounds in three seconds, no words from either).
+// So a transcriber takes this slot before it opens a request and gives it back
+// when the request is gone; the one that finds it taken keeps its audio and
+// opens when it is told the slot is free.
+// [SAFETY] @unchecked Sendable: `owner` and `waiters` are touched only under `lock`.
+private final class RecognitionSlot: @unchecked Sendable {
+    static let shared = RecognitionSlot()
+    private let lock = NSLock()
+    private var owner: ObjectIdentifier?
+    private var waiters: [(id: ObjectIdentifier, wake: @Sendable () -> Void)] = []
+
+    /// True when `id` holds the slot now; otherwise `wake` runs once it is free.
+    func acquire(_ id: ObjectIdentifier, wake: @escaping @Sendable () -> Void) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        if owner == nil || owner == id {
+            owner = id
+            return true
+        }
+        if !waiters.contains(where: { $0.id == id }) { waiters.append((id, wake)) }
+        return false
+    }
+
+    /// Gives the slot back (or stops waiting for it) and wakes whoever waits.
+    func release(_ id: ObjectIdentifier) {
+        lock.lock()
+        waiters.removeAll { $0.id == id }
+        guard owner == id else {
+            lock.unlock()
+            return
+        }
+        owner = nil
+        let waiting = waiters
+        waiters = []
+        lock.unlock()
+        for waiter in waiting { waiter.wake() }
+    }
+}
+
 // [SAFETY] INVARIANT (@unchecked Sendable): every `var` is read and written only on
 // `queue`: the public `start`/`feed`/`stop` dispatch onto it, the timer handler and the
 // recognition callback hop onto it before touching state (`handle`, `checkSegmentEnd`,
-// `discardRequest`, `ensureRequest` are only called from queue blocks), and the `let`s
+// `discardRequest`, `openForHeld` are only called from queue blocks), and the `let`s
 // (`recognizer`, handlers) are set in `init` and used only there or on `queue`.
 // Callers hand in and receive Sendable values; `onFinal`/`onFailure` run on `queue`.
 // REMOVAL PLAN: an actor with a custom serial executor on `queue` (SE-0392) once the
@@ -95,6 +138,12 @@ public final class OnDeviceTranscriber: @unchecked Sendable {
     // The frames just before a voice began, so the first word is not clipped.
     private var preroll: [AudioFrame] = []
     private var prerollMs = 0
+    // Audio kept while the other source holds the recognition slot (see
+    // RecognitionSlot): fed whole once the slot is ours, oldest dropped past
+    // heldMaxMs.
+    private var held: [AudioFrame] = []
+    private var heldMs = 0
+    private var fedAtOpen = 0
 
     // [DOMAIN] This transcriber owns a request's lifetime, because the on-device
     // recogniser ends a request that does not begin with speech within about
@@ -109,6 +158,7 @@ public final class OnDeviceTranscriber: @unchecked Sendable {
     private let silenceSeconds = 1.2
     private let maxRequestSeconds = 50.0
     private let endingGraceSeconds = 3.0
+    private let heldMaxMs = 30_000
 
     // nil unless the locale is supported AND supports on-device recognition.
     public init?(locale: String, onFinal: @escaping Final, onFailure: @escaping @Sendable () -> Void) {
@@ -137,17 +187,28 @@ public final class OnDeviceTranscriber: @unchecked Sendable {
                 self.clockMs += frame.durationMs
                 let voiced = Self.decibels(frame) >= self.voiceDecibels
                 if voiced { self.lastVoiceAt = Date() }
+                // Waiting for the slot: everything is kept, in order.
+                if !self.held.isEmpty {
+                    self.hold(frame)
+                    continue
+                }
                 if self.request == nil || self.endingSince != nil {
                     // Silence between utterances is remembered, never fed.
                     guard voiced else {
                         self.keepPreroll(frame)
                         continue
                     }
-                    if self.endingSince != nil { self.discardRequest() }
-                    let request = self.openRequest()
-                    for earlier in self.preroll { self.append(earlier, to: request) }
+                    // A request we already ended keeps what it heard.
+                    if self.endingSince != nil {
+                        self.flushSegment()
+                        self.discardRequest()
+                    }
+                    for earlier in self.preroll { self.hold(earlier) }
                     self.preroll = []
                     self.prerollMs = 0
+                    self.hold(frame)
+                    self.openForHeld()
+                    continue
                 }
                 if let request = self.request { self.append(frame, to: request) }
             }
@@ -162,10 +223,40 @@ public final class OnDeviceTranscriber: @unchecked Sendable {
             self.discardRequest()
             self.preroll = []
             self.prerollMs = 0
+            self.held = []
+            self.heldMs = 0
         }
     }
 
     // MARK: queue-confined
+
+    private func hold(_ frame: AudioFrame) {
+        held.append(frame)
+        heldMs += frame.durationMs
+        while heldMs > heldMaxMs, let oldest = held.first {
+            heldMs -= oldest.durationMs
+            held.removeFirst()
+        }
+    }
+
+    // Opens a request for the held audio when the recognition slot is ours;
+    // otherwise the audio stays held and this runs again when the slot frees.
+    private func openForHeld() {
+        guard request == nil, !held.isEmpty else { return }
+        let id = ObjectIdentifier(self)
+        let mine = RecognitionSlot.shared.acquire(id) { [weak self] in
+            guard let transcriber = self else { return }
+            transcriber.queue.async { transcriber.openForHeld() }
+        }
+        guard mine else {
+            CompanionEvents.record(.system, "speech.slot_waiting", ["heldMs": "\(heldMs)"])
+            return
+        }
+        let request = openRequest(startMs: clockMs - heldMs)
+        for frame in held { append(frame, to: request) }
+        held = []
+        heldMs = 0
+    }
 
     private func keepPreroll(_ frame: AudioFrame) {
         preroll.append(frame)
@@ -182,13 +273,14 @@ public final class OnDeviceTranscriber: @unchecked Sendable {
         audioMsFed += frame.durationMs
     }
 
-    private func openRequest() -> SFSpeechAudioBufferRecognitionRequest {
+    private func openRequest(startMs: Int) -> SFSpeechAudioBufferRecognitionRequest {
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.requiresOnDeviceRecognition = true
         request.shouldReportPartialResults = true
         generation += 1
         let mine = generation
-        requestStartMs = clockMs - prerollMs
+        requestStartMs = startMs
+        fedAtOpen = audioMsFed
         requestStartedAt = Date()
         endingSince = nil
         task = recognizer.recognitionTask(with: request) { [weak self] result, error in
@@ -258,7 +350,7 @@ public final class OnDeviceTranscriber: @unchecked Sendable {
         }
     }
 
-    private var fedMs: Int { audioMsFed - requestStartMs }
+    private var fedMs: Int { audioMsFed - fedAtOpen }
 
     private func checkSegmentEnd() {
         guard request != nil else { return }
@@ -304,6 +396,9 @@ public final class OnDeviceTranscriber: @unchecked Sendable {
         latestText = ""
         endingSince = nil
         generation += 1
+        // The slot goes back last: the waiting source opens only once this
+        // request is gone.
+        RecognitionSlot.shared.release(ObjectIdentifier(self))
     }
 
     // Loudness of one frame in dBFS (RMS); silence is far below -60.

@@ -542,6 +542,17 @@ async function ingestLocked(
       })}::jsonb,
       ${JSON.stringify(decision.ack)}::jsonb, ${artifactId}::uuid)`);
   await touch(tx, scope, sessionId);
+  // One line per stored observation, so the server log shows what arrived:
+  // the kind, the source and a size, never the words (rule:id-only-traces).
+  log.info("observation.stored", {
+    sessionId,
+    kind: observation.kind,
+    sourceId: observation.sourceId,
+    sequence: decision.seq,
+    ...(observation.kind === "transcript.final"
+      ? { chars: observation.content.text.length }
+      : {}),
+  });
 
   // [SAFETY] A capture request is fulfilled only by a snapshot naming the exact
   // id of this session's pending, unexpired request, in this same transaction
