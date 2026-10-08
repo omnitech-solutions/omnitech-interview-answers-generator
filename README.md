@@ -277,6 +277,7 @@ scripts rather than a bare derive-arch (see section 14 of `.env.example` for why
 
 ```bash
 pnpm verify              # verify:core, then the browser suite (pnpm test:browser: needs Docker; ~6 min, 4 shards)
+node scripts/verify-gate.mjs  # the same, stamped per commit: run it before `git push`; the pre-push hook then pushes at once (git opens the remote connection before the hook, and an 8-minute gate outlives it)
 pnpm verify:core         # lint, format, typecheck, coverage, build, native checks (no browsers)
 pnpm test:no-docker      # the suites that need no Docker
 pnpm test:integration    # real-provider checks; set ACTIVE_SESSION_AGENT_INTEGRATION

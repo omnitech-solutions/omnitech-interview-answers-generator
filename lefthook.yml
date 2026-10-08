@@ -22,4 +22,7 @@ pre-commit:
 pre-push:
   commands:
     verify:
-      run: pnpm verify
+      # The full verify, remembered per commit (scripts/verify-gate.mjs): git
+      # opens the remote connection before this hook, and an eight-minute gate
+      # outlives it. Run the script by hand first; the hook then pushes at once.
+      run: node scripts/verify-gate.mjs
