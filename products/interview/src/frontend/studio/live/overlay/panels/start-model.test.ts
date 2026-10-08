@@ -77,7 +77,7 @@ describe("permission rows", () => {
     });
     expect(rows.map((row) => [row.label, row.state, row.settings])).toEqual([
       ["Microphone", "granted", null],
-      ["App audio (system audio tap)", "undetermined", null],
+      ["App audio · system tap", "undetermined", null],
       ["Screen recording", "denied", "screen"],
     ]);
     expect(rows[1]?.pending).toBe(TAP_PENDING_TEXT);

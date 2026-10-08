@@ -235,10 +235,16 @@
 .pn-start-perm[data-state="undetermined"] .studio-icon {
   color: var(--oui-panel-meta-fg);
 }
+/* The label never wraps (a long one would stack a word per line beside a long
+   status); the status takes what is left and wraps on the right. */
 .pn-start-perm-label {
-  flex: 1;
+  flex: 1 0 auto;
+  white-space: nowrap;
 }
 .pn-start-perm-state {
+  flex: 0 1 auto;
+  min-width: 0;
+  text-align: right;
   font-size: 11.5px;
   color: var(--oui-panel-meta-fg);
 }

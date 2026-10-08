@@ -117,8 +117,8 @@ export type PermissionRow = {
   pending?: string;
 };
 
-export const TAP_PENDING_TEXT =
-  "macOS asks on first use · confirmed once call sound is heard";
+// Short enough to sit on the row's one line beside its label.
+export const TAP_PENDING_TEXT = "macOS asks on first use";
 
 // App audio is gated by Screen Recording while ScreenCaptureKit carries it, so
 // it follows the screen's state. Through the system audio tap it needs System
@@ -137,7 +137,7 @@ export function permissionRows(
       microphoneRow(permissions),
       {
         id: "app-audio",
-        label: "App audio (system audio tap)",
+        label: "App audio · system tap",
         state: tap.permission === "granted" ? "granted" : "undetermined",
         settings: null,
         pending: TAP_PENDING_TEXT,
