@@ -3114,12 +3114,18 @@ describe("the layout chosen in the View menu", () => {
     asked();
     await show();
     const panel = () => screen.getByRole("tabpanel");
+    // The library's tabs take a press, not a bare click event.
+    const press = (tab: string) =>
+      fireEvent.mouseDown(screen.getByTestId(tab), {
+        button: 0,
+        ctrlKey: false,
+      });
     expect(within(panel()).getByTestId("pn-analysis")).toHaveAccessibleName(
       "Answer",
     );
-    fireEvent.click(screen.getByTestId("pn-coach-tab-transcript"));
+    press("pn-coach-tab-transcript");
     expect(within(panel()).getByTestId("pn-chat")).toHaveTextContent(QUESTION);
-    fireEvent.click(screen.getByTestId("pn-coach-tab-code"));
+    press("pn-coach-tab-code");
     expect(
       within(panel()).getByRole("region", { name: "Code" }),
     ).toBeInTheDocument();

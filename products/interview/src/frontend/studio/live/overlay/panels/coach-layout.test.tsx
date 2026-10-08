@@ -879,6 +879,9 @@ describe("a note that arrives while reading", () => {
 describe("the right column of the coach view", () => {
   const tab = (id: "answer" | "transcript" | "code" | "context") =>
     screen.getByTestId(`pn-coach-tab-${id}`);
+  // The library's tabs take a press, not a bare click event.
+  const openTab = (id: Parameters<typeof tab>[0]) =>
+    fireEvent.mouseDown(tab(id), { button: 0, ctrlKey: false });
   const selected = () =>
     screen
       .getAllByRole("tab")
@@ -896,7 +899,7 @@ describe("the right column of the coach view", () => {
 
   it("the Transcript tab shows the transcript and its message box in the answer's place", async () => {
     await show("coach");
-    fireEvent.click(tab("transcript"));
+    openTab("transcript");
     expect(selected()).toEqual(["Transcript"]);
     expect(within(panel()).getByTestId("pn-chat")).toBeInTheDocument();
     expect(within(panel()).getByLabelText("Message")).toBeInTheDocument();
@@ -909,12 +912,12 @@ describe("the right column of the coach view", () => {
 
   it("the Code tab shows the code pane, and Answer brings the answer back", async () => {
     await show("coach");
-    fireEvent.click(tab("code"));
+    openTab("code");
     expect(selected()).toEqual(["Code"]);
     expect(within(panel()).getByTestId("pane-code")).toBeInTheDocument();
     expect(screen.queryByTestId("pn-chat")).toBeNull();
     expect(screen.queryByTestId("pane-answer")).toBeNull();
-    fireEvent.click(tab("answer"));
+    openTab("answer");
     expect(selected()).toEqual(["Answer"]);
     expect(within(panel()).getByTestId("pane-answer")).toBeInTheDocument();
     expect(screen.queryByTestId("pane-code")).toBeNull();
@@ -923,20 +926,20 @@ describe("the right column of the coach view", () => {
   it("the Context tab shows what the answers are built from, in the answer's place", async () => {
     await show("coach");
     expect(screen.queryByTestId("pane-context")).toBeNull();
-    fireEvent.click(tab("context"));
+    openTab("context");
     expect(selected()).toEqual(["Context"]);
     expect(within(panel()).getByTestId("pane-context")).toBeInTheDocument();
     expect(screen.queryByTestId("pane-answer")).toBeNull();
     expect(screen.queryByTestId("pn-chat")).toBeNull();
     expect(screen.queryByTestId("pane-code")).toBeNull();
-    fireEvent.click(tab("answer"));
+    openTab("answer");
     expect(screen.queryByTestId("pane-context")).toBeNull();
   });
 
   it("the Context tab is given the notes of the question on show, and follows it", async () => {
     post(note(3, 80, { title: "Then the Saga", askId: "q-consistency" }));
     await show("coach");
-    fireEvent.click(tab("context"));
+    openTab("context");
     const given = () =>
       screen.getByTestId("pane-context").getAttribute("data-notes");
     expect(given()).toBe("Name the techniques | Then the Saga");
@@ -949,7 +952,7 @@ describe("the right column of the coach view", () => {
   it("the Context tab is given no notes before anything is asked", async () => {
     posted = [];
     await show("coach", session([]));
-    fireEvent.click(tab("context"));
+    openTab("context");
     expect(screen.getByTestId("pane-context")).toHaveAttribute(
       "data-notes",
       "",
@@ -967,8 +970,8 @@ describe("the right column of the coach view", () => {
   it("switching tabs leaves the question on show and its notes alone", async () => {
     await show("coach");
     pickListed(1);
-    fireEvent.click(tab("transcript"));
-    fireEvent.click(tab("code"));
+    openTab("transcript");
+    openTab("code");
     onShow(QUESTION_ONE);
     expect(blocks()[0]).toHaveTextContent("Name the criteria");
     expect(screen.getByTestId("pn-coach-live")).toBeInTheDocument();
