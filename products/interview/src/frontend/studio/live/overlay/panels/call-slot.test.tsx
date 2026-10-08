@@ -1,8 +1,9 @@
 // The room kept for the call window: how tall it is, how the bar under it
 // changes that (keys, a drag, a double click), and what is remembered.
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CallSlot } from "./call-slot";
+import { COACH_LAYOUT_RESET } from "./coach-columns";
 
 const KEY = "omnitech.interview.call-slot.height";
 const WINDOW_HEIGHT = 768;
@@ -32,6 +33,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   window.localStorage.clear();
+  document.documentElement.removeAttribute("data-no-drag");
 });
 
 describe("the room for the call window", () => {
@@ -227,5 +229,77 @@ describe("the remembered height", () => {
     press("ArrowDown");
     expect(blocked).toHaveBeenCalled();
     expect(height()).toBe(274);
+  });
+});
+
+describe("holding the window still", () => {
+  const held = () => document.documentElement.hasAttribute("data-no-drag");
+
+  it.each(["Up", "Cancel"] as const)(
+    "the page tells the shell not to move the window while the bar is held, until pointer %s",
+    (end) => {
+      render(<CallSlot />);
+      expect(held()).toBe(false);
+      pointer("Down", 300);
+      expect(held()).toBe(true);
+      pointer("Move", 360);
+      expect(held()).toBe(true);
+      pointer(end, 360);
+      expect(held()).toBe(false);
+    },
+  );
+
+  it("the keys and a double click never hold it", () => {
+    render(<CallSlot />);
+    press("ArrowDown");
+    fireEvent.doubleClick(bar());
+    expect(held()).toBe(false);
+  });
+});
+
+describe("Reset layout", () => {
+  const reset = () =>
+    act(() => {
+      window.dispatchEvent(new Event(COACH_LAYOUT_RESET));
+    });
+
+  it("puts the room back to 250 px and keeps that", () => {
+    window.localStorage.setItem(KEY, "410");
+    render(<CallSlot />);
+    expect(height()).toBe(410);
+    reset();
+    expect(height()).toBe(250);
+    expect(kept()).toBe("250");
+    expect(screen.getByTestId("pn-call-slot")).toHaveStyle({
+      flex: "0 0 250px",
+    });
+  });
+
+  it("opens a room that was folded away, and a double click then folds and brings back 250", () => {
+    render(<CallSlot />);
+    press("End");
+    press("Home");
+    expect(height()).toBe(0);
+    reset();
+    expect(height()).toBe(250);
+    fireEvent.doubleClick(bar());
+    expect(height()).toBe(0);
+    fireEvent.doubleClick(bar());
+    expect(height()).toBe(250);
+  });
+
+  it("is no taller than a short window allows", () => {
+    vi.stubGlobal("innerHeight", 300);
+    render(<CallSlot />);
+    reset();
+    expect(height()).toBe(140);
+  });
+
+  it("is not heard once the room has gone", () => {
+    window.localStorage.setItem(KEY, "410");
+    const drawn = render(<CallSlot />);
+    drawn.unmount();
+    window.dispatchEvent(new Event(COACH_LAYOUT_RESET));
+    expect(kept()).toBe("410");
   });
 });
