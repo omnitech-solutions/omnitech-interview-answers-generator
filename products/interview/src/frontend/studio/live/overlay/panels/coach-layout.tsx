@@ -29,6 +29,7 @@ import type { ChatView } from "./chat-view-pref";
 import { ColumnSplitter, useCoachColumns, WindowEdge } from "./coach-columns";
 import { CoachNoteView } from "./coach-note-view";
 import { useCoachNotes } from "./coach-notes";
+import { ContextPane } from "./context-pane";
 import {
   conversationTurns,
   heardEmphasis,
@@ -697,17 +698,27 @@ const TABS = [
   { id: "answer", label: "Answer", icon: "lightbulb" },
   { id: "transcript", label: "Transcript", icon: "forum" },
   { id: "code", label: "Code", icon: "code" },
+  { id: "context", label: "Context", icon: "description" },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
 
 // [DOMAIN] The studio's own answer keeps its pane: it is never folded into the
 // notes or the transcript. The transcript and the code share the column as tabs.
-function RightTabs({ s }: { s: PanelSession }) {
+function RightTabs({
+  s,
+  notes,
+}: {
+  s: PanelSession;
+  // The notes on show, for the Context tab to mark what they lean on.
+  notes: readonly CoachNote[];
+}) {
   const [tab, setTab] = useState<TabId>("answer");
   const pane: Record<TabId, ReactNode> = {
     answer: <AnswerPanel s={s} />,
     transcript: <ChatPanel s={s} />,
     code: <CodePanel s={s} />,
+    // What the answers are built from: the brief and the experience matrix.
+    context: <ContextPane s={s} notes={notes} />,
   };
   return (
     <>
@@ -715,7 +726,7 @@ function RightTabs({ s }: { s: PanelSession }) {
         className="pn-card"
         style={STYLE.tabs}
         role="tablist"
-        aria-label="Answer, transcript or code"
+        aria-label="Answer, transcript, code or context"
       >
         {TABS.map((each) => (
           <Button
@@ -850,7 +861,7 @@ export function CoachLayout({
       />
       <div style={side("right")}>
         {view === "coach" ? (
-          <RightTabs s={s} />
+          <RightTabs s={s} notes={shown?.notes ?? []} />
         ) : (
           <div style={STYLE.pane}>
             <ChatPanel s={s} />

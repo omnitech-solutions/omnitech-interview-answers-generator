@@ -19,11 +19,15 @@ export const TALKING_POINT_LENGTH = 240;
 // Why a piece of a line matters. Most of a line is `spoken`; mark the
 // SMALLEST useful phrase otherwise, so the sentence keeps its reading rhythm.
 //   spoken    the words to say
+//   cue       the opening phrase that carries the line into the conversation
+//             ("One thing I should have said earlier"): lifted a little, so
+//             it is found first, never coloured
 //   evidence  what anchors the claim: an employer, a technology, a figure
 //   caution   a risk, a qualification, something not to volunteer
 //   context   supporting detail the person need not say
 export const COACH_ROLES = [
   "spoken",
+  "cue",
   "evidence",
   "caution",
   "context",
@@ -38,6 +42,17 @@ export const coachSegmentSchema = z.strictObject({
   // window marks an inferred claim, so the coach never puts an accomplishment
   // in the person's mouth unnoticed.
   grounding: z.enum(["verified", "inferred"]).optional(),
+  // [DOMAIN] Where an `evidence` claim comes from in the person's own
+  // material, as the pointer the session context already uses: a role or a
+  // fact of the experience matrix ("/roles/3", "/roles/3/proof_points/1") or
+  // a line of the interview brief ("/context/employerBrief/2"). An answer
+  // that leans on prior experience names its source here, so the window can
+  // show it and the person can trust it.
+  source: z
+    .string()
+    .regex(/^\/(?:roles\/\d+(?:\/[\w-]+)*|context\/\w+(?:\/\d+)?)$/)
+    .max(120)
+    .optional(),
 });
 
 export const coachLineSchema = z

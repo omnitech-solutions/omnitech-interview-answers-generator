@@ -37,6 +37,8 @@ export const COACH_COLOUR = {
 
 const ROLE_STYLE: Record<CoachRole, CSSProperties> = {
   spoken: {},
+  // The way into the line: heavier, the same white, no colour of its own.
+  cue: { fontWeight: 650 },
   evidence: { color: COACH_COLOUR.evidence, fontWeight: 600 },
   caution: { color: COACH_COLOUR.caution, fontWeight: 600 },
   context: { color: COACH_COLOUR.context },
@@ -236,6 +238,7 @@ function Line({ line }: { line: CoachLine }) {
             ? { title: "Not confirmed in your experience: check before saying" }
             : {})}
           data-role={segment.role}
+          {...(segment.source ? { "data-source": segment.source } : {})}
         >
           {segment.text}
         </span>
