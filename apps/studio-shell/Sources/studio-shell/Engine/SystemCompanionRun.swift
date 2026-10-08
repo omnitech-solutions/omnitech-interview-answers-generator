@@ -143,9 +143,26 @@ public final class SystemCompanionRun: EngineRun {
     // event log shows whether audio arrives and whether it turns into text.
     private var levels: [CaptureSource: Int] = [:]
     private var fedMs: [CaptureSource: Int] = [:]
+    // The loudest frame of the window per source, in dBFS, and its sample rate:
+    // what says whether a voice reached the app at all, and how loud.
+    private var peakDb: [CaptureSource: Int] = [:]
+    private var rates: [CaptureSource: Int] = [:]
     private var segments = 0
 
     public var audioLevel: Int { session.machine.isCapturing ? (levels[.microphone] ?? 0) : 0 }
+
+    // [DOMAIN] A microphone that delivers frames but never rises above the
+    // level of a dead input (a Bluetooth headset whose microphone is not
+    // switched on reads a flat -80 dBFS; a live room is never below about -65)
+    // is "listening" to nothing. After silentAfterSeconds of that, the person
+    // is told, instead of the app looking fine and hearing no word they say.
+    private var micAliveAt: Date?
+    private static let deadInputDb = -72
+    private static let silentAfterSeconds = 8.0
+    public var microphoneSilent: Bool {
+        guard session.machine.isCapturing, rings[.microphone] != nil, let alive = micAliveAt else { return false }
+        return Date().timeIntervalSince(alive) >= Self.silentAfterSeconds
+    }
 
     public init(
         plan: RunPlan, endpoint: Endpoint, credentials: CredentialStore, focus: FocusTracker,
@@ -237,6 +254,14 @@ public final class SystemCompanionRun: EngineRun {
             ["source": source.rawValue, "chars": "\(text.count)", "queued": queued ? "true" : "false"])
     }
 
+    // One frame's loudness in whole dBFS (RMS); digital silence is -120.
+    static func decibels(_ frame: AudioFrame) -> Int {
+        guard !frame.samples.isEmpty else { return -120 }
+        var sum = 0.0
+        for sample in frame.samples { sum += Double(sample * sample) }
+        return Int((20 * log10(max((sum / Double(frame.samples.count)).squareRoot(), 1e-6))).rounded())
+    }
+
     // Roughly how loud the microphone was over the frames of one pass, 0-100
     // in steps of 20 (about -50 dBFS to -10 dBFS), so a change is a real one.
     static func level(_ frames: [AudioFrame]) -> Int {
@@ -252,6 +277,38 @@ public final class SystemCompanionRun: EngineRun {
         return Int((min(max(scaled, 0), 100) / 20).rounded()) * 20
     }
 
+    // What one pass heard from a source: its level now, its loudest frame, how
+    // much audio it carried, and whether the microphone is alive at all.
+    private func meter(_ source: CaptureSource, _ frames: [AudioFrame]) {
+        levels[source] = Self.level(frames)
+        fedMs[source, default: 0] += frames.reduce(0) { $0 + $1.durationMs }
+        for frame in frames {
+            peakDb[source] = max(peakDb[source] ?? -120, Self.decibels(frame))
+            rates[source] = frame.sampleRate
+        }
+        guard source == .microphone else { return }
+        // The clock starts with capture and restarts on any live frame.
+        if micAliveAt == nil || frames.contains(where: { Self.decibels($0) > Self.deadInputDb }) {
+            micAliveAt = Date()
+        }
+    }
+
+    // About every 15 s: sizes and levels, so the log says whether audio arrives.
+    private func reportAudio() {
+        CompanionEvents.record(
+            .system, "audio.fed",
+            [
+                "ms": fedMs.map { "\($0.key)=\($0.value)" }.sorted().joined(separator: ","),
+                "segments": "\(segments)", "transcribing": transcribing ? "true" : "false",
+                "micPeakDb": "\(peakDb[.microphone] ?? -120)", "appPeakDb": "\(peakDb[.applicationAudio] ?? -120)",
+                "micRate": "\(rates[.microphone] ?? 0)", "micSilent": microphoneSilent ? "true" : "false",
+                "micLevel": "\(levels[.microphone] ?? 0)", "appLevel": "\(levels[.applicationAudio] ?? 0)",
+            ])
+        fedMs = [:]
+        peakDb = [:]
+        segments = 0
+    }
+
     public func step() async {
         guard started else { return }
         // Start and stop recognition with capture; stopped recognisers discard unfinished text.
@@ -263,21 +320,10 @@ public final class SystemCompanionRun: EngineRun {
         }
         for (source, ring) in rings {
             let frames = ring.drain()
-            levels[source] = Self.level(frames)
-            fedMs[source, default: 0] += frames.reduce(0) { $0 + $1.durationMs }
+            meter(source, frames)
             transcribers[source]?.feed(frames)
         }
-        if counter % 60 == 59 {
-            CompanionEvents.record(
-                .system, "audio.fed",
-                [
-                    "ms": fedMs.map { "\($0.key)=\($0.value)" }.sorted().joined(separator: ","),
-                    "segments": "\(segments)", "transcribing": transcribing ? "true" : "false",
-                    "micLevel": "\(levels[.microphone] ?? 0)", "appLevel": "\(levels[.applicationAudio] ?? 0)",
-                ])
-            fedMs = [:]
-            segments = 0
-        }
+        if counter % 60 == 59 { reportAudio() }
         serveCaptureRequest()
         if counter % 4 == 0 {
             await watchPermissions()

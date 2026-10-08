@@ -25,6 +25,8 @@ public protocol EngineRun: AnyObject {
     var lastHeardAt: Date? { get }
     // The microphone's level over the last pass, 0-100 (0 when nothing is known).
     var audioLevel: Int { get }
+    // True when the microphone is on but has delivered only dead silence for a while.
+    var microphoneSilent: Bool { get }
     func start() async
     // One pass (the engine calls it about four times a second).
     func step() async
@@ -39,6 +41,7 @@ public protocol EngineRun: AnyObject {
 // A run that knows nothing about levels (tests) reports silence.
 extension EngineRun {
     public var audioLevel: Int { 0 }
+    public var microphoneSilent: Bool { false }
 }
 
 // [DOMAIN] Why Studio's engine.start was not carried out: a closed set.
@@ -420,12 +423,16 @@ public final class HandsFreeEngine: EngineHost {
         var age: Int?
         var failure: SpeechFailure?
         var level = 0
+        var micSilent = false
         switch phase {
         case .running(let active):
             let run = active.run
             failure = run.speechFailure
             paused = run.state == .paused
-            if !paused { level = run.audioLevel }
+            if !paused {
+                level = run.audioLevel
+                micSilent = run.microphoneSilent
+            }
             for source in active.plan.sources { sources[EngineSourceKind(source)] = health(source, run: run) }
             if let heard = run.lastHeardAt {
                 // Five-second steps: listeners hear about a change only when this moves.
@@ -436,7 +443,7 @@ public final class HandsFreeEngine: EngineHost {
         }
         return EngineSnapshot(
             stage: stage, sources: sources, paused: paused, lastHeardAgeSeconds: age, speechFailure: failure,
-            micLevel: level)
+            micLevel: level, micSilent: micSilent)
     }
 
     private func health(_ source: CaptureSource, run: EngineRun) -> SourceHealth {

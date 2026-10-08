@@ -58,10 +58,13 @@ public struct EngineSnapshot: Equatable, Sendable {
     public var speechFailure: SpeechFailure?
     // The microphone's level now, 0-100 in steps of 20: the page's sound wave.
     public var micLevel: Int
+    // The microphone is on and has delivered only dead silence for a while.
+    public var micSilent: Bool
 
     public init(
         stage: PairingStage = .idle, sources: [EngineSourceKind: SourceHealth] = [:], paused: Bool = false,
-        lastHeardAgeSeconds: Int? = nil, speechFailure: SpeechFailure? = nil, micLevel: Int = 0
+        lastHeardAgeSeconds: Int? = nil, speechFailure: SpeechFailure? = nil, micLevel: Int = 0,
+        micSilent: Bool = false
     ) {
         self.stage = stage
         self.sources = sources
@@ -69,6 +72,7 @@ public struct EngineSnapshot: Equatable, Sendable {
         self.lastHeardAgeSeconds = lastHeardAgeSeconds
         self.speechFailure = speechFailure
         self.micLevel = micLevel
+        self.micSilent = micSilent
     }
 
     // The snapshot without its level: what is worth a log line when it changes.
@@ -105,6 +109,10 @@ public struct EngineSnapshot: Equatable, Sendable {
         }
         if health(.systemAudio) == .permissionDenied || health(.screen) == .permissionDenied {
             return "Grant Screen Recording in System Settings › Privacy & Security."
+        }
+        if micSilent, health(.microphone) == .listening {
+            return
+                "Your microphone is silent: nothing you say is reaching Studio. Choose another microphone from the mic menu (a Bluetooth headset's microphone is often off)."
         }
         switch stage {
         case .waitingForSignIn: return "Sign in to Studio to start listening."
