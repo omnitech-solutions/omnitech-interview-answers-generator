@@ -135,7 +135,11 @@ test("@native native ended card Open summary: opens the web summary of that sess
   void context;
   const { id } = await startSessionViaApi();
   const { page, host } = await openPanel(native, id);
-  await controlSession(id, "end");
+  // Ended from this window: the ended card stays (a session ended elsewhere
+  // is a lost one, and the window goes back to its start screen instead).
+  await page.getByRole("button", { name: "End session" }).click();
+  await endDialog(page).getByRole("button", { name: "End now" }).click();
+  await expect.poll(async () => (await db.session(id))?.status).toBe("ended");
   await expect(page.getByTestId("pn-ended")).toBeVisible();
 
   await host.clear();

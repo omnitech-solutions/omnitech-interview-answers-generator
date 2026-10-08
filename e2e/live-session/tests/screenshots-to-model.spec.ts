@@ -19,6 +19,7 @@ import {
   startSessionViaApi,
 } from "../src/helpers/api";
 import { db } from "../src/helpers/sql";
+import { chooseProblem, problemButton } from "../src/helpers/task-bar";
 import { taskScreenshots } from "../src/helpers/tasks";
 import { SetupPage } from "../src/pages/setup-page";
 
@@ -464,10 +465,10 @@ test("@native native Screenshots to the model, Never: no image reaches the model
   ).toBeGreaterThanOrEqual(PROSE.length * 0.8);
 
   // The thumbnails: the newest task (no text) says Not sent; the earlier one
-  // (open it from its chip) says Sent as text only.
-  await panel.page.getByRole("button", { name: /^T2 · / }).click();
+  // (chosen from the task bar's Problem menu) says Sent as text only.
+  await expect(problemButton(panel.page)).toHaveText(/^T2 · /);
   await expectSentAs(panel.page, "Not sent");
-  await panel.page.getByRole("button", { name: /^T1 · / }).click();
+  await chooseProblem(panel.page, /^T1 · /);
   await expectSentAs(panel.page, "Sent as text only");
 });
 
@@ -500,14 +501,12 @@ test("@native native Screenshots to the model: a change applies to the next mode
   expect(second.sent).toBe("text-only");
   expect(third.sent).toBe("image");
   // The panel polls: wait until it shows the newest task (and has made it the
-  // one on show) before choosing an earlier chip, or the newest task arriving
-  // late takes the view back from the click.
-  await expect(
-    panel.page.getByRole("button", { name: /^T3 · / }),
-  ).toBeVisible();
+  // one on show) before choosing an earlier problem, or the newest task
+  // arriving late takes the view back from the choice.
+  await expect(problemButton(panel.page)).toHaveText(/^T3 · /);
   await expectSentAs(panel.page, "Image sent");
-  await panel.page.getByRole("button", { name: /^T1 · / }).click();
+  await chooseProblem(panel.page, /^T1 · /);
   await expectSentAs(panel.page, "Image sent");
-  await panel.page.getByRole("button", { name: /^T2 · / }).click();
+  await chooseProblem(panel.page, /^T2 · /);
   await expectSentAs(panel.page, "Sent as text only");
 });

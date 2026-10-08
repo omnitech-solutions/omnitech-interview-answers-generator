@@ -7,6 +7,7 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "../src/fixtures/panel-test";
 import { startSessionViaApi } from "../src/helpers/api";
 import { db } from "../src/helpers/sql";
+import { chooseProblem } from "../src/helpers/task-bar";
 import { say, settled, taskIdsOf } from "../src/helpers/tasks";
 
 const NOTE = (n: number) => `S${n} captured: no question found`;
@@ -105,8 +106,10 @@ test("@native native no-question and Back: with an earlier task on show, a no-qu
   await settled(id, 2);
   const problem = page.getByTestId("pn-problem-button");
   const problems = page.getByRole("menu", { name: "Problem" });
-  await problem.click();
-  await problems.getByRole("menuitemradio", { name: /^T1 · / }).click();
+  // The panel polls: T2 must be on show before T1 is chosen as the earlier
+  // one (while T1 is still the newest, choosing it is "Back", not "earlier").
+  await expect(problem).toHaveText(/^T2 · /);
+  await chooseProblem(page, /^T1 · /);
   await expect(page.getByTestId("pn-earlier")).toBeVisible();
 
   await control.scenario("no-question");

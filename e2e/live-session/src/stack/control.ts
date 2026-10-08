@@ -296,6 +296,7 @@ export async function startControlServer(
       ) {
         const input = (await body(request)) as {
           messages?: Array<{ content?: unknown }>;
+          stream?: boolean;
         };
         const prompt = (input.messages ?? [])
           .map((message) => String(message.content ?? ""))
@@ -326,6 +327,53 @@ export async function startControlServer(
           return send(response, 500, { error: { message: "scripted" } });
         }
         call.outcome = "completed";
+        const content = JSON.stringify(scripted.output);
+        const usage = {
+          prompt_tokens: 10,
+          completion_tokens: 5,
+          total_tokens: 15,
+        };
+        // The answer draft is streamed (the worker reads the draft as it is
+        // written): a `stream: true` request gets the same JSON object as
+        // OpenAI-style SSE chunks, in a few pieces, then the usage and [DONE].
+        if (input.stream === true) {
+          response.writeHead(200, {
+            "content-type": "text/event-stream",
+            "cache-control": "no-cache",
+          });
+          const chunk = (delta: Record<string, unknown>) =>
+            `data: ${JSON.stringify({
+              id: "chatcmpl-e2e",
+              object: "chat.completion.chunk",
+              model: "e2e-model",
+              ...delta,
+            })}\n\n`;
+          const pieces = Math.max(
+            1,
+            Math.min(4, Math.ceil(content.length / 40)),
+          );
+          const size = Math.ceil(content.length / pieces);
+          for (let at = 0; at < content.length; at += size)
+            response.write(
+              chunk({
+                choices: [
+                  {
+                    index: 0,
+                    delta: { content: content.slice(at, at + size) },
+                    finish_reason: null,
+                  },
+                ],
+              }),
+            );
+          response.write(
+            chunk({
+              choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+              usage,
+            }),
+          );
+          response.end("data: [DONE]\n\n");
+          return;
+        }
         return send(response, 200, {
           id: "chatcmpl-e2e",
           object: "chat.completion",
@@ -334,13 +382,10 @@ export async function startControlServer(
             {
               index: 0,
               finish_reason: "stop",
-              message: {
-                role: "assistant",
-                content: JSON.stringify(scripted.output),
-              },
+              message: { role: "assistant", content },
             },
           ],
-          usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+          usage,
         });
       }
       return send(response, 404, { error: "not found" });

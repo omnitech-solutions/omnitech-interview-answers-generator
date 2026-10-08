@@ -203,19 +203,15 @@ test("web coding answer with a syntax error: the syntax check's finding stops Fu
   );
 });
 
-for (const [scenario, text, flag] of [
-  [
-    "withheld-preference",
-    SCRIPTED.preferenceOnly,
-    "pay, notice or availability wasn't backed by your preferences",
-  ],
-  [
-    "withheld-figure",
-    SCRIPTED.ungroundedFigure,
-    "a number in the draft isn't in your experience",
-  ],
+// Grounding by subtraction (2026-10-07): the guard never withholds an answer.
+// The sentence it rejects (a preference the person never approved, a figure
+// their experience does not carry) is dropped from its point, the rest of the
+// draft is published with no evidence chips, and no "withheld" note is shown.
+for (const [scenario, text] of [
+  ["withheld-preference", SCRIPTED.preferenceOnly],
+  ["withheld-figure", SCRIPTED.ungroundedFigure],
 ] as const) {
-  test(`web withheld draft (${scenario}): the guard says why in its fixed words and the draft itself is never shown or published`, async ({
+  test(`web grounded draft (${scenario}): the sentence the guard rejects is dropped, the rest is shown with no evidence, and nothing is withheld`, async ({
     live,
     control,
     page,
@@ -227,22 +223,24 @@ for (const [scenario, text, flag] of [
       "How soon could you start, and what do you expect to earn?",
     );
 
-    const notice = page.getByTestId("run-notice");
-    await expect(notice.first()).toContainText("Draft withheld.");
-    await expect(notice.first()).toContainText(
-      "could not be checked against your approved experience, so no draft was shown",
-    );
-    await expect(notice.first()).toContainText(flag);
-    // The withheld sentence is nowhere on the page, and the server did not
-    // publish it: the action is not shown and no hint was counted.
-    await expect(page.getByText(text)).toHaveCount(0);
-    const [action] = await settled(id, 1);
-    expect(action).toMatchObject({ shown: false });
-    expect(action?.dispatch_status).not.toBe("succeeded");
-    expect((await db.session(id))?.shown_draft_count).toBe(0);
+    // The surviving sentence is shown under Suggested answer; the rejected
+    // one is nowhere on the page.
+    await expect(live.task(1)).toContainText(SCRIPTED.plain);
     await expect(
       page.getByRole("heading", { name: "Suggested answer" }),
+    ).toBeVisible();
+    await expect(page.getByText(text)).toHaveCount(0);
+    // No guard note, and no evidence: the draft was published without claims.
+    await expect(
+      page.getByTestId("run-notice").filter({ hasText: "Draft withheld" }),
     ).toHaveCount(0);
+    await expect(
+      page.getByRole("list", { name: "Claims in this answer" }),
+    ).toHaveCount(0);
+    // The server published it as a shown draft, and counted it.
+    const [action] = await settled(id, 1);
+    expect(action).toMatchObject({ shown: true, dispatch_status: "succeeded" });
+    expect((await db.session(id))?.shown_draft_count).toBe(1);
   });
 }
 

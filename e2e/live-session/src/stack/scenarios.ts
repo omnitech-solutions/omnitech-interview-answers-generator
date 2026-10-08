@@ -158,10 +158,20 @@ export function script(
         kind: "answer",
         output: assist(SCRIPTED.noQuestion, {}, "no-question"),
       };
+    // Grounding by subtraction (owner's rule, 2026-10-07): the sentence the
+    // guard rejects is dropped from its point and the rest is published with
+    // no evidence; only a draft with nothing left is withheld. Each scripted
+    // draft is one point of two sentences, so the plain one survives.
     case "withheld-preference":
-      return { kind: "answer", output: assist(SCRIPTED.preferenceOnly) };
+      return {
+        kind: "answer",
+        output: assist(`${SCRIPTED.plain} ${SCRIPTED.preferenceOnly}`),
+      };
     case "withheld-figure":
-      return { kind: "answer", output: assist(SCRIPTED.ungroundedFigure) };
+      return {
+        kind: "answer",
+        output: assist(`${SCRIPTED.plain} ${SCRIPTED.ungroundedFigure}`),
+      };
     case "refusal":
       return { kind: "failure", failure: "policy-refused" };
     case "provider-failure":

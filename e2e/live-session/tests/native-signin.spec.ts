@@ -349,9 +349,39 @@ test("@native sign-in idle: the start screen waits for Start, shows the Mac's pe
     card(page).getByText("No live session", { exact: true }),
   ).toBeVisible();
 
-  // Rehearsal only for the local profile; no interview is invented.
-  await expect(page.getByRole("radio")).toHaveCount(1);
-  await expect(page.getByRole("radio")).toContainText("Rehearsal");
+  // "Start a session for" offers Rehearsal | Interview, for the local profile
+  // too. Interview lists the owner's candidacies; this profile has none, so
+  // nothing is invented: the picker says so, an interview can be added here,
+  // and Start waits for one rather than starting a rehearsal in its place.
+  const radios = page.getByRole("radio");
+  await expect(radios).toHaveCount(2);
+  await expect(radios.nth(0)).toHaveAccessibleName("Rehearsal");
+  await expect(radios.nth(1)).toHaveAccessibleName("Interview");
+  await expect(page.getByTestId("pn-start-interview")).toHaveCount(0);
+  await page.getByRole("radio", { name: "Interview" }).click();
+  await expect(page.getByTestId("pn-start-interview")).toContainText(
+    "No interview yet",
+  );
+  await expect(page.getByTestId("pn-start-add-interview")).toBeVisible();
+  await expect(page.getByTestId("pn-start-edit-context")).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Start session" })
+    .click({ force: true });
+  await expect(page.getByTestId("pn-start-toast")).toHaveText(
+    "Add an interview first, or start a Rehearsal.",
+  );
+  expect(await db.sessions()).toHaveLength(before);
+  // Add an interview opens the context form; Close leaves nothing behind.
+  await page.getByTestId("pn-start-add-interview").click();
+  await expect(page.getByTestId("pn-context-modal")).toBeVisible();
+  await page
+    .getByTestId("pn-context-modal")
+    .getByRole("button", { name: "Close", exact: true })
+    .first()
+    .click();
+  await expect(page.getByTestId("pn-context-modal")).toHaveCount(0);
+  await page.getByRole("radio", { name: "Rehearsal" }).click();
+  await expect(page.getByTestId("pn-start-interview")).toHaveCount(0);
 
   // The toolbar is the same one, disabled, saying a session must start first.
   const locked = await lockedControls(page);

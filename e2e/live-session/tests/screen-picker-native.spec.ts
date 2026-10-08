@@ -7,6 +7,7 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "../src/fixtures/panel-test";
 import { db } from "../src/helpers/sql";
+import { openScreenshots } from "../src/helpers/task-bar";
 import { settled, taskIdsOf, taskScreenshots } from "../src/helpers/tasks";
 import {
   captureCaret,
@@ -130,6 +131,8 @@ test("@native native screen picker pin: choosing a display pins capture to it (b
   await expect
     .poll(async () => (await taskScreenshots(id, taskId))[0]?.display)
     .toEqual({ name: DELL, index: 2, count: 2 });
+  // The Screenshots card is closed until its icon opens it.
+  await openScreenshots(page);
   await expect(
     page.getByRole("list", { name: "Screenshots of this task" }),
   ).toContainText("Display 2 of 2");

@@ -268,11 +268,13 @@ test("@native native Copy answer: the clipboard holds the approach the pane show
   await expect(page.getByRole("button", { name: "Copy answer" })).toBeVisible();
 });
 
+// Grounding by subtraction (2026-10-07): the guard never withholds an answer.
+// The sentence it rejects is dropped from its point and the rest is shown.
 for (const [scenario, text] of [
   ["withheld-preference", SCRIPTED.preferenceOnly],
   ["withheld-figure", SCRIPTED.ungroundedFigure],
 ] as const) {
-  test(`@native native withheld draft (${scenario}): the answer pane says it was stopped in the guard's words and the draft is never shown`, async ({
+  test(`@native native grounded draft (${scenario}): the answer pane shows the draft without the sentence the guard rejected, and nothing is withheld`, async ({
     openPanel,
     control,
   }) => {
@@ -282,14 +284,17 @@ for (const [scenario, text] of [
 
     await say(response.credential.value, "What salary do you expect?");
 
-    await expect(page.getByTestId("pn-no-answer")).toContainText(
-      "It could not be checked against your approved experience, so nothing was published.",
-    );
-    await expect(page.getByTestId("pn-no-answer")).toContainText("Flagged:");
+    const answerPane = page.getByRole("region", {
+      name: "Answer",
+      exact: true,
+    });
+    await expect(answerPane).toContainText(SCRIPTED.plain);
     await expect(page.getByText(text)).toHaveCount(0);
+    // No "nothing was published" line: the draft is the answer.
+    await expect(page.getByTestId("pn-no-answer")).toHaveCount(0);
     const [action] = await settled(sessionId, 1);
-    expect(action).toMatchObject({ shown: false });
-    expect((await db.session(sessionId))?.shown_draft_count).toBe(0);
+    expect(action).toMatchObject({ shown: true, dispatch_status: "succeeded" });
+    expect((await db.session(sessionId))?.shown_draft_count).toBe(1);
   });
 }
 

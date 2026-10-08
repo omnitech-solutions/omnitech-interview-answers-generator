@@ -10,6 +10,12 @@ import type { Locator, Page } from "@playwright/test";
 import { expect, type OpenPanel, test } from "../src/fixtures/panel-test";
 import { startSessionViaApi } from "../src/helpers/api";
 import { db } from "../src/helpers/sql";
+import {
+  openScreenshots,
+  problemButton,
+  revisionItem,
+  revisionsButton,
+} from "../src/helpers/task-bar";
 import { say, settled, taskIdsOf, taskScreenshots } from "../src/helpers/tasks";
 import { chooseCaptureMode } from "../src/helpers/toolbar";
 import type { LivePage } from "../src/pages/live-page";
@@ -76,6 +82,11 @@ async function manualSurface(
     credential,
     add: async () => {
       const before = await staged(page).count();
+      // With nothing staged the control is in the Screenshots card, which is
+      // closed until its icon opens it; once something is staged it is in the
+      // native dock, which is always drawn.
+      if (!(await page.getByTestId("add-screenshot").isVisible()))
+        await openScreenshots(page);
       await page.getByTestId("add-screenshot").click();
       await expect(staged(page)).toHaveCount(before + 1);
     },
@@ -183,7 +194,7 @@ for (const kind of ["web", "native"] as const) {
   // "Add screenshot" to stage with there: every staging test is a native-panel test. The two web
   // variants that need no staging (Apply with nothing staged, device-only) stay below.
   if (kind === "native") {
-    test(`${tag} screenshots icon and tray modes: open by default in Manual, closed in Auto until something is staged, and the count is stored plus staged`, async ({
+    test(`${tag} screenshots icon and tray modes: the card is closed until the icon opens it, in Manual and in Auto, and the count is stored plus staged`, async ({
       live,
       control,
       openPanel,
@@ -191,30 +202,36 @@ for (const kind of ["web", "native"] as const) {
       const s = await manualSurface(kind, { live, control, openPanel });
       const { page } = s;
 
-      // Manual: the tray is open without a press, and the icon says so.
-      await expect(toggle(page)).toHaveAttribute("aria-expanded", "true");
-      await expect(area(page)).toBeVisible();
+      // Manual: the card is closed until the icon is pressed, and the icon
+      // says so (the native rework of 2026-10-07: closed by default on both
+      // surfaces, whatever the capture mode).
+      await expect(toggle(page)).toHaveAttribute("aria-expanded", "false");
+      await expect(area(page)).toBeHidden();
       await expect(toggle(page)).toHaveAccessibleName("Screenshots (0)");
 
-      // The toggle is real: it hides and shows the area.
+      // The toggle is real: it shows and hides the area.
+      await toggle(page).click();
+      await expect(toggle(page)).toHaveAttribute("aria-expanded", "true");
+      await expect(area(page)).toBeVisible();
       await toggle(page).click();
       await expect(toggle(page)).toHaveAttribute("aria-expanded", "false");
       await expect(area(page)).toBeHidden();
-      await toggle(page).click();
-      await expect(area(page)).toBeVisible();
 
-      // Staging adds to the count (stored 0 + staged 1).
+      // Staging adds to the count (stored 0 + staged 1); the staged image
+      // waits in the dock, which needs no press.
       await s.add();
       await expect(staged(page)).toHaveCount(1);
       await expect(toggle(page)).toHaveAccessibleName("Screenshots (1)");
       await expect(page.getByTestId("screenshots-count")).toHaveText("1");
 
-      // Auto: closed by default (the minimised strip), opened by the icon.
+      // Auto: the same card, closed until the icon opens it.
       await page.getByTestId("discard-screenshots").click();
       await expect(staged(page)).toHaveCount(0);
       // The web page has no Auto switch (the native app owns capture modes).
       if (kind === "native") {
         await chooseCaptureMode(page, "Auto");
+        if ((await toggle(page).getAttribute("aria-expanded")) === "true")
+          await toggle(page).click();
         await expect(toggle(page)).toHaveAttribute("aria-expanded", "false");
         await expect(area(page)).toBeHidden();
         await toggle(page).click();
@@ -275,9 +292,14 @@ for (const kind of ["web", "native"] as const) {
         ),
       ).toHaveLength(2);
       expect(await taskScreenshots(s.id, created)).toHaveLength(2);
-      // The tray emptied and the new task is on show with its two stored shots.
+      // The tray emptied and the new task is on show with its two stored shots
+      // (in the card, once its icon opens it).
       await expect(staged(page)).toHaveCount(0);
+      // A switch to another task closes the card: wait for the new task to be
+      // the one on show before opening it.
+      await expect(problemButton(page)).toHaveText(/^T2 · /);
       await expect(toggle(page)).toHaveAccessibleName("Screenshots (2)");
+      await openScreenshots(page);
       await expect(
         page
           .getByRole("list", { name: "Screenshots of this task" })
@@ -317,10 +339,12 @@ for (const kind of ["web", "native"] as const) {
       expect(call).toMatchObject({ stage: "assist", revision: 2, images: 1 });
       expect(call?.taskId).toBe(taskId);
       expect(await taskScreenshots(s.id, taskId)).toHaveLength(1);
-      // The previous answer is kept and marked Outdated; the new one is current.
-      await page.getByTestId("revisions-button").click();
-      await expect(page.getByTestId("revision-1")).toContainText("Outdated");
-      await expect(page.getByTestId("revision-2")).toContainText("Current");
+      // The previous answer is kept and marked Outdated; the new one is current
+      // (the task bar's Revisions menu).
+      await revisionsButton(page).click();
+      await expect(revisionItem(page, 1)).toContainText("Outdated");
+      await expect(revisionItem(page, 2)).toContainText("Current");
+      await page.keyboard.press("Escape");
     });
 
     test(`${tag} screenshots Remove and Discard: Remove drops one image from the request, Discard drops them all and the server hears of neither`, async ({
@@ -652,6 +676,11 @@ for (const kind of ["web", "native"] as const) {
       const stored = await taskScreenshots(s.id, created);
       expect(stored).toHaveLength(4);
 
+      // A switch to another task closes the card: wait for the new task to be
+      // the one on show before opening it.
+      await expect(problemButton(page)).toHaveText(/^T2 · /);
+      await expect(toggle(page)).toHaveAccessibleName("Screenshots (4)");
+      await openScreenshots(page);
       const strip = page.getByRole("list", {
         name: "Screenshots of this task",
       });
@@ -736,6 +765,8 @@ for (const kind of ["web", "native"] as const) {
     const s = await manualSurface(kind, { live, control, openPanel });
     const { page } = s;
     const before = (await control.calls()).length;
+    // With nothing staged, Apply and its words are in the card.
+    await openScreenshots(page);
     await expect(page.getByTestId("tray-sends")).toHaveText(
       "Nothing staged. Apply regenerates without new context.",
     );
@@ -764,6 +795,7 @@ test("web screenshots in a device-only session: Add is disabled with its reason,
   );
   const { page } = s;
 
+  await openScreenshots(page);
   const add = page.getByTestId("add-screenshot");
   await expect(add).toBeDisabled();
   await expect(page.getByTestId("add-reason")).toContainText(/device/i);
@@ -788,6 +820,7 @@ test("@native native screenshots in a device-only session: Add is disabled with 
   );
   const { page } = s;
 
+  await openScreenshots(page);
   await expect(page.getByTestId("add-screenshot")).toBeDisabled();
   await expect(page.getByTestId("add-reason")).toContainText(/device/i);
   await expect(page.getByTestId("tray-sends")).toContainText(

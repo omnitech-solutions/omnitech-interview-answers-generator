@@ -8,6 +8,7 @@ import { expect } from "@playwright/test";
 import { installHostShim, nativeOverlayUrl } from "../fixtures/host-shim";
 import { startSessionViaApi } from "../helpers/api";
 import { type FoundControl, scanControls } from "../helpers/aria-scan";
+import { openSizeMenu } from "../helpers/toolbar";
 import { LivePage } from "../pages/live-page";
 import type { StackConfig } from "../stack/config";
 import type { Control } from "../stack/control";
@@ -102,6 +103,24 @@ export async function scanNative(
     page.getByRole("button", { name: "Allow…" }).first(),
   ).toBeVisible();
   await note("native-permission-denied", page);
+  // Start a session for: Interview lists the candidacies (none here) with
+  // Add an interview, whose context form is a state of its own.
+  await page.getByRole("radio", { name: "Interview" }).click();
+  await expect(page.getByTestId("pn-start-interview")).toBeVisible();
+  await note("native-start-interview", page);
+  await page.getByTestId("pn-start-interview").click();
+  await note("native-start-interview-list", page);
+  await page.keyboard.press("Escape");
+  await page.getByTestId("pn-start-add-interview").click();
+  await expect(page.getByTestId("pn-context-modal")).toBeVisible();
+  await note("native-context-modal", page);
+  await page
+    .getByTestId("pn-context-modal")
+    .getByRole("button", { name: "Close", exact: true })
+    .first()
+    .click();
+  await expect(page.getByTestId("pn-context-modal")).toHaveCount(0);
+  await page.getByRole("radio", { name: "Rehearsal" }).click();
 
   // The signed-out window: Studio's public sign-in page with no session cookie,
   // the waiting screen of the browser round trip, and the local-profile step.
@@ -154,10 +173,15 @@ export async function scanNative(
   await note("native-see-through", page);
   await toolbar.getByRole("button", { name: "See-through" }).click();
   await page.getByRole("button", { name: "Analyze screen" }).first().click();
-  await expect(page.getByRole("button", { name: /^T1 · / })).toBeVisible({
+  // The task bar names the problem on show (the task chips are gone).
+  await expect(page.getByTestId("pn-problem-button")).toHaveText(/^T1 · /, {
     timeout: 30_000,
   });
   await note("native-task", page);
+  // The task bar's menus: every problem, and the language for Regenerate.
+  await page.getByTestId("pn-problem-button").click();
+  await note("native-problem-menu", page);
+  await page.keyboard.press("Escape");
   // E-B3: the screen menu, the staging tray with its viewer and crop editor, a
   // second revision and its menu, the window-size menu and the Mini player, and
   // a coding task with its Tests drawer.
@@ -186,9 +210,7 @@ export async function scanNative(
   await revisions.click();
   await note("native-revisions-menu", page);
   await page.keyboard.press("Escape");
-  const sizeDot = page.getByTestId("pn-dot-size");
-  await sizeDot.focus();
-  await page.keyboard.press("ArrowDown");
+  await openSizeMenu(page);
   await note("native-size-menu", page);
   await page
     .getByRole("menu", { name: "Window size" })
