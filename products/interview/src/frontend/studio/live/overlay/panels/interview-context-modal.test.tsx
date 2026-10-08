@@ -77,6 +77,36 @@ afterEach(() => {
   cleanup();
 });
 
+describe("briefSections", () => {
+  it("opens with the company and the owner's prep, then the role", () => {
+    const sections = briefSections({
+      ...BRIEF,
+      companyFacts: ["Builds internal tooling"],
+      prepNotes: ["Lead with the billing migration"],
+    });
+    expect(sections.map((part) => part.heading)).toEqual([
+      "About the company",
+      "Your prep",
+      "Summary",
+      "Must-haves",
+      "Tech stack",
+      "Responsibilities",
+      "Questions to ask",
+    ]);
+    expect(sections[0]?.items).toEqual(["Builds internal tooling"]);
+    expect(sections[1]?.items).toEqual(["Lead with the billing migration"]);
+  });
+
+  it("leaves both sections out of a brief without facts or notes", () => {
+    const headings = [
+      briefSections(BRIEF),
+      briefSections({ ...BRIEF, companyFacts: [], prepNotes: [] }),
+    ].map((sections) => sections.map((part) => part.heading));
+    expect(headings[0]).toEqual(headings[1]);
+    expect(headings[0]?.[0]).toBe("Summary");
+  });
+});
+
 describe("adding an interview", () => {
   it("creates the candidacy with one stage, then stores the spec and notes, and hands the saved context back", async () => {
     postJson.mockResolvedValueOnce({ candidacyId: ID });
@@ -190,6 +220,22 @@ describe("editing an interview", () => {
     expect(within(brief).getByText("Must-haves")).toBeInTheDocument();
     expect(within(brief).getByText("TypeScript")).toBeInTheDocument();
     expect(brief).not.toHaveTextContent("Nice-to-haves");
+    // The concise brief leads, then the notes; the raw posting comes last.
+    expect(within(brief).getByRole("heading", { level: 4 })).toHaveTextContent(
+      "The concise brief · what the answers lean on",
+    );
+    const notes = screen.getByLabelText("Your notes");
+    const spec = screen.getByLabelText("Job spec (the raw posting)");
+    expect(notes).toBe(screen.getByTestId("pn-context-notes"));
+    expect(spec).toBe(screen.getByTestId("pn-context-spec"));
+    expect(spec).toHaveAttribute("rows", "4");
+    const follows = (first: Element, second: Element) =>
+      Boolean(
+        first.compareDocumentPosition(second) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+    expect(follows(brief, notes)).toBe(true);
+    expect(follows(notes, spec)).toBe(true);
     expect(screen.getByTestId("pn-context-clean")).toHaveTextContent(
       "Clean up again",
     );

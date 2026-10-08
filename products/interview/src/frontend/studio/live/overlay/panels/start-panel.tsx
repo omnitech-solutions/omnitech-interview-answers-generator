@@ -100,6 +100,24 @@ import type { PanelWindowMode } from "./window-mode";
 
 // The window height the start screen asks for when the window is shorter.
 const START_HEIGHT = 640;
+// The room left either side of the toolbar when the window is widened for it.
+const TOOLBAR_GUTTER = 32;
+
+const PICKED_KEY = "omnitech.interview.start.candidacy";
+function lastPicked(): string | null {
+  try {
+    return window.localStorage.getItem(PICKED_KEY);
+  } catch {
+    return null;
+  }
+}
+function rememberPicked(id: string | null): void {
+  try {
+    if (id) window.localStorage.setItem(PICKED_KEY, id);
+  } catch {
+    // Storage is a convenience: the pick still holds for this window.
+  }
+}
 
 const TOAST_MS = 2_400;
 const MICROPHONE_SETTINGS_URL =
@@ -185,11 +203,25 @@ export function StartPanel(props: StartPanelProps) {
   // window) would crop this card and make the person scroll to reach Start.
   // A taller window is the person's own and is left alone.
   const setWindowSize = controls.presentation.setWindowSize;
-  // biome-ignore lint/correctness/useExhaustiveDependencies: asked again per stage
   useLayoutEffect(() => {
-    if (window.innerHeight >= START_HEIGHT) return;
-    void setWindowSize?.({ width: window.innerWidth, height: START_HEIGHT });
-  }, [setWindowSize, stage]);
+    // The toolbar is wider here than in a session (it carries the account
+    // chip), so a window sized for an ended session would clip both its ends.
+    // Its labels arrive after the first paint (the account, the skill set), so
+    // it is watched, not measured once.
+    const pill = document.querySelector<HTMLElement>(".pn-root .pn-toolbar");
+    const fit = () => {
+      const needed = (pill?.offsetWidth ?? 0) + TOOLBAR_GUTTER;
+      const width = Math.max(window.innerWidth, needed);
+      const height = Math.max(window.innerHeight, START_HEIGHT);
+      if (width === window.innerWidth && height === window.innerHeight) return;
+      void setWindowSize?.({ width, height });
+    };
+    fit();
+    if (!pill || typeof ResizeObserver === "undefined") return;
+    const watch = new ResizeObserver(fit);
+    watch.observe(pill);
+    return () => watch.disconnect();
+  }, [setWindowSize, stage, signedIn, member?.kind]);
 
   return (
     <>
@@ -679,7 +711,13 @@ function Idle({
   // candidacies (newest first), added or edited here without leaving the app,
   // so its job spec and brief are always attached to the answers.
   const interviews = useMemo(() => candidacyTargets(choices), [choices]);
-  const [pickedCandidacy, setPickedCandidacy] = useState<string | null>(null);
+  // The interview last started for is the default (kept on this Mac): the
+  // newest candidacy is not necessarily the one being interviewed for.
+  const [pickedCandidacy, setPicked] = useState<string | null>(lastPicked);
+  const setPickedCandidacy = (id: string | null) => {
+    setPicked(id);
+    rememberPicked(id);
+  };
   const [contextOpen, setContextOpen] = useState<null | "new" | "edit">(null);
   const interview =
     interviews.find((each) => each.id === `candidacy:${pickedCandidacy}`) ??
@@ -722,6 +760,7 @@ function Idle({
     if (starting) return;
     setStarting(true);
     setFailure(null);
+    rememberPicked(pickedId);
     const tenant = tenantFromLocation();
     const policy: LiveProcessingPolicy =
       loadHandsFreeChoice(tenant) ?? initialForm("mac").policy;

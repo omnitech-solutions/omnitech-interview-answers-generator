@@ -214,7 +214,8 @@ describe("the Interview list (every candidacy, newest first as served)", () => {
     expect(targets[0]).toMatchObject({
       target: { kind: "interview", candidacyId: "c1", interviewId: "c1-i0" },
       icon: "work",
-      title: "Role c1",
+      // The company leads: two roles can share a title.
+      title: "Example Corp · Role c1",
       sub: "Example Corp · Brief ready",
       needsAgreement: true,
     });

@@ -103,9 +103,8 @@ export async function scanNative(
     page.getByRole("button", { name: "Allow…" }).first(),
   ).toBeVisible();
   await note("native-permission-denied", page);
-  // Start a session for: Interview lists the candidacies (none here) with
+  // Start a session for: the Select lists the candidacies (none here) with
   // Add an interview, whose context form is a state of its own.
-  await page.getByRole("radio", { name: "Interview" }).click();
   await expect(page.getByTestId("pn-start-interview")).toBeVisible();
   await note("native-start-interview", page);
   await page.getByTestId("pn-start-interview").click();
@@ -120,7 +119,6 @@ export async function scanNative(
     .first()
     .click();
   await expect(page.getByTestId("pn-context-modal")).toHaveCount(0);
-  await page.getByRole("radio", { name: "Rehearsal" }).click();
 
   // The signed-out window: Studio's public sign-in page with no session cookie,
   // the waiting screen of the browser round trip, and the local-profile step.

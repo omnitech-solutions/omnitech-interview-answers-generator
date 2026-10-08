@@ -90,4 +90,5 @@ _Static route scan (Express/Fastify verb calls + NestJS decorators, labeling Gra
 
 ## Residuals
 
+- Skipped for exceeding the 2 MB bound: `apps/web/public/ocr.docs-arch-aside/core/tesseract-core-lstm.wasm.js`, `apps/web/public/ocr.docs-arch-aside/core/tesseract-core-relaxedsimd-lstm.wasm.js`, `apps/web/public/ocr.docs-arch-aside/core/tesseract-core-simd-lstm.wasm.js`
 - 10 route declarations dropped: the path is composed at runtime and has no static value, and the application is not executed, so no path is rendered for them (a named residual) — `products/interview/src/backend/live-session/hardening/cross-user.test.ts` lines 118, 123, 141, 142, 154, 208, 211, 217, 247; `products/interview/src/backend/live-session/hardening/world.ts` line 172.

@@ -6,7 +6,7 @@
 // draft's employer material and candidate preferences are read with the draft
 // revision recorded.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { matrixSha256 } from "./context-snapshot";
+import { buildContextSnapshot, matrixSha256 } from "./context-snapshot";
 import { SessionError } from "./errors";
 import { type Fixture, startFixture } from "./live-session-fixture";
 import {
@@ -20,6 +20,7 @@ import {
 } from "./replay-fixture-matrix";
 import { ActiveSessionRepository } from "./repository";
 import {
+  briefLines,
   loadSessionContext,
   SessionContextUnavailable,
 } from "./session-context";
@@ -83,6 +84,68 @@ async function relink(
     );
   }
 }
+
+describe("briefLines", () => {
+  const brief = {
+    company: "Example Corp",
+    role: "Staff Engineer",
+    summary: "Platform team hiring a staff engineer.",
+    mustHaves: ["TypeScript"],
+    niceToHaves: [],
+    techStack: [],
+    responsibilities: [],
+    values: [],
+    questionsToAsk: [],
+  };
+
+  it("puts the company facts in About lines and each prep note on a Prep line of its own, ahead of the role summary", () => {
+    const lines = briefLines({
+      ...brief,
+      companyFacts: ["Builds internal tooling.", "Founded in 2015"],
+      prepNotes: [
+        "Round is with the hiring manager; it decides the offer.",
+        "Proudest project: the billing migration, 40% fewer incidents",
+      ],
+    }).split("\n");
+    expect(lines).toEqual([
+      "Employer brief: Staff Engineer at Example Corp",
+      "About Example Corp: Builds internal tooling · Founded in 2015",
+      "Prep: Round is with the hiring manager, it decides the offer",
+      "Prep: Proudest project: the billing migration, 40% fewer incidents",
+      "Role summary: Platform team hiring a staff engineer",
+      "Must-haves: TypeScript",
+    ]);
+  });
+
+  it("emits no About or Prep line for a brief without facts or notes", () => {
+    expect(briefLines(brief).split("\n")).toEqual([
+      "Employer brief: Staff Engineer at Example Corp",
+      "Role summary: Platform team hiring a staff engineer",
+      "Must-haves: TypeScript",
+    ]);
+    expect(briefLines({ ...brief, companyFacts: [], prepNotes: [] })).toBe(
+      briefLines(brief),
+    );
+  });
+
+  it("keeps every prep note as one snapshot source", () => {
+    const built = buildContextSnapshot({
+      matrix: null,
+      profile: null,
+      employer: {
+        brief: briefLines({
+          ...brief,
+          prepNotes: [
+            "Lead with the result. Then the trade-off; keep it short!",
+          ],
+        }),
+      },
+    });
+    expect(built.sources.map((source) => source.text)).toContain(
+      "Prep: Lead with the result, Then the trade-off, keep it short",
+    );
+  });
+});
 
 describe("loadSessionContext", () => {
   it("reads the pinned profile revision, the draft's preferences and employer material, and records the draft revision", async () => {

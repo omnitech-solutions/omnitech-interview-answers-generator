@@ -214,11 +214,6 @@
   letter-spacing: 0.06em;
   color: var(--oui-panel-meta-fg);
 }
-.pn-start-target-sub {
-  margin: 0;
-  font-size: 11.5px;
-  color: var(--oui-panel-meta-fg);
-}
 .pn-start-perm {
   display: flex;
   align-items: center;

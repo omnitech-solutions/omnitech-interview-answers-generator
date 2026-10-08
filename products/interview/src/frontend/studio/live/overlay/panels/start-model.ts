@@ -255,7 +255,9 @@ export function candidacyTargets(
           }
         : { kind: "candidacy", candidacyId: candidacy.id },
       icon: "work",
-      title: candidacy.title,
+      // The company leads: two roles can share a title, and starting for the
+      // wrong company attaches the wrong brief.
+      title: `${candidacy.companyName} · ${candidacy.title}`,
       sub: [
         candidacy.companyName,
         candidacy.hasBrief

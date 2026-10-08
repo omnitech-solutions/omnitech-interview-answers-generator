@@ -116,6 +116,7 @@
         "apps/web/next.config.test.ts",
         "apps/web/next.config.ts",
         "apps/web/proxy.ts",
+        "apps/web/public/ocr.docs-arch-aside/worker.min.js",
         "apps/web/scripts/copy-ocr-assets.mjs",
         "apps/web/src/platform/agent-api.test.ts",
         "apps/web/src/platform/agent-api.ts",
@@ -630,6 +631,7 @@
         "products/interview/src/backend/live-session/stage-output.ts",
         "products/interview/src/backend/live-session/status-transition.ts",
         "products/interview/src/backend/live-session/stored-text-bounds.test.ts",
+        "products/interview/src/backend/live-session/story-log.ts",
         "products/interview/src/backend/live-session/technical-figures.test.ts",
         "products/interview/src/backend/live-session/trace.test.ts",
         "products/interview/src/backend/live-session/trace.ts",
@@ -1204,7 +1206,7 @@
         "vitest.package.config.ts"
       ],
       "n_entities": 81,
-      "n_sources": 1186,
+      "n_sources": 1188,
       "verdict": "populated"
     },
     {
@@ -1311,6 +1313,7 @@
         "apps/web/next.config.test.ts",
         "apps/web/next.config.ts",
         "apps/web/proxy.ts",
+        "apps/web/public/ocr.docs-arch-aside/worker.min.js",
         "apps/web/scripts/copy-ocr-assets.mjs",
         "apps/web/src/platform/agent-api.test.ts",
         "apps/web/src/platform/agent-api.ts",
@@ -1825,6 +1828,7 @@
         "products/interview/src/backend/live-session/stage-output.ts",
         "products/interview/src/backend/live-session/status-transition.ts",
         "products/interview/src/backend/live-session/stored-text-bounds.test.ts",
+        "products/interview/src/backend/live-session/story-log.ts",
         "products/interview/src/backend/live-session/technical-figures.test.ts",
         "products/interview/src/backend/live-session/trace.test.ts",
         "products/interview/src/backend/live-session/trace.ts",
@@ -2399,8 +2403,8 @@
         "vitest.config.ts",
         "vitest.package.config.ts"
       ],
-      "n_entities": 3114,
-      "n_sources": 1187,
+      "n_entities": 3116,
+      "n_sources": 1189,
       "verdict": "populated"
     },
     {

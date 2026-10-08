@@ -163,7 +163,7 @@ test("@native native ended card Open summary: opens the web summary of that sess
   ).toBeVisible();
 });
 
-test("@native native ended card Start a new session: starts a second session on the server", async ({
+test("@native native ended card Start a new session: leaves the ended session for the Start screen and starts nothing", async ({
   native,
 }) => {
   const { id } = await startSessionViaApi();
@@ -174,24 +174,13 @@ test("@native native ended card Start a new session: starts a second session on 
 
   await page.getByRole("button", { name: "Start a new session" }).click();
 
-  // A new row exists, is active, and is not the one that ended.
-  await expect
-    .poll(
-      async () =>
-        (await db.sessions()).filter((row) => row.status === "active").length,
-    )
-    .toBe(1);
-  const sessions = await db.sessions();
-  expect(sessions).toHaveLength(before + 1);
-  const fresh = sessions.find((row) => row.status === "active");
-  expect(fresh?.id).not.toBe(id);
-  expect((await db.session(id))?.status).toBe("ended");
-  // The panel is live again: controls back, ended card and dialog gone.
-  await expect(
-    page.getByRole("button", { name: "Pause session" }),
-  ).toBeVisible();
+  // The ended card gives way to the Start screen, where the interview is
+  // chosen: no session is started from the card itself.
   await expect(page.getByTestId("pn-ended")).toBeHidden();
+  await expect(page.getByTestId("pn-start-interview")).toBeVisible();
   await expect(endDialog(page)).toHaveCount(0);
+  expect(await db.sessions()).toHaveLength(before);
+  expect((await db.session(id))?.status).toBe("ended");
 });
 
 test("@native native red dot Quit: asks first and records quit only after Quit is confirmed", async ({

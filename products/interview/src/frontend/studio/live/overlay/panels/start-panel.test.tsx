@@ -49,6 +49,8 @@ const settle = async () => {
 
 const CANDIDACY = "22222222-2222-4222-8222-222222222222";
 const INTERVIEW = "11111111-1111-4111-8111-111111111111";
+// Where the Start screen keeps the interview last picked (start-panel.tsx).
+const PICKED_KEY = "omnitech.interview.start.candidacy";
 const CHOICES = (scheduledAt: string | null) => ({
   candidacies: [
     {
@@ -590,6 +592,64 @@ describe("signed out", () => {
   });
 });
 
+describe("the window the start screen asks for", () => {
+  // The start screen with a window of the given height and a toolbar of the
+  // given width; returns the sizes it asked the shell for.
+  async function sizesAsked(innerHeight: number, toolbarWidth: number) {
+    bridge();
+    const setWindowSize = vi.fn(async () => true);
+    (
+      window as unknown as {
+        studioHost: { presentation: Record<string, unknown> };
+      }
+    ).studioHost.presentation["setWindowSize"] = setWindowSize;
+    idleStudio();
+    const tall = window.innerHeight;
+    Object.defineProperty(window, "innerHeight", {
+      configurable: true,
+      value: innerHeight,
+    });
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(
+      function (this: HTMLElement) {
+        return this.matches(".pn-root .pn-toolbar") ? toolbarWidth : 0;
+      },
+    );
+    try {
+      await show(undefined, undefined, ACCOUNT);
+      expect(screen.getByTestId("pn-start")).toBeVisible();
+      expect(document.querySelector(".pn-root .pn-toolbar")).not.toBeNull();
+      return (setWindowSize.mock.calls as unknown[][]).map((call) => call[0]);
+    } finally {
+      Object.defineProperty(window, "innerHeight", {
+        configurable: true,
+        value: tall,
+      });
+    }
+  }
+
+  it("asks for nothing when the height and the toolbar already fit", async () => {
+    expect(window.innerWidth).toBe(1024);
+    expect(await sizesAsked(768, 900)).toEqual([]);
+  });
+
+  it("asks for its height in a short window, keeping the width", async () => {
+    const sizes = await sizesAsked(144, 900);
+    expect(sizes.length).toBeGreaterThan(0);
+    expect(sizes.at(-1)).toEqual({ width: 1024, height: 640 });
+  });
+
+  it("widens the window for a toolbar wider than it (its width plus a 32px gutter), keeping a tall window's height", async () => {
+    const sizes = await sizesAsked(820, 1100);
+    expect(sizes.length).toBeGreaterThan(0);
+    expect(sizes.at(-1)).toEqual({ width: 1132, height: 820 });
+  });
+
+  it("asks for both when the window is short and narrower than the toolbar", async () => {
+    const sizes = await sizesAsked(144, 1100);
+    expect(sizes.at(-1)).toEqual({ width: 1132, height: 640 });
+  });
+});
+
 describe("idle: signed in, no live session", () => {
   it("shows the start screen instead of starting by itself", async () => {
     bridge();
@@ -769,7 +829,7 @@ describe("idle: signed in, no live session", () => {
     // The first listed candidacy (no interview stage) is the current one: it
     // starts for the candidacy alone, so no agreement is asked for yet.
     const picker = screen.getByTestId("pn-start-interview");
-    expect(picker).toHaveTextContent("Platform Lead");
+    expect(picker).toHaveTextContent("Other Ltd · Platform Lead");
     expect(
       screen.queryByRole("checkbox", { name: /Everyone has agreed/ }),
     ).toBeNull();
@@ -791,7 +851,9 @@ describe("idle: signed in, no live session", () => {
     ).toHaveTextContent("Add an interview…");
     // Its one interview: the recording agreement is asked for before Start.
     fireEvent.click(staff);
-    expect(picker).toHaveTextContent("Staff Engineer");
+    expect(picker).toHaveTextContent("Example Corp · Staff Engineer");
+    // The pick is kept on this Mac for the next Start screen.
+    expect(window.localStorage.getItem(PICKED_KEY)).toBe(CANDIDACY);
     expect(
       screen.getByRole("checkbox", { name: /Everyone has agreed/ }),
     ).toHaveAttribute("aria-checked", "false");
@@ -801,6 +863,41 @@ describe("idle: signed in, no live session", () => {
     expect(
       screen.queryByRole("checkbox", { name: /Everyone has agreed/ }),
     ).toBeNull();
+    expect(window.localStorage.getItem(PICKED_KEY)).toBe(second);
+  });
+
+  it("opens on the interview last picked on this Mac, not the newest; a pick that no longer exists falls back to the newest", async () => {
+    bridge();
+    idleStudio();
+    const second = "33333333-3333-4333-8333-333333333333";
+    choices = {
+      ...CHOICES(null),
+      candidacies: [
+        {
+          id: second,
+          title: "Platform Lead",
+          companyName: "Other Ltd",
+          createdAt: minutesAfter(0),
+          hasJobSpec: true,
+          hasBrief: true,
+          interviews: [],
+        },
+        ...CHOICES(null).candidacies,
+      ],
+    };
+    window.localStorage.setItem(PICKED_KEY, CANDIDACY);
+    await show(undefined, undefined, ACCOUNT);
+    expect(screen.getByTestId("pn-start-interview")).toHaveTextContent(
+      "Example Corp · Staff Engineer",
+    );
+    cleanup();
+    window.localStorage.setItem(PICKED_KEY, "gone");
+    await show(undefined, undefined, ACCOUNT);
+    expect(screen.getByTestId("pn-start-interview")).toHaveTextContent(
+      "Other Ltd · Platform Lead",
+    );
+    // Showing the screen writes nothing: only a pick or a Start does.
+    expect(window.localStorage.getItem(PICKED_KEY)).toBe("gone");
   });
 
   it("an interview in the past, or unscheduled, is still offered (the context is entered here); with no candidacy nothing is invented", async () => {
@@ -927,6 +1024,7 @@ describe("idle: signed in, no live session", () => {
     expect(screen.getByTestId("pn-start-hint")).toHaveTextContent(
       "Listening starts right away",
     );
+    expect(window.localStorage.getItem(PICKED_KEY)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Start session" }));
     await settle();
     expect(posted).toEqual([
@@ -938,6 +1036,9 @@ describe("idle: signed in, no live session", () => {
         profile: { id: "main", revision: 3 },
       }),
     ]);
+    // Starting remembers the interview it started for, even when it was the
+    // default and never picked by hand.
+    expect(window.localStorage.getItem(PICKED_KEY)).toBe(CANDIDACY);
   });
 
   it("a candidacy with no interview stage starts with no agreement and carries its candidacy", async () => {

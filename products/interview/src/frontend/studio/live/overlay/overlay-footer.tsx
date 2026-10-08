@@ -133,9 +133,13 @@ export function Footer({
   pending,
   actions,
   onFailure,
+  context,
 }: {
   variant: FooterVariant;
   wording?: "short" | "session";
+  // What the session is for (the interview's context chip), shown for the
+  // whole session, before the build tag.
+  context?: ReactNode;
   pending: readonly string[];
   actions: SessionActions;
   onFailure(code: SessionErrorCode): void;
@@ -242,6 +246,7 @@ export function Footer({
       // just before them (owner's rule).
       actions={
         <>
+          {context}
           {buildTag && <BuildTagChip tag={buildTag} />}
           {paused ? (
             <Button

@@ -2092,6 +2092,63 @@ describe("footer and the ended session", () => {
     const [url] = external.mock.calls[0] as unknown as [string];
     expect(url).toMatch(/^http.*\/t\/local\/p\/interview\/live\/0b1f6a52/);
   });
+
+  it("shows the interview the session is for in the footer from the start, not in the task bar, and not once it has ended", async () => {
+    const candidacyId = "22222222-2222-4222-8222-222222222222";
+    serve(live({ candidacyId }), [named("Rate limiter"), solved()]);
+    server.on("POST /:id/control", () => {
+      current = live({
+        candidacyId,
+        status: "ended",
+        endedAt: minutesAfter(5),
+      });
+      return jsonResponse({ session: current });
+    });
+    await show();
+    const chip = screen.getByTestId("pn-context-chip");
+    expect(chip).toHaveAccessibleName(/^Interview context: /);
+    expect(
+      within(screen.getByTestId("pn-task-bar")).queryByTestId(
+        "pn-context-chip",
+      ),
+    ).toBeNull();
+    // Before the build tag, when there is one, and before the session controls.
+    expect(
+      chip.compareDocumentPosition(
+        screen.getByRole("button", { name: "End session" }),
+      ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "End session" }));
+    fireEvent.click(screen.getByRole("button", { name: "End now" }));
+    await flush();
+    await flush();
+    expect(screen.getByTestId("pn-ended")).toBeVisible();
+    expect(screen.queryByTestId("pn-context-chip")).toBeNull();
+  });
+
+  it("shows no interview chip for a session with no candidacy", async () => {
+    serve(live(), [named("Rate limiter"), solved()]);
+    await show();
+    expect(screen.getByTestId("pn-task-bar")).toBeVisible();
+    expect(screen.queryByTestId("pn-context-chip")).toBeNull();
+  });
+
+  it("Start a new session starts nothing: it leaves the ended session for the Start screen, where the interview is chosen", async () => {
+    serve(live({ status: "ended", endedAt: minutesAfter(5) }));
+    await show();
+    expect(screen.getByTestId("pn-ended")).toBeVisible();
+    const posted = () => server.calls.filter((call) => call.startsWith("POST"));
+    const before = posted().length;
+    const button = screen.getByRole("button", { name: "Start a new session" });
+    expect(button).toBeEnabled();
+    fireEvent.click(button);
+    await flush();
+    await flush();
+    // No session is started from here, and the finished one is dismissed.
+    expect(posted()).toHaveLength(before);
+    expect(screen.queryByTestId("pn-ended")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Starting…" })).toBeNull();
+  });
 });
 
 describe("chat.focus", () => {

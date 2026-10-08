@@ -13,9 +13,9 @@ import {
   useState,
 } from "react";
 import { Footer, failureNote } from "../overlay-footer";
-import { AUTO_SESSION } from "./auto-session";
 import { FOCUS_INPUT_EVENT } from "./commands";
 import { EndedCard } from "./ended-card";
+import { InterviewContextChip } from "./interview-context-chip";
 import { MiniPlayer } from "./mini-player";
 import { openPanelBus } from "./panel-bus";
 import type { PanelGlass } from "./panel-glass";
@@ -89,18 +89,14 @@ export function SinglePanel({
     analysis: (session) => <AnswerPanel s={session} />,
     code: (session) => <CodePanel s={session} />,
   };
-  // The session ended (End, or the server's time limit): the window starts the
-  // next one itself. It is the same server-side session Studio shows, so the
-  // browser view and every other window follow it.
+  // The session ended (End, or the server's time limit): "Start a new session"
+  // leaves its summary for the Start screen, where the interview is chosen, so
+  // a session never starts without its job spec and brief attached.
   const ended = Boolean(s.session) && !s.open;
-  const [starting, setStarting] = useState(false);
+  const starting = false;
   const startedHere = useRef(false);
-  async function startNext() {
-    setStarting(true);
-    const result = await s.actions.start(AUTO_SESSION);
-    setStarting(false);
-    if (!result.ok) return s.notify(failureNote(result.code, result.reason));
-    startedHere.current = true;
+  function startNext() {
+    s.actions.dismissFinished();
   }
   // Tell the other windows (Settings) which session this one just started.
   const sessionId = s.session?.id ?? null;
@@ -268,6 +264,13 @@ export function SinglePanel({
       <div className="pn-single-foot" data-drag-handle="">
         <Footer
           wording="session"
+          // The interview this session is for, on show from the first second
+          // (the task bar only appears with the first question).
+          context={
+            ended ? null : (
+              <InterviewContextChip candidacyId={s.model.candidacyId} />
+            )
+          }
           variant={
             ended
               ? {

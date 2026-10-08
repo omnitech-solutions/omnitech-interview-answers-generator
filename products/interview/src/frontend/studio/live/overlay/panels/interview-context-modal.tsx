@@ -214,33 +214,15 @@ export function InterviewContextModal({
             required
             data-testid="pn-context-role"
           />
-          <Textarea
-            label="Job spec"
-            description="Paste the posting as it is; the clean-up reads it, you do not have to tidy it."
-            rows={8}
-            value={draft.jobDescription}
-            onChange={(jobDescription) =>
-              setDraft({ ...draft, jobDescription })
-            }
-            disabled={busy !== null}
-            data-testid="pn-context-spec"
-          />
-          <Textarea
-            label="Your notes"
-            description="What you know about the team, the interviewer, the process."
-            rows={4}
-            value={draft.notes}
-            onChange={(notes) => setDraft({ ...draft, notes })}
-            disabled={busy !== null}
-            data-testid="pn-context-notes"
-          />
+          {/* The concise brief leads: it is what a live answer reads. The raw
+              posting, long and untidy, is the source beneath it. */}
           {sections.length > 0 && (
             <section
               className="pn-context-brief"
               aria-label="Employer brief"
               data-testid="pn-context-brief"
             >
-              <h4>Employer brief · what the answers lean on</h4>
+              <h4>The concise brief · what the answers lean on</h4>
               {sections.map((part) => (
                 <div key={part.heading} className="pn-context-brief-part">
                   <h5>{part.heading}</h5>
@@ -253,6 +235,26 @@ export function InterviewContextModal({
               ))}
             </section>
           )}
+          <Textarea
+            label="Your notes"
+            description="What you know about the team, the interviewer, the process."
+            rows={4}
+            value={draft.notes}
+            onChange={(notes) => setDraft({ ...draft, notes })}
+            disabled={busy !== null}
+            data-testid="pn-context-notes"
+          />
+          <Textarea
+            label="Job spec (the raw posting)"
+            description="Paste the posting as it is; the clean-up reads it, you do not have to tidy it."
+            rows={4}
+            value={draft.jobDescription}
+            onChange={(jobDescription) =>
+              setDraft({ ...draft, jobDescription })
+            }
+            disabled={busy !== null}
+            data-testid="pn-context-spec"
+          />
           {error && (
             <p className="pn-context-error" role="alert">
               {error}

@@ -3642,6 +3642,13 @@
       "source_path": "products/interview/src/backend/live-session/stored-text-bounds.test.ts"
     },
     {
+      "doc_path": "fallback/products/interview/src/backend/live-session/story-log.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "f2df9e64c8572344556908ad3f31a9c52532f701d2245b9eb4a537394c961975",
+      "source_path": "products/interview/src/backend/live-session/story-log.ts"
+    },
+    {
       "doc_path": "fallback/products/interview/src/backend/live-session/technical-figures.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",

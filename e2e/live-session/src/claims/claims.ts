@@ -1299,12 +1299,12 @@ export const NATIVE_CLAIMS: Claim[] = make("native", [
   ],
   [
     "native.task.context-chip",
-    "task-bar",
+    "footer",
     "button",
     /^Interview context: /,
     "Names the interview this session is for and opens its context (job spec, notes, brief) to edit",
     "server",
-    "the context form shows the candidacy's stored company, role, spec and notes; a save PATCHes the candidacy and a regenerate reads the change; a rehearsal has no chip (covered at the unit level, start-panel.test.tsx: the e2e stack has no candidacy to start for)",
+    "the context form shows the candidacy's stored company, role, spec and notes; a save PATCHes the candidacy and a regenerate reads the change; a session with no candidacy has no chip (covered at the unit level, single-panel.test.tsx: the e2e stack has no candidacy to start for)",
   ],
   [
     "native.task.revisions",
@@ -1487,9 +1487,9 @@ export const NATIVE_CLAIMS: Claim[] = make("native", [
     "ended",
     "button",
     "Start a new session",
-    "Starts a new session",
-    "server",
-    "a second active_sessions row appears",
+    "Leaves the ended session for the Start screen, where the next one is started for an interview",
+    "dom",
+    "the ended card gives way to the Start screen and no active_sessions row is added",
     "native ended card Start a new session",
   ],
 
