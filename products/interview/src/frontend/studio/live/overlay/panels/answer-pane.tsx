@@ -214,6 +214,8 @@ export function AnswerPane({ s }: { s: PanelSession }) {
               view={shots}
               captureUnavailable={s.captureUnavailable}
               onAdd={(intent) => void s.stage(intent)}
+              language={s.hints.language}
+              onLanguage={s.setLanguage}
             />
           ) : undefined
         }

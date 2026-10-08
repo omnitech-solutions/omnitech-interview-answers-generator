@@ -6,7 +6,7 @@
 // Supplying context REVISES the same task: the screenshot or typed text goes to
 // the task on show at its current revision. "Looks complete" only hides the
 // strip for that revision (see use-missing-context.ts).
-import { Button, Input } from "@oc-tech/omni-ui-components";
+import { Button, Textarea } from "@oc-tech/omni-ui-components";
 import type { LiveMissingContext } from "@omnitech/interview-contracts";
 import { useState } from "react";
 
@@ -131,13 +131,23 @@ export function MissingContextStrip({
             void submit();
           }}
         >
-          <Input
+          {/* Several lines of context: Shift+Enter is a new line and never
+              sends; Enter alone sends. */}
+          <Textarea
             aria-label="Context for this problem"
-            placeholder="What the AI should know about this problem"
+            placeholder="What the AI should know about this problem (Shift+Enter for a new line)"
+            rows={3}
             value={text}
             onChange={setText}
             disabled={sending}
             autoFocus
+            onKeyDown={(event) => {
+              if (event.key !== "Enter" || event.nativeEvent.isComposing)
+                return;
+              if (event.shiftKey) return;
+              event.preventDefault();
+              void submit();
+            }}
           />
           <Button
             buttonSize="sm"

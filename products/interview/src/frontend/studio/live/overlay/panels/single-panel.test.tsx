@@ -1897,11 +1897,18 @@ describe("code pane", () => {
       configurable: true,
     });
     await show();
-    // The Code card's own language tag (the task bar names the language too).
+    // The Code card's own language tag. The task bar shows the owner's own
+    // choice (auto here): a problem answered in TypeScript never rewrites it,
+    // or one answer would turn every later capture into its language.
     expect(
       within(screen.getByTestId("pn-code")).getByTestId("pn-language"),
     ).toHaveTextContent("TYPESCRIPT");
-    expect(screen.getByTestId("pn-task-bar")).toHaveTextContent("TypeScript");
+    expect(screen.getByTestId("pn-task-bar-language")).toHaveTextContent(
+      "Language: auto",
+    );
+    expect(screen.getByTestId("pn-task-bar")).not.toHaveTextContent(
+      "TypeScript",
+    );
     const badges = within(screen.getByLabelText(/established about this code/));
     expect(badges.getByText("Generated")).toBeVisible();
     expect(badges.getByText("5/5 generated tests")).toBeVisible();

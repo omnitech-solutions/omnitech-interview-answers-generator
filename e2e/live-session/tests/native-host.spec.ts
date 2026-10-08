@@ -16,6 +16,7 @@ import {
 import { expect, test } from "../src/fixtures/test";
 import { startSessionViaApi } from "../src/helpers/api";
 import { db } from "../src/helpers/sql";
+import { addInterview } from "../src/helpers/start-screen";
 import type { StackConfig } from "../src/stack/config";
 import { SCRIPTED } from "../src/stack/scenarios";
 
@@ -188,7 +189,7 @@ test("@native host capability capture-screen: Analyze goes through the shell, an
   // Manual capture stages the screenshot ("Not sent yet"); Apply sends it.
   await expect(page.getByText("Not sent yet").first()).toBeVisible();
   expect(await control.calls()).toEqual([]);
-  await page.getByRole("button", { name: "Apply", exact: true }).click();
+  await page.getByTestId("apply-screenshots").click();
   await expect(page.getByText(SCRIPTED.plain).first()).toBeVisible();
   const stored = (await db.observations(sessionId ?? "")).filter(
     (row) => row.kind === "screen.snapshot" && row.screenshot_artifact_id,
@@ -345,6 +346,12 @@ test("@native host consent: with no session the start screen asks the shell's co
     "Listening starts right away",
   );
   await granted.page.waitForTimeout(2_500);
+  expect(await db.sessions()).toHaveLength(before);
+  // A session is always for an interview: one is added here, then Start.
+  await addInterview(granted.page, {
+    company: "Consent Corp",
+    role: "Staff Engineer",
+  });
   expect(await db.sessions()).toHaveLength(before);
   await granted.page.getByRole("button", { name: "Start session" }).click();
   await expect.poll(async () => (await db.sessions()).length).toBe(before + 1);

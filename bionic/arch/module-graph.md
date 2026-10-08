@@ -1,6 +1,6 @@
 # Module graph
 
-_Static TS/JS import graph of 1188 modules, 3116 edges (resolve-or-drop; static parse, no Node executed)._
+_Static TS/JS import graph of 1189 modules, 3118 edges (resolve-or-drop; static parse, no Node executed)._
 
 ```mermaid
 graph LR
@@ -265,11 +265,13 @@ graph LR
   e2e_live_session_tests_native_host_spec_ts["e2e/live-session/tests/native-host.spec.ts"] --> e2e_live_session_src_fixtures_test_ts["e2e/live-session/src/fixtures/test.ts"]
   e2e_live_session_tests_native_host_spec_ts["e2e/live-session/tests/native-host.spec.ts"] --> e2e_live_session_src_helpers_api_ts["e2e/live-session/src/helpers/api.ts"]
   e2e_live_session_tests_native_host_spec_ts["e2e/live-session/tests/native-host.spec.ts"] --> e2e_live_session_src_helpers_sql_ts["e2e/live-session/src/helpers/sql.ts"]
+  e2e_live_session_tests_native_host_spec_ts["e2e/live-session/tests/native-host.spec.ts"] --> e2e_live_session_src_helpers_start_screen_ts["e2e/live-session/src/helpers/start-screen.ts"]
   e2e_live_session_tests_native_host_spec_ts["e2e/live-session/tests/native-host.spec.ts"] --> e2e_live_session_src_stack_config_ts["e2e/live-session/src/stack/config.ts"]
   e2e_live_session_tests_native_host_spec_ts["e2e/live-session/tests/native-host.spec.ts"] --> e2e_live_session_src_stack_scenarios_ts["e2e/live-session/src/stack/scenarios.ts"]
   e2e_live_session_tests_native_signin_spec_ts["e2e/live-session/tests/native-signin.spec.ts"] --> e2e_live_session_src_fixtures_host_shim_ts["e2e/live-session/src/fixtures/host-shim.ts"]
   e2e_live_session_tests_native_signin_spec_ts["e2e/live-session/tests/native-signin.spec.ts"] --> e2e_live_session_src_fixtures_test_ts["e2e/live-session/src/fixtures/test.ts"]
   e2e_live_session_tests_native_signin_spec_ts["e2e/live-session/tests/native-signin.spec.ts"] --> e2e_live_session_src_helpers_sql_ts["e2e/live-session/src/helpers/sql.ts"]
+  e2e_live_session_tests_native_signin_spec_ts["e2e/live-session/tests/native-signin.spec.ts"] --> e2e_live_session_src_helpers_start_screen_ts["e2e/live-session/src/helpers/start-screen.ts"]
   e2e_live_session_tests_native_signin_spec_ts["e2e/live-session/tests/native-signin.spec.ts"] --> e2e_live_session_src_helpers_toolbar_ts["e2e/live-session/src/helpers/toolbar.ts"]
   e2e_live_session_tests_native_signin_spec_ts["e2e/live-session/tests/native-signin.spec.ts"] --> e2e_live_session_src_stack_config_ts["e2e/live-session/src/stack/config.ts"]
   e2e_live_session_tests_no_question_spec_ts["e2e/live-session/tests/no-question.spec.ts"] --> e2e_live_session_src_fixtures_panel_test_ts["e2e/live-session/src/fixtures/panel-test.ts"]

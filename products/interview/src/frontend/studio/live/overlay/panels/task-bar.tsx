@@ -9,14 +9,14 @@ import {
   LIVE_OWNER_LANGUAGES,
   type LiveOwnerLanguage,
 } from "@omnitech/interview-contracts";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { Icon } from "../../../icon";
 import { revisionLine, revisionList } from "../../shared/revisions";
 import { nativeChord } from "../../shared/shortcuts";
 import { taskChips } from "./panel-model";
 import type { PanelSession } from "./panel-views";
 
-const isOwnerLanguage = (value: string): value is LiveOwnerLanguage =>
+const _isOwnerLanguage = (value: string): value is LiveOwnerLanguage =>
   (LIVE_OWNER_LANGUAGES as readonly string[]).includes(value);
 
 export function TaskBar({ s }: { s: PanelSession }) {
@@ -49,26 +49,14 @@ export function TaskBar({ s }: { s: PanelSession }) {
   const currentText = drafting ? "Select problem…" : current?.text;
   const running =
     card?.stages.some((stage) => stage.state === "running") ?? false;
-  // The menu shows and sets the hint in force. Switching to a problem sets the
-  // hint to that problem's code language (the effect below), so the menu reads
-  // the problem on show and a choice made afterwards still sticks.
+  // The language the owner chose (or auto). It is theirs alone: a problem that
+  // came back in another language never rewrites it, or one stray Ruby answer
+  // would turn every later capture into Ruby.
   const shownLanguage: LiveOwnerLanguage | "auto" = s.hints.language;
   const languageLabel =
     shownLanguage === "auto"
       ? "Language: auto"
       : LIVE_OWNER_LANGUAGE_LABELS[shownLanguage];
-  const taskLanguage =
-    !drafting && card?.code && isOwnerLanguage(card.code.language)
-      ? card.code.language
-      : null;
-  const lastTask = useRef<string | null>(null);
-  const setLanguage = s.setLanguage;
-  useEffect(() => {
-    const id = drafting ? null : (current?.taskId ?? null);
-    if (id === lastTask.current) return;
-    lastTask.current = id;
-    if (id && taskLanguage) setLanguage(taskLanguage);
-  }, [current?.taskId, drafting, taskLanguage, setLanguage]);
   if (!s.open || !card || (!current && !drafting)) return null;
   return (
     <div ref={bar} className="pn-task-bar pn-card" data-testid="pn-task-bar">

@@ -339,6 +339,8 @@ export function ChatPanel({ s }: { s: PanelSession }) {
             onKeyDown={(event) => {
               if (event.key !== "Enter" || event.nativeEvent.isComposing)
                 return;
+              // Shift+Enter never sends: the owner is still writing.
+              if (event.shiftKey) return;
               event.preventDefault();
               void submit();
             }}

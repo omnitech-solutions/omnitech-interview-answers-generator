@@ -203,6 +203,31 @@ describe("Add context", () => {
     expect(box()).toHaveValue("");
   });
 
+  it("is a field of several lines: Shift+Enter is a new line and sends nothing, Enter alone sends", async () => {
+    await open();
+    await press("Add context");
+    const field = contextField();
+    expect(field.tagName).toBe("TEXTAREA");
+    expect(field).toHaveAttribute("rows", "3");
+    fireEvent.change(field, { target: { value: "n is at most 1e5" } });
+    // Shift+Enter is left to the field (its new line): nothing is sent.
+    expect(fireEvent.keyDown(field, { key: "Enter", shiftKey: true })).toBe(
+      true,
+    );
+    await flush();
+    expect(journey.inputs).toEqual([]);
+    expect(screen.getByTestId("missing-context-form")).toBeVisible();
+    // Enter alone sends, and does not also type a line.
+    expect(fireEvent.keyDown(contextField(), { key: "Enter" })).toBe(false);
+    await flush();
+    expect(journey.inputs).toHaveLength(1);
+    expect(journey.inputs[0]).toMatchObject({
+      operation: "follow-up",
+      text: "n is at most 1e5",
+      target: { taskId: CUT_OFF_TASK, revision: 1 },
+    });
+  });
+
   it("asks again, for what is still missing, when the revision is still incomplete", async () => {
     journey.nextMissing = [{ kind: "signature" }];
     await open();

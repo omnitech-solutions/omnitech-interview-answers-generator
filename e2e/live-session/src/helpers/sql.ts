@@ -143,6 +143,15 @@ export const db = {
       )
     )[0]?.screenshot_send;
   },
+  // The candidacy a session was started for (null for a rehearsal).
+  async sessionCandidacy(id: string): Promise<string | null | undefined> {
+    return (
+      await rows<{ candidacy_id: string | null }>(
+        `SELECT candidacy_id::text FROM interview.active_sessions WHERE id = $1`,
+        [id],
+      )
+    )[0]?.candidacy_id;
+  },
   // The most recently started session, for specs that drive the UI and then
   // look for the row it created.
   async latestSession(): Promise<SessionRow | undefined> {

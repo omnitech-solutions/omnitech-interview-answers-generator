@@ -38,6 +38,9 @@ test("@native native window keeps a margin around the toolbar, panels and footer
   openPanel,
 }) => {
   const { page } = await openPanel({ viewport: { width: 1320, height: 820 } });
+  // The panes and the footer are laid out before they are measured.
+  for (const part of [".pn-toolbar", ".pn-single-body", ".pn-single-foot"])
+    await expect(page.locator(part).first()).toBeVisible();
   const edges = await page.evaluate(() => {
     const box = (selector: string) =>
       document.querySelector(selector)?.getBoundingClientRect();

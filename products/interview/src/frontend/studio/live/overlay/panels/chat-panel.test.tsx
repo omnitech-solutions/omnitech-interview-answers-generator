@@ -397,4 +397,17 @@ describe("sending with the keyboard", () => {
     });
     expect(blank.calls.send).not.toHaveBeenCalled();
   });
+
+  it("Shift+Enter never sends: the owner is still writing", async () => {
+    const full = fake({ draft: "why?" });
+    render(<ChatPanel s={full.session} />);
+    await act(async () => {
+      fireEvent.keyDown(box(), { key: "Enter", shiftKey: true });
+    });
+    expect(full.calls.send).not.toHaveBeenCalled();
+    await act(async () => {
+      fireEvent.keyDown(box(), { key: "Enter" });
+    });
+    expect(full.calls.send).toHaveBeenCalledTimes(1);
+  });
 });

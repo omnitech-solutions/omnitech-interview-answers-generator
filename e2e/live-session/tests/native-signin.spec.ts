@@ -14,6 +14,7 @@ import {
 } from "../src/fixtures/host-shim";
 import { expect, test } from "../src/fixtures/test";
 import { db } from "../src/helpers/sql";
+import { addInterview, withNoInterviews } from "../src/helpers/start-screen";
 import { expectLocked } from "../src/helpers/toolbar";
 import type { StackConfig } from "../src/stack/config";
 
@@ -336,6 +337,7 @@ test("@native sign-in idle: the start screen waits for Start, shows the Mac's pe
   const before = (await db.sessions()).length;
   await consented(native.context);
   const panel = await native.open();
+  const none = await withNoInterviews(panel.page);
   await panel.page.goto(
     nativeOverlayUrl(stack.webUrl, stack.tenantSlug, {
       panel: "single",
@@ -349,16 +351,10 @@ test("@native sign-in idle: the start screen waits for Start, shows the Mac's pe
     card(page).getByText("No live session", { exact: true }),
   ).toBeVisible();
 
-  // "Start a session for" offers Rehearsal | Interview, for the local profile
-  // too. Interview lists the owner's candidacies; this profile has none, so
-  // nothing is invented: the picker says so, an interview can be added here,
-  // and Start waits for one rather than starting a rehearsal in its place.
-  const radios = page.getByRole("radio");
-  await expect(radios).toHaveCount(2);
-  await expect(radios.nth(0)).toHaveAccessibleName("Rehearsal");
-  await expect(radios.nth(1)).toHaveAccessibleName("Interview");
-  await expect(page.getByTestId("pn-start-interview")).toHaveCount(0);
-  await page.getByRole("radio", { name: "Interview" }).click();
+  // "Start a session for" lists the owner's candidacies and nothing else: no
+  // Rehearsal choice. With none, nothing is invented: the picker says so, an
+  // interview can be added here, and Start waits for one.
+  await expect(page.getByRole("radio")).toHaveCount(0);
   await expect(page.getByTestId("pn-start-interview")).toContainText(
     "No interview yet",
   );
@@ -368,7 +364,7 @@ test("@native sign-in idle: the start screen waits for Start, shows the Mac's pe
     .getByRole("button", { name: "Start session" })
     .click({ force: true });
   await expect(page.getByTestId("pn-start-toast")).toHaveText(
-    "Add an interview first, or start a Rehearsal.",
+    "Add an interview first.",
   );
   expect(await db.sessions()).toHaveLength(before);
   // Add an interview opens the context form; Close leaves nothing behind.
@@ -380,8 +376,14 @@ test("@native sign-in idle: the start screen waits for Start, shows the Mac's pe
     .first()
     .click();
   await expect(page.getByTestId("pn-context-modal")).toHaveCount(0);
-  await page.getByRole("radio", { name: "Rehearsal" }).click();
-  await expect(page.getByTestId("pn-start-interview")).toHaveCount(0);
+  await expect(page.getByTestId("pn-start-interview")).toContainText(
+    "No interview yet",
+  );
+  // Saved through the form, the interview is the one the session starts for,
+  // and starting it adds no session by itself.
+  await none.restore();
+  await addInterview(page, { company: "Idle Corp", role: "Staff Engineer" });
+  expect(await db.sessions()).toHaveLength(before);
 
   // The toolbar is the same one, disabled, saying a session must start first.
   const locked = await lockedControls(page);
@@ -450,11 +452,18 @@ test("@native sign-in Start hands over to the live window, which is the one that
   );
   const { page } = panel;
   await expect(card(page)).toHaveAttribute("data-stage", "idle");
+  await addInterview(page, {
+    company: "Handover Corp",
+    role: "Staff Engineer",
+  });
   await page.getByRole("button", { name: "Start session" }).click();
   await expect.poll(async () => (await db.sessions()).length).toBe(before + 1);
   const created = (await db.sessions()).at(-1);
   expect(created?.status).toBe("active");
-  expect(created?.rehearsal_run_id).not.toBeNull();
+  // The session row carries the interview it was started for.
+  expect(await db.sessionCandidacy(String(created?.id))).toMatch(
+    /^[0-9a-f-]{36}$/,
+  );
 
   await expect(card(page)).toHaveCount(0);
   await expect(page.getByTestId("pn-root")).toBeVisible();

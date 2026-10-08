@@ -209,7 +209,7 @@ test("@native shortcut ⌘⇧S Analyze: the intent captures through the shell an
   // Manual capture stages the screenshot ("Not sent yet"); Apply sends it.
   await expect(page.getByText("Not sent yet").first()).toBeVisible();
   expect(await control.calls()).toEqual([]);
-  await page.getByRole("button", { name: "Apply", exact: true }).click();
+  await page.getByTestId("apply-screenshots").click();
   await expect(
     page.getByRole("button", { name: /^Studio · T1/ }),
   ).toBeVisible();
@@ -451,7 +451,7 @@ test("@native web chord Alt+Shift+A captures and analyzes, and Alt+Shift+S gener
   // Manual capture stages the screenshot ("Not sent yet"); Apply sends it.
   await expect(page.getByText("Not sent yet").first()).toBeVisible();
   expect(await control.calls()).toEqual([]);
-  await page.getByRole("button", { name: "Apply", exact: true }).click();
+  await page.getByTestId("apply-screenshots").click();
   await expect(
     page.getByRole("button", { name: /^Studio · T1/ }),
   ).toBeVisible();

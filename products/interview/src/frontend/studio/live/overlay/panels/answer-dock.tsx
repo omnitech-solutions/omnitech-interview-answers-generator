@@ -2,7 +2,12 @@
 // on the device, waiting for Apply. It shows only while something is staged.
 // One row of controls (count, thumbnails, Add screenshot, Clear, Apply); the
 // model is the shared tray (use-screenshots-view.ts), unchanged.
-import { Button } from "@oc-tech/omni-ui-components";
+import { ActionMenu, Button } from "@oc-tech/omni-ui-components";
+import {
+  LIVE_OWNER_LANGUAGE_LABELS,
+  LIVE_OWNER_LANGUAGES,
+  type LiveOwnerLanguage,
+} from "@omnitech/interview-contracts";
 import { type DragEvent, useId, useRef, useState } from "react";
 import { Icon } from "../../../icon";
 import { ImageViewer } from "../../shared/image-viewer";
@@ -99,12 +104,17 @@ export function AnswerDock({
   view,
   onAdd,
   captureUnavailable,
+  language,
+  onLanguage,
 }: {
   view: ScreenshotsView;
   // Takes one capture and stages it (nothing is sent).
   onAdd(intent: TrayIntent): void;
   // Why capturing is not possible here now, if it is not.
   captureUnavailable: string | null;
+  // The code language the solution is generated in, chosen before it is sent.
+  language: LiveOwnerLanguage | "auto";
+  onLanguage(next: LiveOwnerLanguage | "auto"): void;
 }) {
   const { tray, staged } = view;
   const [viewing, setViewing] = useState<string | null>(null);
@@ -153,6 +163,53 @@ export function AnswerDock({
         >
           <span className="pn-dock-add-label">Add screenshot</span>
         </Button>
+        {/* The language is chosen here, before anything is sent: the wrong
+            one costs a whole generation. */}
+        <ActionMenu
+          label="Solution language"
+          title="Generate in"
+          width={240}
+          sections={[
+            {
+              id: "language",
+              selection: "single",
+              value: language,
+              items: [
+                { id: "auto", label: "Detected from the screen" },
+                ...LIVE_OWNER_LANGUAGES.map((id) => ({
+                  id,
+                  label: LIVE_OWNER_LANGUAGE_LABELS[id],
+                })),
+              ],
+            },
+          ]}
+          onValueChange={(_group, id) =>
+            onLanguage(id as LiveOwnerLanguage | "auto")
+          }
+          trigger={
+            <Button
+              buttonSize="sm"
+              variant="outline"
+              icon={<Icon name="code" />}
+              iconAfter={<Icon name="expand_more" />}
+              disabled={busy}
+              aria-label="Solution language"
+              data-testid="dock-language"
+            >
+              {language === "auto"
+                ? "Language: auto"
+                : LIVE_OWNER_LANGUAGE_LABELS[language]}
+            </Button>
+          }
+        />
+      </div>
+      {/* The two actions sit at the right, under the row of inputs. The
+          layout is set here, not in the stylesheet: the native window keeps
+          a stylesheet until it reloads, and this row must never be wrong. */}
+      <div
+        className="pn-dock-row"
+        style={{ width: "100%", justifyContent: "flex-end" }}
+      >
         <Button
           buttonSize="sm"
           variant="ghost"
@@ -160,7 +217,7 @@ export function AnswerDock({
           data-testid="discard-screenshots"
           onClick={tray.discard}
         >
-          Clear
+          Cancel
         </Button>
         <Button
           buttonSize="sm"
@@ -170,7 +227,7 @@ export function AnswerDock({
           data-testid="apply-screenshots"
           onClick={() => void tray.apply()}
         >
-          {tray.failure === "request" ? "Retry" : "Apply"}
+          {tray.failure === "request" ? "Retry" : "Generate Solution"}
         </Button>
       </div>
       {addReason && (

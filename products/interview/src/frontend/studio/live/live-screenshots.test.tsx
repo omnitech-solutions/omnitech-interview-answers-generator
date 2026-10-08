@@ -239,9 +239,45 @@ describe("native 'To apply' dock", () => {
       "apply-screenshots",
     ])
       expect(within(found as HTMLElement).getByTestId(control)).toBeVisible();
+    const inDock = within(found as HTMLElement);
+    expect(inDock.getByTestId("discard-screenshots")).toHaveTextContent(
+      "Cancel",
+    );
+    expect(inDock.getByTestId("apply-screenshots")).toHaveTextContent(
+      "Generate Solution",
+    );
+    // The solution's language is chosen here, before anything is sent: after
+    // Add screenshot, and before the row of the two actions.
+    const language = inDock.getByTestId("dock-language");
+    expect(language).toHaveAccessibleName("Solution language");
+    expect(language).toHaveTextContent("Language: auto");
+    // Choosing one sets the owner's language (the one the next input carries);
+    // nothing is sent by choosing.
+    fireEvent.pointerDown(language, { button: 0, ctrlKey: false });
+    fireEvent.click(
+      within(screen.getByRole("menu", { name: "Solution language" })).getByRole(
+        "menuitemradio",
+        { name: "Ruby" },
+      ),
+    );
+    expect(inDock.getByTestId("dock-language")).toHaveTextContent("Ruby");
+    expect(inDock.getByTestId("staged-1")).toBeVisible();
+    const order = [
+      "add-screenshot",
+      "dock-language",
+      "discard-screenshots",
+    ].map((id) => inDock.getByTestId(id));
+    for (const [at, control] of order.slice(1).entries())
+      expect(
+        (order[at] as HTMLElement).compareDocumentPosition(control) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
     expect(
-      within(found as HTMLElement).getByTestId("discard-screenshots"),
-    ).toHaveTextContent("Clear");
+      inDock
+        .getByTestId("discard-screenshots")
+        .compareDocumentPosition(inDock.getByTestId("apply-screenshots")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("Clear removes the staged screenshot and the dock with it, sending nothing", async () => {

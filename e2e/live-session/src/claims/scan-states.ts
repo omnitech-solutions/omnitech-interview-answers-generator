@@ -196,7 +196,11 @@ export async function scanNative(
   await note("native-viewer", page);
   await page.getByRole("button", { name: "Crop", exact: true }).click();
   await note("native-crop-editor", page);
-  await page.getByRole("button", { name: "Cancel" }).click();
+  // The editor's own Cancel (the dock has one too).
+  await page
+    .getByTestId("crop-editor")
+    .getByRole("button", { name: "Cancel" })
+    .click();
   await page.getByRole("button", { name: "Close viewer" }).click();
   await page.getByTestId("discard-screenshots").click();
   await page.getByRole("textbox", { name: "Message" }).fill("Add an example.");

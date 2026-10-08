@@ -488,7 +488,11 @@ for (const kind of ["web", "native"] as const) {
       for (let n = 0; n < 200; n += 1)
         await page.keyboard.press("Shift+ArrowLeft");
       await expect(output).toContainText("Output 32 × ");
-      await page.getByRole("button", { name: "Cancel" }).click();
+      // The editor's own Cancel (the native dock has one too).
+      await page
+        .getByTestId("crop-editor")
+        .getByRole("button", { name: "Cancel" })
+        .click();
     });
 
     test(`${tag} screenshots reorder: Move right and left change the order the images are sent in`, async ({
