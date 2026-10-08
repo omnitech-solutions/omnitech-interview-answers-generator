@@ -18,6 +18,7 @@ import {
   HeardLine,
   IconButton,
   OutlineList,
+  Panel,
   Splitter,
   SplitterPanel,
   Tab,
@@ -260,31 +261,38 @@ function QuestionsList({
   onPick(key: string): void;
 }) {
   return (
-    <OutlineList
-      className="pn-card"
-      style={STYLE.card}
+    // The library's Panel is the pane (its heading, count and scrolling);
+    // the OutlineList inside it is the rows.
+    <Panel
+      as="aside"
       title={`Questions · ${questions.length}`}
-      hint="newest first"
-      order="reversed"
-      value={shownKey ?? null}
-      items={questions.map((question) => ({
-        id: question.key,
-        label: question.label,
-        name: question.question?.text ?? question.label,
-        number: question.number,
-        state: question.live ? ("live" as const) : ("default" as const),
-        meta: [
-          clock(question.at),
-          question.notes.length > 0
-            ? `${question.notes.length} ${question.notes.length === 1 ? "note" : "notes"}`
-            : null,
-        ]
-          .filter(Boolean)
-          .join(" · "),
-      }))}
-      onValueChange={(item) => onPick(item.id)}
+      meta="newest first"
+      bodyPadding="none"
+      scroll={{ thinScrollbar: true }}
       data-testid="pn-coach-questions"
-    />
+    >
+      <OutlineList
+        aria-label="Questions"
+        order="reversed"
+        value={shownKey ?? null}
+        items={questions.map((question) => ({
+          id: question.key,
+          label: question.label,
+          name: question.question?.text ?? question.label,
+          number: question.number,
+          state: question.live ? ("live" as const) : ("default" as const),
+          meta: [
+            clock(question.at),
+            question.notes.length > 0
+              ? `${question.notes.length} ${question.notes.length === 1 ? "note" : "notes"}`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" · "),
+        }))}
+        onValueChange={(item) => onPick(item.id)}
+      />
+    </Panel>
   );
 }
 
