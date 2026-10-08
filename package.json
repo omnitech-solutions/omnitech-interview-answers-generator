@@ -38,6 +38,7 @@
     "hooks:run:pre-push": "lefthook run pre-push",
     "prepare": "lefthook install",
     "dev:stop": "node scripts/dev-stop.mjs",
+    "library:devdocs": "node scripts/import-devdocs.mjs",
     "app:up": "docker compose --profile app up -d --build && scripts/docker-host-services.sh start",
     "app:dev": "scripts/app-dev.sh",
     "app:down": "scripts/docker-host-services.sh stop; docker compose --profile app down",

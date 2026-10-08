@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import {
@@ -86,7 +86,7 @@ export class JsonLibraryRepository implements LibraryRepository {
 
   async saveDraft(input: LibraryItemInput, id?: string): Promise<LibraryItem> {
     const validatedInput = libraryItemInputSchema.parse(input);
-    const file = await this.read();
+    const file = await this.read(true);
     const index = id ? file.items.findIndex(({ item }) => item.id === id) : -1;
     const stored = index >= 0 ? file.items[index] : undefined;
     if (id && !stored) {
@@ -120,7 +120,7 @@ export class JsonLibraryRepository implements LibraryRepository {
   }
 
   async publish(id: string): Promise<LibraryItem | undefined> {
-    const file = await this.read();
+    const file = await this.read(true);
     const stored = file.items.find(({ item }) => item.id === id);
     if (!stored) return undefined;
     libraryItemInputSchema.parse(stored.item);
@@ -142,7 +142,7 @@ export class JsonLibraryRepository implements LibraryRepository {
   }
 
   async archive(id: string): Promise<LibraryItem | undefined> {
-    const file = await this.read();
+    const file = await this.read(true);
     const stored = file.items.find(({ item }) => item.id === id);
     if (!stored) return undefined;
     const item: LibraryItem = {
@@ -161,7 +161,7 @@ export class JsonLibraryRepository implements LibraryRepository {
   }
 
   async deleteDraft(id: string): Promise<boolean> {
-    const file = await this.read();
+    const file = await this.read(true);
     const stored = file.items.find(({ item }) => item.id === id);
     if (!stored) return false;
     if (stored.published || stored.item.status !== "draft") {
@@ -174,9 +174,25 @@ export class JsonLibraryRepository implements LibraryRepository {
     return true;
   }
 
-  private async read(): Promise<LibraryFile> {
+  // [STRATEGY] The library file can hold whole documentation sets (tens of
+  // megabytes). A read-only call reuses the parsed file while the file on
+  // disk is unchanged (same modification time and size); every write goes
+  // through a rename, which changes both. A method that changes the file
+  // reads it fresh, so the shared copy is never mutated.
+  private cached:
+    | { mtimeMs: number; size: number; file: LibraryFile }
+    | undefined;
+  private async read(fresh = false): Promise<LibraryFile> {
     try {
-      return JSON.parse(await readFile(this.filePath, "utf8")) as LibraryFile;
+      const { mtimeMs, size } = await stat(this.filePath);
+      const held = this.cached;
+      if (!fresh && held && held.mtimeMs === mtimeMs && held.size === size)
+        return held.file;
+      const file = JSON.parse(
+        await readFile(this.filePath, "utf8"),
+      ) as LibraryFile;
+      if (!fresh) this.cached = { mtimeMs, size, file };
+      return file;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") {
         return { revision: 0, items: [] };
