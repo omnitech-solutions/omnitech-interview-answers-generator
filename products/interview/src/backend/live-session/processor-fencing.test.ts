@@ -303,12 +303,18 @@ describe("pause and end suppression", () => {
     await repo.controlSession(w.scope, w.sessionId, "end");
     hold.release();
     await p.processor.idle();
+    // Nothing is published. The late result is recorded as suppressed, unless
+    // the sweep the first tick started (it runs beside the held call) already
+    // saw the ended session and purged its rows: on a slow machine that sweep
+    // wins the race, and no row at all is also "nothing published".
     const rows = (await actionsOf(w)).filter((a) => a.taskId === FIRST_TASK);
-    expect(rows[0]).toMatchObject({
-      dispatchStatus: "suppressed",
-      suppressionReason: "session_ended",
-      result: null,
-    });
+    expect(rows.every((row) => row.dispatchStatus !== "succeeded")).toBe(true);
+    if (rows[0])
+      expect(rows[0]).toMatchObject({
+        dispatchStatus: "suppressed",
+        suppressionReason: "session_ended",
+        result: null,
+      });
 
     // The sweep purges an ended session that deletes at end.
     await p.processor.tick(NEVER_ABORTED);

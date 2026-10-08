@@ -70,15 +70,20 @@ jobs:
         with:
           node-version: 22
       - run: swift --version
+      # verify-native lints with SwiftLint, which the runner image does not carry.
+      - run: brew install swiftlint
       - run: node scripts/verify-native.mjs
       - run: node scripts/swift-coverage.mjs
 
   # The Playwright suite drives the built web app and worker against a scripted
-  # model. `pnpm test:browser` runs E2E_SHARDS=4 shards inside this one job
-  # (the default; each shard has its own PostgreSQL container and stack).
+  # model. In CI it runs as ONE process with one stack (E2E_SHARDS=1): the
+  # runner is small, and four stacks side by side (the local default) starve
+  # each other into timeouts. One process is slower, so the limit is longer.
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 180
+    env:
+      E2E_SHARDS: 1
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
