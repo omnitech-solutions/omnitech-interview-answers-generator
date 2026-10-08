@@ -143,19 +143,50 @@ export function createOpenAiModelAdapter(
     async *stream(request: AiExecutionRequest): AsyncIterable<AiEvent> {
       const executionId = crypto.randomUUID();
       yield { type: "started", executionId };
-      for await (const text of chat.stream({
+      // A structured task streams the same JSON object execute() would return:
+      // the schema rides the request and the completed event carries the
+      // parsed object (or the raw text when it is not valid JSON for the
+      // schema, so the caller's own validation reports it). A plain stream
+      // completes with its id alone, as before.
+      const structured =
+        request.task.type === "structured-generation"
+          ? { schema: request.task.schema }
+          : null;
+      let text = "";
+      for await (const delta of chat.stream({
         prompt: request.task.prompt,
-        ...(request.task.system === undefined
+        ...(structured?.schema ? { responseSchema: structured.schema } : {}),
+        ...(request.task.system === undefined && structured === null
           ? {}
-          : { system: request.task.system }),
+          : {
+              system: [
+                request.task.system,
+                structured
+                  ? "Return exactly one JSON object without Markdown."
+                  : undefined,
+              ]
+                .filter(Boolean)
+                .join("\n\n"),
+            }),
         ...(request.task.messages === undefined
           ? {}
           : { messages: request.task.messages }),
         ...(request.signal === undefined ? {} : { signal: request.signal }),
       })) {
-        yield { type: "text-delta", text };
+        text += delta;
+        yield { type: "text-delta", text: delta };
       }
-      yield { type: "completed", result: { executionId } };
+      if (structured === null) {
+        yield { type: "completed", result: { executionId } };
+        return;
+      }
+      let result: unknown;
+      try {
+        result = parseStructuredOutput(text, structured.schema);
+      } catch {
+        result = text;
+      }
+      yield { type: "completed", result };
     },
   };
 }

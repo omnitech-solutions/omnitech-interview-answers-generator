@@ -107,4 +107,44 @@ describe("OpenAI model adapter", () => {
       { type: "completed", result: { executionId: expect.any(String) } },
     ]);
   });
+
+  it("streams a structured task with its schema and completes with the parsed object, as execute() returns it", async () => {
+    let body: Record<string, unknown> = {};
+    const chunk = (content: string) =>
+      `data: ${JSON.stringify({ id: "m", object: "chat.completion.chunk", created: 0, model: "m", choices: [{ index: 0, delta: { content }, finish_reason: null }] })}\n\n`;
+    vi.stubGlobal("fetch", async (_url: unknown, init: RequestInit) => {
+      body = JSON.parse(String(init.body));
+      return new Response(
+        `${chunk('{"answer":')}${chunk("42}")}data: [DONE]\n\n`,
+        { headers: { "content-type": "text/event-stream" } },
+      );
+    });
+    const schema = {
+      type: "object",
+      properties: { answer: { type: "number" } },
+      required: ["answer"],
+    };
+    const events = [];
+    for await (const event of adapter().stream({
+      context,
+      task: { type: "structured-generation", prompt: "Q", schema },
+    }))
+      events.push(event.type === "started" ? { type: "started" } : event);
+    expect(events).toEqual([
+      { type: "started" },
+      { type: "text-delta", text: '{"answer":' },
+      { type: "text-delta", text: "42}" },
+      { type: "completed", result: { answer: 42 } },
+    ]);
+    expect(body).toMatchObject({
+      response_format: { type: "json_schema", json_schema: { schema } },
+      messages: [
+        {
+          role: "system",
+          content: "Return exactly one JSON object without Markdown.",
+        },
+        { role: "user", content: "Q" },
+      ],
+    });
+  });
 });
