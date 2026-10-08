@@ -748,7 +748,17 @@ export function usePanelSession(
   // Choosing only changes what is shown; the other task keeps running.
   const { pinnedTaskId: pinned, revisionPicks } = usePresentation();
   const setPinned = focus.pin;
-  const newestTaskId = tasks[tasks.length - 1]?.taskId;
+  // Only a task with something to show counts as the new problem: a capture
+  // whose draft is still deciding (and may say "no question") must not clear
+  // the person's choice in the seconds before it is sorted out (D36).
+  const newestTaskId = [...tasks]
+    .reverse()
+    .find(
+      (task) =>
+        (task.title?.trim() ?? "") !== "" ||
+        task.current.answer !== null ||
+        task.current.code !== null,
+    )?.taskId;
   const newestSeen = useRef(newestTaskId);
   useEffect(() => {
     if (newestTaskId === newestSeen.current) return;
