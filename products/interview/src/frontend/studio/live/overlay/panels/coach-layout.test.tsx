@@ -98,7 +98,9 @@ const note = (
   createdAt: minutesAfter(0, seconds),
   title: `Note ${at}`,
   tone: "say",
-  kind: "answer",
+  kind: "direct-answer",
+  revision: 1,
+  status: "ready",
   points: [],
   sections: [],
   links: [],
@@ -136,6 +138,37 @@ async function show(
 const layout = () => screen.getByTestId("pn-coach-layout");
 const notesPane = () => screen.getByTestId("pn-coach-notes");
 const asked = () => screen.getByTestId("pn-coach-asked");
+const heard = () => screen.queryByTestId("pn-coach-heard");
+// A question's few words where the coach gave none: what was heard, cut.
+const cut = (text: string) =>
+  text.length > 60 ? `${text.slice(0, 60).trimEnd()}…` : text;
+// The question on show: its few words large, and what was actually said
+// small beneath them when that differs.
+function onShow(said: string, label = cut(said)) {
+  expect(asked().textContent).toBe(label);
+  if (label === said) expect(heard()).toBeNull();
+  else {
+    expect(heard()?.textContent).toBe(said);
+    expect(heard()).toHaveAttribute("title", said);
+  }
+}
+// The question on show with everything under it: dimmed while it is only the
+// previous question's.
+const questionOnShow = () =>
+  asked().parentElement?.parentElement?.parentElement as HTMLElement;
+const sectionsOf = (block: Element | undefined) =>
+  [...(block?.querySelectorAll("[data-section]") ?? [])].map((section) =>
+    section.getAttribute("data-section"),
+  );
+// The lines of a note as drawn: one paragraph or anchor to a line.
+const linesOf = (block: Element | undefined) =>
+  [...(block?.querySelectorAll("[data-section] p") ?? [])].map(
+    (line) => line.textContent,
+  );
+// The small line over a note: its kind, its time and (unless it is the
+// question) its title.
+const metaOf = (block: Element | undefined) =>
+  block?.firstElementChild?.textContent ?? "";
 // The rows of the questions list as drawn: the newest question first.
 const listed = () => screen.getAllByTestId("pn-coach-question");
 // A row by its question's number (1 is the first one asked).
@@ -408,8 +441,9 @@ describe("the questions list", () => {
 describe("the question on the table", () => {
   it("is shown whole with its notes beneath, marked as being asked and followed live", async () => {
     await show("coach");
-    expect(asked()).toHaveTextContent(QUESTION_TWO);
-    expect(notesPane()).toHaveTextContent("Being asked · ");
+    onShow(QUESTION_TWO, ASK_TWO);
+    expect(notesPane()).toHaveTextContent(/Live · \d+:\d\d/);
+    expect(questionOnShow().style.opacity).toBe("1");
     expect(notesPane()).toHaveTextContent(`Q2 · ${ASK_TWO}`);
     expect(notesPane()).toHaveTextContent("Following live");
     expect(screen.queryByTestId("pn-coach-live")).toBeNull();
@@ -424,7 +458,8 @@ describe("the question on the table", () => {
   it("says so when no question has notes yet", async () => {
     posted = [];
     await show("conversation");
-    expect(asked()).toHaveTextContent(QUESTION_TWO);
+    // No coach, so no restatement: what was heard, cut, with the whole beneath.
+    onShow(QUESTION_TWO);
     expect(blocks()).toHaveLength(0);
     expect(within(notesPane()).getByRole("status")).toHaveTextContent(
       "No notes for this question yet.",
@@ -435,7 +470,7 @@ describe("the question on the table", () => {
 
   it("moves on once the coach's notes for the next one arrive", async () => {
     const drawn = await show("coach");
-    expect(asked()).toHaveTextContent(QUESTION_TWO);
+    onShow(QUESTION_TWO, ASK_TWO);
     const NEXT = "Tell me about a project you are proud of.";
     drawn.rerender(
       <CoachLayout
@@ -449,10 +484,10 @@ describe("the question on the table", () => {
     );
     await settle();
     // Until then the last notes stay on show.
-    expect(asked()).toHaveTextContent(QUESTION_TWO);
+    onShow(QUESTION_TWO, ASK_TWO);
     post(note(5, 160, { title: "Pick one with numbers", askId: "q-project" }));
     await poll();
-    expect(asked()).toHaveTextContent(NEXT);
+    onShow(NEXT);
     expect(blocks()).toHaveLength(1);
     expect(blocks()[0]).toHaveTextContent("Pick one with numbers");
     expect(notesPane()).toHaveTextContent("Following live");
@@ -470,13 +505,13 @@ describe("a new question whose notes have not arrived", () => {
 
   it("never empties the pane: the last notes stay, with the new question named above them", async () => {
     await show("coach", withNext());
-    expect(waiting()).toHaveTextContent(/^Being asked · \d+:\d\d/);
-    expect(waiting()).toHaveTextContent(NEXT);
     expect(waiting()).toHaveTextContent(
-      "Notes for this are on their way. The last notes stay below.",
+      /^Current question · listening · \d+:\d\d/,
     );
+    expect(waiting()).toHaveTextContent(NEXT);
+    expect(waiting()).toHaveTextContent(/Preparing response…$/);
     // Beneath it, the last question the coach answered, with its notes.
-    expect(asked()).toHaveTextContent(QUESTION_TWO);
+    onShow(QUESTION_TWO, ASK_TWO);
     expect(blocks()).toHaveLength(1);
     expect(blocks()[0]).toHaveTextContent("Name the techniques");
     expect(
@@ -485,6 +520,43 @@ describe("a new question whose notes have not arrived", () => {
     ).toBeTruthy();
     expect(notesPane()).toContainElement(waiting());
     expect(notesPane()).not.toHaveTextContent("No notes for this question yet");
+  });
+
+  it("the notes beneath are marked as the previous question's and dimmed: they never read as the answer to what was just asked", async () => {
+    await show("coach", withNext());
+    const divider = within(notesPane()).getByText("Previous coaching note");
+    const follows = (before: Element, after: Element) =>
+      Boolean(
+        before.compareDocumentPosition(after) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+    expect(follows(waiting(), divider)).toBe(true);
+    expect(follows(divider, asked())).toBe(true);
+    expect(notesPane()).toHaveTextContent(/Previous question · \d+:\d\d/);
+    expect(notesPane()).not.toHaveTextContent("Live · ");
+    expect(questionOnShow().style.opacity).toBe("0.55");
+    expect(questionOnShow()).toContainElement(blocks()[0] as HTMLElement);
+    // The box itself is never dimmed.
+    expect(questionOnShow()).not.toContainElement(waiting());
+    expect(waiting().style.opacity).toBe("");
+  });
+
+  it("once its notes arrive nothing is dimmed, nothing is marked previous, and it is the live question", async () => {
+    await show("coach", withNext());
+    post(note(5, 160, { title: "Pick one with numbers", askId: "q-project" }));
+    await poll();
+    expect(questionOnShow().style.opacity).toBe("1");
+    expect(notesPane()).not.toHaveTextContent("Previous coaching note");
+    expect(notesPane()).not.toHaveTextContent("Previous question ·");
+    expect(notesPane()).toHaveTextContent(/Live · \d+:\d\d/);
+  });
+
+  it("a picked question is never dimmed or marked previous, even while another waits", async () => {
+    await show("coach", withNext());
+    pickListed(1);
+    expect(questionOnShow().style.opacity).toBe("1");
+    expect(notesPane()).not.toHaveTextContent("Previous coaching note");
+    expect(notesPane()).toHaveTextContent(/Asked · \d+:\d\d/);
   });
 
   it("is written larger than a follow-up and never cut: it is what is being asked now", async () => {
@@ -511,7 +583,7 @@ describe("a new question whose notes have not arrived", () => {
     posted = [FIRST];
     await show("conversation");
     expect(waiting()).toHaveTextContent(QUESTION_TWO);
-    expect(asked()).toHaveTextContent(QUESTION_ONE);
+    onShow(QUESTION_ONE);
     expect(blocks()).toHaveLength(1);
     expect(blocks()[0]).toHaveTextContent("Name the criteria");
   });
@@ -522,7 +594,7 @@ describe("a new question whose notes have not arrived", () => {
     post(note(5, 160, { title: "Pick one with numbers", askId: "q-project" }));
     await poll();
     expect(screen.queryByTestId("pn-coach-waiting")).toBeNull();
-    expect(asked()).toHaveTextContent(NEXT);
+    onShow(NEXT);
     expect(blocks()[0]).toHaveTextContent("Pick one with numbers");
   });
 
@@ -535,10 +607,10 @@ describe("a new question whose notes have not arrived", () => {
     await show("coach", withNext());
     pickListed(1);
     expect(screen.queryByTestId("pn-coach-waiting")).toBeNull();
-    expect(asked()).toHaveTextContent(QUESTION_ONE);
+    onShow(QUESTION_ONE);
     expect(notesPane()).not.toHaveTextContent("Following live");
     fireEvent.click(screen.getByRole("button", { name: "Next question" }));
-    expect(asked()).toHaveTextContent(QUESTION_TWO);
+    onShow(QUESTION_TWO, ASK_TWO);
     expect(waiting()).toHaveTextContent(NEXT);
     expect(notesPane()).toHaveTextContent("Following live");
     // The question that waits cannot be stepped to: it has no notes to show.
@@ -551,14 +623,14 @@ describe("a new question whose notes have not arrived", () => {
     posted = [];
     await show("coach", withNext());
     expect(screen.queryByTestId("pn-coach-waiting")).toBeNull();
-    expect(asked()).toHaveTextContent(NEXT);
+    onShow(NEXT);
     expect(listed()).toHaveLength(3);
   });
 
   it("is shown in the prompter too", async () => {
     await show("prompter", withNext());
     expect(waiting()).toHaveTextContent(NEXT);
-    expect(asked()).toHaveTextContent(QUESTION_TWO);
+    onShow(QUESTION_TWO, ASK_TWO);
   });
 });
 
@@ -566,9 +638,10 @@ describe("an earlier question", () => {
   it("picked from the list is shown with its own notes, and offers the way back to live", async () => {
     await show("coach");
     pickListed(1);
-    expect(asked()).toHaveTextContent(QUESTION_ONE);
-    expect(notesPane()).toHaveTextContent("Asked · ");
-    expect(notesPane()).not.toHaveTextContent("Being asked");
+    onShow(QUESTION_ONE);
+    expect(notesPane()).toHaveTextContent(/Asked · \d+:\d\d/);
+    expect(notesPane()).not.toHaveTextContent("Live · ");
+    expect(notesPane()).not.toHaveTextContent("Previous question · ");
     expect(notesPane()).not.toHaveTextContent("Following live");
     expect(blocks()).toHaveLength(1);
     expect(blocks()[0]).toHaveTextContent("Name the criteria");
@@ -582,7 +655,7 @@ describe("an earlier question", () => {
     expect(question(1)).not.toHaveAttribute("data-live");
 
     fireEvent.click(back);
-    expect(asked()).toHaveTextContent(QUESTION_TWO);
+    onShow(QUESTION_TWO, ASK_TWO);
     expect(screen.queryByTestId("pn-coach-live")).toBeNull();
     expect(notesPane()).toHaveTextContent("Following live");
   });
@@ -592,7 +665,7 @@ describe("an earlier question", () => {
     pickListed(1);
     expect(screen.getByTestId("pn-coach-live")).toBeInTheDocument();
     pickListed(2);
-    expect(asked()).toHaveTextContent(QUESTION_TWO);
+    onShow(QUESTION_TWO, ASK_TWO);
     expect(screen.queryByTestId("pn-coach-live")).toBeNull();
   });
 
@@ -611,12 +684,12 @@ describe("an earlier question", () => {
       />,
     );
     await settle();
-    expect(asked()).toHaveTextContent(QUESTION_ONE);
+    onShow(QUESTION_ONE);
     expect(screen.queryByTestId("pn-coach-waiting")).toBeNull();
     fireEvent.click(screen.getByTestId("pn-coach-live"));
     // The new one has no notes yet: it is named above the last notes.
     expect(screen.getByTestId("pn-coach-waiting")).toHaveTextContent(NEXT);
-    expect(asked()).toHaveTextContent(QUESTION_TWO);
+    onShow(QUESTION_TWO, ASK_TWO);
     expect(screen.queryByTestId("pn-coach-live")).toBeNull();
   });
 
@@ -627,19 +700,19 @@ describe("an earlier question", () => {
     expect(next).toBeDisabled();
     expect(previous).toBeEnabled();
     fireEvent.click(previous);
-    expect(asked()).toHaveTextContent(QUESTION_ONE);
+    onShow(QUESTION_ONE);
     expect(screen.getByTestId("pn-coach-live")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Previous question" }),
     ).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Next question" }));
-    expect(asked()).toHaveTextContent(QUESTION_TWO);
+    onShow(QUESTION_TWO, ASK_TWO);
     expect(screen.queryByTestId("pn-coach-live")).toBeNull();
   });
 });
 
 describe("how a note is drawn", () => {
-  it("a note to say is a plain block under its title; a note to watch is a warning block", async () => {
+  it("a note to say is a plain block under its title; a note to watch is all caution, in the amber box", async () => {
     post(
       note(3, 80, {
         title: "Do not promise exactly-once",
@@ -653,13 +726,17 @@ describe("how a note is drawn", () => {
     expect(blocks()).toHaveLength(2);
     expect(say).toHaveAttribute("data-tone", "say");
     expect(watch).toHaveAttribute("data-tone", "watch");
-    expect(watch).toHaveTextContent("Do not promise exactly-once");
-    expect(watch).toHaveTextContent(
+    expect(metaOf(watch)).toContain("Do not promise exactly-once");
+    expect(linesOf(watch)).toEqual([
       "Say at-least-once with idempotent consumers",
-    );
-    // Amber marks a warning and nothing else.
-    expect(watch?.style.border).toContain("245, 184, 74");
-    expect(watch?.style.background).toContain("245, 184, 74");
+    ]);
+    expect(sectionsOf(say)).toEqual(["say"]);
+    expect(sectionsOf(watch)).toEqual(["caution"]);
+    // Amber marks a warning and nothing else: the box is the caution's own.
+    const box = watch?.querySelector<HTMLElement>('[data-section="caution"]');
+    expect(box?.style.border).toContain("245, 184, 74");
+    expect(box?.style.background).toContain("245, 184, 74");
+    expect(watch?.style.border).toBe("");
     expect(say?.style.border).toBe("");
     expect(say?.style.background).toBe("");
   });
@@ -835,7 +912,7 @@ describe("the right column of the coach view", () => {
     pickListed(1);
     fireEvent.click(tab("transcript"));
     fireEvent.click(tab("code"));
-    expect(asked()).toHaveTextContent(QUESTION_ONE);
+    onShow(QUESTION_ONE);
     expect(blocks()[0]).toHaveTextContent("Name the criteria");
     expect(screen.getByTestId("pn-coach-live")).toBeInTheDocument();
   });
@@ -845,24 +922,39 @@ describe("a note named as its question", () => {
   it("does not repeat its title above the note: the question is said once", async () => {
     post(
       note(3, 80, {
-        title: QUESTION_TWO,
+        title: ASK_TWO,
         points: ["Start from the Outbox"],
         askId: "q-consistency",
       }),
     );
     await show("coach");
     expect(blocks()).toHaveLength(2);
-    expect(blocks()[1]).toHaveTextContent("Start from the Outbox");
-    expect(blocks()[1]).not.toHaveTextContent(QUESTION_TWO);
-    expect(within(notesPane()).getAllByText(QUESTION_TWO)).toEqual([asked()]);
+    expect(linesOf(blocks()[1])).toEqual(["Start from the Outbox"]);
+    expect(metaOf(blocks()[1])).toMatch(/^Answer · [^·]+$/);
+    expect(blocks()[1]).not.toHaveTextContent(ASK_TWO);
+    expect(within(notesPane()).getAllByText(ASK_TWO)).toEqual([asked()]);
     // Any other title is still said above its note.
-    expect(blocks()[0]).toHaveTextContent("Name the techniques");
+    expect(metaOf(blocks()[0])).toMatch(
+      /^Answer · [^·]+ · Name the techniques$/,
+    );
   });
 
-  it("still names a warning, whatever its title", async () => {
+  it("the question it is compared with is the one in the heading (the coach's words), not what was heard beneath it", async () => {
     post(
       note(3, 80, {
         title: QUESTION_TWO,
+        points: ["Start from the Outbox"],
+        askId: "q-consistency",
+      }),
+    );
+    await show("coach");
+    expect(metaOf(blocks()[1])).toContain(` · ${QUESTION_TWO}`);
+  });
+
+  it("a warning named as its question does not repeat it either", async () => {
+    post(
+      note(3, 80, {
+        title: ASK_TWO,
         tone: "watch",
         points: ["Do not promise exactly-once"],
         askId: "q-consistency",
@@ -870,137 +962,263 @@ describe("a note named as its question", () => {
     );
     await show("coach");
     expect(blocks()[1]).toHaveAttribute("data-tone", "watch");
-    expect(blocks()[1]).toHaveTextContent(QUESTION_TWO);
+    expect(metaOf(blocks()[1])).toMatch(/^Answer · [^·]+$/);
+    expect(sectionsOf(blocks()[1])).toEqual(["caution"]);
   });
 });
 
 describe("a note under the call", () => {
-  const add = async (extra: Partial<CoachNote>) => {
+  const add = async (
+    extra: Partial<CoachNote>,
+    view: "coach" | "conversation" | "prompter" = "coach",
+  ) => {
     post(
       note(3, 80, { title: "Then the Saga", askId: "q-consistency", ...extra }),
     );
-    await show("coach");
+    await show(view);
     return blocks()[1] as HTMLElement;
   };
-  const bullets = (block: HTMLElement) =>
-    within(block)
-      .queryAllByRole("listitem")
-      .map((item) => item.textContent);
+  const line = (
+    ...segments: CoachNote["sections"][number]["lines"][number]["segments"]
+  ) => ({
+    segments,
+  });
+  const spoken = (text: string) => line({ text, role: "spoken" });
 
-  it("is drawn as talking points: one bullet to a whole sentence", async () => {
+  it("is drawn as talking points: one line to a whole sentence, its quotation marks dropped", async () => {
     const block = await add({
       markdown:
         "Each step has its own undo. “Say the words compensating action.”",
     });
-    expect(bullets(block)).toEqual([
+    expect(sectionsOf(block)).toEqual(["say"]);
+    expect(linesOf(block)).toEqual([
       "Each step has its own undo.",
       "Say the words compensating action.",
     ]);
   });
 
-  it("a structured note is its sections: a label over each group of points", async () => {
+  it("a structured note is its sections: each under its kind's label or its own, with the evidence marked", async () => {
     const block = await add({
       sections: [
-        { label: "Say", points: ["Each step has its own **undo**"] },
-        { label: "If pushed", points: ["Name the orchestrator"] },
+        {
+          kind: "say",
+          lines: [
+            line(
+              { text: "Each step has its own ", role: "spoken" },
+              { text: "undo", role: "evidence" },
+            ),
+          ],
+        },
+        {
+          kind: "say",
+          label: "If pushed",
+          lines: [spoken("Name the orchestrator")],
+        },
+        { kind: "caution", lines: [spoken("That covers reads only")] },
       ],
     });
+    expect(sectionsOf(block)).toEqual(["say", "say", "caution"]);
     expect(
-      within(block)
-        .getAllByRole("heading")
-        .map((heading) => heading.textContent),
-    ).toEqual(["Say", "If pushed"]);
-    expect(bullets(block)).toEqual([
+      [...block.querySelectorAll('[data-section="say"] > span')].map(
+        (label) => label.textContent,
+      ),
+    ).toEqual(["Say this", "If pushed"]);
+    expect(linesOf(block)).toEqual([
       "Each step has its own undo",
       "Name the orchestrator",
+      "That covers reads only",
     ]);
-  });
-
-  it("says what the interviewer wants above the points, with no bold marks", async () => {
-    const block = await add({
-      wants: "A **decision rule**, not a slogan",
-      points: ["Start from the trade-off"],
-    });
-    expect(block).toHaveTextContent("She wants A decision rule, not a slogan");
-    expect(block).not.toHaveTextContent("**");
     expect(
-      within(block)
-        .getByText(/A decision rule/)
-        .compareDocumentPosition(
-          within(block).getByText("Start from the trade-off"),
-        ) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-  });
-
-  it("a steer is the amber box: what is off, then the line that gets the answer back", async () => {
-    const block = await add({
-      kind: "steer",
-      steer: {
-        issue: "That covers **reads** only",
-        say: "For writes, the ledger",
-      },
-      points: ["Then the Outbox"],
-    });
-    const steer = within(block).getByTestId("pn-coach-steer");
-    expect(steer).toHaveTextContent("That covers reads only");
-    expect(steer).toHaveTextContent("For writes, the ledger");
-    expect(steer).not.toHaveTextContent("**");
-    expect(steer.style.border).toContain("245, 184, 74");
-    expect(steer.textContent?.indexOf("That covers")).toBeLessThan(
-      steer.textContent?.indexOf("For writes") as number,
-    );
-    // The rest of the note is not amber, and its points follow the box.
-    expect(block.style.border).toBe("");
-    expect(block).toHaveAttribute("data-tone", "say");
-    expect(bullets(block)).toEqual(["Then the Outbox"]);
-    expect(steer).not.toContainElement(
-      within(block).getByText("Then the Outbox"),
-    );
-  });
-
-  it("a steer with nothing else is only the box: no line back, no empty note beneath", async () => {
-    const block = await add({ steer: { issue: "Slow down a little" } });
-    const steer = within(block).getByTestId("pn-coach-steer");
-    expect(steer).toHaveTextContent(/^.*Slow down a little$/);
-    expect(steer.querySelector("p")).toBeNull();
-    expect(within(block).queryByTestId("pn-coach-note")).toBeNull();
-  });
-
-  it("a note to watch that carries a steer is not the whole-note amber block: the steer is the warning", async () => {
-    const block = await add({
-      tone: "watch",
-      steer: { issue: "Do not promise exactly-once" },
-      points: ["Say at-least-once"],
-    });
-    expect(block).toHaveAttribute("data-tone", "watch");
-    expect(block.style.border).toBe("");
-    expect(within(block).getByTestId("pn-coach-steer")).toBeInTheDocument();
-  });
-
-  it("a note to watch with no steer is still the whole note in amber, with no steer box", async () => {
-    const block = await add({ tone: "watch", points: ["Say at-least-once"] });
-    expect(block.style.border).toContain("245, 184, 74");
+      [...block.querySelectorAll('[data-role="evidence"]')].map(
+        (piece) => piece.textContent,
+      ),
+    ).toEqual(["undo"]);
+    // The steer box and the "she wants" line are gone: a caution section says it.
     expect(within(block).queryByTestId("pn-coach-steer")).toBeNull();
+    expect(block).not.toHaveTextContent("She wants");
   });
 
   it.each([
-    ["in another case", QUESTION_TWO.toUpperCase()],
-    ["after a leading Q:", `Q: ${QUESTION_TWO}`],
-    ["after a leading q: and with space round it", `q:  ${QUESTION_TWO} `],
+    ["direct-answer", "Answer"],
+    ["technical", "Technical"],
+    ["behavioral", "Behavioural"],
+    ["closing", "Closing"],
+    ["follow-up", "Follow-up"],
+    ["missed-opportunity", "Missed opportunity"],
+  ] as const)(
+    "a %s note says so over the note, with its time and its title: %s",
+    async (kind, label) => {
+      const block = await add({ kind, points: ["Start from the Outbox"] });
+      expect(block).toHaveAttribute("data-kind", kind);
+      expect(metaOf(block)).toMatch(
+        new RegExp(`^${label} · \\d+:\\d\\d[^·]* · Then the Saga$`),
+      );
+      expect(within(block).getByTestId("pn-coach-note")).toHaveAttribute(
+        "data-kind",
+        kind,
+      );
+    },
+  );
+
+  const FULL: Partial<CoachNote> = {
+    sections: [
+      { kind: "say", lines: [spoken("Each step has its own undo")] },
+      {
+        kind: "anchors",
+        lines: ["One", "Two", "Three", "Four", "Five"].map((text) =>
+          spoken(`Anchor ${text}`),
+        ),
+      },
+      { kind: "ask", lines: [spoken("Which failure worries you most?")] },
+      { kind: "context", lines: [spoken("She is probing for trade-offs")] },
+    ],
+    links: [{ label: "Saga reference", url: "https://example.com/saga" }],
+  };
+
+  it.each(["coach", "conversation"] as const)(
+    "%s: the note is drawn in full",
+    async (view) => {
+      const block = await add(FULL, view);
+      expect(within(block).getByTestId("pn-coach-note")).toHaveAttribute(
+        "data-mode",
+        "detail",
+      );
+      expect(sectionsOf(block)).toEqual(["say", "anchors", "ask", "context"]);
+      expect(block).toHaveTextContent("Anchor Five");
+      expect(within(block).getByTestId("pn-coach-link")).toHaveTextContent(
+        "Saga reference",
+      );
+    },
+  );
+
+  it("prompter: the note is the compact one: the response and three anchors, nothing to read, no links", async () => {
+    const block = await add(FULL, "prompter");
+    expect(within(block).getByTestId("pn-coach-note")).toHaveAttribute(
+      "data-mode",
+      "compact",
+    );
+    expect(sectionsOf(block)).toEqual(["say", "anchors"]);
+    expect(block).toHaveTextContent("Anchor Three");
+    expect(block).not.toHaveTextContent("Anchor Four");
+    expect(block).not.toHaveTextContent("Which failure worries you most?");
+    expect(block).not.toHaveTextContent("She is probing");
+    expect(within(block).queryByTestId("pn-coach-link")).toBeNull();
+    // The line over the note is the same in both.
+    expect(metaOf(block)).toMatch(/^Answer · [^·]+ · Then the Saga$/);
+  });
+
+  it("a revision being prepared keeps what is on show and says it is updating", async () => {
+    const block = await add({
+      status: "pending",
+      sections: [
+        { kind: "say", lines: [spoken("Each step has its own undo")] },
+      ],
+    });
+    expect(within(block).getByTestId("pn-coach-note")).toHaveAttribute(
+      "data-status",
+      "pending",
+    );
+    expect(linesOf(block)).toEqual(["Each step has its own undo"]);
+    expect(within(block).getByRole("status")).toHaveTextContent(/^Updating…$/);
+  });
+
+  it.each([
+    ["in another case", ASK_TWO.toUpperCase()],
+    ["after a leading Q:", `Q: ${ASK_TWO}`],
+    ["after a leading q: and with space round it", `q:  ${ASK_TWO} `],
   ])(
     "a title that is the question %s is not repeated above the note",
     async (_name, title) => {
       const block = await add({ title, points: ["Start from the Outbox"] });
-      expect(block).toHaveTextContent(/^Start from the Outbox$/);
+      expect(metaOf(block)).toMatch(/^Answer · [^·]+$/);
+      expect(linesOf(block)).toEqual(["Start from the Outbox"]);
     },
   );
 
   it("a title that only starts like the question is still said", async () => {
     const block = await add({
-      title: `${QUESTION_TWO} (part two)`,
+      title: `${ASK_TWO} (part two)`,
       points: ["Start from the Outbox"],
     });
-    expect(block).toHaveTextContent("(part two)");
+    expect(metaOf(block)).toMatch(
+      / · Data consistency across services \(part two\)$/,
+    );
+  });
+});
+
+describe("the question on show: the coach's few words, and what was said beneath", () => {
+  const strong = (element: Element | null) =>
+    [...(element?.querySelectorAll("span") ?? [])]
+      .filter((piece) => piece.style.fontWeight === "500")
+      .map((piece) => piece.textContent);
+
+  it("shows the coach's restatement large, and what was heard small beneath it with the whole of it on hover", async () => {
+    await show("coach");
+    expect(asked().textContent).toBe(ASK_TWO);
+    expect(heard()?.textContent).toBe(QUESTION_TWO);
+    expect(heard()).toHaveAttribute("title", QUESTION_TWO);
+    expect(
+      asked().compareDocumentPosition(heard() as HTMLElement) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    // Small, grey and cut to two lines: it places the question, it is not read.
+    const said = heard() as HTMLElement;
+    expect(said.style.overflow).toBe("hidden");
+    expect(said.style.getPropertyValue("-webkit-line-clamp")).toBe("2");
+    expect(Number.parseFloat(said.style.fontSize)).toBeLessThan(
+      Number.parseFloat(asked().style.fontSize),
+    );
+  });
+
+  it("lifts the words that carry what was heard, and leaves the rest quiet", async () => {
+    await show("coach");
+    expect(strong(heard())).toEqual([
+      "handle ",
+      "consistency between multiple services?",
+    ]);
+    // The large line is plain: one run of text, nothing lifted.
+    expect(asked().querySelector("span")).toBeNull();
+  });
+
+  it("with no restatement the heading is what was heard, cut to 60 characters, and the whole is beneath", async () => {
+    await show("coach");
+    pickListed(1);
+    expect(asked().textContent).toBe(
+      "How do you decide when a feature should be its own microserv…",
+    );
+    expect(heard()?.textContent).toBe(QUESTION_ONE);
+  });
+
+  it("a short question with no restatement is said once: nothing beneath it", async () => {
+    posted = [];
+    await show(
+      "coach",
+      session([
+        transcript(2, "Why did you leave your last role?", {
+          sourceId: "application-audio-r1",
+        }),
+      ]),
+    );
+    expect(asked().textContent).toBe("Why did you leave your last role?");
+    expect(heard()).toBeNull();
+  });
+
+  it("a restatement that is exactly what was heard is said once too", async () => {
+    const SAID = "Why did you leave your last role?";
+    posted = [note(1, 10, { ask: SAID })];
+    await show(
+      "coach",
+      session([transcript(2, SAID, { sourceId: "application-audio-r1" })]),
+    );
+    expect(asked().textContent).toBe(SAID);
+    expect(heard()).toBeNull();
+  });
+
+  it("the header over the pane names the question by the same few words", async () => {
+    await show("coach");
+    expect(notesPane()).toHaveTextContent(`Q2 · ${ASK_TWO}`);
+    pickListed(1);
+    expect(notesPane()).toHaveTextContent(`Q1 · ${cut(QUESTION_ONE)}`);
   });
 });
 
@@ -1010,7 +1228,7 @@ describe("where the notes pane opens and what moves it", () => {
     const pane = scroller();
     scrollTo(pane, 500);
     pickListed(1);
-    expect(asked()).toHaveTextContent(QUESTION_ONE);
+    onShow(QUESTION_ONE);
     expect(pane.scrollTop).toBe(0);
     expect(screen.queryByTestId("pn-coach-below")).toBeNull();
   });
@@ -1021,7 +1239,7 @@ describe("where the notes pane opens and what moves it", () => {
     const pane = scroller();
     scrollTo(pane, 500);
     fireEvent.click(screen.getByTestId("pn-coach-live"));
-    expect(asked()).toHaveTextContent(QUESTION_TWO);
+    onShow(QUESTION_TWO, ASK_TWO);
     expect(pane.scrollTop).toBe(0);
   });
 
@@ -1203,7 +1421,7 @@ describe("the bars that resize the layout", () => {
     await show("coach");
     pickListed(1);
     fireEvent.click(screen.getByTestId("pn-coach-reset"));
-    expect(asked()).toHaveTextContent(QUESTION_ONE);
+    onShow(QUESTION_ONE);
     expect(screen.getByTestId("pn-coach-live")).toBeInTheDocument();
   });
 
@@ -1258,7 +1476,7 @@ describe("a rephrasing or a follow-up the coach did not answer separately", () =
     await show("coach", withFollowUp());
     expect(followUps()).toHaveLength(0);
     pickListed(1);
-    expect(asked()).toHaveTextContent(QUESTION_ONE);
+    onShow(QUESTION_ONE);
     expect(followUps()).toHaveLength(1);
     expect(followUps()[0]).toHaveTextContent(/^Follow-up · \d+:\d\d/);
     expect(followUps()[0]).toHaveTextContent(FOLLOW_UP);
@@ -1268,7 +1486,8 @@ describe("a rephrasing or a follow-up the coach did not answer separately", () =
   it("is small, grey and cut to two lines, with the whole of it one hover away: it places the notes, it is not read out", async () => {
     await show("coach", withFollowUp());
     pickListed(1);
-    const said = within(followUps()[0] as HTMLElement).getByText(FOLLOW_UP);
+    const said = followUps()[0]?.querySelector("p") as HTMLElement;
+    expect(said.textContent).toBe(FOLLOW_UP);
     expect(said).toHaveAttribute("title", FOLLOW_UP);
     expect(said.style.overflow).toBe("hidden");
     expect(said.style.getPropertyValue("-webkit-line-clamp")).toBe("2");
@@ -1276,6 +1495,29 @@ describe("a rephrasing or a follow-up the coach did not answer separately", () =
     expect(Number.parseFloat(said.style.fontSize)).toBeLessThan(
       Number.parseFloat(asked().style.fontSize),
     );
+  });
+
+  it("lifts the words that carry it, the rest left quiet, and a rule sets it apart from the notes above", async () => {
+    await show("coach", withFollowUp());
+    pickListed(1);
+    const block = followUps()[0] as HTMLElement;
+    const pieces = [...block.querySelectorAll("p > span")] as HTMLElement[];
+    expect(pieces.map((piece) => piece.textContent)).toEqual([
+      "And how would you test that ",
+      "split ",
+      "in ",
+      "production?",
+    ]);
+    expect(pieces.map((piece) => piece.style.fontWeight)).toEqual([
+      "",
+      "500",
+      "",
+      "500",
+    ]);
+    expect(pieces[1]?.style.color).not.toBe("");
+    expect(pieces[0]?.style.color).toBe("");
+    expect(block.style.borderTop).toContain("1px solid");
+    expect(block.style.paddingTop).toBe("20px");
   });
 
   it("sits among the notes in the order they came", async () => {
@@ -1303,7 +1545,7 @@ describe("a rephrasing or a follow-up the coach did not answer separately", () =
     posted = [FIRST];
     await show("coach", withFollowUp());
     expect(listed()).toHaveLength(1);
-    expect(asked()).toHaveTextContent(QUESTION_ONE);
+    onShow(QUESTION_ONE);
     expect(followUps()).toHaveLength(1);
     expect(followUps()[0]).toHaveTextContent(FOLLOW_UP);
     expect(screen.getByTestId("pn-coach-waiting")).toHaveTextContent(
@@ -1328,7 +1570,7 @@ describe("the whole session", () => {
     expect(listed()).toHaveLength(2);
     expect(question(1)).toHaveAttribute("title", QUESTION_ONE);
     pickListed(1);
-    expect(asked()).toHaveTextContent(QUESTION_ONE);
+    onShow(QUESTION_ONE);
   });
 });
 
@@ -1373,7 +1615,7 @@ describe("picking a question brings the studio's answer to it", () => {
     await show("coach", session(heardSoFar(), { select }));
     pickListed(1);
     pickListed(2);
-    expect(asked()).toHaveTextContent(QUESTION_TWO);
+    onShow(QUESTION_TWO, ASK_TWO);
     expect(select).not.toHaveBeenCalled();
   });
 });

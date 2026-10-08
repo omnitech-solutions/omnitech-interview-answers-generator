@@ -5,6 +5,7 @@ import {
   conversationTurns,
   currentQuestion,
   echoes,
+  heardEmphasis,
   questionsOf,
   waitingTurn,
 } from "./conversation-model";
@@ -32,7 +33,9 @@ const note = (
   createdAt: new Date(T0 + seconds * 1000).toISOString(),
   title,
   tone: "say",
-  kind: "answer",
+  kind: "direct-answer",
+  revision: 1,
+  status: "ready",
   points: [],
   sections: [],
   links: [],
@@ -903,6 +906,116 @@ describe("waitingTurn: the question just asked that the coach has not answered",
     ).toEqual([
       [QUESTION_ONE, false],
       [QUESTION_TWO, true],
+    ]);
+  });
+});
+
+describe("heardEmphasis: the words that carry what was heard", () => {
+  const strong = (text: string) =>
+    heardEmphasis(text)
+      .filter((piece) => piece.strong)
+      .map((piece) => piece.text);
+
+  it("lifts a word of five letters or more, and leaves the shorter ones quiet", () => {
+    expect(heardEmphasis("Tell me why teams split")).toEqual([
+      { text: "Tell me why ", strong: false },
+      { text: "teams split", strong: true },
+    ]);
+    // Four letters are not enough; five are.
+    expect(strong("team teams")).toEqual(["teams"]);
+  });
+
+  it("leaves a long word quiet when it only joins the sentence", () => {
+    expect(
+      heardEmphasis("you know there would be behavioural challenges"),
+    ).toEqual([
+      { text: "you know there would be ", strong: false },
+      { text: "behavioural challenges", strong: true },
+    ]);
+    for (const quiet of [
+      "about",
+      "because",
+      "really",
+      "something",
+      "should",
+      "through",
+      "usually",
+      "actually",
+      "basically",
+      "sounds",
+      "great",
+    ])
+      expect(strong(`so ${quiet} then`)).toEqual([]);
+  });
+
+  it("counts letters and apostrophes only, whatever the case and the punctuation round the word", () => {
+    expect(strong("PEOPLE, (teams). a-b-c-d x1y2z3")).toEqual([
+      "PEOPLE, (teams). ",
+    ]);
+    // An apostrophe counts toward the five: "don't" carries, "it's" does not.
+    expect(strong("it's fine")).toEqual([]);
+    expect(strong("so don't go")).toEqual(["don't "]);
+    // A quiet word is quiet in any case, and with punctuation on it.
+    expect(strong("Because, WOULD: There!")).toEqual([]);
+    // Letters outside a to z do not count toward the five.
+    expect(strong("naïve café")).toEqual([]);
+    // Digits and marks alone are never lifted.
+    expect(strong("12345 ----- 2026-10-08")).toEqual([]);
+  });
+
+  it("joins neighbours of the same weight, and the spaces between, into one piece", () => {
+    expect(heardEmphasis("people challenges and the teams")).toEqual([
+      { text: "people challenges ", strong: true },
+      { text: "and the ", strong: false },
+      { text: "teams", strong: true },
+    ]);
+    // The space after a piece goes with it, whatever follows.
+    expect(heardEmphasis("a people a")).toEqual([
+      { text: "a ", strong: false },
+      { text: "people ", strong: true },
+      { text: "a", strong: false },
+    ]);
+  });
+
+  it.each([
+    "How do you handle data consistency between multiple services?",
+    "  leading and   trailing spaces, kept  ",
+    "one\ttab and a\nnew line between people",
+    "people",
+    "a",
+    "   ",
+    "",
+    "don't — “quoted” words… and 100% numbers",
+  ])("the pieces joined are exactly what was heard: %j", (text) => {
+    expect(
+      heardEmphasis(text)
+        .map((piece) => piece.text)
+        .join(""),
+    ).toBe(text);
+  });
+
+  it("no two neighbouring pieces have the same weight, and none is empty", () => {
+    const pieces = heardEmphasis(
+      "So you know there would be behavioural challenges with people and their teams usually",
+    );
+    expect(pieces.length).toBeGreaterThan(2);
+    for (const [at, piece] of pieces.entries()) {
+      expect(piece.text).not.toBe("");
+      if (at > 0) expect(piece.strong).not.toBe(pieces[at - 1]?.strong);
+    }
+  });
+
+  it("is nothing for nothing, and one quiet piece for space alone or a single short word", () => {
+    expect(heardEmphasis("")).toEqual([]);
+    expect(heardEmphasis("   ")).toEqual([{ text: "   ", strong: false }]);
+    expect(heardEmphasis("why")).toEqual([{ text: "why", strong: false }]);
+    expect(heardEmphasis("people")).toEqual([{ text: "people", strong: true }]);
+  });
+
+  it("leading space is a quiet piece of its own before a word that carries", () => {
+    expect(heardEmphasis("  people")).toEqual([
+      { text: "  ", strong: false },
+      { text: "people", strong: true },
     ]);
   });
 });

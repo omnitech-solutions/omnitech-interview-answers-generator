@@ -6,6 +6,7 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   CoachNotes,
+  lineText,
   matchesNote,
   nearestDock,
   noteBlocks,
@@ -19,12 +20,25 @@ const note = (extra: Partial<CoachNote> = {}): CoachNote => ({
   createdAt: "2026-10-08T17:40:00.000Z",
   title: "Data consistency",
   tone: "say",
-  kind: "answer",
+  kind: "direct-answer",
+  revision: 1,
+  status: "ready",
   sections: [],
   points: ["Name the Outbox pattern", "Mention idempotent consumers"],
   links: [{ label: "Saga reference", url: "https://example.com/patterns" }],
   ...extra,
 });
+
+type Segment =
+  CoachNote["sections"][number]["lines"][number]["segments"][number];
+const line = (...segments: (string | Segment)[]) => ({
+  segments: segments.map((segment) =>
+    typeof segment === "string"
+      ? { text: segment, role: "spoken" as const }
+      : segment,
+  ),
+});
+const evidence = (text: string): Segment => ({ text, role: "evidence" });
 
 describe("matchesNote", () => {
   it("matches every note for an empty or blank search", () => {
@@ -225,39 +239,108 @@ describe("talkingPoints", () => {
   });
 });
 
+describe("lineText", () => {
+  it("is the line's pieces joined as written, with its evidence in bold", () => {
+    expect(
+      lineText(line("Start from the ", evidence("Outbox"), " pattern")),
+    ).toBe("Start from the **Outbox** pattern");
+    expect(lineText(line("One transaction"))).toBe("One transaction");
+    expect(lineText(line(evidence("Acme")))).toBe("**Acme**");
+  });
+
+  it("only evidence is bold: a caution or a context piece is plain text", () => {
+    expect(
+      lineText(
+        line(
+          "Say ",
+          { text: "at-least-once", role: "caution" },
+          { text: " (not exactly-once)", role: "context" },
+        ),
+      ),
+    ).toBe("Say at-least-once (not exactly-once)");
+  });
+});
+
 describe("a structured note", () => {
   const structured = note({
     points: [],
     sections: [
       {
-        label: "Say",
-        points: ["Start from the **Outbox**", "One transaction"],
+        kind: "say",
+        lines: [
+          line("Start from the ", evidence("Outbox")),
+          line("One transaction"),
+        ],
       },
-      { label: "If pushed", points: ["Name the Saga"] },
+      { kind: "say", label: "If pushed", lines: [line("Name the Saga")] },
     ],
   });
 
   it("reads as the same Markdown a written note would: each section a heading over its bullets", () => {
     expect(noteMarkdown(structured)).toBe(
-      "## Say\n- Start from the **Outbox**\n- One transaction\n## If pushed\n- Name the Saga",
+      "## Say this\n- Start from the **Outbox**\n- One transaction\n## If pushed\n- Name the Saga",
     );
   });
+
+  it.each([
+    ["say", "Say this"],
+    ["anchors", "Anchors"],
+    ["ask", "Ask"],
+    ["caution", "Careful"],
+    ["context", "Context"],
+  ] as const)(
+    "a %s section with no heading of its own is under %s",
+    (kind, heading) => {
+      expect(
+        noteMarkdown(
+          note({ points: [], sections: [{ kind, lines: [line("L")] }] }),
+        ),
+      ).toBe(`## ${heading}\n- L`);
+      expect(
+        noteMarkdown(
+          note({
+            points: [],
+            sections: [{ kind, label: "Mine", lines: [line("L")] }],
+          }),
+        ),
+      ).toBe("## Mine\n- L");
+    },
+  );
 
   it("puts the plain points first, then the sections, then the diagram as a mermaid fence", () => {
     expect(
       noteMarkdown(
         note({
           points: ["Lead with the result"],
-          sections: [{ label: "Proof", points: ["40% fewer retries"] }],
+          sections: [
+            {
+              kind: "anchors",
+              label: "Proof",
+              lines: [line(evidence("40%"), " fewer retries")],
+            },
+          ],
           diagram: "flowchart LR\n  A --> B",
         }),
       ),
     ).toBe(
-      "- Lead with the result\n## Proof\n- 40% fewer retries\n```mermaid\nflowchart LR\n  A --> B\n```",
+      "- Lead with the result\n## Proof\n- **40%** fewer retries\n```mermaid\nflowchart LR\n  A --> B\n```",
     );
     expect(
       noteBlocks(noteMarkdown(note({ points: [], diagram: "flowchart LR" }))),
     ).toEqual([{ kind: "code", language: "mermaid", source: "flowchart LR" }]);
+  });
+
+  it("its Markdown reads back into the blocks it was built from", () => {
+    expect(noteBlocks(noteMarkdown(structured))).toEqual([
+      { kind: "heading", text: "Say this" },
+      {
+        kind: "list",
+        ordered: false,
+        items: ["Start from the **Outbox**", "One transaction"],
+      },
+      { kind: "heading", text: "If pushed" },
+      { kind: "list", ordered: false, items: ["Name the Saga"] },
+    ]);
   });
 
   it("its own Markdown stands when it has some, and it says nothing when it has nothing", () => {
@@ -267,28 +350,62 @@ describe("a structured note", () => {
     expect(noteMarkdown(note({ points: [] }))).toBe("");
   });
 
-  it("is found by its restatement, what was heard, what is wanted, its steer and its sections", () => {
+  it("is found by its restatement, what was heard and any piece of its sections' lines, whatever its role", () => {
     const full = note({
       points: [],
       ask: "Splitting services",
       heard: "When would you carve out a microservice",
-      wants: "A decision rule, not a slogan",
-      steer: { issue: "That covers reads only", say: "For writes, the ledger" },
-      sections: [{ label: "Proof", points: ["Cut deploys to minutes"] }],
+      sections: [
+        {
+          kind: "anchors",
+          label: "Proof",
+          lines: [line("Cut ", evidence("deploys"), " to minutes")],
+        },
+        {
+          kind: "caution",
+          lines: [
+            line(
+              { text: "That covers reads only", role: "caution" },
+              { text: " (the ledger is separate)", role: "context" },
+            ),
+          ],
+        },
+      ],
     });
     for (const word of [
       "splitting",
       "carve",
-      "slogan",
+      "deploys",
+      "minutes",
       "reads",
       "ledger",
-      "proof",
-      "deploys",
+      "DEPLOYS minutes carve",
     ])
       expect(matchesNote(full, word)).toBe(true);
     expect(matchesNote(full, "kubernetes")).toBe(false);
+    expect(matchesNote(full, "deploys kubernetes")).toBe(false);
+    // A word written across two pieces of one line is still one word.
+    expect(
+      matchesNote(
+        note({
+          points: [],
+          sections: [{ kind: "say", lines: [line("Out", "box")] }],
+        }),
+        "outbox",
+      ),
+    ).toBe(true);
     // A note without them is still searched by what it has.
     expect(matchesNote(note(), "outbox")).toBe(true);
+  });
+
+  it("is not found by a section's heading or its diagram: only by what it says", () => {
+    const full = note({
+      points: [],
+      sections: [{ kind: "say", label: "Proof", lines: [line("One")] }],
+      diagram: "flowchart LR",
+    });
+    expect(matchesNote(full, "proof")).toBe(false);
+    expect(matchesNote(full, "flowchart")).toBe(false);
   });
 });
 
@@ -333,16 +450,18 @@ describe("a note under its question (inline)", () => {
     ]);
   });
 
-  it("draws a structured note's sections as headings over their points, and no steer of its own", () => {
+  it("draws a structured note's sections as headings over their points", () => {
     const { container } = render(
       <Prompter
         note={note({
           points: [],
           sections: [
-            { label: "Say", points: ["Start from the **Outbox**"] },
-            { label: "If pushed", points: ["Name the Saga"] },
+            {
+              kind: "say",
+              lines: [line("Start from the ", evidence("Outbox"))],
+            },
+            { kind: "say", label: "If pushed", lines: [line("Name the Saga")] },
           ],
-          steer: { issue: "That covers reads only" },
         })}
         inline
       />,
@@ -351,12 +470,12 @@ describe("a note under its question (inline)", () => {
       within(container)
         .getAllByRole("heading")
         .map((heading) => heading.textContent),
-    ).toEqual(["Say", "If pushed"]);
+    ).toEqual(["Say this", "If pushed"]);
     expect(points(container)).toEqual([
       "Start from the Outbox",
       "Name the Saga",
     ]);
-    expect(container).not.toHaveTextContent("That covers reads only");
+    expect(container.querySelector("li strong")).toHaveTextContent("Outbox");
   });
 
   it("draws a note's plain points as bullets too, with its own dot and no list marker", () => {
@@ -421,28 +540,42 @@ describe("a note in the docked coach panel (not inline)", () => {
     ).toEqual(["Name the Outbox. Say why it is safe."]);
   });
 
-  it("says the steer above the note: what is off, then the line back", () => {
+  it("draws a structured note as headings over bullets: a caution under Careful, the evidence in bold, and no steer of its own", () => {
     const { container } = render(
       <Prompter
         note={note({
-          steer: { issue: "That covers **reads** only.", say: "For writes…" },
+          points: [],
+          sections: [
+            {
+              kind: "say",
+              lines: [line("Start from the ", evidence("Outbox"))],
+            },
+            {
+              kind: "caution",
+              lines: [line("That covers reads only."), line("For writes…")],
+            },
+          ],
         })}
       />,
     );
-    const steer = container.querySelector("p") as HTMLElement;
-    expect(steer).toHaveTextContent("That covers reads only. For writes…");
     expect(
-      steer.compareDocumentPosition(
-        container.querySelector("li") as HTMLElement,
-      ) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    cleanup();
-    const alone = render(
-      <Prompter note={note({ steer: { issue: "Slow down a little" } })} />,
+      within(container)
+        .getAllByRole("heading")
+        .map((heading) => heading.textContent),
+    ).toEqual(["Say this", "Careful"]);
+    expect(
+      [...container.querySelectorAll("li")].map((item) => item.textContent),
+    ).toEqual([
+      "Start from the Outbox",
+      "That covers reads only.",
+      "For writes…",
+    ]);
+    expect(container.querySelector("li strong")).toHaveTextContent("Outbox");
+    // The title is in the head and nothing stands between it and the sections.
+    expect(container.querySelector("header")).toHaveTextContent(
+      "SayData consistency",
     );
-    expect(alone.container.querySelector("p")).toHaveTextContent(
-      /^Slow down a little$/,
-    );
+    expect(container.querySelector("p")).toBeNull();
   });
 
   it("keeps numbered steps numbered", () => {

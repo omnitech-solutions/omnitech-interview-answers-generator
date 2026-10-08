@@ -3010,7 +3010,11 @@ describe("the layout chosen in the View menu", () => {
         "/api/v1/coach-notes",
         expect.objectContaining({ method: "GET" }),
       );
-      expect(screen.getByTestId("pn-coach-asked")).toHaveTextContent(QUESTION);
+      // The question in a few words (what was heard, cut), the whole beneath.
+      expect(screen.getByTestId("pn-coach-asked").textContent).toBe(
+        `${QUESTION.slice(0, 60).trimEnd()}…`,
+      );
+      expect(screen.getByTestId("pn-coach-heard").textContent).toBe(QUESTION);
       expect(screen.getByTestId("pn-coach-block")).toHaveTextContent(
         "Name the Outbox pattern",
       );
