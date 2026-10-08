@@ -150,11 +150,14 @@ export const currentQuestion = (turns: readonly Turn[]): PanelRow | null =>
 // The questions, for the list and the notes. `live` is the one on the table.
 //
 // [DOMAIN] An interviewer rephrases, prompts and follows up, and each of those
-// is heard as its own question. A question in the list is one the coach has
-// answered (it holds notes) or one still waiting for the coach (asked after
-// the last note). Everything asked in between belongs to the answered
-// question before it, as a follow-up, with whatever was said and answered
-// under it: so no row in the list is an empty one that was only a rephrasing.
+// is heard as its own question. Once a coach is writing notes, a question in
+// the list is one the coach has answered (it holds notes): a row with nothing
+// under it is only a distraction. Everything else that was asked belongs to
+// the answered question before it, as a follow-up, with whatever was said and
+// answered under it. The one exception is the question just asked, whose
+// notes have not arrived: it is `waitingTurn`, named above the notes on show
+// and given no row until it has notes of its own. With no coach's notes at
+// all, every question heard is listed.
 export type Question = Turn & {
   number: number;
   live: boolean;
@@ -162,22 +165,37 @@ export type Question = Turn & {
   // What else was asked under this question, oldest first.
   followUps: PanelRow[];
 };
-export function questionsOf(turns: readonly Turn[]): Question[] {
+
+// The question just asked that the coach has not answered yet, if there is one.
+export function waitingTurn(turns: readonly Turn[]): Turn | undefined {
   const lastNoted = turns.findLastIndex((turn) => turn.notes.length > 0);
+  const last = turns[turns.length - 1];
+  return lastNoted >= 0 &&
+    last !== undefined &&
+    turns.length - 1 > lastNoted &&
+    last.question !== null
+    ? last
+    : undefined;
+}
+
+export function questionsOf(turns: readonly Turn[]): Question[] {
+  const coached = turns.some((turn) => turn.notes.length > 0);
+  const waiting = waitingTurn(turns);
   const asked: (Turn & { followUps: PanelRow[] })[] = [];
-  turns.forEach((turn, at) => {
-    const previous = asked[asked.length - 1];
-    const folds = turn.notes.length === 0 && at < lastNoted && previous;
-    if (!folds) {
-      if (turn.question !== null || turn.notes.length > 0)
-        asked.push({ ...turn, followUps: [] });
-      return;
+  for (const turn of turns) {
+    if (turn === waiting) continue;
+    if (turn.notes.length > 0 || (!coached && turn.question !== null)) {
+      asked.push({ ...turn, followUps: [] });
+      continue;
     }
+    // Asked before the coach's first note, with nothing to hang it on.
+    const previous = asked[asked.length - 1];
+    if (!previous) continue;
     if (turn.question) previous.followUps.push(turn.question);
     previous.asides = [...previous.asides, ...turn.asides];
     previous.studio = [...previous.studio, ...turn.studio];
     previous.mine = [...previous.mine, ...turn.mine];
-  });
+  }
   return asked.map((turn, at) => {
     const heard = turn.question?.text ?? turn.notes[0]?.title ?? "";
     return {
