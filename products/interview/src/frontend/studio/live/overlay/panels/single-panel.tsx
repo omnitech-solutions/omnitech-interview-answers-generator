@@ -14,7 +14,7 @@ import {
 } from "react";
 import { Footer, failureNote } from "../overlay-footer";
 import { COACH_WINDOW, useChatView } from "./chat-view-pref";
-import { useCoachWindowWidth } from "./coach-columns";
+import { useCoachWindowHeight, useCoachWindowWidth } from "./coach-columns";
 import { CoachLayout } from "./coach-layout";
 import { CoachNotes, coachReserve } from "./coach-notes";
 import { FOCUS_INPUT_EVENT } from "./commands";
@@ -107,6 +107,7 @@ export function SinglePanel({
   const shown = layout === "transcript" ? TRANSCRIPT_ONLY : chosen;
   // The width the person dragged a coach layout's window to, if they did.
   const draggedWidth = useCoachWindowWidth();
+  const draggedHeight = useCoachWindowHeight();
   // What each pane shows. The ids and sizes live in PANES.
   const view: Record<PaneId, (session: PanelSession) => ReactNode> = {
     chat: (session) => <ChatPanel s={session} />,
@@ -224,7 +225,9 @@ export function SinglePanel({
         const current = window.innerHeight;
         // The call sits above the notes, so a coach layout needs more height.
         const least = coachView ? COACH_WINDOW[coachView].height : PANE_HEIGHT;
-        if (current >= least) paneHeight.current = current;
+        // A height dragged from the layout's bottom edge stands as given.
+        if (coachView && draggedHeight !== null) height = draggedHeight;
+        else if (current >= least) paneHeight.current = current;
         else height = Math.max(paneHeight.current ?? 0, least);
       }
       void presentation.setWindowSize?.({
@@ -247,6 +250,7 @@ export function SinglePanel({
     shown,
     coachView,
     draggedWidth,
+    draggedHeight,
     holdBody,
     anyPane,
     ended,

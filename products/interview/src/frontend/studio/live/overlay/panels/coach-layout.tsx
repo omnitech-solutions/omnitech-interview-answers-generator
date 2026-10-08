@@ -227,8 +227,20 @@ const STYLE = {
     alignSelf: "center",
     flex: "0 0 auto",
   },
-  pane: { flex: "1 1 0", minHeight: 0, minWidth: 0, display: "flex" },
+  // The pane inside is a panel of its own, so the tab panel draws no box.
+  pane: {
+    flex: "1 1 0",
+    minHeight: 0,
+    minWidth: 0,
+    display: "flex",
+    margin: 0,
+    padding: 0,
+    border: 0,
+    background: "transparent",
+    boxShadow: "none",
+  },
   fill: { flex: "1 1 0", minWidth: 0, minHeight: 0 },
+  columns: { flex: "1 1 0", minWidth: 0, minHeight: 0, display: "flex" },
   panelFill: { display: "flex", flexDirection: "column", minHeight: 0 },
   callSlot: {
     boxSizing: "border-box",
@@ -642,8 +654,13 @@ function RightTabs({
     // What the answers are built from: the brief and the experience matrix.
     context: <ContextPane s={s} notes={notes} />,
   };
+  const [open, setOpen] = useState<TabId>("answer");
   return (
-    <Tabs defaultValue="answer" style={STYLE.tabsRoot}>
+    <Tabs
+      value={open}
+      onValueChange={(next) => setOpen(next as TabId)}
+      style={STYLE.tabsRoot}
+    >
       {/* A surface of its own, so the see-through window gives it the mouse. */}
       <TabsBar
         aria-label="Answer, transcript, code or context"
@@ -661,7 +678,12 @@ function RightTabs({
         ))}
       </TabsBar>
       {TABS.map((each) => (
-        <TabPanel key={each.id} value={each.id} style={STYLE.pane}>
+        // A closed panel stays hidden: only the open one is laid out.
+        <TabPanel
+          key={each.id}
+          value={each.id}
+          {...(each.id === open ? { style: STYLE.pane } : {})}
+        >
           {pane[each.id]}
         </TabPanel>
       ))}
@@ -755,62 +777,57 @@ export function CoachLayout({
       </SplitterPanel>
     </Splitter>
   );
-  if (view === "prompter")
-    return (
-      <div
-        className="pn-single-body"
-        style={{ ...STYLE.body, gap: 0 }}
-        data-view={view}
-        data-testid="pn-coach-layout"
-      >
-        <WindowEdge side="left" />
-        {centre}
-        <WindowEdge side="right" />
-      </div>
-    );
-  return (
+  // The row of columns between the window's side edges, over its bottom edge.
+  const frame = (columns: ReactNode) => (
     <div
       className="pn-single-body"
-      style={{ ...STYLE.body, gap: 0 }}
+      style={{ ...STYLE.body, flexDirection: "column", gap: 0 }}
       data-view={view}
       data-testid="pn-coach-layout"
     >
-      <WindowEdge side="left" />
-      <Splitter {...splitter} style={STYLE.fill}>
-        <SplitterPanel
-          id="questions"
-          label="the questions"
-          defaultSize={QUESTIONS_WIDTH}
-          minSize={0}
-          maxSize={QUESTIONS_CEILING}
-          style={STYLE.panelFill}
-        >
-          <QuestionsList
-            questions={questions}
-            shownKey={shown?.key}
-            onPick={pick}
-          />
-        </SplitterPanel>
-        <SplitterPanel id="main" minSize={CENTRE_FLOOR} style={STYLE.panelFill}>
-          {centre}
-        </SplitterPanel>
-        <SplitterPanel
-          id="side"
-          label="the answer"
-          defaultSize={RIGHT_WIDTH}
-          minSize={0}
-          style={{ ...STYLE.panelFill, gap: 8 }}
-        >
-          {view === "coach" ? (
-            <RightTabs s={s} notes={shown?.notes ?? []} />
-          ) : (
-            <div style={STYLE.pane}>
-              <ChatPanel s={s} />
-            </div>
-          )}
-        </SplitterPanel>
-      </Splitter>
-      <WindowEdge side="right" />
+      <div style={STYLE.columns}>
+        <WindowEdge side="left" />
+        {columns}
+        <WindowEdge side="right" />
+      </div>
+      <WindowEdge side="bottom" />
     </div>
+  );
+  if (view === "prompter") return frame(centre);
+  return frame(
+    <Splitter {...splitter} style={STYLE.fill}>
+      <SplitterPanel
+        id="questions"
+        label="the questions"
+        defaultSize={QUESTIONS_WIDTH}
+        minSize={0}
+        maxSize={QUESTIONS_CEILING}
+        style={STYLE.panelFill}
+      >
+        <QuestionsList
+          questions={questions}
+          shownKey={shown?.key}
+          onPick={pick}
+        />
+      </SplitterPanel>
+      <SplitterPanel id="main" minSize={CENTRE_FLOOR} style={STYLE.panelFill}>
+        {centre}
+      </SplitterPanel>
+      <SplitterPanel
+        id="side"
+        label="the answer"
+        defaultSize={RIGHT_WIDTH}
+        minSize={0}
+        style={{ ...STYLE.panelFill, gap: 8 }}
+      >
+        {view === "coach" ? (
+          <RightTabs s={s} notes={shown?.notes ?? []} />
+        ) : (
+          <div style={STYLE.pane}>
+            <ChatPanel s={s} />
+          </div>
+        )}
+      </SplitterPanel>
+    </Splitter>,
   );
 }
