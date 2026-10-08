@@ -13,7 +13,14 @@
 // the pane follows it only when the reader is already at the bottom.
 //
 // Styles are inline: the native window keeps its stylesheet until it reloads.
-import { Button, IconButton } from "@oc-tech/omni-ui-components";
+import {
+  Button,
+  IconButton,
+  Tab,
+  TabPanel,
+  Tabs,
+  TabsBar,
+} from "@oc-tech/omni-ui-components";
 import type { CoachNote } from "@omnitech/interview-contracts";
 import {
   type CSSProperties,
@@ -211,18 +218,15 @@ const STYLE = {
     alignSelf: "center",
     flex: "0 0 auto",
   },
-  tabs: {
-    flex: "0 0 auto",
-    display: "flex",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 2,
-    padding: 4,
-    borderRadius: 12,
-    background: PANEL,
-    border: `1px solid ${LINE}`,
-  },
   pane: { flex: "1 1 0", minHeight: 0, minWidth: 0, display: "flex" },
+  tabsRoot: {
+    flex: "1 1 0",
+    minHeight: 0,
+    minWidth: 0,
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+  },
 } satisfies Record<string, CSSProperties>;
 
 // ---- Questions ------------------------------------------------------------------
@@ -712,7 +716,6 @@ function RightTabs({
   // The notes on show, for the Context tab to mark what they lean on.
   notes: readonly CoachNote[];
 }) {
-  const [tab, setTab] = useState<TabId>("answer");
   const pane: Record<TabId, ReactNode> = {
     answer: <AnswerPanel s={s} />,
     transcript: <ChatPanel s={s} />,
@@ -721,32 +724,29 @@ function RightTabs({
     context: <ContextPane s={s} notes={notes} />,
   };
   return (
-    <>
-      <div
-        className="pn-card"
-        style={STYLE.tabs}
-        role="tablist"
+    <Tabs defaultValue="answer" style={STYLE.tabsRoot}>
+      {/* A surface of its own, so the see-through window gives it the mouse. */}
+      <TabsBar
         aria-label="Answer, transcript, code or context"
+        data-hit-surface=""
       >
         {TABS.map((each) => (
-          <Button
+          <Tab
             key={each.id}
-            buttonSize="sm"
-            variant={each.id === tab ? "secondary" : "ghost"}
-            icon={<Icon name={each.icon} />}
-            role="tab"
-            aria-selected={each.id === tab}
-            onClick={() => setTab(each.id)}
+            value={each.id}
             data-testid={`pn-coach-tab-${each.id}`}
           >
+            <Icon name={each.icon} />
             {each.label}
-          </Button>
+          </Tab>
         ))}
-      </div>
-      <div style={STYLE.pane} role="tabpanel">
-        {pane[tab]}
-      </div>
-    </>
+      </TabsBar>
+      {TABS.map((each) => (
+        <TabPanel key={each.id} value={each.id} style={STYLE.pane}>
+          {pane[each.id]}
+        </TabPanel>
+      ))}
+    </Tabs>
   );
 }
 
