@@ -296,7 +296,7 @@ export function SinglePanel({
         />
       </div>
       {/* What a coach wants said next, and the documentation for the topic. */}
-      <CoachNotes enabled={s.open} />
+      <CoachNotes enabled={s.open} setWindowSize={presentation.setWindowSize} />
     </>
   );
 }

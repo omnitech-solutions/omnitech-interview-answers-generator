@@ -12,6 +12,7 @@ import {
   type ReactNode,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -98,6 +99,12 @@ export const noteMarkdown = (note: CoachNote): string =>
 const ACCENT = "var(--oui-accent, #7aa2ff)";
 const MUTED = "var(--ov-muted, #9aa4b2)";
 const STYLE = {
+  strip: {
+    flex: "0 0 auto",
+    display: "flex",
+    flexDirection: "column",
+    padding: "6px 10px",
+  },
   bar: { display: "flex", alignItems: "center", gap: 8, minWidth: 0 },
   body: {
     display: "grid",
@@ -378,8 +385,58 @@ function Prompter({ note }: { note: CoachNote }) {
 const timeOf = (iso: string) =>
   new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
-export function CoachNotes({ enabled }: { enabled: boolean }) {
+// The gap the window's rows keep between them (panels.css): a strip that
+// appears adds its own height and one gap.
+const ROW_GAP = 8;
+const MAX_STRIP_HEIGHT = 340;
+
+export function CoachNotes({
+  enabled,
+  setWindowSize,
+}: {
+  enabled: boolean;
+  // The shell's window size, when this page is hosted natively.
+  setWindowSize?:
+    | ((size: { width: number; height?: number }) => unknown)
+    | undefined;
+}) {
   const { notes, clear } = useCoachNotes(enabled);
+  // [DOMAIN] The strip never takes room from the panes above it: the window
+  // grows by the strip's height when it appears or opens, and gives that
+  // height back when it folds or goes. The panes keep the height they had.
+  const strip = useRef<HTMLElement | null>(null);
+  const added = useRef(0);
+  const resize = useRef(setWindowSize);
+  resize.current = setWindowSize;
+  const follow = (height: number) => {
+    // Bounded, so nothing can make the window chase its own height.
+    const wanted =
+      height > 0 ? Math.min(Math.ceil(height), MAX_STRIP_HEIGHT) + ROW_GAP : 0;
+    const change = wanted - added.current;
+    if (change === 0 || !resize.current) return;
+    added.current = wanted;
+    void resize.current({
+      width: window.innerWidth,
+      height: Math.max(window.innerHeight + change, 200),
+    });
+  };
+  const attach = (element: HTMLElement | null) => {
+    strip.current = element;
+  };
+  useLayoutEffect(() => {
+    const element = strip.current;
+    if (!element) {
+      follow(0);
+      return;
+    }
+    follow(element.offsetHeight);
+    if (typeof ResizeObserver === "undefined") return;
+    const watch = new ResizeObserver(() => follow(element.offsetHeight));
+    watch.observe(element);
+    return () => watch.disconnect();
+  });
+  // Leaving (the session ended, the window closed its panes) gives it back.
+  useEffect(() => () => follow(0), []);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   // The note on show: the one picked from the history, or the newest.
@@ -399,6 +456,10 @@ export function CoachNotes({ enabled }: { enabled: boolean }) {
   const shown = found.find((note) => note.id === picked) ?? found[0];
   return (
     <section
+      ref={attach}
+      // Its own height only, never a share of the window's: a strip that
+      // stretched with the window would ask for a taller window again.
+      style={STYLE.strip}
       className="pn-card pn-coach"
       aria-label="Coach notes"
       data-testid="pn-coach"
