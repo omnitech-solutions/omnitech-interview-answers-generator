@@ -182,10 +182,13 @@ function reloadOnStaleStyles(card: HTMLElement, size: keyof typeof CARD_PX) {
 export function CoachNoteView({
   note,
   mode = "detail",
+  meta,
 }: {
   note: CoachNote;
   // "compact": the response and at most three anchors, nothing to read.
   mode?: "detail" | "compact";
+  // A quiet line above the note: its kind and time.
+  meta?: string;
 }) {
   const drawn = drawnSections(note);
   const size = useCoachTextSize();
@@ -197,6 +200,7 @@ export function CoachNoteView({
     <CueCard
       ref={card}
       size={size}
+      {...(meta ? { meta, inset: true } : {})}
       sections={drawn.sections.map(cueSection)}
       mode={mode}
       status={note.status}

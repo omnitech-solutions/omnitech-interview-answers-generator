@@ -12,9 +12,12 @@
 // never swapped out while it is being read: a new one is added beneath, and
 // the pane follows it only when the reader is already at the bottom.
 //
-// Styles are inline: the native window keeps its stylesheet until it reloads.
+// What is drawn comes from the UI library; the few inline styles left size
+// the layout's own boxes (the columns, the call's room).
 import {
   Button,
+  Divider,
+  Empty,
   HeardLine,
   IconButton,
   OutlineList,
@@ -26,15 +29,10 @@ import {
   TabPanel,
   Tabs,
   TabsBar,
+  Tag,
 } from "@oc-tech/omni-ui-components";
 import type { CoachNote } from "@omnitech/interview-contracts";
-import {
-  type CSSProperties,
-  type ReactNode,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { type CSSProperties, type ReactNode, useState } from "react";
 import { Icon } from "../../../icon";
 import { ChatPanel } from "./chat-panel";
 import { type ChatView, QUESTIONS_WIDTH, RIGHT_WIDTH } from "./chat-view-pref";
@@ -65,10 +63,7 @@ import { clock, panelRows } from "./panel-model";
 import { AnswerPanel, CodePanel, type PanelSession } from "./panel-views";
 
 const ASK = "#3ecf72";
-const WARN = "#f5b84a";
 const READ = "#f2f2f3";
-const DIM = "#8e8e93";
-const FAINT = "#6e6e73";
 const PANEL = "#1c1c1e";
 const LINE = "#2c2c2f";
 // The room the call opens with, and what the notes and the centre always keep.
@@ -76,8 +71,6 @@ const CALL_HEIGHT = 250;
 const NOTES_FLOOR = 160;
 const CENTRE_FLOOR = 320;
 const QUESTIONS_CEILING = 360;
-// The reader counts as "at the bottom" within this many px of it.
-const FOLLOW_SLACK = 48;
 
 const TEXT_SIZE_LABEL: Record<CoachTextSize, string> = {
   sm: "S",
@@ -91,8 +84,6 @@ const TEXT_SIZE_NAME: Record<CoachTextSize, string> = {
   lg: "Large",
   xl: "Extra large",
 };
-// The colour of the question on show, as the list marks its chosen row.
-const CHOSEN = "var(--oui-tone-accent-fg)";
 const STYLE = {
   // The library panes inside a coach layout (answer, transcript, code) take
   // the same neutral grey as the notes: no blue panel in these layouts.
@@ -131,127 +122,6 @@ const STYLE = {
     padding: "0 8px 0 14px",
     borderBottom: `1px solid ${LINE}`,
     minWidth: 0,
-  },
-  caps: {
-    fontSize: 11,
-    fontWeight: 600,
-    letterSpacing: "0.08em",
-    textTransform: "uppercase",
-    color: DIM,
-    whiteSpace: "nowrap",
-  },
-  small: {
-    fontSize: 12,
-    color: FAINT,
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-    minWidth: 0,
-  },
-  list: {
-    flex: "1 1 0",
-    minHeight: 0,
-    overflow: "auto",
-    display: "flex",
-    flexDirection: "column",
-    gap: 2,
-    padding: 8,
-  },
-  notes: {
-    flex: "1 1 0",
-    minHeight: 0,
-    overflow: "auto",
-    overflowAnchor: "auto",
-    padding: "18px 24px 24px",
-    display: "flex",
-    flexDirection: "column",
-    gap: 16,
-  },
-  asked: { display: "flex", gap: 14 },
-  askBar: { flex: "0 0 4px", borderRadius: 2, background: ASK },
-  askLabel: {
-    fontSize: 11,
-    fontWeight: 600,
-    letterSpacing: "0.08em",
-    textTransform: "uppercase",
-    color: ASK,
-  },
-  askText: {
-    margin: "4px 0 0",
-    fontSize: 21,
-    lineHeight: 1.35,
-    fontWeight: 600,
-    color: READ,
-    textWrap: "pretty",
-  },
-  waiting: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 2,
-    padding: "10px 14px",
-    borderRadius: 10,
-    background: "rgba(62, 207, 114, 0.1)",
-    border: "1px solid rgba(62, 207, 114, 0.35)",
-  },
-  // What she said, as heard: there to place the notes, not to be read out, so
-  // it is small, grey and cut to two lines (the whole of it is in its title).
-  followUp: {
-    margin: "3px 0 0",
-    fontSize: 15,
-    lineHeight: 1.45,
-    color: DIM,
-    display: "-webkit-box",
-    WebkitLineClamp: 2,
-    WebkitBoxOrient: "vertical",
-    overflow: "hidden",
-  },
-  heardStrong: { color: "#dcdce0", fontWeight: 500 },
-  waitingText: {
-    margin: "3px 0 0",
-    fontSize: 17,
-    lineHeight: 1.4,
-    fontWeight: 600,
-    color: READ,
-  },
-  note: {
-    paddingLeft: 18,
-    display: "flex",
-    flexDirection: "column",
-    gap: 12,
-  },
-  warn: {
-    marginLeft: 18,
-    padding: "8px 12px",
-    borderRadius: 9,
-    background: "rgba(245, 184, 74, 0.1)",
-    border: "1px solid rgba(245, 184, 74, 0.35)",
-  },
-  noteMeta: { fontSize: 11.5, color: FAINT },
-  previous: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    fontSize: 11,
-    fontWeight: 600,
-    letterSpacing: "0.08em",
-    textTransform: "uppercase",
-    color: FAINT,
-  },
-  rule: { flex: "1 1 auto", height: 1, background: LINE },
-  warnTitle: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    color: WARN,
-    fontSize: 15,
-    fontWeight: 600,
-  },
-  empty: { margin: 0, fontSize: 15, lineHeight: 1.5, color: DIM },
-  pill: {
-    position: "sticky",
-    bottom: 0,
-    alignSelf: "center",
-    flex: "0 0 auto",
   },
   // The pane inside is a panel of its own, so the tab panel draws no box.
   pane: {
@@ -362,22 +232,20 @@ function NoteBlock({
   compact: boolean;
 }) {
   return (
-    <div
-      style={STYLE.note}
-      data-tone={note.tone}
-      data-kind={note.kind}
-      data-testid="pn-coach-block"
-    >
-      <span style={STYLE.noteMeta}>
-        {`${KIND_LABEL[note.kind]} · ${clock(Date.parse(note.createdAt))}`}
-        {/* A note named as its question says the heading once, not twice. */}
-        {sameTopic(note.title, heading) ? "" : ` · ${note.title}`}
-      </span>
-      <CoachNoteView note={note} mode={compact ? "compact" : "detail"} />
-    </div>
+    <CoachNoteView
+      note={note}
+      mode={compact ? "compact" : "detail"}
+      // A note named as its question says the heading once, not twice.
+      meta={`${KIND_LABEL[note.kind]} · ${clock(Date.parse(note.createdAt))}${
+        sameTopic(note.title, heading) ? "" : ` · ${note.title}`
+      }`}
+    />
   );
 }
 
+// [DOMAIN] The notes pane is drawn from the library's parts alone: its Panel
+// (heading, actions, scrolling), a HeardLine for the question and for each
+// follow-up, a CueCard per note, and its Divider, Tag and Empty.
 function NotesPane({
   label,
   question,
@@ -410,75 +278,25 @@ function NotesPane({
   const at = question ? questions.indexOf(question) : -1;
   const previous = at > 0 ? questions[at - 1] : undefined;
   const next = at >= 0 ? questions[at + 1] : undefined;
-  // [DOMAIN] The block being read stays where it is. A note added beneath is
-  // followed only when the reader is already at the bottom; otherwise a pill
-  // says it is there.
-  const scroller = useRef<HTMLDivElement>(null);
-  const atBottom = useRef(true);
-  const [below, setBelow] = useState(false);
-  const noteCount = question?.notes.length ?? 0;
-  const key = question?.key;
-  // The question and the note count the pane last settled on.
-  const settled = useRef<{ key: string | undefined; count: number }>({
-    key: undefined,
-    count: 0,
-  });
-  useLayoutEffect(() => {
-    const element = scroller.current;
-    const before = settled.current;
-    settled.current = { key, count: noteCount };
-    if (!element) return;
-    // Another question opens at its top.
-    if (before.key !== key) {
-      element.scrollTop = 0;
-      atBottom.current = element.scrollHeight <= element.clientHeight;
-      setBelow(false);
-      return;
-    }
-    // A note was added to the question on show.
-    if (noteCount <= before.count) return;
-    if (atBottom.current) element.scrollTop = element.scrollHeight;
-    else setBelow(true);
-  }, [key, noteCount]);
+  const onTable = question?.live === true && !waiting;
   return (
-    <section
-      className="pn-card"
-      style={STYLE.card}
-      aria-label={label}
-      data-testid="pn-coach-notes"
-    >
-      <div style={STYLE.head}>
-        <span style={STYLE.caps}>{label}</span>
-        {question && (
-          <span
-            style={STYLE.small}
-          >{`Q${question.number} · ${question.label}`}</span>
-        )}
-        <span style={{ flex: "1 1 auto" }} aria-hidden="true" />
-        {following ? (
-          <span
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              fontSize: 12,
-              color: ASK,
-              whiteSpace: "nowrap",
-            }}
-          >
-            <span
-              aria-hidden="true"
-              style={{
-                width: 7,
-                height: 7,
-                borderRadius: "50%",
-                background: ASK,
-              }}
-            />
+    <Panel
+      // Another question opens at its top.
+      key={question?.key ?? "none"}
+      title={label}
+      subtitle={
+        question ? `Q${question.number} · ${question.label}` : undefined
+      }
+      meta={
+        following ? (
+          <Tag variant="filled" color={ASK}>
             Following live
-          </span>
-        ) : (
-          question && (
+          </Tag>
+        ) : undefined
+      }
+      actions={
+        <>
+          {!following && question && (
             <Button
               buttonSize="sm"
               variant="outline"
@@ -487,196 +305,138 @@ function NotesPane({
             >
               Back to live
             </Button>
-          )
-        )}
-        <SegmentedPrimitive
-          appearance="control"
-          aria-label="Size of the notes"
-          value={textSize}
-          onChange={(next) => setCoachTextSize(next as CoachTextSize)}
-          options={TEXT_SIZES.map((size) => ({
-            value: size,
-            label: TEXT_SIZE_LABEL[size],
-            ariaLabel: `${TEXT_SIZE_NAME[size]} text`,
-          }))}
-          data-testid="pn-coach-text-size"
+          )}
+          <SegmentedPrimitive
+            appearance="control"
+            aria-label="Size of the notes"
+            value={textSize}
+            onChange={(size) => setCoachTextSize(size as CoachTextSize)}
+            options={TEXT_SIZES.map((size) => ({
+              value: size,
+              label: TEXT_SIZE_LABEL[size],
+              ariaLabel: `${TEXT_SIZE_NAME[size]} text`,
+            }))}
+            data-testid="pn-coach-text-size"
+          />
+          <IconButton
+            variant="ghost"
+            iconSize="sm"
+            icon={<Icon name="fit_screen" />}
+            label="Reset layout: put the columns, the call's room and the window back to their sizes"
+            onClick={onReset}
+            data-testid="pn-coach-reset"
+          />
+          <IconButton
+            variant="ghost"
+            iconSize="sm"
+            icon={<Icon name="chevron_left" />}
+            label="Previous question"
+            disabled={!previous}
+            onClick={() => previous && onPick(previous.key)}
+          />
+          <IconButton
+            variant="ghost"
+            iconSize="sm"
+            icon={<Icon name="chevron_right" />}
+            label="Next question"
+            disabled={!next}
+            onClick={() => next && onPick(next.key)}
+          />
+        </>
+      }
+      {...(question
+        ? {}
+        : {
+            empty: {
+              icon: <Icon name="forum" />,
+              description:
+                "The question being asked appears here, with the coach's notes for it beneath.",
+            },
+          })}
+      scroll={{ thinScrollbar: true }}
+      bodyPadding="md"
+      bodyClassName="gap-6"
+      data-text-surface=""
+      data-testid="pn-coach-notes"
+    >
+      {/* [DOMAIN] The question just asked is its own thing: the notes
+          beneath are for the question before it, and are marked so. They
+          never read as the answer to what was just asked. */}
+      {waiting && (
+        <HeardLine
+          variant="boxed"
+          tone="ask"
+          size={textSize}
+          label={`Current question · listening · ${clock(waiting.at)}`}
+          title={waiting.question?.text ?? ""}
+          status="Preparing response…"
+          data-testid="pn-coach-waiting"
         />
-        <Button
-          buttonSize="sm"
-          variant="ghost"
-          title="Put the columns and the call's room back to their sizes"
-          onClick={onReset}
-          data-testid="pn-coach-reset"
-        >
-          Reset layout
-        </Button>
-        <IconButton
-          variant="ghost"
-          iconSize="sm"
-          icon={<Icon name="chevron_left" />}
-          label="Previous question"
-          disabled={!previous}
-          onClick={() => previous && onPick(previous.key)}
+      )}
+      {waiting && <Divider>Previous coaching note</Divider>}
+      {question && (
+        // The same marks as its row in the list: the chosen question is blue,
+        // and only the one on the table is green. The question is in the
+        // coach's few words; what was actually said is beneath it, small.
+        <HeardLine
+          tone={onTable ? "ask" : "accent"}
+          size={textSize}
+          label={`Q${question.number} · ${
+            waiting ? "Previous question" : question.live ? "Live" : "Asked"
+          } · ${clock(question.at)}`}
+          title={question.label}
+          {...(question.question && question.question.text !== question.label
+            ? { pieces: heardEmphasis(question.question.text) }
+            : {})}
+          data-testid="pn-coach-asked"
         />
-        <IconButton
-          variant="ghost"
-          iconSize="sm"
-          icon={<Icon name="chevron_right" />}
-          label="Next question"
-          disabled={!next}
-          onClick={() => next && onPick(next.key)}
-        />
-      </div>
-      <div
-        ref={scroller}
-        style={STYLE.notes}
-        data-text-surface=""
-        onScroll={(event) => {
-          const element = event.currentTarget;
-          atBottom.current =
-            element.scrollHeight - element.scrollTop - element.clientHeight <=
-            FOLLOW_SLACK;
-          if (atBottom.current) setBelow(false);
-        }}
-      >
-        {!question && (
-          <p style={STYLE.empty} role="status">
-            The question being asked appears here, with the coach's notes for it
-            beneath.
-          </p>
-        )}
-        {/* [DOMAIN] The question just asked is its own thing: the notes
-            beneath are for the question before it, and are marked so. They
-            never read as the answer to what was just asked. */}
-        {waiting && (
-          <>
-            <div style={STYLE.waiting} data-testid="pn-coach-waiting">
-              <span style={STYLE.askLabel}>
-                {`Current question · listening · ${clock(waiting.at)}`}
-              </span>
-              <p style={STYLE.waitingText}>{waiting.question?.text ?? ""}</p>
-              <span style={STYLE.small}>Preparing response…</span>
-            </div>
-            <div style={STYLE.previous}>
-              <span>Previous coaching note</span>
-              <span style={STYLE.rule} aria-hidden="true" />
-            </div>
-          </>
-        )}
-        {question && (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 26,
-              // Dimmed while it is only the previous question's.
-              opacity: waiting ? 0.55 : 1,
-            }}
-          >
-            <div style={STYLE.asked}>
-              {/* The same marks as its row in the list: the chosen question
-                  is blue, and only the one on the table is green. */}
-              <span
-                style={{
-                  ...STYLE.askBar,
-                  background: question.live && !waiting ? ASK : CHOSEN,
-                }}
-                aria-hidden="true"
-              />
-              <div style={{ minWidth: 0 }}>
-                <span
-                  style={{
-                    ...STYLE.askLabel,
-                    color: question.live && !waiting ? ASK : CHOSEN,
-                  }}
-                  data-testid="pn-coach-asked-label"
-                >
-                  {`Q${question.number} · ${
-                    waiting
-                      ? "Previous question"
-                      : question.live
-                        ? "Live"
-                        : "Asked"
-                  } · ${clock(question.at)}`}
-                </span>
-                {/* The question in the coach's few words. What was actually
-                    said is beneath it, small: it places the question and is
-                    not read. */}
-                <p style={STYLE.askText} data-testid="pn-coach-asked">
-                  {question.label}
-                </p>
-                {question.question &&
-                  question.question.text !== question.label && (
-                    <HeardLine
-                      pieces={heardEmphasis(question.question.text)}
-                      data-testid="pn-coach-heard"
-                    />
-                  )}
-              </div>
-            </div>
-            {question.notes.length === 0 && (
-              <p style={{ ...STYLE.empty, paddingLeft: 18 }} role="status">
-                No notes for this question yet.
-              </p>
-            )}
-            {/* The notes and the follow-ups asked under this question, in the
-                order they came. */}
-            {[
-              ...question.notes.map((note) => ({
-                at: Date.parse(note.createdAt),
-                key: note.id,
-                note,
-                asked: null,
-              })),
-              ...question.followUps.map((asked) => ({
-                at: asked.at,
-                key: asked.key,
-                note: null,
-                asked,
-              })),
-            ]
-              .sort((a, b) => a.at - b.at)
-              .map((block) =>
-                block.note ? (
+      )}
+      {question && question.notes.length === 0 && (
+        <Empty variant="tile" description="No notes for this question yet." />
+      )}
+      {/* The notes and the follow-ups asked under this question, in the
+          order they came. */}
+      {question &&
+        [
+          ...question.notes.map((note) => ({
+            at: Date.parse(note.createdAt),
+            key: note.id,
+            note,
+            asked: null,
+          })),
+          ...question.followUps.map((asked) => ({
+            at: asked.at,
+            key: asked.key,
+            note: null,
+            asked,
+          })),
+        ]
+          .sort((a, b) => a.at - b.at)
+          .flatMap((block) =>
+            block.note
+              ? [
                   <NoteBlock
                     key={block.key}
                     note={block.note}
                     heading={question.label}
                     compact={compact}
-                  />
-                ) : (
+                  />,
+                ]
+              : [
+                  // Set apart from the notes above it by a rule: it is the
+                  // interviewer speaking again, not more to say.
+                  <Divider key={`${block.key}:rule`} />,
                   <HeardLine
                     key={block.key}
                     tone="ask"
+                    size={textSize}
                     label={`Follow-up · ${clock(block.at)}`}
                     pieces={heardEmphasis(block.asked.text)}
-                    // Set apart from the notes above it by a rule: it is
-                    // the interviewer speaking again, not more to say.
-                    style={{ paddingTop: 20, borderTop: `1px solid ${LINE}` }}
                     data-testid="pn-coach-follow-up"
-                  />
-                ),
-              )}
-            {below && (
-              <div style={STYLE.pill}>
-                <Button
-                  buttonSize="sm"
-                  variant="secondary"
-                  onClick={() => {
-                    const element = scroller.current;
-                    if (element) element.scrollTop = element.scrollHeight;
-                    setBelow(false);
-                  }}
-                  data-testid="pn-coach-below"
-                >
-                  ↓ New note added below
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </section>
+                  />,
+                ],
+          )}
+    </Panel>
   );
 }
 

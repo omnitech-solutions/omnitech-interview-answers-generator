@@ -2247,7 +2247,7 @@ packages:
     os: [win32]
 
   '@oc-tech/omni-ui-components@file:vendor/omni-ui-components/oc-tech-omni-ui-components-0.1.0.tgz':
-    resolution: {integrity: sha512-8sLkTi668Oj7AZmrzo1S19FtuHXssmsAHBGR7zNZsYbHrAebsZEZmG0q08IegvIAlSWkwx1y0Wll5q9QobAFKQ==, tarball: file:vendor/omni-ui-components/oc-tech-omni-ui-components-0.1.0.tgz}
+    resolution: {integrity: sha512-adfCzKyq9c9JwiGRTziHy1wcMUabP2Nnlnx1qAk0oD8Oif+9rMw3m8hrSrrJy7PKpy7RSvtBcI8ChD6iaLWkOA==, tarball: file:vendor/omni-ui-components/oc-tech-omni-ui-components-0.1.0.tgz}
     version: 0.1.0
     peerDependencies:
       react: ^18.3.1 || ^19.0.0
