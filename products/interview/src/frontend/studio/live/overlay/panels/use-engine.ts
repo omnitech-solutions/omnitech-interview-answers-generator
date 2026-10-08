@@ -203,8 +203,18 @@ export function useEngine(input: {
     setMicPending(true);
     const mine = generation.current;
     const begin = () => settle(() => engine.start({ sessionId, sources }));
+    // [DOMAIN] Turning the microphone off silences the microphone only. The
+    // call's audio and the screen keep listening, and the engine keeps
+    // answering the session's heartbeat: stopping the whole engine left the
+    // session with a silent companion, which the server pauses after two
+    // minutes. With no other source there is nothing left to run, so it stops.
+    const others = sources.filter((source) => source !== "microphone");
     void enqueue(async (): Promise<EngineReply> => {
-      if (action === "stop") return settle(() => engine.stop());
+      if (action === "stop") {
+        const stopped = await settle(() => engine.stop());
+        if (others.length === 0 || !stopped.ok) return stopped;
+        return settle(() => engine.start({ sessionId, sources: others }));
+      }
       if (action === "restart") await settle(() => engine.stop());
       return begin();
     }).then((reply) => {
