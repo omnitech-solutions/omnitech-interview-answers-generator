@@ -342,8 +342,12 @@ test("@native host consent: with no session the start screen asks the shell's co
     { session: false, flag: true },
   );
   await expect(granted.page.getByTestId("pn-start")).toBeVisible();
+  // Consent is no longer what Start waits for. Which interview is the default
+  // depends on what earlier specs left in this stack's database (one with an
+  // interview stage asks for the recording agreement), so either waiting hint
+  // is right here; the point is that nothing has started.
   await expect(granted.page.getByTestId("pn-start-hint")).toHaveText(
-    "Listening starts right away",
+    /^(Listening starts right away|Confirm everyone has agreed)$/,
   );
   await granted.page.waitForTimeout(2_500);
   expect(await db.sessions()).toHaveLength(before);
