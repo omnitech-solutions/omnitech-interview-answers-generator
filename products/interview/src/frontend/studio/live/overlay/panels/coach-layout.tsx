@@ -185,13 +185,13 @@ function QuestionsList({
   shownKey: string | undefined;
   onPick(key: string): void;
 }) {
-  // The list stays on the question on the table: the newest is at the bottom,
-  // like the transcript, and older ones scroll up out of view.
+  // The newest question is at the top, where the eye lands first; older ones
+  // run down the column. A new question brings the list back to its top.
   const list = useRef<HTMLDivElement>(null);
   const count = questions.length;
   useLayoutEffect(() => {
     const element = list.current;
-    if (element) element.scrollTop = element.scrollHeight;
+    if (element) element.scrollTop = 0;
   }, [count]);
   return (
     <section
@@ -203,12 +203,10 @@ function QuestionsList({
       <div style={STYLE.head}>
         <span style={STYLE.caps}>{`Questions · ${count}`}</span>
         <span style={{ flex: "1 1 auto" }} aria-hidden="true" />
-        <span style={STYLE.small}>newest ↓</span>
+        <span style={STYLE.small}>newest first</span>
       </div>
       <div ref={list} style={STYLE.list}>
-        {/* Pushes a short list to the bottom of the column. */}
-        <span style={{ flex: "1 1 auto" }} aria-hidden="true" />
-        {questions.map((question) => {
+        {questions.toReversed().map((question) => {
           const shown = question.key === shownKey;
           const colour = question.live ? ASK : shown ? READ : "#a1a1a6";
           return (

@@ -10,6 +10,9 @@ const KEY = "omnitech.interview.coach.columns";
 const STEP = 24;
 // What the centre (the call and the notes) always keeps.
 export const CENTRE_FLOOR = 320;
+// The questions are a list to glance at, never a column to read across: it is
+// not widened past this, however much room the window has.
+export const QUESTIONS_CEILING = 360;
 // The bar stands in the gap between two columns.
 export const SPLITTER_WIDTH = 8;
 // Sent to everything in the layout that keeps a size of its own (the call slot).
@@ -24,7 +27,10 @@ function saved(): Columns {
     const kept = JSON.parse(window.localStorage.getItem(KEY) ?? "null");
     const width = (side: Side) =>
       Number.isFinite(kept?.[side]) && kept[side] >= 0
-        ? Number(kept[side])
+        ? Math.min(
+            Number(kept[side]),
+            side === "left" ? QUESTIONS_CEILING : Number.POSITIVE_INFINITY,
+          )
         : DEFAULTS[side];
     return { left: width("left"), right: width("right") };
   } catch {
@@ -49,7 +55,8 @@ export function useCoachColumns() {
   const ceiling = (side: Side) => {
     const other = columns[side === "left" ? "right" : "left"];
     const total = row.current?.clientWidth ?? Number.POSITIVE_INFINITY;
-    return Math.max(0, total - other - CENTRE_FLOOR - SPLITTER_WIDTH * 4);
+    const room = Math.max(0, total - other - CENTRE_FLOOR - SPLITTER_WIDTH * 4);
+    return side === "left" ? Math.min(room, QUESTIONS_CEILING) : room;
   };
   const resize = (side: Side, width: number) =>
     keep({
