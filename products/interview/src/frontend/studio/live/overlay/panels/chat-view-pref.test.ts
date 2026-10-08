@@ -74,9 +74,9 @@ describe("the views on offer", () => {
 });
 
 describe("the chosen view", () => {
-  it("is the original until one is chosen", async () => {
+  it("is the call-first coach layout until one is chosen", async () => {
     const { useChatView } = await load();
-    expect(renderHook(() => useChatView()).result.current).toBe("original");
+    expect(renderHook(() => useChatView()).result.current).toBe("coach");
   });
 
   it("is the one remembered from an earlier session", async () => {
@@ -85,14 +85,20 @@ describe("the chosen view", () => {
     expect(renderHook(() => useChatView()).result.current).toBe("prompter");
   });
 
+  it("is the original when that is what was chosen: the default never overrides a choice", async () => {
+    window.localStorage.setItem(KEY, "original");
+    const { useChatView } = await load();
+    expect(renderHook(() => useChatView()).result.current).toBe("original");
+  });
+
   it.each([
     ["a view that no longer exists", "conversation-slot"],
     ["an empty value", ""],
     ["another key's kind of value", "true"],
-  ])("falls back to the original for %s", async (_name, kept) => {
+  ])("falls back to the coach layout for %s", async (_name, kept) => {
     window.localStorage.setItem(KEY, kept);
     const { useChatView } = await load();
-    expect(renderHook(() => useChatView()).result.current).toBe("original");
+    expect(renderHook(() => useChatView()).result.current).toBe("coach");
   });
 
   it("is kept for the next session when chosen", async () => {
@@ -143,7 +149,7 @@ describe("the chosen view", () => {
     expect(reader.result.current).toBe("prompter");
   });
 
-  it("is the original when storage cannot be read", async () => {
+  it("is the coach layout when storage cannot be read", async () => {
     window.localStorage.setItem(KEY, "conversation");
     const { useChatView } = await load();
     const blocked = vi
@@ -151,15 +157,15 @@ describe("the chosen view", () => {
       .mockImplementation(() => {
         throw new Error("blocked");
       });
-    expect(renderHook(() => useChatView()).result.current).toBe("original");
+    expect(renderHook(() => useChatView()).result.current).toBe("coach");
     expect(blocked).toHaveBeenCalled();
   });
 });
 
 describe("an older choice", () => {
-  it("kept under the retired key is not read: the window opens in the original", async () => {
+  it("kept under the retired key is not read: the window opens in the coach layout", async () => {
     window.localStorage.setItem("omnitech.interview.chat.view", "conversation");
     const { useChatView } = await load();
-    expect(renderHook(() => useChatView()).result.current).toBe("original");
+    expect(renderHook(() => useChatView()).result.current).toBe("coach");
   });
 });
