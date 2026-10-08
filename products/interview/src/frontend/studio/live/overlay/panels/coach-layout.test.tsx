@@ -98,7 +98,9 @@ const note = (
   createdAt: minutesAfter(0, seconds),
   title: `Note ${at}`,
   tone: "say",
+  kind: "answer",
   points: [],
+  sections: [],
   links: [],
   ...extra,
 });
@@ -873,20 +875,132 @@ describe("a note named as its question", () => {
 });
 
 describe("a note under the call", () => {
-  it("is drawn as talking points: one bullet to a sentence", async () => {
+  const add = async (extra: Partial<CoachNote>) => {
     post(
-      note(3, 80, {
-        title: "Then the Saga",
-        markdown: "Each step has an undo. “Say compensating action.”",
-        askId: "q-consistency",
-      }),
+      note(3, 80, { title: "Then the Saga", askId: "q-consistency", ...extra }),
     );
     await show("coach");
+    return blocks()[1] as HTMLElement;
+  };
+  const bullets = (block: HTMLElement) =>
+    within(block)
+      .queryAllByRole("listitem")
+      .map((item) => item.textContent);
+
+  it("is drawn as talking points: one bullet to a whole sentence", async () => {
+    const block = await add({
+      markdown:
+        "Each step has its own undo. “Say the words compensating action.”",
+    });
+    expect(bullets(block)).toEqual([
+      "Each step has its own undo.",
+      "Say the words compensating action.",
+    ]);
+  });
+
+  it("a structured note is its sections: a label over each group of points", async () => {
+    const block = await add({
+      sections: [
+        { label: "Say", points: ["Each step has its own **undo**"] },
+        { label: "If pushed", points: ["Name the orchestrator"] },
+      ],
+    });
     expect(
-      within(blocks()[1] as HTMLElement)
-        .getAllByRole("listitem")
-        .map((item) => item.textContent),
-    ).toEqual(["Each step has an undo.", "Say compensating action."]);
+      within(block)
+        .getAllByRole("heading")
+        .map((heading) => heading.textContent),
+    ).toEqual(["Say", "If pushed"]);
+    expect(bullets(block)).toEqual([
+      "Each step has its own undo",
+      "Name the orchestrator",
+    ]);
+  });
+
+  it("says what the interviewer wants above the points, with no bold marks", async () => {
+    const block = await add({
+      wants: "A **decision rule**, not a slogan",
+      points: ["Start from the trade-off"],
+    });
+    expect(block).toHaveTextContent("She wants A decision rule, not a slogan");
+    expect(block).not.toHaveTextContent("**");
+    expect(
+      within(block)
+        .getByText(/A decision rule/)
+        .compareDocumentPosition(
+          within(block).getByText("Start from the trade-off"),
+        ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("a steer is the amber box: what is off, then the line that gets the answer back", async () => {
+    const block = await add({
+      kind: "steer",
+      steer: {
+        issue: "That covers **reads** only",
+        say: "For writes, the ledger",
+      },
+      points: ["Then the Outbox"],
+    });
+    const steer = within(block).getByTestId("pn-coach-steer");
+    expect(steer).toHaveTextContent("That covers reads only");
+    expect(steer).toHaveTextContent("For writes, the ledger");
+    expect(steer).not.toHaveTextContent("**");
+    expect(steer.style.border).toContain("245, 184, 74");
+    expect(steer.textContent?.indexOf("That covers")).toBeLessThan(
+      steer.textContent?.indexOf("For writes") as number,
+    );
+    // The rest of the note is not amber, and its points follow the box.
+    expect(block.style.border).toBe("");
+    expect(block).toHaveAttribute("data-tone", "say");
+    expect(bullets(block)).toEqual(["Then the Outbox"]);
+    expect(steer).not.toContainElement(
+      within(block).getByText("Then the Outbox"),
+    );
+  });
+
+  it("a steer with nothing else is only the box: no line back, no empty note beneath", async () => {
+    const block = await add({ steer: { issue: "Slow down a little" } });
+    const steer = within(block).getByTestId("pn-coach-steer");
+    expect(steer).toHaveTextContent(/^.*Slow down a little$/);
+    expect(steer.querySelector("p")).toBeNull();
+    expect(within(block).queryByTestId("pn-coach-note")).toBeNull();
+  });
+
+  it("a note to watch that carries a steer is not the whole-note amber block: the steer is the warning", async () => {
+    const block = await add({
+      tone: "watch",
+      steer: { issue: "Do not promise exactly-once" },
+      points: ["Say at-least-once"],
+    });
+    expect(block).toHaveAttribute("data-tone", "watch");
+    expect(block.style.border).toBe("");
+    expect(within(block).getByTestId("pn-coach-steer")).toBeInTheDocument();
+  });
+
+  it("a note to watch with no steer is still the whole note in amber, with no steer box", async () => {
+    const block = await add({ tone: "watch", points: ["Say at-least-once"] });
+    expect(block.style.border).toContain("245, 184, 74");
+    expect(within(block).queryByTestId("pn-coach-steer")).toBeNull();
+  });
+
+  it.each([
+    ["in another case", QUESTION_TWO.toUpperCase()],
+    ["after a leading Q:", `Q: ${QUESTION_TWO}`],
+    ["after a leading q: and with space round it", `q:  ${QUESTION_TWO} `],
+  ])(
+    "a title that is the question %s is not repeated above the note",
+    async (_name, title) => {
+      const block = await add({ title, points: ["Start from the Outbox"] });
+      expect(block).toHaveTextContent(/^Start from the Outbox$/);
+    },
+  );
+
+  it("a title that only starts like the question is still said", async () => {
+    const block = await add({
+      title: `${QUESTION_TWO} (part two)`,
+      points: ["Start from the Outbox"],
+    });
+    expect(block).toHaveTextContent("(part two)");
   });
 });
 

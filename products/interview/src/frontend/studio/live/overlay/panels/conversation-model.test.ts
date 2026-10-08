@@ -32,7 +32,9 @@ const note = (
   createdAt: new Date(T0 + seconds * 1000).toISOString(),
   title,
   tone: "say",
+  kind: "answer",
   points: [],
+  sections: [],
   links: [],
   ...extra,
 });
