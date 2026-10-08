@@ -99,7 +99,10 @@ const surfaces: Record<string, SurfaceRow> = {
   // stage shares with the web prompt.
   // +2: briefingCondenseSchema and BriefingCondense, the request that condenses
   // a pack's long setup fields for the assistant.
-  "@omnitech/interview-contracts": { entrypoints: 1, names: 387 },
+  // +8: the coach notes contract (coachNoteLinkSchema, coachNoteInputSchema,
+  // coachNoteSchema, coachNotesResponseSchema and their four types), shared by
+  // the notes route, its file store and the live window's coach panel.
+  "@omnitech/interview-contracts": { entrypoints: 1, names: 395 },
   "@omnitech/interview-library": { entrypoints: 1, names: 5 },
   "@omnitech/interview-playground-control": { entrypoints: 1, names: 16 },
   "@omnitech/interview-storage": { entrypoints: 1, names: 8 },

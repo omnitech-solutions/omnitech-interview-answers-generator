@@ -20,7 +20,7 @@ const storedSchema = z.object({ notes: z.array(coachNoteSchema) });
 // directory (never the database, never the log) until the person clears them.
 // A file that cannot be read or written never stops a note reaching the
 // window: the notes are then held for this process only.
-function createCoachNotes(filePath: string) {
+export function createCoachNotes(filePath: string) {
   let revision = 0;
   let notes: CoachNote[] | null = null;
   // Read once, on first use, so loading this module touches no file.
