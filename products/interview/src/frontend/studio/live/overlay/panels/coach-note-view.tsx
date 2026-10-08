@@ -9,6 +9,7 @@
 //   grey   supporting context: read later, never said
 // White is the sentence itself. A section's label takes its kind's colour and
 // the words inside stay white, so a note is never a wall of highlights.
+
 import { Button, CueCard, type CueSection } from "@oc-tech/omni-ui-components";
 import type {
   CoachLine,
@@ -18,6 +19,7 @@ import type {
 } from "@omnitech/interview-contracts";
 import type { CSSProperties } from "react";
 import { Icon } from "../../../icon";
+import { useCoachTextSize } from "./coach-columns";
 import {
   Diagram,
   noteBlocks,
@@ -166,8 +168,10 @@ export function CoachNoteView({
   mode?: "detail" | "compact";
 }) {
   const drawn = drawnSections(note);
+  const size = useCoachTextSize();
   return (
     <CueCard
+      size={size}
       sections={drawn.sections.map(cueSection)}
       mode={mode}
       status={note.status}

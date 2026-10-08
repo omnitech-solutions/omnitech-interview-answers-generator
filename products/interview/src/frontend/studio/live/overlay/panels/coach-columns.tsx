@@ -156,3 +156,47 @@ export function useCoachWindowHeight(): number | null {
     () => null,
   );
 }
+
+// ---- How large the notes read ----------------------------------------------------
+
+// [DOMAIN] The size of the coach's notes, chosen in the notes pane and kept:
+// the library's CueCard scales as one. Large by default, since the notes are
+// read at a glance during a call.
+export const TEXT_SIZES = ["sm", "md", "lg", "xl"] as const;
+export type CoachTextSize = (typeof TEXT_SIZES)[number];
+const TEXT_KEY = "omnitech.interview.coach.text-size";
+const TEXT_DEFAULT: CoachTextSize = "lg";
+const textListeners = new Set<() => void>();
+let textSize: CoachTextSize | undefined;
+const isTextSize = (value: unknown): value is CoachTextSize =>
+  TEXT_SIZES.some((size) => size === value);
+export function setCoachTextSize(size: CoachTextSize): void {
+  textSize = size;
+  try {
+    window.localStorage.setItem(TEXT_KEY, size);
+  } catch {
+    // The size still holds for this window.
+  }
+  for (const listener of textListeners) listener();
+}
+export function useCoachTextSize(): CoachTextSize {
+  return useSyncExternalStore(
+    (listener) => {
+      textListeners.add(listener);
+      return () => textListeners.delete(listener);
+    },
+    () => {
+      if (textSize === undefined) {
+        let kept: unknown = null;
+        try {
+          kept = window.localStorage.getItem(TEXT_KEY);
+        } catch {
+          // Nothing was kept.
+        }
+        textSize = isTextSize(kept) ? kept : TEXT_DEFAULT;
+      }
+      return textSize;
+    },
+    () => TEXT_DEFAULT,
+  );
+}

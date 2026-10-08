@@ -19,6 +19,7 @@ import {
   IconButton,
   OutlineList,
   Panel,
+  SegmentedPrimitive,
   Splitter,
   SplitterPanel,
   Tab,
@@ -38,11 +39,15 @@ import { Icon } from "../../../icon";
 import { ChatPanel } from "./chat-panel";
 import { type ChatView, QUESTIONS_WIDTH, RIGHT_WIDTH } from "./chat-view-pref";
 import {
+  type CoachTextSize,
   HEIGHT_FLOOR,
   holdWindowDrag,
+  setCoachTextSize,
   setCoachWindowHeight,
   setCoachWindowWidth,
+  TEXT_SIZES,
   useCoachSizes,
+  useCoachTextSize,
   WINDOW_FLOOR,
 } from "./coach-columns";
 import { CoachNoteView } from "./coach-note-view";
@@ -74,6 +79,18 @@ const QUESTIONS_CEILING = 360;
 // The reader counts as "at the bottom" within this many px of it.
 const FOLLOW_SLACK = 48;
 
+const TEXT_SIZE_LABEL: Record<CoachTextSize, string> = {
+  sm: "S",
+  md: "M",
+  lg: "L",
+  xl: "XL",
+};
+const TEXT_SIZE_NAME: Record<CoachTextSize, string> = {
+  sm: "Small",
+  md: "Medium",
+  lg: "Large",
+  xl: "Extra large",
+};
 // The colour of the question on show, as the list marks its chosen row.
 const CHOSEN = "var(--oui-tone-accent-fg)";
 const STYLE = {
@@ -389,6 +406,7 @@ function NotesPane({
   // Puts every size in the layout back: the columns and the call's room.
   onReset(): void;
 }) {
+  const textSize = useCoachTextSize();
   const at = question ? questions.indexOf(question) : -1;
   const previous = at > 0 ? questions[at - 1] : undefined;
   const next = at >= 0 ? questions[at + 1] : undefined;
@@ -471,6 +489,18 @@ function NotesPane({
             </Button>
           )
         )}
+        <SegmentedPrimitive
+          appearance="control"
+          aria-label="Size of the notes"
+          value={textSize}
+          onChange={(next) => setCoachTextSize(next as CoachTextSize)}
+          options={TEXT_SIZES.map((size) => ({
+            value: size,
+            label: TEXT_SIZE_LABEL[size],
+            ariaLabel: `${TEXT_SIZE_NAME[size]} text`,
+          }))}
+          data-testid="pn-coach-text-size"
+        />
         <Button
           buttonSize="sm"
           variant="ghost"
