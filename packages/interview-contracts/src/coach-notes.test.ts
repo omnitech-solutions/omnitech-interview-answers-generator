@@ -212,8 +212,14 @@ describe("a piece of a line", () => {
     expect(TALKING_POINT_LENGTH).toBe(240);
   });
 
-  it("is spoken unless it says otherwise, and has one of four roles", () => {
-    expect(COACH_ROLES).toEqual(["spoken", "evidence", "caution", "context"]);
+  it("is spoken unless it says otherwise, and has one of five roles", () => {
+    expect(COACH_ROLES).toEqual([
+      "spoken",
+      "cue",
+      "evidence",
+      "caution",
+      "context",
+    ]);
     expect(coachSegmentSchema.parse({ text: "We moved it" })).toEqual({
       text: "We moved it",
       role: "spoken",
@@ -258,6 +264,53 @@ describe("a piece of a line", () => {
     expect(segment({ text: "Acme", grounding: null })).toBe(false);
     expect(coachSegmentSchema.parse({ text: "Acme" })).not.toHaveProperty(
       "grounding",
+    );
+  });
+
+  it.each([
+    "/roles/3",
+    "/roles/0",
+    "/roles/12/proof_points/1",
+    "/roles/3/leadership-signals",
+    "/roles/3/metrics/2/value",
+    "/context/employerBrief",
+    "/context/employerBrief/2",
+    `/roles/1/${"a".repeat(111)}`,
+  ])(
+    "may point at where its claim comes from in the person's material: %s",
+    (source) => {
+      expect(
+        coachSegmentSchema.parse({ text: "Acme", role: "evidence", source }),
+      ).toEqual({ text: "Acme", role: "evidence", source });
+    },
+  );
+
+  it.each([
+    ["no leading slash", "roles/3"],
+    ["no role number", "/roles"],
+    ["a role that is not a number", "/roles/first"],
+    ["a trailing slash", "/roles/3/"],
+    ["an empty step", "/roles/3//1"],
+    ["a step with a space", "/roles/3/proof points"],
+    ["the context with nothing named", "/context"],
+    ["a context name with a hyphen", "/context/employer-brief"],
+    ["a context line that is not a number", "/context/employerBrief/two"],
+    ["a context pointer that goes deeper", "/context/employerBrief/2/1"],
+    ["another root", "/facts/1"],
+    ["an address", "https://example.com/roles/3"],
+    ["space round it", " /roles/3 "],
+    ["a line break after it", "/roles/3\n"],
+    ["nothing", ""],
+    ["more than 120 characters", `/roles/1/${"a".repeat(112)}`],
+    ["a number", 3],
+    ["null", null],
+  ])("refuses a source that is %s", (_name, source) => {
+    expect(segment({ text: "Acme", role: "evidence", source })).toBe(false);
+  });
+
+  it("leaves the source out when it is not given", () => {
+    expect(coachSegmentSchema.parse({ text: "Acme" })).not.toHaveProperty(
+      "source",
     );
   });
 
