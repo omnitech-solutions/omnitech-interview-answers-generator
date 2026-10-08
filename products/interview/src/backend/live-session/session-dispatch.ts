@@ -18,6 +18,7 @@
 // device implementation is refused in device-only (rule:unlisted-stage-refused)
 // and there is NEVER a fallback to another profile: a refusal is final, an
 // unavailable device is a retryable outcome that tries the same profile again.
+
 import {
   type AgentAttachment,
   type AiExecutionGateway,
@@ -25,7 +26,6 @@ import {
   type AiGeneratedBy,
   AiPolicyRefusedError,
 } from "@omnitech/ai-contracts";
-import { createLogger } from "@omnitech/logging";
 import { ASSIST_ACTION_KIND } from "./assist-stage";
 import type { Clock, ProcessingPolicy, Task } from "./core/index";
 import type { AgentEscalationPort } from "./escalation";
@@ -49,14 +49,13 @@ import {
   type SessionRun,
   slotFor,
 } from "./session-run";
+import { tellStory } from "./story-log";
 import type { LocalityDecision } from "./trace";
 import {
   settleWithheld,
   summarizeWithheld,
   type WithheldSummary,
 } from "./withheld";
-
-const storyLog = createLogger({ service: "session" });
 
 // How often the draft so far is written for the browser while it streams.
 const PROGRESS_INTERVAL_MS = 600;
@@ -235,7 +234,7 @@ export async function beginDispatch(
     // The session's story for whoever watches the worker (words only where
     // content logging is on; the trace below stays ids and codes).
     if (event === "dispatch.published")
-      storyLog.info("session.answer", {
+      tellStory("info", "session.answer", {
         sessionId,
         taskId: task.taskId,
         revision,
@@ -250,7 +249,7 @@ export async function beginDispatch(
       event === "dispatch.refused" ||
       event === "dispatch.failed"
     )
-      storyLog.warn("session.withheld", {
+      tellStory("warn", "session.withheld", {
         sessionId,
         taskId: task.taskId,
         revision,

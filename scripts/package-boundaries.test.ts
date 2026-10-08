@@ -565,6 +565,9 @@ const SWIFT_ALLOWED_IMPORTS = new Set([
   "ScreenCaptureKit",
   "Speech",
   "AVFoundation",
+  // The system audio tap (the call's sound without ScreenCaptureKit's sharing
+  // indicator): a local capture framework like the others, no network.
+  "CoreAudio",
   "CoreMedia",
   "CoreImage",
   "CoreGraphics",
