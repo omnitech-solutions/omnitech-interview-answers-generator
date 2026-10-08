@@ -44,6 +44,7 @@ graph TD
   ADR_0033["ADR-0033"]
   ADR_0034["ADR-0034"]
   ADR_0035["ADR-0035"]
+  ADR_0036["ADR-0036"]
   ADR_0010 -.-> ADR_0009
   ADR_0012 -.-> ADR_0011
   ADR_0013 -.-> ADR_0011
@@ -111,6 +112,7 @@ graph TD
 | ADR-0033 | Remove Document Picture-in-Picture and the in-tab overlay card; the native shell is the live-session surface | Proposed | — | ADR-0017 | — |
 | ADR-0034 | Record native-app and companion events through one redacting event log | Proposed | — | ADR-0007 | — |
 | ADR-0035 | Record every AI interaction with its content in development, as spans exported through OpenTelemetry | Proposed | — | ADR-0007, ADR-0012, ADR-0034 | — |
+| ADR-0036 | Project facts and scenario context through one standalone package, declared as data, with no retrieval database | Proposed | — | — | — |
 
 ## Topic clusters
 
@@ -124,7 +126,7 @@ ADRs grouped by shared tag (a tag appears below if ≥2 ADRs carry it). Use a cl
 - **companion** — ADR-0018, ADR-0021
 - **contracts** — ADR-0008, ADR-0011
 - **crux** — ADR-0001, ADR-0029
-- **documents** — ADR-0009, ADR-0010, ADR-0015
+- **documents** — ADR-0009, ADR-0010, ADR-0015, ADR-0036
 - **drizzle** — ADR-0005, ADR-0023, ADR-0029
 - **interview** — ADR-0008, ADR-0009, ADR-0010, ADR-0011, ADR-0012, ADR-0013, ADR-0015
 - **live-ui** — ADR-0016, ADR-0024, ADR-0027, ADR-0032, ADR-0033
@@ -134,6 +136,7 @@ ADRs grouped by shared tag (a tag appears below if ≥2 ADRs carry it). Use a cl
 - **observability** — ADR-0034, ADR-0035
 - **ocr** — ADR-0025, ADR-0026
 - **overlay** — ADR-0017, ADR-0018, ADR-0019, ADR-0022, ADR-0028, ADR-0033
+- **packages** — ADR-0003, ADR-0036
 - **performance** — ADR-0010, ADR-0015
 - **pip** — ADR-0017, ADR-0033
 - **postgresql** — ADR-0005, ADR-0023

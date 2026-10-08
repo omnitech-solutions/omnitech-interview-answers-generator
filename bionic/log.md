@@ -2,6 +2,10 @@
 
 _Append-only. Newest first._
 
+## [2026-10-08] adr | ADR-0036: Project facts and scenario context through one standalone package, declared as data, with no retrieval database
+
+Proposed. File `bionic/adrs/ADR-0036-project-facts-and-scenario-context-through-one-sta.md`. Tags: projection, context, documents, experience-matrix, packages.
+
 ## [2026-10-08] adr | ADR-0035: Record every AI interaction with its content in development, as spans exported through OpenTelemetry
 
 Proposed. File `bionic/adrs/ADR-0035-record-every-ai-interaction-with-its-content-in-dev.md`. Amends ADR-0007, ADR-0012, ADR-0034. Tags: observability, ai, tracing, opentelemetry.
