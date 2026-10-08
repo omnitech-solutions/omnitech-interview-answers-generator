@@ -35,21 +35,26 @@ const EMPTY: Draft = {
   notes: "",
 };
 
-// One line per part of the brief that has anything: what the owner checks the
-// clean-up against before trusting it in a session.
-export function briefSummary(brief: EmployerBrief): string[] {
-  const list = (label: string, items: readonly string[]) =>
-    items.length ? [`${label}: ${items.join(", ")}`] : [];
+// The brief by section, each a heading and its items: what the owner checks
+// the clean-up against before trusting it in a session.
+export function briefSections(
+  brief: EmployerBrief,
+): { heading: string; items: string[] }[] {
+  const section = (heading: string, items: readonly string[]) =>
+    items.length ? [{ heading, items: [...items] }] : [];
   return [
-    ...(brief.summary ? [brief.summary] : []),
-    ...list("Must-haves", brief.mustHaves),
-    ...list("Nice-to-haves", brief.niceToHaves),
-    ...list("Tech", brief.techStack),
-    ...list("Responsibilities", brief.responsibilities),
-    ...(brief.team ? [`Team: ${brief.team}`] : []),
-    ...list("Values", brief.values),
-    ...(brief.interviewFormat ? [`Format: ${brief.interviewFormat}`] : []),
-    ...list("Ask them", brief.questionsToAsk),
+    ...section("Summary", brief.summary ? [brief.summary] : []),
+    ...section("Must-haves", brief.mustHaves),
+    ...section("Nice-to-haves", brief.niceToHaves),
+    ...section("Tech stack", brief.techStack),
+    ...section("Responsibilities", brief.responsibilities),
+    ...section("Team", brief.team ? [brief.team] : []),
+    ...section("Values", brief.values),
+    ...section(
+      "Interview format",
+      brief.interviewFormat ? [brief.interviewFormat] : [],
+    ),
+    ...section("Questions to ask", brief.questionsToAsk),
   ];
 }
 
@@ -172,7 +177,7 @@ export function InterviewContextModal({
     }
   }
 
-  const summary = current?.brief ? briefSummary(current.brief) : [];
+  const sections = current?.brief ? briefSections(current.brief) : [];
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
       <ModalContent
@@ -227,18 +232,23 @@ export function InterviewContextModal({
             disabled={busy !== null}
             data-testid="pn-context-notes"
           />
-          {summary.length > 0 && (
+          {sections.length > 0 && (
             <section
               className="pn-context-brief"
               aria-label="Employer brief"
               data-testid="pn-context-brief"
             >
-              <h4>Employer brief</h4>
-              <ul>
-                {summary.map((line) => (
-                  <li key={line}>{line}</li>
-                ))}
-              </ul>
+              <h4>Employer brief · what the answers lean on</h4>
+              {sections.map((part) => (
+                <div key={part.heading} className="pn-context-brief-part">
+                  <h5>{part.heading}</h5>
+                  <ul>
+                    {part.items.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
             </section>
           )}
           {error && (

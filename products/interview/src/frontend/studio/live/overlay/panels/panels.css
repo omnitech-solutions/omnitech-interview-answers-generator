@@ -1356,6 +1356,17 @@
 .pn-context-brief li + li {
   margin-top: 4px;
 }
+.pn-context-brief-part + .pn-context-brief-part {
+  margin-top: 8px;
+}
+.pn-context-brief h5 {
+  margin: 0 0 3px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ov-muted);
+}
 .pn-context-error {
   margin: 0;
   color: var(--ov-danger, #e5484d);

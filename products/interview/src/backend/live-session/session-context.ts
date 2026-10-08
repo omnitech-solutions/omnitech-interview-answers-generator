@@ -44,11 +44,19 @@ const textOrUndefined = (value: unknown): string | undefined =>
 export function briefLines(brief: EmployerBrief): string {
   // A labelled list is split into lines that fit the task view's piece cap
   // (context-snapshot TASK_VIEW_LIMITS.maxSourceChars), each with its label.
+  // Items are joined with a middle dot and lose sentence punctuation, so the
+  // snapshot's sentence splitter keeps each labelled line as ONE source.
+  const flat = (item: string) =>
+    item
+      .replace(/[.;!?]+(\s|$)/g, ",$1")
+      .replace(/,\s*$/, "")
+      .trim();
   const list = (label: string, items: readonly string[]) => {
     const lines: string[] = [];
     let current = "";
-    for (const item of items) {
-      const next = current ? `${current}; ${item}` : `${label}: ${item}`;
+    for (const raw of items) {
+      const item = flat(raw);
+      const next = current ? `${current} · ${item}` : `${label}: ${item}`;
       if (next.length > BRIEF_LINE_CHARS && current) {
         lines.push(current);
         current = `${label}: ${item}`;
@@ -59,15 +67,15 @@ export function briefLines(brief: EmployerBrief): string {
   };
   return [
     `Employer brief: ${brief.role} at ${brief.company}`,
-    ...(brief.summary ? [`Role summary: ${brief.summary}`] : []),
+    ...(brief.summary ? [`Role summary: ${flat(brief.summary)}`] : []),
     ...list("Must-haves", brief.mustHaves),
     ...list("Nice-to-haves", brief.niceToHaves),
     ...list("Tech stack", brief.techStack),
     ...list("Responsibilities", brief.responsibilities),
-    ...(brief.team ? [`Team: ${brief.team}`] : []),
+    ...(brief.team ? [`Team: ${flat(brief.team)}`] : []),
     ...list("Values", brief.values),
     ...(brief.interviewFormat
-      ? [`Interview format: ${brief.interviewFormat}`]
+      ? [`Interview format: ${flat(brief.interviewFormat)}`]
       : []),
     ...list("Questions to ask", brief.questionsToAsk),
   ].join("\n");

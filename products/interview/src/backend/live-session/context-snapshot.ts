@@ -56,7 +56,7 @@ export const TASK_VIEW_LIMITS: SourceLimits = {
   maxTotalChars: 6_500,
 };
 // Lines of the employer brief a task view carries ahead of the matrix.
-export const MAX_BRIEF_SOURCES = 14;
+export const MAX_BRIEF_SOURCES = 20;
 // The smaller window of a device profile.
 export const DEVICE_MAX_TOTAL_CHARS = 2_500;
 export const DEVICE_TASK_VIEW_LIMITS: SourceLimits = {
