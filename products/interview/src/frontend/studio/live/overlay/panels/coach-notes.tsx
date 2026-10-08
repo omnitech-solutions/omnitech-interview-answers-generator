@@ -190,7 +190,23 @@ const STYLE = {
     fontSize: 18,
     lineHeight: 1.5,
   },
-  inlineNote: { fontSize: 19, lineHeight: 1.45 },
+  inlineNote: { fontSize: 19, lineHeight: 1.4 },
+  points: {
+    margin: "6px 0 10px",
+    padding: 0,
+    listStyle: "none",
+    display: "flex",
+    flexDirection: "column",
+    gap: 9,
+  },
+  point: { display: "flex", gap: 12 },
+  dot: {
+    flex: "0 0 6px",
+    height: 6,
+    marginTop: 11,
+    borderRadius: "50%",
+    background: "#6e6e73",
+  },
   head: { display: "flex", alignItems: "center", gap: 10, marginBottom: 8 },
   title: { fontSize: 20, fontWeight: 700, lineHeight: 1.25 },
   heading: {
@@ -384,6 +400,24 @@ function Diagram({ source }: { source: string }) {
   );
 }
 
+// [DOMAIN] A note under the call is read at a glance while speaking, so it is
+// drawn as talking points: one sentence to a line, each on its own bullet,
+// never a paragraph. A scripted line's quotation marks are dropped (the point
+// is what to say, not a quotation of it).
+const SENTENCE_END =
+  /(?<=[.!?]["”']?(?:\*\*)?)\s+(?=(?:\*\*)?["“']?[A-Z0-9])|;\s+/;
+export function talkingPoints(text: string): string[] {
+  return text
+    .split(SENTENCE_END)
+    .map((point) =>
+      point
+        .trim()
+        .replace(/^["“”]+|["“”]+$/g, "")
+        .trim(),
+    )
+    .filter((point) => point !== "");
+}
+
 // One note, drawn. `inline` is the note under its question in the conversation:
 // it takes the height it needs (the conversation scrolls, not the note) and
 // leaves its title to the row above it.
@@ -424,6 +458,22 @@ export function Prompter({
               {inlineMarkdown(block.text)}
             </h4>
           );
+        if (inline && (block.kind === "text" || block.kind === "list")) {
+          const points =
+            block.kind === "text"
+              ? talkingPoints(block.text)
+              : block.items.flatMap(talkingPoints);
+          return (
+            <ul key={key} style={STYLE.points}>
+              {points.map((point) => (
+                <li key={point} style={STYLE.point}>
+                  <span style={STYLE.dot} aria-hidden="true" />
+                  <span>{inlineMarkdown(point)}</span>
+                </li>
+              ))}
+            </ul>
+          );
+        }
         if (block.kind === "text")
           return (
             <p key={key} style={STYLE.paragraph}>

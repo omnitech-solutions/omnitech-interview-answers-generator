@@ -148,7 +148,19 @@ const STYLE = {
     background: "rgba(62, 207, 114, 0.1)",
     border: "1px solid rgba(62, 207, 114, 0.35)",
   },
+  // What she said, as heard: there to place the notes, not to be read out, so
+  // it is small, grey and cut to two lines (the whole of it is in its title).
   followUp: {
+    margin: "3px 0 0",
+    fontSize: 14,
+    lineHeight: 1.4,
+    color: DIM,
+    display: "-webkit-box",
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: "vertical",
+    overflow: "hidden",
+  },
+  waitingText: {
     margin: "3px 0 0",
     fontSize: 17,
     lineHeight: 1.4,
@@ -484,7 +496,7 @@ function NotesPane({
             <span style={STYLE.askLabel}>
               {`Being asked · ${clock(waiting.at)}`}
             </span>
-            <p style={STYLE.followUp}>{waiting.question?.text ?? ""}</p>
+            <p style={STYLE.waitingText}>{waiting.question?.text ?? ""}</p>
             <span style={STYLE.small}>
               Notes for this are on their way. The last notes stay below.
             </span>
@@ -543,7 +555,9 @@ function NotesPane({
                       <span style={STYLE.askLabel}>
                         {`Follow-up · ${clock(block.at)}`}
                       </span>
-                      <p style={STYLE.followUp}>{block.asked.text}</p>
+                      <p style={STYLE.followUp} title={block.asked.text}>
+                        {block.asked.text}
+                      </p>
                     </div>
                   </div>
                 ),
