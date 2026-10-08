@@ -276,7 +276,7 @@ scripts rather than a bare derive-arch (see section 14 of `.env.example` for why
 ## Verify and test
 
 ```bash
-pnpm verify              # verify:core, then the browser suite (pnpm test:browser: needs Docker; ~6 min, 4 shards)
+pnpm verify              # verify:core, then the browser suite (pnpm test:browser: needs Docker; ~6 min on a large machine; one shard per two CPU cores, 1 to 4)
 node scripts/verify-gate.mjs  # the same, stamped per commit: run it before `git push`; the pre-push hook then pushes at once (git opens the remote connection before the hook, and an 8-minute gate outlives it)
 pnpm verify:core         # lint, format, typecheck, coverage, build, native checks (no browsers)
 pnpm test:no-docker      # the suites that need no Docker
@@ -289,8 +289,9 @@ Docker daemon; they fail at once with a message saying so. Coverage thresholds
 are 90% statements, 80% branches, 90% functions and 90% lines.
 
 `pnpm test:browser` drives the real built web app and agent worker against a
-scripted model, as **4 parallel shards** by default (each with its own database
-and stack; `E2E_SHARDS=1` runs one process). It needs Docker and the Playwright
+scripted model, as **parallel shards** sized to the machine: one per two CPU
+cores, from 1 to 4 (each with its own database and stack; `E2E_SHARDS` sets the
+count by hand, and 1 runs one process). It needs Docker and the Playwright
 browsers. Options, the claims inventory and the shard design are in
 `e2e/live-session/README.md`.
 
@@ -303,7 +304,7 @@ dispatch, with read-only permissions, no secrets, and superseded runs cancelled:
   (the browser suite is the `e2e` job below). The native step skips itself on Linux and says so.
 - `native` (macOS): `node scripts/verify-native.mjs`, the Swift build and test harnesses.
 - `e2e` (Linux): the workspace build, Playwright browsers, then `pnpm test:browser`
-  (4 shards in the one job); the Playwright report is uploaded when it fails.
+  (one process on the small runner: the shard count follows its CPU count); the Playwright report is uploaded when it fails.
 
 The workflow has only been validated as YAML; it takes effect once pushed to
 GitHub, and actions are pinned to major versions, not commit SHAs.

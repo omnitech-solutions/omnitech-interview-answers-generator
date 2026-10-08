@@ -13,7 +13,7 @@ Run it explicitly. It is not part of `pnpm verify`.
 pnpm test:browser:install        # once: downloads Playwright Chromium and WebKit
 pnpm build                       # the web app loads every package from dist
 pnpm test:browser                # the whole suite, as 4 parallel shards
-E2E_SHARDS=1 pnpm test:browser   # one process, one stack (1 to 8 shards; default 4)
+E2E_SHARDS=1 pnpm test:browser   # one process, one stack (1 to 8 shards; default one per two CPU cores, 1 to 4)
 E2E_LIVE=1 pnpm test:browser     # timestamped START/END line per test
 pnpm test:browser tests/smoke-web-end.spec.ts --project=chromium   # one spec
 E2E_HEADED=1 pnpm test:browser   # watch the browser
@@ -215,8 +215,8 @@ recording can be matched to the test that was running.
 
 ## Shards
 
-The whole suite runs as `E2E_SHARDS` parallel Playwright processes (default 4,
-at most 8; `.env.example`). The web app is built once, then each shard starts
+The whole suite runs as `E2E_SHARDS` parallel Playwright processes (default one
+per two CPU cores, from 1 to 4, so a 2-core CI runner runs one; at most 8; `.env.example`). The web app is built once, then each shard starts
 its own stack: its own PostgreSQL container, ports, worker, storage state and
 `.stack/<pid>` folder, so shards share nothing but the read-only web build.
 Output lines carry `[s1]`..`[sN]`; each shard writes `.test-results/sN` and

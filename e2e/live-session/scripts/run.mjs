@@ -10,7 +10,8 @@
 //   E2E_BROWSER_CHANNEL=chrome ...          use the installed Google Chrome
 //   E2E_SHARDS=1 pnpm test:browser          one process, one stack (no sharding)
 //
-// The whole suite runs as E2E_SHARDS parallel shards (default 4, at most 8):
+// The whole suite runs as E2E_SHARDS parallel shards (by default one per two
+// CPU cores, from 1 to 4; at most 8 when set by hand):
 // the web app is built once, then each shard is its own Playwright process with
 // its own stack (own PostgreSQL container, ports, worker and storage state).
 // A run that names spec files, or uses --shard, --list, --ui or --debug, is one
@@ -18,6 +19,7 @@
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
+import { availableParallelism } from "node:os";
 
 const require = createRequire(import.meta.url);
 const problems = [];
@@ -53,10 +55,16 @@ if (problems.length > 0) {
 }
 
 const args = process.argv.slice(2);
-const requested = Number(process.env.E2E_SHARDS ?? "4");
+// How many shards this machine can carry when E2E_SHARDS does not say: each
+// shard is a whole stack (PostgreSQL, the web app, the worker, two browsers),
+// so it wants about two cores. A small machine (a 2-core CI runner) gets one
+// process and no sharding; four stacks there starve each other into timeouts.
+const cores = availableParallelism();
+const fitting = Math.min(Math.max(Math.floor(cores / 2), 1), 4);
+const requested = Number(process.env.E2E_SHARDS ?? fitting);
 const shards = Number.isInteger(requested)
   ? Math.min(Math.max(requested, 1), 8)
-  : 4;
+  : fitting;
 const oneProcess =
   shards === 1 ||
   args.some(
@@ -80,7 +88,7 @@ const prebuild = spawnSync("pnpm", ["exec", "tsx", "src/stack/prebuild.ts"], {
 });
 if (prebuild.status !== 0) process.exit(prebuild.status ?? 1);
 
-console.log(`[e2e] running ${shards} shards in parallel`);
+console.log(`[e2e] running ${shards} shards in parallel (${cores} cores)`);
 const started = Date.now();
 const codes = await Promise.all(
   Array.from({ length: shards }, (_, index) => runShard(index + 1)),

@@ -76,14 +76,13 @@ jobs:
       - run: node scripts/swift-coverage.mjs
 
   # The Playwright suite drives the built web app and worker against a scripted
-  # model. In CI it runs as ONE process with one stack (E2E_SHARDS=1): the
-  # runner is small, and four stacks side by side (the local default) starve
-  # each other into timeouts. One process is slower, so the limit is longer.
+  # model. `pnpm test:browser` picks its shard count from the CPU count (one
+  # stack per two cores): a small runner gets one process and one stack, since
+  # four stacks side by side starve each other into timeouts. One process is
+  # slower, so the limit is long.
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 180
-    env:
-      E2E_SHARDS: 1
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
