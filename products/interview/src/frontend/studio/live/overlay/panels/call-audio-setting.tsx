@@ -7,37 +7,12 @@
 // [SAFETY] The line under the choice says what it really costs: the sharing
 // indicator, the permission macOS asks for, and when a chosen tap is not what
 // is running.
-import {
-  type AccountCallAudio,
-  CALL_AUDIO_SOURCES,
-} from "@omnitech/interview-contracts";
-import { useEffect, useState } from "react";
 import { CALL_AUDIO_OPTIONS, callAudioNote } from "./start-model";
-import { accountHost } from "./use-account";
+import { useCallAudio } from "./use-call-audio";
 
 export function CallAudioSetting() {
-  const host = accountHost();
-  const [callAudio, setCallAudio] = useState<AccountCallAudio | null>(null);
-  useEffect(() => {
-    if (!host) return;
-    let live = true;
-    host.permissions().then(
-      (next) => live && setCallAudio(next.callAudio ?? null),
-      () => undefined,
-    );
-    return () => {
-      live = false;
-    };
-  }, [host]);
-  const save = host?.setCallAudio;
-  if (!host || !save || !callAudio) return null;
-  const choose = async (value: string) => {
-    const source = CALL_AUDIO_SOURCES.find((each) => each === value);
-    if (!source) return;
-    // The shell answers what now applies; a refusal leaves the choice as it was.
-    const next = await save.call(host, source);
-    if (next?.callAudio) setCallAudio(next.callAudio);
-  };
+  const { callAudio, choose } = useCallAudio(null);
+  if (!callAudio) return null;
   return (
     <>
       <div className="pn-label">Capture</div>

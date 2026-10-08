@@ -10,8 +10,10 @@ import { Icon } from "../../../icon";
 import { nativeChord } from "../../shared/shortcuts";
 import { MIC_MENU_TEXT } from "./mic-menu-model";
 import type { PanelSession } from "./panel-views";
+import { callAudioNote } from "./start-model";
 import { useToolbarLock } from "./toolbar-lock";
 import { chordGlyphs, micLook, PAUSED_REASON, toneProp } from "./toolbar-model";
+import { useCallAudio } from "./use-call-audio";
 import { useMicMenu } from "./use-mic-menu";
 
 const DEFAULT_DEVICE = "default";
@@ -81,6 +83,40 @@ export function MicControl({
         },
       ]
     : [];
+  // The other side of the call: screen capture (macOS shows "Currently
+  // Sharing") or the system audio tap (no indicator). Chosen here, applied at
+  // once by restarting listening; read again each time the menu opens.
+  const { callAudio, choose } = useCallAudio(open);
+  const callAudioSection = callAudio
+    ? [
+        {
+          id: "call-audio",
+          label: "Call audio",
+          highlightChecked: false,
+          items: [
+            {
+              id: "screenCaptureKit",
+              label: "Screen capture",
+              description: "Shows the sharing indicator",
+              checked: callAudio.selected === "screenCaptureKit",
+            },
+            {
+              id: "processTap",
+              label: "System audio tap",
+              description: callAudio.tapSupported
+                ? callAudio.selected === "processTap"
+                  ? callAudioNote(callAudio)
+                  : "No sharing indicator (macOS asks once)"
+                : "Needs macOS 14.4 or later",
+              checked: callAudio.selected === "processTap",
+              ...(callAudio.tapSupported
+                ? {}
+                : { disabledReason: "Needs macOS 14.4 or later" }),
+            },
+          ],
+        },
+      ]
+    : [];
   return (
     <SplitButton
       data-testid="pn-mic"
@@ -112,6 +148,7 @@ export function MicControl({
         ...(lostNotice ? { notice: lostNotice } : {}),
         sections: [
           ...devices,
+          ...callAudioSection,
           {
             id: "listening",
             items: [
@@ -130,6 +167,10 @@ export function MicControl({
         onValueChange: (sectionId, id) => {
           if (sectionId === "devices")
             menu.select(id === DEFAULT_DEVICE ? null : id);
+          if (sectionId === "call-audio" && id !== callAudio?.selected)
+            void choose(id).then((chosen) => {
+              if (chosen) s.engine.restart();
+            });
         },
         onSelect: (id) => {
           if (id === "toggle") s.press("toggle-mic");

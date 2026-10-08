@@ -84,6 +84,8 @@ export type EngineView = {
   // Listen to this device (an id from state.microphoneDevices); null follows
   // the system default. A no-op on a shell without device choice.
   selectMic(deviceId: string | null): void;
+  // Stop and start listening again (applies a setting read when a run begins).
+  restart(): void;
 };
 
 export function useEngine(input: {
@@ -250,6 +252,34 @@ export function useEngine(input: {
     // No shell retry: restart (or start) the engine, never stop a live one.
     if (now.state?.sources.microphone !== "listening") toggleMic();
   }, [askShell, toggleMic]);
+  // Stop and start again with the same session and sources, so a setting the
+  // shell reads when a run begins (the call-audio source) applies at once.
+  // Nothing happens with no engine running, while held, or while a call is
+  // pending.
+  const restart = useCallback(() => {
+    const now = latest.current;
+    const engine = now.host;
+    if (!engine || !now.input.sessionId || !now.input.wanted) return;
+    if (now.input.paused || now.state?.paused === true) return;
+    if (micPendingRef.current || startingRef.current) return;
+    const sessionId = now.input.sessionId;
+    const sources = [...now.input.sources];
+    micPendingRef.current = true;
+    setMicPending(true);
+    const mine = generation.current;
+    void enqueue(async (): Promise<EngineReply> => {
+      await settle(() => engine.stop());
+      return settle(() => engine.start({ sessionId, sources }));
+    }).then((reply) => {
+      micPendingRef.current = false;
+      setMicPending(false);
+      if (generation.current !== mine) return;
+      if (reply.ok) {
+        setState(reply.engine);
+        setRefused(null);
+      } else setRefused(reply.reason);
+    });
+  }, [enqueue]);
   const selectMic = useCallback(
     (deviceId: string | null) => {
       askShell((engine) =>
@@ -283,6 +313,7 @@ export function useEngine(input: {
     toggleMic,
     retryMic,
     selectMic,
+    restart,
     listening:
       host !== null &&
       input.wanted &&
