@@ -87,6 +87,8 @@ function useCopy(s: PanelSession) {
 // steps never replace it: work running on ANOTHER task leaves this one's
 // answer and code alone, and this task's own code being written is said by
 // the Code panel ("Writing code…"), not by hiding the approach.
+const ANSWER_TEXT = { fontSize: 17, lineHeight: 1.6 } as const;
+
 function stepsShown(s: Pick<PanelSession, "phase" | "card">): boolean {
   if (!s.phase) return false;
   return !s.card || s.card.answerText === null;
@@ -304,7 +306,12 @@ export function AnswerPane({ s }: { s: PanelSession }) {
             {s.tray.items.length > 0 && area}
           </Empty>
         ) : (
-          <div className="pn-answer-content" data-testid="pn-answer">
+          <div
+            className="pn-answer-content"
+            data-testid="pn-answer"
+            // Read from while speaking: larger and looser than the other panes.
+            style={ANSWER_TEXT}
+          >
             {s.noQuestionLine && (
               <p
                 className="pn-muted"

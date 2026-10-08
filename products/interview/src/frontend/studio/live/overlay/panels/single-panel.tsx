@@ -47,6 +47,10 @@ import { ToolbarLock } from "./toolbar-lock";
 import type { PanelWindowMode } from "./window-mode";
 
 // Why the toolbar is locked once a session has ended.
+// Set here as well as in the stylesheet, which the native window keeps until
+// it reloads.
+const ANSWER_SHARE = { flexGrow: 1.7 } as const;
+
 export const ENDED_LOCK = "The session has ended. Start a new session.";
 
 const NO_PANES: PaneState = { chat: false, analysis: false, code: false };
@@ -258,7 +262,14 @@ export function SinglePanel({
       {anyPane && (
         <div className="pn-single-body">
           {PANES.filter((pane) => shown[pane.id]).map((pane) => (
-            <div key={pane.id} className="pn-single-pane" data-which={pane.id}>
+            <div
+              key={pane.id}
+              className="pn-single-pane"
+              data-which={pane.id}
+              // The answer takes the larger share of the width beside the
+              // code: it is what is read from while speaking.
+              style={pane.id === "analysis" ? ANSWER_SHARE : undefined}
+            >
               {view[pane.id](s)}
             </div>
           ))}

@@ -209,7 +209,8 @@ export const PANES = [
     icon: "lightbulb",
     label: "Answer",
     title: "The answer for the task on show",
-    width: 480,
+    // The pane that is read aloud from: the widest, with the largest text.
+    width: 680,
   },
   {
     id: "code",
