@@ -1,13 +1,19 @@
-// The coach's notes, under the footer: what to mention next and where the
-// documentation for the topic is. A coach outside this window (a person or an
-// agent holding the API token) posts them; this strip only reads and shows
-// them. It opens by itself when a new note arrives and can be folded away.
+// The coach's notes, under the footer: what to say next, read like a
+// teleprompter, with the documentation for the topic. A coach outside this
+// window (a person or an agent holding the API token) posts them; this strip
+// only reads and shows them. It opens by itself when a new note arrives.
 import { Button, Input, Tag } from "@oc-tech/omni-ui-components";
 import {
   type CoachNote,
   coachNotesResponseSchema,
 } from "@omnitech/interview-contracts";
-import { useEffect, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Icon } from "../../../icon";
 import { TENANT_HEADER } from "../../../studio-fetch";
 import { openExternalThroughHost } from "../../host-adapter";
@@ -63,32 +69,189 @@ function openLink(url: string): void {
     window.open(url, "_blank", "noopener,noreferrer");
 }
 
-function Note({ note, latest }: { note: CoachNote; latest: boolean }) {
+// A note matches when every word typed appears somewhere in it: its title,
+// its text, or a link's label or address.
+export function matchesNote(note: CoachNote, query: string): boolean {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+  const text = [
+    note.title,
+    note.markdown ?? "",
+    ...note.points,
+    ...note.links.flatMap((link) => [link.label, link.url]),
+  ]
+    .join(" ")
+    .toLowerCase();
+  return words.every((word) => text.includes(word));
+}
+
+// What a note says, as Markdown: its own Markdown, or its points as bullets.
+export const noteMarkdown = (note: CoachNote): string =>
+  note.markdown ?? note.points.map((point) => `- ${point}`).join("\n");
+
+// [STRATEGY] The strip's look is set here, not in the stylesheet: the native
+// window takes a new component at once but keeps its old stylesheet until it
+// reloads, and a prompter with no layout cannot be read at a glance.
+// Sized to be read from a distance while talking: large type, loose lines,
+// one idea per line, and the words to land in the accent colour.
+const ACCENT = "var(--oui-accent, #7aa2ff)";
+const MUTED = "var(--ov-muted, #9aa4b2)";
+const STYLE = {
+  bar: { display: "flex", alignItems: "center", gap: 8, minWidth: 0 },
+  body: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr) minmax(200px, 280px)",
+    gap: 14,
+    height: 260,
+    margin: "6px 0 4px",
+  },
+  prompter: {
+    minHeight: 0,
+    overflow: "auto",
+    padding: "10px 16px 14px",
+    borderRadius: 10,
+    background: "var(--pn-chip, rgba(255,255,255,0.05))",
+    fontSize: 18,
+    lineHeight: 1.5,
+  },
+  head: { display: "flex", alignItems: "center", gap: 10, marginBottom: 8 },
+  title: { fontSize: 20, fontWeight: 700, lineHeight: 1.25 },
+  heading: {
+    margin: "12px 0 4px",
+    fontSize: 13,
+    fontWeight: 700,
+    letterSpacing: "0.06em",
+    textTransform: "uppercase",
+    color: MUTED,
+  },
+  list: { margin: "4px 0", paddingLeft: 22 },
+  item: { margin: "6px 0" },
+  paragraph: { margin: "6px 0" },
+  strong: { color: ACCENT, fontWeight: 700 },
+  code: {
+    padding: "1px 5px",
+    borderRadius: 5,
+    background: "rgba(127,127,127,0.22)",
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+    fontSize: "0.88em",
+  },
+  links: { display: "flex", flexWrap: "wrap", gap: 4, marginTop: 10 },
+  side: { display: "flex", flexDirection: "column", gap: 6, minHeight: 0 },
+  sideHead: {
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: "0.06em",
+    textTransform: "uppercase",
+    color: MUTED,
+  },
+  history: {
+    flex: "1 1 auto",
+    minHeight: 0,
+    margin: 0,
+    padding: 0,
+    overflow: "auto",
+    listStyle: "none",
+  },
+  empty: { color: MUTED, fontSize: 14 },
+} satisfies Record<string, CSSProperties>;
+
+// Bold and inline code inside one line of a note.
+function inlineMarkdown(text: string): ReactNode[] {
+  const parts: ReactNode[] = [];
+  let from = 0;
+  for (const match of text.matchAll(/\*\*([^*]+)\*\*|`([^`]+)`/g)) {
+    if (match.index > from) parts.push(text.slice(from, match.index));
+    parts.push(
+      match[1] !== undefined ? (
+        <strong key={match.index} style={STYLE.strong}>
+          {match[1]}
+        </strong>
+      ) : (
+        <code key={match.index} style={STYLE.code}>
+          {match[2]}
+        </code>
+      ),
+    );
+    from = match.index + match[0].length;
+  }
+  if (from < text.length) parts.push(text.slice(from));
+  return parts;
+}
+
+type Block =
+  | { kind: "heading"; text: string }
+  | { kind: "list"; ordered: boolean; items: string[] }
+  | { kind: "text"; text: string };
+
+// [DOMAIN] The Markdown a coach's note uses, and no more: headings, bullets,
+// numbered steps, paragraphs, bold and inline code. Anything else is shown as
+// the text it is; nothing in a note is ever rendered as HTML.
+export function noteBlocks(markdown: string): Block[] {
+  const blocks: Block[] = [];
+  for (const raw of markdown.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (line === "") continue;
+    const heading = /^#{1,6}\s+(.+)$/.exec(line);
+    const bullet = /^[-*•]\s+(.+)$/.exec(line);
+    const step = /^\d+[.)]\s+(.+)$/.exec(line);
+    const last = blocks.at(-1);
+    if (heading) blocks.push({ kind: "heading", text: heading[1] as string });
+    else if (bullet || step) {
+      const ordered = Boolean(step);
+      const text = (bullet?.[1] ?? step?.[1]) as string;
+      if (last?.kind === "list" && last.ordered === ordered)
+        last.items.push(text);
+      else blocks.push({ kind: "list", ordered, items: [text] });
+    } else blocks.push({ kind: "text", text: line });
+  }
+  return blocks;
+}
+
+function Prompter({ note }: { note: CoachNote }) {
+  const blocks = noteBlocks(noteMarkdown(note));
   return (
-    <li
-      className="pn-coach-note"
+    <article
+      style={STYLE.prompter}
       data-tone={note.tone}
-      data-latest={latest ? "" : undefined}
+      data-text-surface=""
       data-testid="pn-coach-note"
     >
-      <div className="pn-coach-note-head">
+      <header style={STYLE.head}>
         <Tag>{note.tone === "watch" ? "Watch" : "Say"}</Tag>
-        <strong>{note.title}</strong>
-      </div>
-      {note.points.length > 0 && (
-        <ul className="pn-coach-points">
-          {note.points.map((point) => (
-            <li key={point}>{point}</li>
-          ))}
-        </ul>
-      )}
+        <strong style={STYLE.title}>{note.title}</strong>
+      </header>
+      {blocks.map((block, at) => {
+        const key = `${at}:${block.kind}`;
+        if (block.kind === "heading")
+          return (
+            <h4 key={key} style={STYLE.heading}>
+              {inlineMarkdown(block.text)}
+            </h4>
+          );
+        if (block.kind === "text")
+          return (
+            <p key={key} style={STYLE.paragraph}>
+              {inlineMarkdown(block.text)}
+            </p>
+          );
+        const List = block.ordered ? "ol" : "ul";
+        return (
+          <List key={key} style={STYLE.list}>
+            {block.items.map((item) => (
+              <li key={item} style={STYLE.item}>
+                {inlineMarkdown(item)}
+              </li>
+            ))}
+          </List>
+        );
+      })}
       {note.links.length > 0 && (
-        <div className="pn-coach-links">
+        <div style={STYLE.links}>
           {note.links.map((link) => (
             <Button
               key={link.url}
               buttonSize="sm"
-              variant="ghost"
+              variant="outline"
               icon={<Icon name="open_in_new" />}
               title={link.url}
               onClick={() => openLink(link.url)}
@@ -99,49 +262,9 @@ function Note({ note, latest }: { note: CoachNote; latest: boolean }) {
           ))}
         </div>
       )}
-    </li>
+    </article>
   );
 }
-
-// A note matches when every word typed appears somewhere in it: its title,
-// its points, or a link's label or address.
-export function matchesNote(note: CoachNote, query: string): boolean {
-  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return true;
-  const text = [
-    note.title,
-    ...note.points,
-    ...note.links.flatMap((link) => [link.label, link.url]),
-  ]
-    .join(" ")
-    .toLowerCase();
-  return words.every((word) => text.includes(word));
-}
-
-// [STRATEGY] The strip's structure is set here, not only in the stylesheet:
-// the native window takes a new component at once but keeps its old
-// stylesheet until it reloads, and a strip with no layout is unreadable.
-const BAR = { display: "flex", alignItems: "center", gap: 8, minWidth: 0 };
-const BODY = {
-  display: "grid",
-  gridTemplateColumns: "minmax(0, 1fr) minmax(180px, 280px)",
-  gap: 10,
-  maxHeight: 220,
-  margin: "6px 0 2px",
-};
-const PLAIN_LIST = {
-  listStyle: "none",
-  margin: 0,
-  padding: 0,
-  minHeight: 0,
-  overflow: "auto",
-};
-const HISTORY = {
-  display: "flex",
-  flexDirection: "column",
-  minHeight: 0,
-  paddingLeft: 10,
-} as const;
 
 const timeOf = (iso: string) =>
   new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
@@ -164,15 +287,14 @@ export function CoachNotes({ enabled }: { enabled: boolean }) {
   }, [newest]);
   if (!enabled || notes.length === 0) return null;
   const found = notes.filter((note) => matchesNote(note, query));
-  const shown =
-    found.find((note) => note.id === picked) ?? found[0] ?? undefined;
+  const shown = found.find((note) => note.id === picked) ?? found[0];
   return (
     <section
       className="pn-card pn-coach"
       aria-label="Coach notes"
       data-testid="pn-coach"
     >
-      <div className="pn-coach-bar" style={BAR}>
+      <div style={STYLE.bar}>
         <Button
           buttonSize="sm"
           variant="ghost"
@@ -185,21 +307,6 @@ export function CoachNotes({ enabled }: { enabled: boolean }) {
         </Button>
         {!open && notes[0] && (
           <span className="pn-coach-preview">{notes[0].title}</span>
-        )}
-        {open && (
-          <div
-            className="pn-coach-search"
-            style={{ flex: "0 1 260px", minWidth: 120 }}
-          >
-            <Input
-              variant="panel"
-              aria-label="Search coach notes"
-              placeholder="Search notes"
-              value={query}
-              onChange={setQuery}
-              data-testid="pn-coach-search"
-            />
-          </div>
         )}
         <span style={{ flex: "1 1 auto" }} aria-hidden="true" />
         <Button
@@ -215,42 +322,44 @@ export function CoachNotes({ enabled }: { enabled: boolean }) {
         </Button>
       </div>
       {open && (
-        <div className="pn-coach-body" style={BODY}>
-          <ul className="pn-coach-list" data-text-surface="" style={PLAIN_LIST}>
-            {shown ? (
-              <Note note={shown} latest />
-            ) : (
-              <li className="pn-coach-empty" role="status">
-                No note matches “{query}”.
-              </li>
-            )}
-          </ul>
-          {/* The history, newest first: every note that matches the search.
-              Picking one shows it on the left. */}
-          <nav
-            className="pn-coach-history"
-            aria-label="Note history"
-            style={HISTORY}
-          >
-            <div className="pn-coach-history-head">
+        <div style={STYLE.body}>
+          {shown ? (
+            // Keyed by note, so a new note starts at its top.
+            <Prompter key={shown.id} note={shown} />
+          ) : (
+            <p style={STYLE.empty} role="status">
+              No note matches “{query}”.
+            </p>
+          )}
+          {/* Search, then the history it narrows, newest first. Picking an
+              entry puts that note on the prompter. */}
+          <nav style={STYLE.side} aria-label="Note history">
+            <Input
+              variant="panel"
+              aria-label="Search coach notes"
+              placeholder="Search notes"
+              value={query}
+              onChange={setQuery}
+              data-testid="pn-coach-search"
+            />
+            <div style={STYLE.sideHead}>
               {query.trim()
                 ? `${found.length} of ${notes.length}`
                 : `History · ${notes.length}`}
             </div>
-            <ul style={PLAIN_LIST}>
+            <ul style={STYLE.history}>
               {found.map((note) => (
                 <li key={note.id}>
                   <Button
                     buttonSize="sm"
-                    variant="ghost"
-                    className="pn-coach-history-item"
+                    variant={note.id === shown?.id ? "secondary" : "ghost"}
                     aria-current={note.id === shown?.id ? "true" : undefined}
-                    data-tone={note.tone}
                     title={note.title}
+                    labelMaxWidth="210px"
                     onClick={() => setPicked(note.id)}
                     data-testid="pn-coach-history-item"
                   >
-                    {`${timeOf(note.createdAt)} · ${note.title}`}
+                    {`${timeOf(note.createdAt)} · ${note.tone === "watch" ? "⚠ " : ""}${note.title}`}
                   </Button>
                 </li>
               ))}

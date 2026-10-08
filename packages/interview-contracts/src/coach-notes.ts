@@ -18,6 +18,10 @@ export const coachNoteInputSchema = z.strictObject({
   // "say": points to make; "watch": something to stop or avoid.
   tone: z.enum(["say", "watch"]).default("say"),
   points: z.array(line).max(6).default([]),
+  // The note as Markdown, for a note that needs more shape than a few points:
+  // short headings, bullets, numbered steps, **bold** for the words to land.
+  // When given it is what the window shows; `points` are then left out.
+  markdown: z.string().trim().min(1).max(6_000).optional(),
   links: z.array(coachNoteLinkSchema).max(5).default([]),
 });
 

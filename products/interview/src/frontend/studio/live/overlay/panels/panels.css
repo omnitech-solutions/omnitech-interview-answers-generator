@@ -1377,118 +1377,20 @@
 }
 
 /* The coach's notes: one more row under the footer, folded to a single line
-   until a note arrives. The list scrolls inside its own height so the window
-   never grows past the panes. */
+   until a note arrives. Its inner layout and type are set in the component
+   (coach-notes.tsx), so they do not wait for this sheet to reload. */
 .pn-coach {
   flex: none;
   display: flex;
   flex-direction: column;
   padding: 6px 10px;
 }
-.pn-coach-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
 .pn-coach-preview {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 12.5px;
   color: var(--ov-muted);
-}
-.pn-coach-search {
-  flex: 0 1 260px;
-  min-width: 120px;
-}
-/* The note on show on the left, the history to pick from on the right. */
-.pn-coach-body {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(180px, 280px);
-  gap: 10px;
-  max-height: 220px;
-  margin: 6px 0 2px;
-}
-.pn-coach-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-height: 0;
-  margin: 0;
-  padding: 0;
-  overflow: auto;
-  list-style: none;
-}
-.pn-coach-empty {
-  padding: 8px 10px;
-  font-size: 12.5px;
-  color: var(--ov-muted);
-}
-.pn-coach-history {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  padding-left: 10px;
-  border-left: 1px solid var(--oui-panel-divider);
-}
-.pn-coach-history-head {
-  flex: none;
-  margin-bottom: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  color: var(--ov-muted);
-}
-.pn-coach-history ul {
-  flex: 1 1 auto;
-  min-height: 0;
-  margin: 0;
-  padding: 0;
-  overflow: auto;
-  list-style: none;
-}
-.pn-coach-history-item {
-  width: 100%;
-  justify-content: flex-start;
-}
-.pn-coach-history-item[aria-current="true"] {
-  background: var(--pn-chip);
-}
-.pn-coach-history-item[data-tone="watch"] {
-  color: var(--ov-danger, #e5484d);
-}
-.pn-coach-note {
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: var(--pn-chip);
-  font-size: 13px;
-  opacity: 0.72;
-}
-.pn-coach-note[data-latest] {
-  opacity: 1;
-}
-.pn-coach-note[data-tone="watch"] {
-  box-shadow: inset 3px 0 0 var(--ov-danger, #e5484d);
-}
-.pn-coach-note-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.pn-coach-points {
-  margin: 6px 0 0;
-  padding-left: 18px;
-}
-.pn-coach-points li + li {
-  margin-top: 3px;
-}
-.pn-coach-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 6px;
 }
