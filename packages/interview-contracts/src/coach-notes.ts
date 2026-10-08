@@ -7,43 +7,77 @@ import { z } from "zod";
 // directory until cleared; they are never part of the session's record.
 const line = z.string().trim().min(1).max(280);
 
-// [DOMAIN] A talking point: one full sentence to say, with enough in it to
-// stand on its own (who, what, the figure, the reason), and `**bold**` on the
-// few words to land. Not a fragment: "Built this in insurance" tells the
-// person nothing they can say; "At **Relay** and **Trufla** I worked on
-// **schema- and configuration-driven quoting**, the same problem as your
-// rules tool" does. Not a paragraph either: one sentence, so it is taken in
-// at a glance. The length is the rule that holds it there, whoever (or
-// whatever) writes the note.
+// [DOMAIN] A coaching note is structured content, never formatting: whoever
+// writes it (a person, an agent, a model) says what each piece IS, and the
+// window alone decides how it looks. That is what keeps every note readable
+// in the two seconds the person has while still listening.
+//
+// A line is one full sentence to say, short enough to take in at a glance.
+// The length is the rule that keeps a note from becoming a paragraph.
 export const TALKING_POINT_LENGTH = 240;
-const talkingPoint = z.string().trim().min(1).max(TALKING_POINT_LENGTH);
 
-// One group of talking points under a short label that says what they are
-// for: "Say", "Proof", "If pushed", "Ask", "Avoid".
+// Why a piece of a line matters. Most of a line is `spoken`; mark the
+// SMALLEST useful phrase otherwise, so the sentence keeps its reading rhythm.
+//   spoken    the words to say
+//   evidence  what anchors the claim: an employer, a technology, a figure
+//   caution   a risk, a qualification, something not to volunteer
+//   context   supporting detail the person need not say
+export const COACH_ROLES = [
+  "spoken",
+  "evidence",
+  "caution",
+  "context",
+] as const;
+
+export const coachSegmentSchema = z.strictObject({
+  // Not trimmed: a segment keeps the spaces that join it to its neighbours.
+  text: z.string().min(1).max(TALKING_POINT_LENGTH),
+  role: z.enum(COACH_ROLES).default("spoken"),
+  // [SAFETY] Whether an `evidence` claim comes from the person's own approved
+  // experience ("verified") or is the writer's inference ("inferred"). The
+  // window marks an inferred claim, so the coach never puts an accomplishment
+  // in the person's mouth unnoticed.
+  grounding: z.enum(["verified", "inferred"]).optional(),
+});
+
+export const coachLineSchema = z
+  .strictObject({ segments: z.array(coachSegmentSchema).min(1).max(12) })
+  .refine(
+    (line) =>
+      line.segments.reduce((sum, segment) => sum + segment.text.length, 0) <=
+      TALKING_POINT_LENGTH,
+    { message: "A line is one sentence: too long." },
+  );
+
+// What a group of lines is for. The window labels and draws each kind itself.
+//   say      the response, ready to say, in order
+//   anchors  at most a few short things to hang the answer on
+//   ask      what to ask the interviewer
+//   caution  what to avoid or correct, with the line that gets back on track
+//   context  why, for reading later; left out of the compact view
+export const COACH_SECTION_KINDS = [
+  "say",
+  "anchors",
+  "ask",
+  "caution",
+  "context",
+] as const;
+
 export const coachNoteSectionSchema = z.strictObject({
-  label: z.string().trim().min(1).max(24),
-  points: z.array(talkingPoint).min(1).max(5),
+  kind: z.enum(COACH_SECTION_KINDS),
+  // A heading in place of the kind's own ("If pushed"), when one is needed.
+  label: z.string().trim().min(1).max(24).optional(),
+  lines: z.array(coachLineSchema).min(1).max(5),
 });
 
-// A correction while the person is answering: what is off, and the line that
-// gets them back ("That covers reads. For writes…").
-export const coachNoteSteerSchema = z.strictObject({
-  issue: talkingPoint,
-  say: talkingPoint.optional(),
-});
-
-// What a note is, so a reader (and a generator) knows what belongs in it:
-//   answer     how to answer the question just asked
-//   follow-up  more for a question already answered (same askId)
-//   steer      a correction mid-answer
-//   ask-them   questions for the person to ask the interviewer
-//   close      the closing line and next steps
+// The situation the note answers. One per note: it picks the note's template.
 export const COACH_NOTE_KINDS = [
-  "answer",
+  "direct-answer",
+  "technical",
+  "behavioral",
+  "closing",
   "follow-up",
-  "steer",
-  "ask-them",
-  "close",
+  "missed-opportunity",
 ] as const;
 
 export const coachNoteLinkSchema = z.strictObject({
@@ -69,17 +103,21 @@ export const coachNoteInputSchema = z.strictObject({
   // follow-up under it, never a replacement.
   askId: z.string().trim().min(1).max(64).optional(),
   // [DOMAIN] The structured note: what a generator fills in, and what the
-  // window prefers to draw. A note that has `sections` needs no `markdown`.
-  kind: z.enum(COACH_NOTE_KINDS).default("answer"),
+  // window draws. A note that has `sections` needs no `markdown`.
+  kind: z.enum(COACH_NOTE_KINDS).default("direct-answer"),
   // What was asked, as it was heard (the transcript line, tidied).
   heard: z.string().trim().min(1).max(600).optional(),
-  // What the interviewer is looking for in the answer, in one line.
-  wants: talkingPoint.optional(),
-  // The talking points, in the order to say them. At most four groups.
   sections: z.array(coachNoteSectionSchema).max(4).default([]),
-  steer: coachNoteSteerSchema.optional(),
   // A flow or architecture sketch, as Mermaid source (no code fence).
   diagram: z.string().trim().min(1).max(1_500).optional(),
+  // [DOMAIN] Revisions. A note with a `key` is one note over time: posting
+  // the same key again with a higher `revision` takes its place where it
+  // stands, and an older revision is refused, so a slow answer never
+  // overwrites a newer one. "pending" says a revision is being prepared: the
+  // last ready content stays on show until the next is ready.
+  key: z.string().trim().min(1).max(64).optional(),
+  revision: z.number().int().min(1).default(1),
+  status: z.enum(["pending", "ready"]).default("ready"),
   // When the note was for, when that is not now: a coach restoring a
   // session's notes gives each one the moment it was first shown.
   at: z.iso.datetime().optional(),
@@ -101,4 +139,8 @@ export type CoachNote = z.infer<typeof coachNoteSchema>;
 export type CoachNoteLink = z.infer<typeof coachNoteLinkSchema>;
 export type CoachNoteSection = z.infer<typeof coachNoteSectionSchema>;
 export type CoachNoteKind = (typeof COACH_NOTE_KINDS)[number];
+export type CoachSegment = z.infer<typeof coachSegmentSchema>;
+export type CoachLine = z.infer<typeof coachLineSchema>;
+export type CoachRole = (typeof COACH_ROLES)[number];
+export type CoachSectionKind = (typeof COACH_SECTION_KINDS)[number];
 export type CoachNotesResponse = z.infer<typeof coachNotesResponseSchema>;

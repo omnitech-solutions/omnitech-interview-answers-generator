@@ -471,6 +471,12 @@ export const rawAllowList: readonly AllowEntry[] = [
     reason: `The strip's stop action (pn-mini-button). ${NATIVE_PANEL_OPEN}`,
   },
   {
+    file: `${OVERLAY}/panels/coach-layout.tsx`,
+    max: { button: 1 },
+    reason:
+      "A question row in the coach layouts: a two-line row (a label that wraps, and its time) that is pressed as a whole, which the library Button (one truncated line) cannot draw. To go when the library has a list row.",
+  },
+  {
     file: `${OVERLAY}/code-canvas.tsx`,
     max: { button: 9 },
     reason:

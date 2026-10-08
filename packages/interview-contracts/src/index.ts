@@ -71,14 +71,27 @@ export {
   candidateMatrixSchema,
 } from "./briefing";
 export {
+  COACH_NOTE_KINDS,
+  COACH_ROLES,
+  COACH_SECTION_KINDS,
+  type CoachLine,
   type CoachNote,
   type CoachNoteInput,
+  type CoachNoteKind,
   type CoachNoteLink,
+  type CoachNoteSection,
   type CoachNotesResponse,
+  type CoachRole,
+  type CoachSectionKind,
+  type CoachSegment,
+  coachLineSchema,
   coachNoteInputSchema,
   coachNoteLinkSchema,
   coachNoteSchema,
+  coachNoteSectionSchema,
   coachNotesResponseSchema,
+  coachSegmentSchema,
+  TALKING_POINT_LENGTH,
 } from "./coach-notes";
 export {
   type DocumentField,

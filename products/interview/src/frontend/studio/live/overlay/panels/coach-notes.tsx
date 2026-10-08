@@ -67,7 +67,7 @@ export function useCoachNotes(enabled: boolean): {
   };
 }
 
-function openLink(url: string): void {
+export function openLink(url: string): void {
   if (!openExternalThroughHost(url))
     window.open(url, "_blank", "noopener,noreferrer");
 }
@@ -82,10 +82,7 @@ export function matchesNote(note: CoachNote, query: string): boolean {
     note.markdown ?? "",
     note.ask ?? "",
     note.heard ?? "",
-    note.wants ?? "",
-    note.steer?.issue ?? "",
-    note.steer?.say ?? "",
-    ...note.sections.flatMap((section) => [section.label, ...section.points]),
+    ...note.sections.flatMap((section) => section.lines.map(lineText)),
     ...note.points,
     ...note.links.flatMap((link) => [link.label, link.url]),
   ]
@@ -95,14 +92,28 @@ export function matchesNote(note: CoachNote, query: string): boolean {
 }
 
 // What a note says, as Markdown: its own Markdown, or its points as bullets.
-// A structured note (its sections, its diagram) is turned into the same
-// Markdown, so there is one way a note is drawn. The steer is left to the
-// caller, which draws it as a warning.
+// A structured note as Markdown, for the docked panel and for search: each
+// section under its heading, a line's evidence in bold, the diagram fenced.
+const SECTION_HEADING: Record<string, string> = {
+  say: "Say this",
+  anchors: "Anchors",
+  ask: "Ask",
+  caution: "Careful",
+  context: "Context",
+};
+export const lineText = (
+  line: CoachNote["sections"][number]["lines"][number],
+): string =>
+  line.segments
+    .map((segment) =>
+      segment.role === "evidence" ? `**${segment.text.trim()}**` : segment.text,
+    )
+    .join("");
 export function noteMarkdown(note: CoachNote): string {
   if (note.markdown) return note.markdown;
   const sections = note.sections.flatMap((section) => [
-    `## ${section.label}`,
-    ...section.points.map((point) => `- ${point}`),
+    `## ${section.label ?? SECTION_HEADING[section.kind]}`,
+    ...section.lines.map((line) => `- ${lineText(line)}`),
   ]);
   const diagram = note.diagram ? ["```mermaid", note.diagram, "```"] : [];
   return [
@@ -363,7 +374,7 @@ export function noteBlocks(markdown: string): Block[] {
 // escapes the text in the source and allows no script or link in the result;
 // that drawing is the only markup a note ever puts on the page. Mermaid is
 // loaded only when a note carries a diagram.
-function Diagram({ source }: { source: string }) {
+export function Diagram({ source }: { source: string }) {
   const id = `pn-coach-diagram-${useId().replaceAll(":", "")}`;
   const [svg, setSvg] = useState("");
   const [failed, setFailed] = useState(false);
@@ -466,15 +477,6 @@ export function Prompter({
           <Tag>{note.tone === "watch" ? "Watch" : "Say"}</Tag>
           <strong style={STYLE.title}>{note.title}</strong>
         </header>
-      )}
-      {!inline && note.steer && (
-        <p style={STYLE.paragraph}>
-          {inlineMarkdown(
-            note.steer.say
-              ? `${note.steer.issue} ${note.steer.say}`
-              : note.steer.issue,
-          )}
-        </p>
       )}
       {blocks.map((block, at) => {
         const key = `${at}:${block.kind}`;

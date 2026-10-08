@@ -796,7 +796,16 @@ console.log(solve([1, 2, 3]));`,
         "The coach note is invalid.",
         parsed.error.issues.map((issue) => issue.path.join(".")),
       );
-    return context.json(coachNotes.add(parsed.data), 201);
+    const added = coachNotes.add(parsed.data);
+    // An older revision of a note already held: refused, nothing changed.
+    if (!added)
+      return apiError(
+        context,
+        409,
+        "stale_coach_note",
+        "A newer revision of this note is already held.",
+      );
+    return context.json(added, 201);
   });
   app.delete("/api/v1/coach-notes", (context) =>
     context.json(coachNotes.clear()),

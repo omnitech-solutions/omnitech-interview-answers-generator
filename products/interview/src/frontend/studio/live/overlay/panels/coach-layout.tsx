@@ -27,7 +27,8 @@ import { CallSlot } from "./call-slot";
 import { ChatPanel } from "./chat-panel";
 import type { ChatView } from "./chat-view-pref";
 import { ColumnSplitter, useCoachColumns, WindowEdge } from "./coach-columns";
-import { noteMarkdown, Prompter, useCoachNotes } from "./coach-notes";
+import { CoachNoteView } from "./coach-note-view";
+import { useCoachNotes } from "./coach-notes";
 import {
   conversationTurns,
   type Question,
@@ -167,7 +168,7 @@ const STYLE = {
     fontWeight: 600,
     color: READ,
   },
-  note: { paddingLeft: 18, display: "flex", flexDirection: "column", gap: 4 },
+  note: { paddingLeft: 18, display: "flex", flexDirection: "column", gap: 8 },
   warn: {
     marginLeft: 18,
     padding: "8px 12px",
@@ -175,8 +176,18 @@ const STYLE = {
     background: "rgba(245, 184, 74, 0.1)",
     border: "1px solid rgba(245, 184, 74, 0.35)",
   },
-  steerSay: { margin: "4px 0 0 28px", fontSize: 17, color: READ },
-  wants: { margin: 0, fontSize: 14, lineHeight: 1.4, color: DIM },
+  noteMeta: { fontSize: 11.5, color: FAINT },
+  previous: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    fontSize: 11,
+    fontWeight: 600,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    color: FAINT,
+  },
+  rule: { flex: "1 1 auto", height: 1, background: LINE },
   warnTitle: {
     display: "flex",
     alignItems: "center",
@@ -330,46 +341,38 @@ const topic = (text: string) =>
     .toLowerCase();
 const sameTopic = (a: string, b: string) => topic(a) === topic(b);
 
-// The amber box: what is off, then the line that gets the answer back.
-function Steer({ issue, say }: { issue: string; say?: string | undefined }) {
-  return (
-    <div style={STYLE.warn} data-testid="pn-coach-steer">
-      <div style={STYLE.warnTitle}>
-        <Icon name="warning" />
-        <span>{issue.replaceAll("**", "")}</span>
-      </div>
-      {say && <p style={STYLE.steerSay}>{say.replaceAll("**", "")}</p>}
-    </div>
-  );
-}
+// What kind of note it is, in a word, beside the time it was for.
+const KIND_LABEL: Record<CoachNote["kind"], string> = {
+  "direct-answer": "Answer",
+  technical: "Technical",
+  behavioral: "Behavioural",
+  closing: "Closing",
+  "follow-up": "Follow-up",
+  "missed-opportunity": "Missed opportunity",
+};
 
-function NoteBlock({ note, heading }: { note: CoachNote; heading: string }) {
-  const body = noteMarkdown(note) !== "";
-  // A warning with nothing structured in it is the whole note, in amber.
-  if (note.tone === "watch" && !note.steer)
-    return (
-      <div style={STYLE.warn} data-tone="watch" data-testid="pn-coach-block">
-        <div style={STYLE.warnTitle}>
-          <Icon name="warning" />
-          <span>{note.title}</span>
-        </div>
-        <Prompter note={note} inline />
-      </div>
-    );
+function NoteBlock({
+  note,
+  heading,
+  compact,
+}: {
+  note: CoachNote;
+  heading: string;
+  compact: boolean;
+}) {
   return (
-    <div style={STYLE.note} data-tone={note.tone} data-testid="pn-coach-block">
-      {/* A note named as its question says the heading once, not twice. */}
-      {sameTopic(note.title, heading) || (
-        <span style={STYLE.caps}>{note.title}</span>
-      )}
-      {note.wants && (
-        <p style={STYLE.wants}>
-          <span style={STYLE.caps}>She wants </span>
-          {note.wants.replaceAll("**", "")}
-        </p>
-      )}
-      {note.steer && <Steer issue={note.steer.issue} say={note.steer.say} />}
-      {body && <Prompter note={note} inline />}
+    <div
+      style={STYLE.note}
+      data-tone={note.tone}
+      data-kind={note.kind}
+      data-testid="pn-coach-block"
+    >
+      <span style={STYLE.noteMeta}>
+        {`${KIND_LABEL[note.kind]} · ${clock(Date.parse(note.createdAt))}`}
+        {/* A note named as its question says the heading once, not twice. */}
+        {sameTopic(note.title, heading) ? "" : ` · ${note.title}`}
+      </span>
+      <CoachNoteView note={note} mode={compact ? "compact" : "detail"} />
     </div>
   );
 }
@@ -383,8 +386,11 @@ function NotesPane({
   onReset,
   waiting,
   following,
+  compact,
 }: {
   label: string;
+  // The compact note: the response and a few anchors (the prompter view).
+  compact: boolean;
   // The question on the table, while the notes on show are still the last
   // question's: its own have not arrived yet.
   waiting: Turn | undefined;
@@ -525,28 +531,62 @@ function NotesPane({
             beneath.
           </p>
         )}
+        {/* [DOMAIN] The question just asked is its own thing: the notes
+            beneath are for the question before it, and are marked so. They
+            never read as the answer to what was just asked. */}
         {waiting && (
-          <div style={STYLE.waiting} data-testid="pn-coach-waiting">
-            <span style={STYLE.askLabel}>
-              {`Being asked · ${clock(waiting.at)}`}
-            </span>
-            <p style={STYLE.waitingText}>{waiting.question?.text ?? ""}</p>
-            <span style={STYLE.small}>
-              Notes for this are on their way. The last notes stay below.
-            </span>
-          </div>
+          <>
+            <div style={STYLE.waiting} data-testid="pn-coach-waiting">
+              <span style={STYLE.askLabel}>
+                {`Current question · listening · ${clock(waiting.at)}`}
+              </span>
+              <p style={STYLE.waitingText}>{waiting.question?.text ?? ""}</p>
+              <span style={STYLE.small}>Preparing response…</span>
+            </div>
+            <div style={STYLE.previous}>
+              <span>Previous coaching note</span>
+              <span style={STYLE.rule} aria-hidden="true" />
+            </div>
+          </>
         )}
         {question && (
-          <>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 16,
+              // Dimmed while it is only the previous question's.
+              opacity: waiting ? 0.55 : 1,
+            }}
+          >
             <div style={STYLE.asked}>
               <span style={STYLE.askBar} aria-hidden="true" />
               <div style={{ minWidth: 0 }}>
                 <span style={STYLE.askLabel}>
-                  {`${question.live ? "Being asked" : "Asked"} · ${clock(question.at)}`}
+                  {`${
+                    waiting
+                      ? "Previous question"
+                      : question.live
+                        ? "Live"
+                        : "Asked"
+                  } · ${clock(question.at)}`}
                 </span>
+                {/* The question in the coach's few words. What was actually
+                    said is beneath it, small: it places the question and is
+                    not read. */}
                 <p style={STYLE.askText} data-testid="pn-coach-asked">
-                  {question.question?.text ?? question.label}
+                  {question.label}
                 </p>
+                {question.question &&
+                  question.question.text !== question.label && (
+                    <p
+                      style={STYLE.followUp}
+                      title={question.question.text}
+                      data-testid="pn-coach-heard"
+                    >
+                      {question.question.text}
+                    </p>
+                  )}
               </div>
             </div>
             {question.notes.length === 0 && (
@@ -576,7 +616,8 @@ function NotesPane({
                   <NoteBlock
                     key={block.key}
                     note={block.note}
-                    heading={question.question?.text ?? question.label}
+                    heading={question.label}
+                    compact={compact}
                   />
                 ) : (
                   <div
@@ -612,7 +653,7 @@ function NotesPane({
                 </Button>
               </div>
             )}
-          </>
+          </div>
         )}
       </div>
     </section>
@@ -715,6 +756,7 @@ export function CoachLayout({
       onPick={pick}
       onLive={() => setPicked(null)}
       following={pickedQuestion === undefined}
+      compact={view === "prompter"}
       waiting={pickedQuestion === undefined ? waiting : undefined}
       onReset={sizes.reset}
     />
