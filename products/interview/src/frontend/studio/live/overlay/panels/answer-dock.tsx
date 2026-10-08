@@ -163,8 +163,18 @@ export function AnswerDock({
         >
           <span className="pn-dock-add-label">Add screenshot</span>
         </Button>
-        {/* The language is chosen here, before anything is sent: the wrong
-            one costs a whole generation. */}
+      </div>
+      {/* The language on the left, the two actions on the right, under the row
+          of thumbnails (which keeps its whole width: a squeezed row clips the
+          thumbnails). The layout is set here, not in the stylesheet: the
+          native window keeps a stylesheet until it reloads, and this row must
+          never be wrong. */}
+      <div
+        className="pn-dock-row"
+        style={{ width: "100%", justifyContent: "flex-end" }}
+      >
+        {/* Chosen before anything is sent: the wrong language costs a whole
+            generation. */}
         <ActionMenu
           label="Solution language"
           title="Generate in"
@@ -202,14 +212,7 @@ export function AnswerDock({
             </Button>
           }
         />
-      </div>
-      {/* The two actions sit at the right, under the row of inputs. The
-          layout is set here, not in the stylesheet: the native window keeps
-          a stylesheet until it reloads, and this row must never be wrong. */}
-      <div
-        className="pn-dock-row"
-        style={{ width: "100%", justifyContent: "flex-end" }}
-      >
+        <span style={{ flex: "1 1 auto" }} aria-hidden="true" />
         <Button
           buttonSize="sm"
           variant="ghost"
