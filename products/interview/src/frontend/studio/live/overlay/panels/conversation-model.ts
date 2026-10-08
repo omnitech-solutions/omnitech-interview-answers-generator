@@ -10,8 +10,24 @@ import type { PanelRow } from "./panel-model";
 // a question word or a request ("tell me", "walk me through"). A thank-you or
 // a closing remark is an aside of the turn it follows, never a question.
 export const QUESTION_WORDS = 5;
-const ASKS =
-  /\b(?:how|what|why|where|when|which|who|whose)\b|\b(?:do|did|does|are|is|was|were|have|has|can|could|would|will|should) (?:you|we|it|they|there|that)\b|\b(?:tell|walk|talk|show|give) (?:me|us)\b|\b(?:describe|explain|i want to hear|i would like to hear|curious to hear|any questions)\b/;
+// A question word asks only where a clause begins ("what would you do",
+// "and how did that go"); inside a sentence it is a relative ("the files
+// which do not fit", "people who are trying"), and a long stretch of talk
+// with one of those in it is not a question.
+const CLAUSE_START = String.raw`(?:^|[.?!,;:]\s*|\b(?:and|so|but|okay|ok|well|now|then|also|right|yeah)\s+)`;
+const ASKS = new RegExp(
+  [
+    String.raw`\?`,
+    `${CLAUSE_START}(?:how|what|why|where|when|which|who|whose)\\b`,
+    `${CLAUSE_START}(?:is|are|was|were) (?:it|they|there|that)\\b`,
+    String.raw`\b(?:do|did|does|are|were|have|can|could|would|will|should) (?:you|we)\b`,
+    String.raw`\b(?:tell|walk|talk|show|give) (?:me|us)\b`,
+    String.raw`\b(?:describe|explain|i want to hear|i would like to hear|curious to hear|any questions)\b`,
+  ].join("|"),
+);
+// [GUARD] A question waits for its notes only this long. After that nothing
+// is being prepared for it, and the pane goes back to the notes it has.
+export const WAITING_MS = 3 * 60_000;
 // The microphone also hears the call through the speakers. A line of the
 // person's that repeats an interviewer line this close in time is that echo.
 const ECHO_WINDOW_MS = 30_000;
@@ -167,13 +183,17 @@ export type Question = Turn & {
 };
 
 // The question just asked that the coach has not answered yet, if there is one.
-export function waitingTurn(turns: readonly Turn[]): Turn | undefined {
+export function waitingTurn(
+  turns: readonly Turn[],
+  now: number = Date.now(),
+): Turn | undefined {
   const lastNoted = turns.findLastIndex((turn) => turn.notes.length > 0);
   const last = turns[turns.length - 1];
   return lastNoted >= 0 &&
     last !== undefined &&
     turns.length - 1 > lastNoted &&
-    last.question !== null
+    last.question !== null &&
+    now - last.at <= WAITING_MS
     ? last
     : undefined;
 }

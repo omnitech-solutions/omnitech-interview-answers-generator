@@ -37,7 +37,14 @@ import {
 import { Icon } from "../../../icon";
 import { ChatPanel } from "./chat-panel";
 import { type ChatView, QUESTIONS_WIDTH, RIGHT_WIDTH } from "./chat-view-pref";
-import { holdWindowDrag, useCoachSizes, WindowEdge } from "./coach-columns";
+import {
+  HEIGHT_FLOOR,
+  holdWindowDrag,
+  setCoachWindowHeight,
+  setCoachWindowWidth,
+  useCoachSizes,
+  WINDOW_FLOOR,
+} from "./coach-columns";
 import { CoachNoteView } from "./coach-note-view";
 import { useCoachNotes } from "./coach-notes";
 import { ContextPane } from "./context-pane";
@@ -777,25 +784,49 @@ export function CoachLayout({
       </SplitterPanel>
     </Splitter>
   );
-  // The row of columns between the window's side edges, over its bottom edge.
+  // [DOMAIN] The window itself is resized from the Splitters' outer edges: the
+  // columns' left and right (the shell widens about the window's centre) and
+  // the bottom (the shell fits a height from the top). The sizes are kept
+  // until "Reset layout".
+  const sideEdges = {
+    edges: ["start", "end"],
+    edgeAnchor: "centre",
+    extent: window.innerWidth,
+    minExtent: WINDOW_FLOOR,
+    maxExtent: window.screen.availWidth,
+    onExtentChange: (width: number) => setCoachWindowWidth(width),
+    onExtentReset: () => setCoachWindowWidth(null),
+  } as const;
   const frame = (columns: ReactNode) => (
-    <div
+    <Splitter
+      {...splitter}
+      orientation="vertical"
+      edges={["end"]}
+      extent={window.innerHeight}
+      minExtent={HEIGHT_FLOOR}
+      maxExtent={window.screen.availHeight}
+      onExtentChange={(height) => setCoachWindowHeight(height)}
+      onExtentReset={() => setCoachWindowHeight(null)}
       className="pn-single-body"
       style={{ ...STYLE.body, flexDirection: "column", gap: 0 }}
       data-view={view}
       data-testid="pn-coach-layout"
     >
-      <div style={STYLE.columns}>
-        <WindowEdge side="left" />
+      <SplitterPanel id="columns" style={STYLE.columns}>
         {columns}
-        <WindowEdge side="right" />
-      </div>
-      <WindowEdge side="bottom" />
-    </div>
+      </SplitterPanel>
+    </Splitter>
   );
-  if (view === "prompter") return frame(centre);
+  if (view === "prompter")
+    return frame(
+      <Splitter {...splitter} {...sideEdges} style={STYLE.fill}>
+        <SplitterPanel id="main" style={STYLE.panelFill}>
+          {centre}
+        </SplitterPanel>
+      </Splitter>,
+    );
   return frame(
-    <Splitter {...splitter} style={STYLE.fill}>
+    <Splitter {...splitter} {...sideEdges} style={STYLE.fill}>
       <SplitterPanel
         id="questions"
         label="the questions"
