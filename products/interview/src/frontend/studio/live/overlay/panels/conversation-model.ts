@@ -123,7 +123,8 @@ export function conversationTurns(
           each.notes.some((held) => held.askId === note.askId),
         )
       : undefined;
-    const nearest = turns.findLast((each) => each.at <= at) ?? turns[0];
+    // Only a question asked before the note can be the one it is for.
+    const nearest = turns.findLast((each) => each.at <= at);
     const taken =
       note.askId !== undefined &&
       (nearest?.notes.some(
@@ -146,13 +147,37 @@ export function conversationTurns(
 export const currentQuestion = (turns: readonly Turn[]): PanelRow | null =>
   turns.findLast((turn) => turn.question !== null)?.question ?? null;
 
-// The questions, for the list and the notes: every turn that asks something
-// or holds a note. `live` is the one on the table.
-export type Question = Turn & { number: number; live: boolean; label: string };
+// The questions, for the list and the notes. `live` is the one on the table.
+//
+// [DOMAIN] An interviewer rephrases, prompts and follows up, and each of those
+// is heard as its own question. A question in the list is one the coach has
+// answered (it holds notes) or one still waiting for the coach (asked after
+// the last note). Everything asked in between belongs to the answered
+// question before it, as a follow-up, with whatever was said and answered
+// under it: so no row in the list is an empty one that was only a rephrasing.
+export type Question = Turn & {
+  number: number;
+  live: boolean;
+  label: string;
+  // What else was asked under this question, oldest first.
+  followUps: PanelRow[];
+};
 export function questionsOf(turns: readonly Turn[]): Question[] {
-  const asked = turns.filter(
-    (turn) => turn.question !== null || turn.notes.length > 0,
-  );
+  const lastNoted = turns.findLastIndex((turn) => turn.notes.length > 0);
+  const asked: (Turn & { followUps: PanelRow[] })[] = [];
+  turns.forEach((turn, at) => {
+    const previous = asked[asked.length - 1];
+    const folds = turn.notes.length === 0 && at < lastNoted && previous;
+    if (!folds) {
+      if (turn.question !== null || turn.notes.length > 0)
+        asked.push({ ...turn, followUps: [] });
+      return;
+    }
+    if (turn.question) previous.followUps.push(turn.question);
+    previous.asides = [...previous.asides, ...turn.asides];
+    previous.studio = [...previous.studio, ...turn.studio];
+    previous.mine = [...previous.mine, ...turn.mine];
+  });
   return asked.map((turn, at) => {
     const heard = turn.question?.text ?? turn.notes[0]?.title ?? "";
     return {

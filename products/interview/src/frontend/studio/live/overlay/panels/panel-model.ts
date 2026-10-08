@@ -385,6 +385,9 @@ export function panelRows(
   since = 0,
   // Per task, the older revision on show (view-only; see focus-presentation).
   revisionPicks: Readonly<Record<string, number>> = {},
+  // The most rows returned, newest kept. The transcript pane shows a window of
+  // them; a reader of the whole session (the questions list) asks for all.
+  limit = PANEL_ROWS,
 ): PanelRow[] {
   const heard: PanelRow[] = groupHeard(heardPieces(model)).map((group) => ({
     key: group.key,
@@ -446,7 +449,7 @@ export function panelRows(
   return [...heard, ...mine, ...assistant]
     .filter((row) => row.at > since)
     .sort((a, b) => a.at - b.at)
-    .slice(-PANEL_ROWS);
+    .slice(-limit);
 }
 
 // The follow-up box says which task its text is about: the one on show.

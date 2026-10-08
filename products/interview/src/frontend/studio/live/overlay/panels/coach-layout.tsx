@@ -137,6 +137,13 @@ const STYLE = {
     color: READ,
     textWrap: "pretty",
   },
+  followUp: {
+    margin: "3px 0 0",
+    fontSize: 17,
+    lineHeight: 1.4,
+    fontWeight: 600,
+    color: READ,
+  },
   note: { paddingLeft: 18, display: "flex", flexDirection: "column", gap: 4 },
   warn: {
     marginLeft: 18,
@@ -472,13 +479,46 @@ function NotesPane({
                 No notes for this question yet.
               </p>
             )}
-            {question.notes.map((note) => (
-              <NoteBlock
-                key={note.id}
-                note={note}
-                heading={question.question?.text ?? question.label}
-              />
-            ))}
+            {/* The notes and the follow-ups asked under this question, in the
+                order they came. */}
+            {[
+              ...question.notes.map((note) => ({
+                at: Date.parse(note.createdAt),
+                key: note.id,
+                note,
+                asked: null,
+              })),
+              ...question.followUps.map((asked) => ({
+                at: asked.at,
+                key: asked.key,
+                note: null,
+                asked,
+              })),
+            ]
+              .sort((a, b) => a.at - b.at)
+              .map((block) =>
+                block.note ? (
+                  <NoteBlock
+                    key={block.key}
+                    note={block.note}
+                    heading={question.question?.text ?? question.label}
+                  />
+                ) : (
+                  <div
+                    key={block.key}
+                    style={STYLE.asked}
+                    data-testid="pn-coach-follow-up"
+                  >
+                    <span style={STYLE.askBar} aria-hidden="true" />
+                    <div style={{ minWidth: 0 }}>
+                      <span style={STYLE.askLabel}>
+                        {`Follow-up · ${clock(block.at)}`}
+                      </span>
+                      <p style={STYLE.followUp}>{block.asked.text}</p>
+                    </div>
+                  </div>
+                ),
+              )}
             {below && (
               <div style={STYLE.pill}>
                 <Button
@@ -560,14 +600,30 @@ export function CoachLayout({
   view: Exclude<ChatView, "original" | "transcript">;
 }) {
   const coach = useCoachNotes(s.open);
-  const rows = panelRows(s.model, s.entries, s.clearedAt, s.revisionPicks);
+  // Every row of the session, not the transcript pane's window of them: the
+  // questions go back to the first one asked.
+  const rows = panelRows(
+    s.model,
+    s.entries,
+    s.clearedAt,
+    s.revisionPicks,
+    Number.POSITIVE_INFINITY,
+  );
   const questions = questionsOf(conversationTurns(rows, coach.notes));
   // The question on show: the one picked from the list, or the one on the table.
   const [picked, setPicked] = useState<string | null>(null);
   const live = questions[questions.length - 1];
   const shown = questions.find((each) => each.key === picked) ?? live;
   // Picking the question on the table is following it again.
-  const pick = (key: string) => setPicked(key === live?.key ? null : key);
+  // [DOMAIN] It also brings the studio's own answer to that question into the
+  // Answer pane, so the notes and the answer on show are for the same thing.
+  const pick = (key: string) => {
+    setPicked(key === live?.key ? null : key);
+    const answered = questions
+      .find((each) => each.key === key)
+      ?.studio.findLast((row) => row.taskId !== undefined);
+    if (answered?.taskId) s.select(answered.taskId);
+  };
   const sizes = useCoachColumns();
   const notes = (
     <NotesPane
