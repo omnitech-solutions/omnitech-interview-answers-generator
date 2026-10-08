@@ -211,3 +211,37 @@ export function questionsOf(turns: readonly Turn[]): Question[] {
     };
   });
 }
+
+// [DOMAIN] What the interviewer said in passing is heard as one long run of
+// speech: all grey it cannot be scanned, and all white it competes with the
+// notes. So the words that carry it (the subject, the thing asked about) are
+// lifted a little and the rest of the sentence stays quiet: the eye lands on
+// "behavioural", "challenges", "people" and can skip the "you know there
+// would be" around them. It is a reading aid over the heard text, nothing is
+// rewritten.
+const QUIET_WORDS = new Set(
+  `about above after again also another around because been before being
+  both could does doing down each even ever every from going have having
+  here into just kind know like made make many maybe more most much must
+  only other over really said same should since some something sort such
+  than that their them then there these they thing things think this those
+  through under until usually very want well were what when where which
+  while will with would yeah your yours okay right sounds good great sure
+  actually basically little guess mean means well`.split(/\s+/),
+);
+const CARRIES = 5;
+export type HeardPiece = { text: string; strong: boolean };
+export function heardEmphasis(text: string): HeardPiece[] {
+  const pieces: HeardPiece[] = [];
+  for (const token of text.split(/(\s+)/)) {
+    if (token === "") continue;
+    const word = token.toLowerCase().replace(/[^a-z']/g, "");
+    const strong = word.length >= CARRIES && !QUIET_WORDS.has(word);
+    const last = pieces[pieces.length - 1];
+    // Neighbours of the same weight (and the spaces between) are one piece.
+    if (last && (last.strong === strong || /^\s+$/.test(token)))
+      last.text += token;
+    else pieces.push({ text: token, strong });
+  }
+  return pieces;
+}

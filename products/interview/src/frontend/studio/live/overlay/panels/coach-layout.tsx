@@ -31,6 +31,7 @@ import { CoachNoteView } from "./coach-note-view";
 import { useCoachNotes } from "./coach-notes";
 import {
   conversationTurns,
+  heardEmphasis,
   type Question,
   questionsOf,
   type Turn,
@@ -153,14 +154,15 @@ const STYLE = {
   // it is small, grey and cut to two lines (the whole of it is in its title).
   followUp: {
     margin: "3px 0 0",
-    fontSize: 14,
-    lineHeight: 1.4,
+    fontSize: 15,
+    lineHeight: 1.45,
     color: DIM,
     display: "-webkit-box",
     WebkitLineClamp: 2,
     WebkitBoxOrient: "vertical",
     overflow: "hidden",
   },
+  heardStrong: { color: "#dcdce0", fontWeight: 500 },
   waitingText: {
     margin: "3px 0 0",
     fontSize: 17,
@@ -168,7 +170,12 @@ const STYLE = {
     fontWeight: 600,
     color: READ,
   },
-  note: { paddingLeft: 18, display: "flex", flexDirection: "column", gap: 8 },
+  note: {
+    paddingLeft: 18,
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
+  },
   warn: {
     marginLeft: 18,
     padding: "8px 12px",
@@ -340,6 +347,24 @@ const topic = (text: string) =>
     .trim()
     .toLowerCase();
 const sameTopic = (a: string, b: string) => topic(a) === topic(b);
+
+// What was said, with the words that carry it lifted out of the rest.
+function Heard({ text }: { text: string }) {
+  return (
+    <>
+      {heardEmphasis(text).map((piece, at) => (
+        <span
+          // The pieces of one sentence never reorder.
+          // biome-ignore lint/suspicious/noArrayIndexKey: position is the identity
+          key={at}
+          style={piece.strong ? STYLE.heardStrong : undefined}
+        >
+          {piece.text}
+        </span>
+      ))}
+    </>
+  );
+}
 
 // What kind of note it is, in a word, beside the time it was for.
 const KIND_LABEL: Record<CoachNote["kind"], string> = {
@@ -554,7 +579,7 @@ function NotesPane({
             style={{
               display: "flex",
               flexDirection: "column",
-              gap: 16,
+              gap: 26,
               // Dimmed while it is only the previous question's.
               opacity: waiting ? 0.55 : 1,
             }}
@@ -584,7 +609,7 @@ function NotesPane({
                       title={question.question.text}
                       data-testid="pn-coach-heard"
                     >
-                      {question.question.text}
+                      <Heard text={question.question.text} />
                     </p>
                   )}
               </div>
@@ -622,7 +647,13 @@ function NotesPane({
                 ) : (
                   <div
                     key={block.key}
-                    style={STYLE.asked}
+                    // Set apart from the notes above it by a rule: it is
+                    // the interviewer speaking again, not more to say.
+                    style={{
+                      ...STYLE.asked,
+                      paddingTop: 20,
+                      borderTop: `1px solid ${LINE}`,
+                    }}
                     data-testid="pn-coach-follow-up"
                   >
                     <span style={STYLE.askBar} aria-hidden="true" />
@@ -631,7 +662,7 @@ function NotesPane({
                         {`Follow-up · ${clock(block.at)}`}
                       </span>
                       <p style={STYLE.followUp} title={block.asked.text}>
-                        {block.asked.text}
+                        <Heard text={block.asked.text} />
                       </p>
                     </div>
                   </div>

@@ -154,9 +154,12 @@ export function drawnSections(note: CoachNote): {
 }
 
 const STYLE = {
-  note: { display: "flex", flexDirection: "column", gap: 14, minWidth: 0 },
-  section: { display: "flex", flexDirection: "column", gap: 9 },
+  // [DOMAIN] Space says what belongs together: a wide gap between sections,
+  // a small one between a label and its own lines.
+  note: { display: "flex", flexDirection: "column", gap: 26, minWidth: 0 },
+  section: { display: "flex", flexDirection: "column", gap: 10 },
   label: {
+    marginBottom: 2,
     fontSize: 11,
     fontWeight: 700,
     letterSpacing: "0.09em",
