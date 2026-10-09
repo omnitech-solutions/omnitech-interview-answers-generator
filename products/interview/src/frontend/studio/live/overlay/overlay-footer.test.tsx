@@ -255,6 +255,97 @@ describe("footer", () => {
     );
   });
 
+  describe("Record transcript", () => {
+    const SESSION = "5e551011-0000-4000-8000-00000000000a";
+    const record = () => screen.queryByTestId("pn-record-transcript");
+    const liveWith = (
+      sessionId: string | null | undefined,
+      paused = false,
+    ): FooterVariant => ({
+      kind: "live",
+      paused,
+      clock: { label: "1:00" },
+      ...(sessionId === undefined ? {} : { sessionId }),
+    });
+    afterEach(() => vi.unstubAllGlobals());
+
+    it("is offered for a live session that names itself: off, before Pause and End", () => {
+      show(liveWith(SESSION));
+      expect(record()).toHaveTextContent("Record transcript");
+      expect(record()).toHaveAttribute("data-recording", "off");
+      expect(record()).toHaveAttribute("aria-pressed", "false");
+      expect(record()).toBeEnabled();
+      const names = screen
+        .getAllByRole("button")
+        .map((button) => button.textContent);
+      expect(names.slice(-3)).toEqual([
+        "Record transcript",
+        "Pause session",
+        "End session",
+      ]);
+    });
+
+    it.each([
+      ["a live session that names none", liveWith(undefined)],
+      ["a live session whose id is not known yet", liveWith(null)],
+      ["a live session with an empty id", liveWith("")],
+      ["an idle window", { kind: "idle", status: <span>Not signed in</span> }],
+    ] as [string, FooterVariant][])(
+      "is not offered for %s",
+      (_name, variant) => {
+        show(variant);
+        expect(record()).toBeNull();
+      },
+    );
+
+    it("cannot be pressed while the session is paused, beside Resume", () => {
+      show(liveWith(SESSION, true));
+      expect(record()).toBeDisabled();
+      expect(record()).toHaveAttribute("data-recording", "off");
+      expect(
+        screen.getByRole("button", { name: "Resume session" }),
+      ).toBeEnabled();
+    });
+
+    it("starts the recording of the session the footer was given", async () => {
+      const asked: { url: string; method?: string; body?: unknown }[] = [];
+      vi.stubGlobal(
+        "fetch",
+        async (input: RequestInfo | URL, init?: RequestInit) => {
+          asked.push({
+            url: String(input),
+            ...(init?.method ? { method: init.method } : {}),
+            body: JSON.parse(String(init?.body ?? "null")),
+          });
+          return new Response(
+            JSON.stringify({
+              recording: { on: true, lines: 0, file: "f.txt" },
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          );
+        },
+      );
+      show(liveWith(SESSION));
+      fireEvent.click(record() as HTMLElement);
+      await waitFor(() =>
+        expect(record()).toHaveAttribute("data-recording", "on"),
+      );
+      expect(record()).toHaveTextContent("Recording · 0 lines");
+      expect(asked).toEqual([
+        {
+          url: `/api/interview/t/local/sessions/${SESSION}/recording`,
+          method: "POST",
+          body: { on: true },
+        },
+      ]);
+      // Pause and End are still there beside it.
+      expect(
+        screen.getByRole("button", { name: "Pause session" }),
+      ).toBeVisible();
+      expect(screen.getByRole("button", { name: "End session" })).toBeVisible();
+    });
+  });
+
   it("shows no build tag in a packaged app", () => {
     build.BUILD.packaged = true;
     show(live());

@@ -37,6 +37,13 @@ export const coachTranscriptSessionSchema = z.strictObject({
   sessionId: z.uuid(),
 });
 
+// [DOMAIN] Where the transcript came from, and so where its notes belong. A
+// live session's conversation is coached into the person's own notes. A
+// transcript someone attached to try the coach out is a replay: its notes are
+// kept apart, in memory, so a test never writes over what was coached in a
+// real call.
+export const COACH_SPACES = ["live", "replay"] as const;
+
 export const coachTranscriptResponseSchema = z.strictObject({
   // Changes when the transcript is cleared or the Studio restarts: a reader
   // that sees a new one starts again from the first line.
@@ -45,8 +52,15 @@ export const coachTranscriptResponseSchema = z.strictObject({
   cursor: z.number().int().nonnegative(),
   lines: z.array(coachTranscriptLineSchema),
   session: coachTranscriptSessionSchema.optional(),
+  // Absent reads as "live".
+  space: z.enum(COACH_SPACES).optional(),
+  // [DOMAIN] What is on the shared screen, as text read from the latest
+  // capture (a coding task, the code under discussion, a diagram's labels).
+  // Only the latest is held: the screen is a state, not a history.
+  screen: z.strictObject({ text: z.string(), at: z.iso.datetime() }).optional(),
 });
 
+export type CoachSpace = (typeof COACH_SPACES)[number];
 export type CoachSpeaker = (typeof COACH_SPEAKERS)[number];
 export type CoachTranscriptLineInput = z.input<
   typeof coachTranscriptLineInputSchema

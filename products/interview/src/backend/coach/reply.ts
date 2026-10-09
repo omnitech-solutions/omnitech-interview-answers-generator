@@ -23,13 +23,80 @@ const SECTION_OF: Readonly<Record<string, CoachSectionKind>> = {
   QUESTION: "ask",
   CAUTION: "caution",
 };
+// [DOMAIN] What kind of round the coach is in. It changes what a good note
+// is: a conversation wants the answer to say; a system design wants the
+// questions to ask first and then a design that grows; live coding wants a
+// prompt (where to look, the test to write), never the code.
+export const COACH_MODES = ["conversation", "system-design", "coding"] as const;
+export type CoachMode = (typeof COACH_MODES)[number];
+
 // The order the window reads them in, and how many lines each may hold.
-const SECTIONS: readonly (readonly [CoachSectionKind, number])[] = [
-  ["say", 3],
-  ["anchors", 3],
-  ["ask", 1],
-  ["caution", 1],
-];
+type Caps = readonly (readonly [CoachSectionKind, number])[];
+const SECTIONS: Record<CoachMode, Caps> = {
+  conversation: [
+    ["say", 3],
+    ["anchors", 3],
+    ["ask", 1],
+    ["caution", 1],
+  ],
+  // A design opens with the questions to ask, so it may hold five of them.
+  "system-design": [
+    ["ask", 5],
+    ["say", 3],
+    ["anchors", 3],
+    ["caution", 2],
+  ],
+  coding: [
+    ["say", 2],
+    ["anchors", 4],
+    ["ask", 2],
+    ["caution", 2],
+  ],
+};
+
+// One arrow of a design, as the model writes it: "DRAW: Client -> API: order".
+export type DesignEdge = { from: string; to: string; label?: string };
+const EDGE = /^(.{1,40}?)\s*-+>\s*([^:]{1,40})(?::\s*(.{1,60}))?$/;
+export const DESIGN_STAGES = [
+  "requirements",
+  "high-level",
+  "detail",
+  "issues",
+] as const;
+export type DesignStage = (typeof DESIGN_STAGES)[number];
+
+// The design so far as Mermaid source. Boxes are named by what they are
+// called, so the same name is the same box however often it is drawn.
+const DIAGRAM_LENGTH = 1_500;
+export function designDiagram(
+  edges: readonly DesignEdge[],
+): string | undefined {
+  if (edges.length === 0) return undefined;
+  const id = (name: string) =>
+    `n_${name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_|_$/g, "")}`;
+  // Mermaid reads brackets, pipes and parentheses as its own marks.
+  const label = (text: string) =>
+    cut(
+      text
+        .replace(/["[\]|(){}<>]/g, "")
+        .replace(/\s+/g, " ")
+        .trim(),
+      48,
+    );
+  const lines = ["flowchart LR"];
+  for (const edge of edges) {
+    const line = `  ${id(edge.from)}["${label(edge.from)}"] -->${
+      edge.label ? `|${label(edge.label)}|` : ""
+    } ${id(edge.to)}["${label(edge.to)}"]`;
+    // A drawing that would not fit is cut at a whole arrow, never mid-line.
+    if (lines.join("\n").length + line.length + 1 > DIAGRAM_LENGTH) break;
+    lines.push(line);
+  }
+  return lines.join("\n");
+}
 const LABELLED = /^([A-Z]+):\s*(.*)$/;
 
 const cut = (text: string, length: number): string =>
@@ -148,13 +215,34 @@ function lineOf(text: string, known: KnownFacts): Line | null {
   }
   // A stray marker or an unfinished pointer never reaches the window as text.
   add({
-    text: whole.slice(from).replace(/\*\*|\[\/[\w/-]*\]?/g, ""),
+    text: whole
+      .slice(from)
+      .replace(/\*\*|\[[^\]\s]*\/[^\]\s]*\]?|[\w.…/-]*\/[\w/-]*\]/g, ""),
     role: "spoken",
   });
   return segments.length > 0 ? { segments: segments.slice(0, 12) } : null;
 }
 
+// [DOMAIN] What the coach chose to remember for the rest of the call: lines
+// it writes for itself ("LOG: she said the team owns pricing rules"), given
+// back to it on every later call. They are never shown as a note, and a reply
+// that is otherwise silent may still carry them.
+const LOG_LINE = /^LOG:\s*(.+)$/;
+export const LOG_LINE_LENGTH = 200;
+export function coachLogOf(text: string): string[] {
+  return text
+    .split(/\r?\n/)
+    .flatMap((line) => {
+      const found = LOG_LINE.exec(line.trim());
+      return found ? [cut((found[1] as string).trim(), LOG_LINE_LENGTH)] : [];
+    })
+    .slice(0, 3);
+}
+
 export type CoachReply = {
+  // In a system design: where the conversation is, and the arrows to add.
+  stage?: DesignStage;
+  draw: DesignEdge[];
   note: CoachNoteInput;
   // The note is for the question the last note was for: it joins that one.
   sameQuestion: boolean;
@@ -168,17 +256,29 @@ export function parseCoachReply(
   final: boolean,
   // The person's own facts the model was given, by pointer: only these verify.
   known: KnownFacts = NO_FACTS,
+  mode: CoachMode = "conversation",
 ): CoachReply | null {
   const lines = text.split(/\r?\n/);
   if (!final) lines.pop();
   const fields: Record<string, string> = {};
   const sections = new Map<CoachSectionKind, Line[]>();
+  const draw: DesignEdge[] = [];
   for (const raw of lines) {
     const labelled = LABELLED.exec(raw.trim());
     if (!labelled) continue;
     const label = labelled[1] as string;
     const value = (labelled[2] ?? "").trim();
     if (!value) continue;
+    if (label === "DRAW") {
+      const edge = EDGE.exec(value);
+      if (edge)
+        draw.push({
+          from: (edge[1] as string).trim(),
+          to: (edge[2] as string).trim(),
+          ...(edge[3] ? { label: edge[3].trim() } : {}),
+        });
+      continue;
+    }
     const kind = SECTION_OF[label];
     if (!kind) {
       fields[label] ??= value;
@@ -187,12 +287,13 @@ export function parseCoachReply(
     const line = lineOf(value, known);
     if (line) sections.set(kind, [...(sections.get(kind) ?? []), line]);
   }
-  const shown = SECTIONS.flatMap(([kind, most]) => {
+  const shown = SECTIONS[mode].flatMap(([kind, most]) => {
     const held = sections.get(kind);
     return held ? [{ kind, lines: held.slice(0, most) }] : [];
   });
-  // [GUARD] A note with nothing to say is not a note.
-  if (shown.length === 0) return null;
+  // [GUARD] A note with nothing to say is not a note (a design's arrows are
+  // something to say).
+  if (shown.length === 0 && draw.length === 0) return null;
   const kind = COACH_NOTE_KINDS.includes(fields["KIND"] as CoachNoteKind)
     ? (fields["KIND"] as CoachNoteKind)
     : "direct-answer";
@@ -200,6 +301,10 @@ export function parseCoachReply(
   const heard = fields["HEARD"] ? cut(fields["HEARD"], 600) : undefined;
   return {
     sameQuestion: /^(yes|true)$/i.test(fields["SAME"] ?? ""),
+    draw,
+    ...(DESIGN_STAGES.includes(fields["STAGE"] as DesignStage)
+      ? { stage: fields["STAGE"] as DesignStage }
+      : {}),
     note: {
       title: cut(ask ?? heard ?? "Coach", 120),
       kind,

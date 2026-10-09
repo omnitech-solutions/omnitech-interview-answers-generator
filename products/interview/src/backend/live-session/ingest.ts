@@ -86,9 +86,10 @@ export type IngestOptions = {
   // Told how long a rate_limited refusal asks the companion to wait, so the
   // route can answer Retry-After (a spacing refusal is seconds, not a minute).
   onRetryAfter?: (seconds: number) => void;
-  // Told each transcript line a session stored, after it is committed, and
-  // only for a session that may be processed off this device: a coach reads
-  // them. A device-only session tells no one.
+  // Told each transcript line a session stored, after it is committed. The
+  // line says whether its session may be processed off this device: a coach
+  // on a remote model reads only those; the owner's own recording, which
+  // stays on this machine, may keep any.
   onHeard?: (heard: HeardLine) => void;
 };
 
@@ -99,6 +100,8 @@ export type HeardLine = {
   occurredAt: string;
   // The session it was heard in and its owner, from the row found.
   session: { tenantId: string; actorId: string; sessionId: string };
+  // Whether the session's owner allows processing off this device.
+  remote: boolean;
 };
 
 type IngestLimits = { -readonly [K in keyof ActiveSessionLimits]: number };
@@ -602,13 +605,13 @@ async function ingestLocked(
           control: fulfilled ? withoutCapture(control) : control,
         }
       : decision.ack;
-  // [SAFETY] Only a line this request newly stored, and only where the owner
-  // allowed processing off the device, is told to a listener.
+  // [SAFETY] Only a line this request newly stored is told to a listener,
+  // with whether its owner allowed processing off the device.
   const heard: HeardLine | undefined =
     observation.kind === "transcript.final" &&
-    decision.ack.status === "accepted" &&
-    row.policy === "permitted-remote"
+    decision.ack.status === "accepted"
       ? {
+          remote: row.policy === "permitted-remote",
           text: observation.content.text,
           ...(observation.content.source
             ? { source: observation.content.source }

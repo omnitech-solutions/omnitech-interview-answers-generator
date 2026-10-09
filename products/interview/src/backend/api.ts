@@ -30,7 +30,8 @@ import { readBoundedJson } from "@omnitech/platform-contracts";
 import type { Context, Next } from "hono";
 import { Hono } from "hono";
 import { WorkspaceError, type WorkspaceScope } from "./assistant/workspace";
-import { coachNotes } from "./coach-notes";
+import { coachNotes, replayCoachNotes } from "./coach-notes";
+import { COACH_PLAN_LENGTH, coachPlan } from "./coach-plan";
 import { coachTranscript } from "./coach-transcript";
 import { LibraryIndexUnavailableError } from "./library-service";
 import {
@@ -787,8 +788,12 @@ console.log(solve([1, 2, 3]));`,
   // A reader that names the revision it already shows is answered with no
   // content while nothing has changed, so it can ask often (a note grows on
   // screen as its coach writes it) at almost no cost.
+  // `?space=replay` reads and writes the notes of a replay, which are kept
+  // apart from the person's own.
+  const notesOf = (context: Context<ApiEnvironment>) =>
+    context.req.query("space") === "replay" ? replayCoachNotes : coachNotes;
   app.get("/api/v1/coach-notes", (context) => {
-    const held = coachNotes.get();
+    const held = notesOf(context).get();
     return context.req.query("revision") === String(held.revision)
       ? context.body(null, 204)
       : context.json(held);
@@ -806,7 +811,7 @@ console.log(solve([1, 2, 3]));`,
         "The coach note is invalid.",
         parsed.error.issues.map((issue) => issue.path.join(".")),
       );
-    const added = coachNotes.add(parsed.data);
+    const added = notesOf(context).add(parsed.data);
     // An older revision of a note already held: refused, nothing changed.
     if (!added)
       return apiError(
@@ -820,7 +825,23 @@ console.log(solve([1, 2, 3]));`,
   // Clearing the notes clears what the coach read to write them.
   app.delete("/api/v1/coach-notes", (context) => {
     coachTranscript.clear();
-    return context.json(coachNotes.clear());
+    return context.json(notesOf(context).clear());
+  });
+
+  // The plan for the call: written by the person, read by the coach.
+  app.get("/api/v1/coach-plan", (context) => context.json(coachPlan.get()));
+  app.put("/api/v1/coach-plan", async (context) => {
+    const body = await readBody(context, JSON_BODY_LIMIT_BYTES);
+    if (!body.ok) return body.response;
+    const text = (body.value as { text?: unknown } | null)?.text;
+    if (typeof text !== "string" || text.length > COACH_PLAN_LENGTH)
+      return apiError(
+        context,
+        400,
+        "invalid_coach_plan",
+        "The plan is text of at most a page.",
+      );
+    return context.json(coachPlan.set(text));
   });
 
   // The coach's transcript: read by the coach, written by a live session (as

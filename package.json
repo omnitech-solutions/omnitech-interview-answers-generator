@@ -45,6 +45,8 @@
     "knip": "knip --no-exit-code",
     "docs:arch": "node scripts/docs-arch.mjs",
     "docs:arch:check": "node scripts/docs-arch.mjs --dry-run",
+    "coach:listen": "pnpm --filter @omnitech/agent-worker exec tsx src/coach-listen.ts",
+    "coach:replay": "pnpm --filter @omnitech/agent-worker exec tsx src/coach-replay.ts",
     "engine:sync": "pnpm --dir ../omnitech-ai-engine --filter @omnitech/ai-engine build && pnpm --dir ../omnitech-ai-engine/packages/ai-engine pack --pack-destination \"$PWD/vendor/omnitech-ai-engine\" && pnpm install"
   },
   "devDependencies": {

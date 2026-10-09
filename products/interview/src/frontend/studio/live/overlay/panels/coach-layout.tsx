@@ -261,6 +261,7 @@ function NotesPane({
   onLive,
   onLayout,
   waiting,
+  onCloseReplay,
   following,
   compact,
 }: {
@@ -280,6 +281,8 @@ function NotesPane({
   onLive(): void;
   // Arranges the layout: the default sizes, the whole screen, panes folded.
   onLayout(layout: CoachLayoutId): void;
+  // Present while the notes on show are a replay's: clears them.
+  onCloseReplay?(): void;
 }) {
   const textSize = useCoachTextSize();
   const at = question ? questions.indexOf(question) : -1;
@@ -295,7 +298,12 @@ function NotesPane({
         question ? `Q${question.number} · ${question.label}` : undefined
       }
       meta={
-        following ? (
+        onCloseReplay ? (
+          // Never mistaken for the person's own notes.
+          <Tag variant="filled" data-testid="pn-coach-replay">
+            Replay
+          </Tag>
+        ) : following ? (
           <Tag variant="filled" color={ASK}>
             Following live
           </Tag>
@@ -303,6 +311,17 @@ function NotesPane({
       }
       actions={
         <>
+          {onCloseReplay && (
+            <Button
+              buttonSize="sm"
+              variant="outline"
+              onClick={onCloseReplay}
+              title="Clear the replay's notes and show your own again."
+              data-testid="pn-coach-replay-close"
+            >
+              Close replay
+            </Button>
+          )}
           {!following && question && (
             <Button
               buttonSize="sm"
@@ -541,7 +560,13 @@ export function CoachLayout({
   s: PanelSession;
   view: Exclude<ChatView, "original" | "transcript">;
 }) {
-  const coach = useCoachNotes(s.open);
+  const own = useCoachNotes(s.open);
+  // [DOMAIN] A replay's notes take the pane while there are any, marked as a
+  // replay; closing it clears them and the person's own notes are back,
+  // untouched.
+  const replay = useCoachNotes(s.open, "replay");
+  const replaying = replay.notes.length > 0;
+  const coach = replaying ? replay : own;
   // Every row of the session, not the transcript pane's window of them: the
   // questions go back to the first one asked.
   const rows = panelRows(
@@ -629,6 +654,7 @@ export function CoachLayout({
       compact={view === "prompter"}
       waiting={pickedQuestion === undefined ? waiting : undefined}
       onLayout={sizes.arrange}
+      {...(replaying ? { onCloseReplay: replay.clear } : {})}
     />
   );
   // [DOMAIN] Room for the call window (or the captured screen), above the

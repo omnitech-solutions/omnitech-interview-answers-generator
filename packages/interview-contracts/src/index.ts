@@ -94,7 +94,9 @@ export {
   TALKING_POINT_LENGTH,
 } from "./coach-notes";
 export {
+  COACH_SPACES,
   COACH_SPEAKERS,
+  type CoachSpace,
   type CoachSpeaker,
   type CoachTranscriptLine,
   type CoachTranscriptLineInput,

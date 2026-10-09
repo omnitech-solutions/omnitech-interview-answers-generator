@@ -16,6 +16,7 @@ import { BUILD } from "./build-id";
 import type { HeardLine } from "./panels/panel-model";
 import { PAUSED_NOTICE } from "./panels/strip-model";
 import { footerButtons } from "./panels/toolbar-config";
+import { RecordTranscriptButton } from "./record-transcript";
 
 const UNAVAILABLE_NOTE =
   "Not available yet: this Studio server can’t take owner input.";
@@ -61,6 +62,8 @@ export type FooterVariant =
       // clock), and the microphone's level now (0-100) for the sound wave.
       heard?: readonly HeardLine[];
       micLevel?: number | null;
+      // The session, for its Record transcript control. Absent: no control.
+      sessionId?: string | null;
     }
   | {
       kind: "ended";
@@ -248,6 +251,12 @@ export function Footer({
         <>
           {context}
           {buildTag && <BuildTagChip tag={buildTag} />}
+          {variant.sessionId && (
+            <RecordTranscriptButton
+              sessionId={variant.sessionId}
+              disabled={paused}
+            />
+          )}
           {paused ? (
             <Button
               buttonSize="control"

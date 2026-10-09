@@ -5,6 +5,9 @@
 // in a URL; bounds before parsing; membership re-checked; and control state
 // carried on every acknowledgement (ADR-0011, ADR-0012).
 import { randomUUID } from "node:crypto";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createAiEngine } from "@omnitech/ai-engine";
 import {
   liveCompanionCapabilityResponseSchema,
@@ -18,7 +21,9 @@ import type { PlatformContext } from "@omnitech/platform-contracts";
 import { Hono } from "hono";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { deriveLiveModel } from "../../frontend/studio/live/session-state";
+import { readTranscript } from "../coach/transcript-file";
 import { BRIEF, MATRIX, PREFERENCES } from "../context-pack/fixture";
+import type { HeardLine } from "./ingest";
 import {
   type Fixture,
   type Person,
@@ -29,6 +34,7 @@ import {
 } from "./live-session-fixture";
 import { seedBriefingDraft, seedMatrixProfile } from "./processor-fixture";
 import { createSessionRoutes } from "./routes";
+import { createTranscriptRecordings } from "./transcript-recording";
 
 let fx: Fixture;
 let slug = "";
@@ -1242,6 +1248,396 @@ describe("owner input route (ADR-0016)", () => {
     const ended = await post(`/${owner.id}/input`, input());
     expect(ended.status).toBe(409);
     expect(await ended.json()).toEqual({ error: { code: "status_refused" } });
+  });
+});
+
+// What a session hears is told to whoever listens (the coach, a recording):
+// a line the companion ingested, and a phrase the window's own microphone
+// heard, each once, with whether the session may be processed off the device.
+describe("what a session hears, told to a listener", () => {
+  const phrase = (text = "and how would you roll that back") => ({
+    requestId: `h-${randomUUID().slice(0, 8)}`,
+    operation: "heard",
+    text,
+  });
+  const listening = (onHeard: (line: HeardLine) => void) =>
+    createSessionRoutes({ database: fx.member, resolveContext, onHeard });
+  async function beginWith(name: string, processingPolicy: string) {
+    const person = await member(name);
+    as(person);
+    const response = await post("", { ...START, processingPolicy });
+    expect(response.status).toBe(201);
+    const body = (await response.json()) as {
+      session: { id: string };
+      credential: { value: string };
+    };
+    return { person, id: body.session.id, credential: body.credential.value };
+  }
+
+  it("tells a heard phrase once: its text, when, the session and its owner, that it may leave the device, and no speaker", async () => {
+    const owner = await begin("heard-phrase");
+    const heard: HeardLine[] = [];
+    const a = listening((line) => heard.push(line));
+    const body = phrase();
+    const before = Date.now();
+    const first = await post(`/${owner.id}/input`, body, a);
+    expect(first.status).toBe(202);
+    expect(heard).toEqual([
+      {
+        text: "and how would you roll that back",
+        occurredAt: expect.any(String),
+        session: {
+          tenantId: fx.tenantA,
+          actorId: owner.person.id,
+          sessionId: owner.id,
+        },
+        remote: true,
+      },
+    ]);
+    expect(heard[0]).not.toHaveProperty("source");
+    const at = Date.parse(heard[0]?.occurredAt ?? "");
+    expect(at).toBeGreaterThanOrEqual(before);
+    expect(at).toBeLessThanOrEqual(Date.now());
+    // A resend with the same request id is acknowledged as the original and
+    // tells no one again.
+    const again = await post(`/${owner.id}/input`, body, a);
+    expect(again.status).toBe(202);
+    expect(await again.json()).toEqual(await first.json());
+    expect(heard).toHaveLength(1);
+    // Another phrase is another line.
+    await post(`/${owner.id}/input`, phrase("then the next phrase"), a);
+    expect(heard.map((line) => line.text)).toEqual([
+      "and how would you roll that back",
+      "then the next phrase",
+    ]);
+  });
+
+  it("marks a device-only session's phrase, and its ingested line, as not to leave the device", async () => {
+    const owner = await beginWith("heard-device-only", "device-only");
+    const heard: HeardLine[] = [];
+    const a = listening((line) => heard.push(line));
+    expect((await post(`/${owner.id}/input`, phrase(), a)).status).toBe(202);
+    as(null);
+    expect(
+      (
+        await ingest(
+          owner.credential,
+          transcript("mic", 0, "heard by the companion", "d-1"),
+          { a },
+        )
+      ).status,
+    ).toBe(200);
+    expect(heard.map((line) => [line.text, line.remote])).toEqual([
+      ["and how would you roll that back", false],
+      ["heard by the companion", false],
+    ]);
+  });
+
+  it("tells a line the companion ingested with the session's remote, through the same listener", async () => {
+    const owner = await begin("heard-ingested");
+    const heard: HeardLine[] = [];
+    const a = listening((line) => heard.push(line));
+    as(null);
+    await ingest(owner.credential, transcript("mic", 0, "hello there", "i-1"), {
+      a,
+    });
+    expect(heard).toEqual([
+      expect.objectContaining({
+        text: "hello there",
+        remote: true,
+        session: {
+          tenantId: fx.tenantA,
+          actorId: owner.person.id,
+          sessionId: owner.id,
+        },
+      }),
+    ]);
+  });
+
+  it("tells nothing for input that is not a heard phrase, or that was refused", async () => {
+    const owner = await begin("heard-not");
+    const heard: HeardLine[] = [];
+    const a = listening((line) => heard.push(line));
+    expect(
+      (
+        await post(
+          `/${owner.id}/input`,
+          {
+            requestId: `r-${randomUUID().slice(0, 8)}`,
+            operation: "follow-up",
+            text: "and the cost?",
+            snapshots: [],
+          },
+          a,
+        )
+      ).status,
+    ).toBe(202);
+    // A heard phrase with no text, and one with a field it may not carry.
+    for (const bad of [
+      { ...phrase(), text: "" },
+      { ...phrase(), source: "microphone" },
+    ])
+      expect((await post(`/${owner.id}/input`, bad, a)).status).toBe(400);
+    // Another member's session, then the owner's own once it has ended.
+    const stranger = await member("heard-not-other");
+    as(stranger);
+    expect((await post(`/${owner.id}/input`, phrase(), a)).status).toBe(404);
+    as(owner.person);
+    await post(`/${owner.id}/control`, {
+      version: 1,
+      kind: "session.control",
+      action: "end",
+    });
+    expect((await post(`/${owner.id}/input`, phrase(), a)).status).toBe(409);
+    expect(heard).toEqual([]);
+  });
+
+  it("acknowledges the phrase whatever the listener does", async () => {
+    const owner = await begin("heard-throws");
+    let told = 0;
+    const a = listening(() => {
+      told += 1;
+      throw new Error("the listener broke");
+    });
+    const body = phrase();
+    const response = await post(`/${owner.id}/input`, body, a);
+    expect(response.status).toBe(202);
+    expect(await response.json()).toMatchObject({
+      input: { requestId: body.requestId },
+    });
+    expect(told).toBe(1);
+  });
+
+  it("answers as before with no listener", async () => {
+    const owner = await begin("heard-nobody");
+    expect((await post(`/${owner.id}/input`, phrase())).status).toBe(202);
+  });
+});
+
+// The owner's own recording of what a session hears: off until asked for,
+// the owner's alone, never started on an ended session, stopped by its end.
+describe("the recording routes", () => {
+  const directory = mkdtempSync(join(tmpdir(), "routes-recording-"));
+  afterAll(() => rmSync(directory, { recursive: true, force: true }));
+  // Wired as the backend wires it: what is heard goes to the recorder.
+  const recording = () => {
+    const recordings = createTranscriptRecordings(directory);
+    return {
+      recordings,
+      a: createSessionRoutes({
+        database: fx.member,
+        resolveContext,
+        recordings,
+        onHeard: (line) => recordings.heard(line),
+      }),
+    };
+  };
+  type Answer = {
+    recording: {
+      on: boolean;
+      lines: number;
+      file?: string;
+      startedAt?: string;
+    };
+  };
+  const state = async (response: Response) => {
+    expect(response.status).toBe(200);
+    return ((await response.json()) as Answer).recording;
+  };
+  const end = (id: string, a: ReturnType<typeof app>) =>
+    post(
+      `/${id}/control`,
+      { version: 1, kind: "session.control", action: "end" },
+      a,
+    );
+
+  it("is off until asked for, starts and stops on {on}, and counts what the session hears meanwhile", async () => {
+    const owner = await begin("rec-happy");
+    const { a } = recording();
+    const path = `/${owner.id}/recording`;
+    expect(await state(await get(path, a))).toEqual({ on: false, lines: 0 });
+    // Heard before the press: not recorded.
+    await post(
+      `/${owner.id}/input`,
+      {
+        requestId: "h-before-01",
+        operation: "heard",
+        text: "before the press",
+      },
+      a,
+    );
+    const started = await state(await post(path, { on: true }, a));
+    expect(started).toEqual({
+      on: true,
+      startedAt: expect.any(String),
+      file: expect.stringMatching(
+        new RegExp(`^[\\dT-]{19}-${owner.id.slice(0, 8)}\\.txt$`),
+      ),
+      lines: 0,
+    });
+    // A second press is the same recording.
+    expect(await state(await post(path, { on: true }, a))).toEqual(started);
+    await post(
+      `/${owner.id}/input`,
+      {
+        requestId: "h-during-01",
+        operation: "heard",
+        text: "heard by the window",
+      },
+      a,
+    );
+    as(null);
+    await ingest(
+      owner.credential,
+      {
+        ...transcript("mic", 0, "heard by the companion", "rec-1"),
+        content: {
+          ...transcript("mic", 0, "heard by the companion", "rec-1").content,
+          source: "microphone",
+        },
+      },
+      { a },
+    );
+    as(owner.person);
+    expect(await state(await get(path, a))).toEqual({ ...started, lines: 2 });
+    const stopped = await state(await post(path, { on: false }, a));
+    expect(stopped).toEqual({ on: false, file: started.file, lines: 2 });
+    expect(await state(await get(path, a))).toEqual(stopped);
+    // The file is one the replay reads: who and what, nothing from before.
+    const blocks = readTranscript(
+      readFileSync(join(directory, started.file as string), "utf8"),
+    );
+    expect(blocks.map((block) => [block.label, block.text])).toEqual([
+      ["Heard", "heard by the window"],
+      ["Me", "heard by the companion"],
+    ]);
+    // The answers carry the same no-store header as every session read.
+    expect((await get(path, a)).headers.get("cache-control")).toBe("no-store");
+  });
+
+  it.each([
+    ["no body", undefined],
+    ["an empty object", {}],
+    ["a word for on", { on: "true" }],
+    ["a number for on", { on: 1 }],
+    ["null for on", { on: null }],
+    ["null", null],
+  ])(
+    "requires {on: boolean}: %s is 400 invalid_input, and nothing starts",
+    async (_name, body) => {
+      const owner = await begin(`rec-bad-${randomUUID().slice(0, 6)}`);
+      const { a, recordings } = recording();
+      const response = await a.request(`${base()}/${owner.id}/recording`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({
+        error: { code: "invalid_input" },
+      });
+      expect(recordings.state(owner.id)).toEqual({ on: false, lines: 0 });
+    },
+  );
+
+  it("answers 404 when the routes were given no recorder, to read or to press", async () => {
+    const owner = await begin("rec-none");
+    const unknown = await get(`/${randomUUID()}`);
+    const read = await get(`/${owner.id}/recording`);
+    const press = await post(`/${owner.id}/recording`, { on: true });
+    for (const response of [read, press]) {
+      expect(response.status).toBe(404);
+      expect(await response.clone().json()).toEqual(
+        await unknown.clone().json(),
+      );
+    }
+  });
+
+  it("answers another member's session exactly as an unknown one, and leaves the owner's recording as it was", async () => {
+    const owner = await begin("rec-owned");
+    const { a, recordings } = recording();
+    const started = await state(
+      await post(`/${owner.id}/recording`, { on: true }, a),
+    );
+    as(await member("rec-other"));
+    const unknownRead = await get(`/${randomUUID()}/recording`, a);
+    const unknownPress = await post(
+      `/${randomUUID()}/recording`,
+      { on: false },
+      a,
+    );
+    expect([unknownRead.status, unknownPress.status]).toEqual([404, 404]);
+    const read = await get(`/${owner.id}/recording`, a);
+    const stop = await post(`/${owner.id}/recording`, { on: false }, a);
+    const start = await post(`/${owner.id}/recording`, { on: true }, a);
+    for (const response of [read, stop, start]) {
+      expect(response.status).toBe(404);
+      const text = await response.text();
+      expect(text).toBe(await unknownRead.clone().text());
+      expect(text).not.toContain(started.file as string);
+    }
+    expect(recordings.state(owner.id)).toEqual(started);
+    // Signed out: refused before anything is read.
+    as(null);
+    expect((await get(`/${owner.id}/recording`, a)).status).toBe(401);
+    expect(
+      (await post(`/${owner.id}/recording`, { on: false }, a)).status,
+    ).toBe(401);
+    expect(recordings.state(owner.id)).toEqual(started);
+  });
+
+  it("is stopped when the session is ended by its control, and not by a pause", async () => {
+    const owner = await begin("rec-ended");
+    const { a, recordings } = recording();
+    const path = `/${owner.id}/recording`;
+    const started = await state(await post(path, { on: true }, a));
+    await post(
+      `/${owner.id}/input`,
+      { requestId: "h-ended-001", operation: "heard", text: "one line" },
+      a,
+    );
+    expect(
+      (
+        await post(
+          `/${owner.id}/control`,
+          { version: 1, kind: "session.control", action: "pause" },
+          a,
+        )
+      ).status,
+    ).toBe(200);
+    expect(recordings.state(owner.id).on).toBe(true);
+    expect((await end(owner.id, a)).status).toBe(200);
+    expect(recordings.state(owner.id)).toEqual({
+      on: false,
+      file: started.file,
+      lines: 1,
+    });
+    expect(await state(await get(path, a))).toEqual({
+      on: false,
+      file: started.file,
+      lines: 1,
+    });
+  });
+
+  it("cannot be started on a session that has ended, and can still be read and stopped", async () => {
+    const owner = await begin("rec-after-end");
+    const { a, recordings } = recording();
+    const path = `/${owner.id}/recording`;
+    expect((await end(owner.id, a)).status).toBe(200);
+    const refused = await post(path, { on: true }, a);
+    expect(refused.status).toBe(400);
+    expect(await refused.json()).toEqual({ error: { code: "invalid_input" } });
+    expect(recordings.state(owner.id)).toEqual({ on: false, lines: 0 });
+    expect(await state(await post(path, { on: false }, a))).toEqual({
+      on: false,
+      lines: 0,
+    });
+    expect(await state(await get(path, a))).toEqual({ on: false, lines: 0 });
+  });
+
+  it("an end without a recorder is the end it always was", async () => {
+    const owner = await begin("rec-end-plain");
+    expect((await end(owner.id, app())).status).toBe(200);
   });
 });
 

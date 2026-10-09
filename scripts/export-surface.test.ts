@@ -99,7 +99,10 @@ const surfaces: Record<string, SurfaceRow> = {
   // +5: the projection view contract (CONTEXT_PROJECTIONS, the view and its
   // response schema and their two types), shared by the session's context
   // route and the Context pane's "Selected for this question".
-  "@omnitech/interview-contracts": { entrypoints: 1, names: 424 },
+  // +2: where a coach transcript came from, and so where its notes belong
+  // (COACH_SPACES, CoachSpace), shared by the transcript store, the notes
+  // routes and the coach in the worker, so a replay never writes over a call.
+  "@omnitech/interview-contracts": { entrypoints: 1, names: 426 },
   "@omnitech/interview-library": { entrypoints: 1, names: 5 },
   "@omnitech/interview-playground-control": { entrypoints: 1, names: 16 },
   "@omnitech/interview-storage": { entrypoints: 1, names: 8 },
@@ -115,7 +118,15 @@ const surfaces: Record<string, SurfaceRow> = {
   "@omnitech/platform-storage": { entrypoints: 3, names: 39 },
   // +6: the live coach the agent worker runs (createCoach, Coach, CoachPorts, CoachOptions, CoachCallError, COACH_PROMPT_VERSION).
   // +3: the session context the coach grounds its notes in, built by the agent worker (createCoachContext, CoachContextPort, CoachFact).
-  "@omnitech/product-interview": { entrypoints: 6, names: 92 },
+  // +16, all on ./session-worker, for the coach's turn-taking and the replay
+  // command apps/agent-worker/src/coach-replay.ts runs (BRIEF-coach-turn-taking,
+  // BRIEF-coach-replay-lab): what the coach tells a watcher (CoachEvent); a
+  // recorded transcript read and cast for a replay (readTranscript, speakersOf,
+  // castBlocks, SpokenBlock, SpeakerSummary, SpeakerRole, Cast); the turn
+  // decision the replay prints (decide, turnsOf, TURN_TIMING, TurnTiming,
+  // Decision, ActReason); and the kind of round the coach is in (COACH_MODES,
+  // CoachMode).
+  "@omnitech/product-interview": { entrypoints: 6, names: 108 },
   "@omnitech/product-presentation": { entrypoints: 3, names: 11 },
 };
 

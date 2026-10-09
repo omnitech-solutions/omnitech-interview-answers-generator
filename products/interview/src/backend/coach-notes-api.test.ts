@@ -233,6 +233,47 @@ describe("the coach notes API", () => {
     },
   );
 
+  it("answers a reader that names the revision it already shows with 204 and no body; any other revision is answered the notes", async () => {
+    const posted = await listed(
+      await send("POST", {
+        title: "Consistency",
+        key: "q-1",
+        sections: [say("Start from the outbox")],
+      }),
+    );
+    const at = (revision: string) =>
+      app().request(`${URL}?revision=${revision}`);
+    const current = await at(String(posted.revision));
+    expect(current.status).toBe(204);
+    expect(await current.text()).toBe("");
+    // A stale revision, one ahead, and one that is no number: the notes.
+    for (const revision of [
+      String(posted.revision - 1),
+      String(posted.revision + 1),
+      "",
+      "latest",
+      `${posted.revision}.0`,
+    ]) {
+      const stale = await at(revision);
+      expect(stale.status).toBe(200);
+      expect(await listed(stale)).toEqual(posted);
+    }
+    // Once a note changes, the revision that was current is stale.
+    const next = await listed(
+      await send("POST", {
+        title: "Consistency",
+        key: "q-1",
+        revision: 2,
+        sections: [say("Then the idempotent consumer")],
+      }),
+    );
+    expect(next.revision).toBeGreaterThan(posted.revision);
+    const stale = await at(String(posted.revision));
+    expect(stale.status).toBe(200);
+    expect(await listed(stale)).toEqual(next);
+    expect((await at(String(next.revision))).status).toBe(204);
+  });
+
   it("clears every note", async () => {
     await send("POST", { title: "Consistency", key: "q-1", revision: 4 });
     const cleared = await send("DELETE");

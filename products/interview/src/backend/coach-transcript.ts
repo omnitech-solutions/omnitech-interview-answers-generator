@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type {
+  CoachSpace,
   CoachSpeaker,
   CoachTranscriptLine,
   CoachTranscriptLineInput,
@@ -9,6 +10,8 @@ import type {
 
 // The most lines held: several hours of talk. The oldest fall off.
 const MAX_LINES = 4_000;
+// The most of a screen's text held: a full editor pane.
+const SCREEN_CHARS = 8_000;
 
 // [DOMAIN] The coach's transcript, held by this process only. It is what a
 // coach (an agent in the worker, holding the API token) reads to decide what
@@ -22,12 +25,29 @@ export function createCoachTranscript() {
   // The live session last heard, by its ids only. It outlives a clear, so a
   // transcript attached afterwards is coached with that session's context.
   let session: CoachTranscriptSession | undefined;
-  const held = () => (session ? { session } : {});
+  // What is on the shared screen now, as text. The latest only.
+  let screen: { text: string; at: string } | undefined;
+  // Whose conversation is held: a live session's, or one attached to replay.
+  let space: CoachSpace = "live";
+  const held = () => ({
+    space,
+    // A replay is coached from itself alone, never from a session's record.
+    ...(session && space === "live" ? { session } : {}),
+    ...(screen ? { screen } : {}),
+  });
   return {
     add(
       added: readonly CoachTranscriptLineInput[],
+      // The live session the lines were heard in; absent for a replay.
       from?: CoachTranscriptSession,
     ): CoachTranscriptResponse {
+      // [GUARD] A live line after a replay (or the reverse) is another
+      // conversation: the two are never read as one.
+      const into: CoachSpace = from ? "live" : "replay";
+      if (into !== space) {
+        this.clear();
+        space = into;
+      }
       if (from) session = from;
       for (const line of added) {
         const text = line.text.trim();
@@ -52,7 +72,16 @@ export function createCoachTranscript() {
         ...held(),
       };
     },
+    // The text of the latest capture of the screen takes the last one's place.
+    setScreen(text: string, from?: CoachTranscriptSession): void {
+      const read = text.trim().slice(0, SCREEN_CHARS);
+      // A live session's screen says nothing about a replay in progress.
+      if (!read || space !== "live") return;
+      if (from) session = from;
+      screen = { text: read, at: new Date().toISOString() };
+    },
     clear(): CoachTranscriptResponse {
+      screen = undefined;
       epoch = randomUUID();
       lines = [];
       seq = 0;

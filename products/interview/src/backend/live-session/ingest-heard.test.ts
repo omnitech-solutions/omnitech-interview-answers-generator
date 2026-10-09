@@ -1,7 +1,9 @@
-// What ingest tells a listener (the coach's transcript): each final transcript
-// line a session newly stored, and only where the owner allowed processing
-// off the device. On a disposable PostgreSQL as the member role, with the
-// harness of ingest.test.ts.
+// What ingest tells a listener (the coach's transcript, the owner's own
+// recording): EVERY final transcript line a session newly stored, with
+// whether its owner allowed processing off the device (`remote`), so a
+// listener on a remote model can leave a device-only line alone. On a
+// disposable PostgreSQL as the member role, with the harness of
+// ingest.test.ts.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type HeardLine, ingestObservation } from "./ingest";
 import {
@@ -80,8 +82,8 @@ beforeAll(async () => {
 }, 90_000);
 afterAll(() => fx?.stop());
 
-describe("a line a permitted-remote session heard", () => {
-  it("is told once, when it is stored: its text, its audio source, when it was said and the session it was heard in", async () => {
+describe("a line a session heard", () => {
+  it("is told once, when it is stored: its text, its audio source, when it was said, the session it was heard in and that it may leave the device", async () => {
     const { person, session, credential } = await begin("heard-ann");
     // The session it was heard in and its owner, by their ids alone.
     const where = {
@@ -122,12 +124,14 @@ describe("a line a permitted-remote session heard", () => {
         source: "application-audio",
         occurredAt: "2026-10-03T10:00:05.000Z",
         session: where,
+        remote: true,
       },
       {
         text: "By region first.",
         source: "microphone",
         occurredAt: "2026-10-03T10:00:09.000Z",
         session: where,
+        remote: true,
       },
     ]);
     expect(await count(session.id)).toBe(2);
@@ -149,6 +153,7 @@ describe("a line a permitted-remote session heard", () => {
           actorId: person.id,
           sessionId: session.id,
         },
+        remote: true,
       },
     ]);
     expect(heard[0]).not.toHaveProperty("source");
@@ -211,9 +216,17 @@ describe("a line a permitted-remote session heard", () => {
   });
 });
 
-describe("what a listener is never told", () => {
-  it("a device-only session's line: it is stored, and tells no one", async () => {
-    const { session, credential } = await begin("heard-eve", "device-only");
+describe("a line a device-only session heard", () => {
+  it("is stored and told like any other, marked as not to leave the device", async () => {
+    const { person, session, credential } = await begin(
+      "heard-eve",
+      "device-only",
+    );
+    const where = {
+      tenantId: tenant,
+      actorId: person.id,
+      sessionId: session.id,
+    };
     const heard: HeardLine[] = [];
     const named = await hearing(
       credential,
@@ -229,10 +242,60 @@ describe("what a listener is never told", () => {
       "accepted",
       "accepted",
     ]);
-    expect(heard).toEqual([]);
+    expect(heard).toEqual([
+      {
+        text: "this stays on the device",
+        source: "application-audio",
+        occurredAt: "2026-10-03T10:00:00.000Z",
+        session: where,
+        remote: false,
+      },
+      {
+        text: "and so does this",
+        occurredAt: "2026-10-03T10:00:00.000Z",
+        session: where,
+        remote: false,
+      },
+    ]);
     expect(await count(session.id)).toBe(2);
   });
 
+  it("is not told again for a resend", async () => {
+    const { credential } = await begin("heard-eve-dup", "device-only");
+    const envelope = from("microphone", 0, "said once, on the device", "h-dup");
+    const heard: HeardLine[] = [];
+    await hearing(credential, envelope, heard);
+    const resend = await hearing(credential, envelope, heard);
+    expect(resend.ack.status).toBe("duplicate");
+    expect(heard.map((line) => line.remote)).toEqual([false]);
+  });
+
+  it("is told as it is at the moment it is stored: a session tightened to the device says so from its next line", async () => {
+    const { person, session, credential } = await begin("heard-eve-tighten");
+    const heard: HeardLine[] = [];
+    await hearing(
+      credential,
+      from("microphone", 0, "while it may leave the device", "h-1"),
+      heard,
+    );
+    await repo.tightenProcessingPolicy(
+      scopeOf(person),
+      session.id,
+      "device-only",
+    );
+    await hearing(
+      credential,
+      from("microphone", 1, "after it may not", "h-2"),
+      heard,
+    );
+    expect(heard.map((line) => [line.text, line.remote])).toEqual([
+      ["while it may leave the device", true],
+      ["after it may not", false],
+    ]);
+  });
+});
+
+describe("what a listener is never told", () => {
   it("a refused observation: a bad credential, a source the session never registered, an invalid line, a paused session", async () => {
     const { person, session, credential } = await begin(
       "heard-fin",

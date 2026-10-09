@@ -27,6 +27,7 @@ import {
   it,
   vi,
 } from "vitest";
+import { coachTranscript } from "./coach-transcript";
 import { createInterviewBackend } from "./interview-backend";
 
 // The model is the provider boundary: it records what the product asks for
@@ -395,6 +396,61 @@ describe("Interview Studio's backend as the platform mounts it", () => {
     );
     expect(stranger.status).toBe(401);
     expect(await stranger.json()).toEqual({ error: { code: "unauthorized" } });
+  });
+
+  // [SAFETY] The coach writes on a remote model: what a device-only session
+  // hears never reaches the coach's transcript; what a permitted-remote one
+  // hears does, as that session's.
+  it("gives the coach what a permitted-remote session hears, and nothing a device-only session hears", async () => {
+    const app = backend().app;
+    const sessions = "http://studio.test/api/interview/t/local/sessions";
+    const start = async (processingPolicy: string) => {
+      const response = await app.request(
+        sessions,
+        json({ processingPolicy, captureSources: ["microphone"] }),
+      );
+      expect(response.status).toBe(201);
+      return ((await response.json()) as { session: { id: string } }).session
+        .id;
+    };
+    const hear = (id: string, requestId: string, text: string) =>
+      app.request(
+        `${sessions}/${id}/input`,
+        json({ requestId, operation: "heard", text }),
+      );
+    const end = (id: string) =>
+      app.request(
+        `${sessions}/${id}/control`,
+        json({ version: 1, kind: "session.control", action: "end" }),
+      );
+    coachTranscript.clear();
+    try {
+      const onDevice = await start("device-only");
+      expect(
+        (await hear(onDevice, "wire-dev-0001", "words that stay on the device"))
+          .status,
+      ).toBe(202);
+      expect(coachTranscript.since().lines).toEqual([]);
+      expect((await end(onDevice)).status).toBe(200);
+
+      const remote = await start("permitted-remote");
+      expect(
+        (await hear(remote, "wire-rem-0001", "words the coach may read"))
+          .status,
+      ).toBe(202);
+      const read = coachTranscript.since();
+      expect(read.lines.map((line) => [line.speaker, line.text])).toEqual([
+        ["unknown", "words the coach may read"],
+      ]);
+      expect(read.session).toEqual({
+        tenantId: member.tenantId,
+        actorId: member.userId,
+        sessionId: remote,
+      });
+      expect((await end(remote)).status).toBe(200);
+    } finally {
+      coachTranscript.clear();
+    }
   });
 
   // The studio is built once per process, so each default model below gets a

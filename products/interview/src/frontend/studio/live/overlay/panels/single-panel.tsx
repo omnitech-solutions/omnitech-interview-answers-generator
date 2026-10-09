@@ -362,6 +362,7 @@ export function SinglePanel({
                   clock: { label: s.model.elapsedLabel },
                   heard: heardHistory(s.model),
                   micLevel: s.micLevel,
+                  sessionId,
                 }
           }
           pending={s.snapshot.pending}

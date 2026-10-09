@@ -74,7 +74,9 @@ function readNote(raw: unknown): CoachNote[] {
 // directory (never the database, never the log) until the person clears them.
 // A file that cannot be read or written never stops a note reaching the
 // window: the notes are then held for this process only.
-export function createCoachNotes(filePath: string) {
+// With no file the notes live in this process only: the notes of a replay,
+// which are a test of the coach and never the person's record.
+export function createCoachNotes(filePath: string | null) {
   // [GUARD] Starts from the clock, not from zero: a window that polled this
   // process before a restart must see a different number after it, or it
   // would keep showing what the last process held.
@@ -83,6 +85,10 @@ export function createCoachNotes(filePath: string) {
   // Read once, on first use, so loading this module touches no file.
   const held = (): CoachNote[] => {
     if (notes) return notes;
+    if (filePath === null) {
+      notes = [];
+      return notes;
+    }
     try {
       notes = storedSchema
         .parse(JSON.parse(readFileSync(filePath, "utf8")))
@@ -95,6 +101,7 @@ export function createCoachNotes(filePath: string) {
   const keep = (next: CoachNote[]) => {
     notes = next;
     revision += 1;
+    if (filePath === null) return;
     try {
       // Written beside the file and moved over it, so a reader never sees half.
       mkdirSync(dirname(filePath), { recursive: true });
@@ -156,3 +163,6 @@ export const coachNotes = createCoachNotes(
     "coach-notes.json",
   ),
 );
+
+// The notes of a replay: apart from the person's own, and gone on a restart.
+export const replayCoachNotes = createCoachNotes(null);

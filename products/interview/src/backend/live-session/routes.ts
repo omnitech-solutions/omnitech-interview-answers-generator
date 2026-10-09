@@ -29,6 +29,7 @@ import {
   LIVE_OCR_LIMITS,
   LIVE_OWNER_INPUT_MAX_SNAPSHOTS,
   LIVE_SESSION_ERROR_STATUS,
+  liveHeardRequestSchema,
   liveSessionListQuerySchema,
   liveSessionScreenshotSendRequestSchema,
   liveTaskIdSchema,
@@ -54,6 +55,7 @@ import { ActiveSessionRepository } from "./repository";
 import type { OwnerScope } from "./scope";
 import { loadSessionContext } from "./session-context";
 import { MAX_PAGE } from "./session-reads";
+import type { TranscriptRecordings } from "./transcript-recording";
 
 const SESSION_ROUTES_PREFIX = "/api/interview/t/:tenantSlug/sessions";
 
@@ -65,8 +67,18 @@ export type SessionRoutesOptions = {
   repository?: ActiveSessionRepository;
   // Test overrides of the frozen ingest limits.
   ingestLimits?: IngestOptions["limits"];
-  // Told each transcript line a permitted-remote session stored (the coach).
+  // Told each transcript line a session stored (the coach, a recording).
   onHeard?: IngestOptions["onHeard"];
+  // Told the text read from a capture of the screen (the coach), with its
+  // session and whether that session may be processed off this device.
+  onScreen?: (screen: {
+    text: string;
+    session: { tenantId: string; actorId: string; sessionId: string };
+    remote: boolean;
+  }) => void;
+  // The owner's own recordings of what a session heard. Absent: the
+  // recording routes answer that there is none.
+  recordings?: TranscriptRecordings;
   // Prepares and resolves the session's context pack for its owner's view.
   // Absent: the view route answers that it is not available.
   contextEngine?: ContextEngine;
@@ -196,6 +208,9 @@ export function createSessionRoutes(options: SessionRoutesOptions) {
     options.repository ?? new ActiveSessionRepository(options.database);
   const limits = { ...ACTIVE_SESSION_LIMITS, ...options.ingestLimits };
   const app = new Hono<{ Variables: { scope: OwnerScope } }>();
+  // Heard phrases already told to a listener, by request id: a resend of the
+  // same phrase is stored once and told once.
+  const told = new Set<string>();
 
   app.onError((error, c) => {
     c.header("Cache-Control", "no-store");
@@ -530,6 +545,9 @@ export function createSessionRoutes(options: SessionRoutesOptions) {
             c.req.param("sessionId"),
             parsed.data.action,
           );
+    // A session that has ended is no longer recorded.
+    if (parsed.data.action === "end")
+      options.recordings?.stop(c.req.param("sessionId"));
     return c.json({ session });
   });
 
@@ -539,12 +557,59 @@ export function createSessionRoutes(options: SessionRoutesOptions) {
   // body names exact snapshot observation ids, never bytes, and carries no
   // identity.
   app.post(`${base}/:sessionId/input`, async (c) => {
-    const input = await repository.submitOwnerInput(
+    const scope = c.get("scope");
+    const sessionId = c.req.param("sessionId");
+    const body = await jsonBody(c.req.raw);
+    const input = await repository.submitOwnerInput(scope, sessionId, body);
+    // [DOMAIN] A phrase the window's own microphone heard is conversation
+    // too: whoever listens (the coach, a recording) is told it once. That
+    // microphone hears the room, so the line names no speaker.
+    const heard = liveHeardRequestSchema.safeParse(body);
+    if (options.onHeard && heard.success && !told.has(input.requestId)) {
+      told.add(input.requestId);
+      if (told.size > 2_000) told.delete(told.values().next().value as string);
+      const session = await repository.getSession(scope, sessionId);
+      try {
+        options.onHeard({
+          text: heard.data.text,
+          occurredAt: new Date().toISOString(),
+          session: { ...scope, sessionId },
+          remote: session?.processingPolicy === "permitted-remote",
+        });
+      } catch {
+        // The acknowledgement stands whatever a listener does.
+      }
+    }
+    return c.json({ input }, 202);
+  });
+
+  // [DOMAIN] The owner's own recording of what this session hears, kept as a
+  // transcript file on this machine. Off until asked for, every time: it is
+  // never on because it was on before, and it ends with the session.
+  app.get(`${base}/:sessionId/recording`, async (c) => {
+    const session = await repository.getSession(
       c.get("scope"),
       c.req.param("sessionId"),
-      await jsonBody(c.req.raw),
     );
-    return c.json({ input }, 202);
+    if (!session || !options.recordings) throw new SessionError("not_found");
+    return c.json({ recording: options.recordings.state(session.id) });
+  });
+  app.post(`${base}/:sessionId/recording`, async (c) => {
+    const body = (await jsonBody(c.req.raw)) as { on?: unknown } | null;
+    if (typeof body?.on !== "boolean") throw new SessionError("invalid_input");
+    const session = await repository.getSession(
+      c.get("scope"),
+      c.req.param("sessionId"),
+    );
+    if (!session || !options.recordings) throw new SessionError("not_found");
+    // Nothing is heard, so nothing is recorded, once a session has ended.
+    if (body.on && (session.status === "ended" || session.purged))
+      throw new SessionError("invalid_input");
+    return c.json({
+      recording: body.on
+        ? options.recordings.start(session.id)
+        : options.recordings.stop(session.id),
+    });
   });
 
   // Capture and analyze (multipart/form-data): the owner's own image plus
@@ -609,12 +674,34 @@ export function createSessionRoutes(options: SessionRoutesOptions) {
     }
     if (images.length === 0)
       throw new SessionError("invalid_input", [], "no_image");
+    const scope = c.get("scope");
+    const sessionId = c.req.param("sessionId");
     const capture = await repository.submitOwnerCapture(
-      c.get("scope"),
-      c.req.param("sessionId"),
+      scope,
+      sessionId,
       fields,
       images,
     );
+    // [DOMAIN] What the capture shows, as the text read from it on the
+    // device, is what the conversation is about: whoever coaches is told.
+    const read = Array.isArray(fields["ocr"])
+      ? (fields["ocr"] as { text?: unknown }[])
+          .map((block) => (typeof block?.text === "string" ? block.text : ""))
+          .filter(Boolean)
+          .join("\n\n")
+      : "";
+    if (options.onScreen && read) {
+      const session = await repository.getSession(scope, sessionId);
+      try {
+        options.onScreen({
+          text: read,
+          session: { ...scope, sessionId },
+          remote: session?.processingPolicy === "permitted-remote",
+        });
+      } catch {
+        // The capture stands whatever a listener does.
+      }
+    }
     return c.json(capture, 202);
   });
 

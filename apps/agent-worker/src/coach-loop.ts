@@ -46,7 +46,7 @@ export function coachApi(
   base: string,
   token: string,
   fetcher: typeof fetch = fetch,
-): Pick<CoachPorts, "transcript" | "notes"> {
+): Required<Pick<CoachPorts, "transcript" | "notes" | "plan">> {
   const root = base.replace(/\/$/, "");
   const call = async (path: string, signal: AbortSignal, body?: unknown) => {
     const response = await fetcher(`${root}${path}`, {
@@ -69,10 +69,22 @@ export function coachApi(
         call(`/api/v1/coach-transcript?after=${after}`, signal),
     },
     notes: {
-      post: async (note, signal) => {
-        await call("/api/v1/coach-notes", signal, note);
+      post: async (note, signal, space) => {
+        await call(
+          space === "replay"
+            ? "/api/v1/coach-notes?space=replay"
+            : "/api/v1/coach-notes",
+          signal,
+          note,
+        );
       },
     },
+    plan: async () =>
+      (
+        (await call("/api/v1/coach-plan", new AbortController().signal)) as {
+          text?: string;
+        } | null
+      )?.text || undefined,
   };
 }
 

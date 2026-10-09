@@ -27,17 +27,31 @@ import { windowTenant } from "./use-account";
 const POLL_MS = 500;
 const ENDPOINT = "/api/v1/coach-notes";
 
-const request = (method: "GET" | "DELETE", revision?: number) =>
-  fetch(
-    revision === undefined || revision < 0
-      ? ENDPOINT
-      : `${ENDPOINT}?revision=${revision}`,
-    { method, headers: { [TENANT_HEADER]: windowTenant() } },
-  );
+// Whose notes: the person's own, or those of a replay (a transcript run
+// through the coach to try it out), which the server keeps apart.
+export type CoachNotesSpace = "live" | "replay";
+const request = (
+  method: "GET" | "DELETE",
+  space: CoachNotesSpace,
+  revision?: number,
+) => {
+  const query = new URLSearchParams();
+  if (space === "replay") query.set("space", "replay");
+  if (revision !== undefined && revision >= 0)
+    query.set("revision", String(revision));
+  const search = query.toString();
+  return fetch(search ? `${ENDPOINT}?${search}` : ENDPOINT, {
+    method,
+    headers: { [TENANT_HEADER]: windowTenant() },
+  });
+};
 
 // The notes as the server holds them, read on a short interval while the
 // session is open. A failed read keeps what is on show.
-export function useCoachNotes(enabled: boolean): {
+export function useCoachNotes(
+  enabled: boolean,
+  space: CoachNotesSpace = "live",
+): {
   notes: readonly CoachNote[];
   clear(): void;
 } {
@@ -48,7 +62,7 @@ export function useCoachNotes(enabled: boolean): {
     let live = true;
     const read = async () => {
       try {
-        const response = await request("GET", revision.current);
+        const response = await request("GET", space, revision.current);
         // 204: nothing has changed since the revision on show.
         if (!response.ok || response.status === 204) return;
         const body = coachNotesResponseSchema.parse(await response.json());
@@ -65,12 +79,12 @@ export function useCoachNotes(enabled: boolean): {
       live = false;
       clearInterval(timer);
     };
-  }, [enabled]);
+  }, [enabled, space]);
   return {
     notes,
     clear: () => {
       setNotes([]);
-      void request("DELETE").catch(() => undefined);
+      void request("DELETE", space).catch(() => undefined);
     },
   };
 }

@@ -27,6 +27,7 @@ import { coachTranscript, speakerOfSource } from "./coach-transcript";
 import { createDocumentsApi, resolveDocumentsScope } from "./documents/api";
 import { resolveDocumentsConfig } from "./documents/config";
 import { createSessionRoutes } from "./live-session/routes";
+import { transcriptRecordings } from "./live-session/transcript-recording";
 import { loadLocalDefaultProfile } from "./local-default-profile";
 import { loadLocalTemplates, localMatrixPath } from "./local-seeds";
 import { createCodeRunner } from "./services";
@@ -262,7 +263,19 @@ export function createInterviewBackend(services: InterviewBackendServices) {
       resolveContext: services.resolveContext,
       contextEngine: services.engine,
       // What a session hears is the coach's input, as it arrives.
-      onHeard: (heard) =>
+      recordings: transcriptRecordings,
+      // [SAFETY] As with what is heard: a device-only session's screen never
+      // reaches a coach on a remote model.
+      onScreen: (screen) => {
+        if (screen.remote)
+          coachTranscript.setScreen(screen.text, screen.session);
+      },
+      onHeard: (heard) => {
+        // The owner's own recording stays on this machine: any session.
+        transcriptRecordings.heard(heard);
+        // [SAFETY] The coach writes on a remote model: a device-only
+        // session's words never reach it.
+        if (!heard.remote) return;
         coachTranscript.add(
           [
             {
@@ -272,7 +285,8 @@ export function createInterviewBackend(services: InterviewBackendServices) {
             },
           ],
           heard.session,
-        ),
+        );
+      },
     }),
   );
   // Interview answers and explanations, generated on the engine for the

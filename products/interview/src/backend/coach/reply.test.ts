@@ -7,7 +7,15 @@ import {
   TALKING_POINT_LENGTH,
 } from "@omnitech/interview-contracts";
 import { describe, expect, it } from "vitest";
-import { parseCoachReply, SILENT } from "./reply";
+import {
+  COACH_MODES,
+  coachLogOf,
+  DESIGN_STAGES,
+  designDiagram,
+  LOG_LINE_LENGTH,
+  parseCoachReply,
+  SILENT,
+} from "./reply";
 
 const reply = (...lines: string[]) => lines.join("\n");
 const spoken = (text: string) => ({ segments: [{ text, role: "spoken" }] });
@@ -65,6 +73,8 @@ describe("a finished reply", () => {
     const parsed = parseCoachReply(FULL, true);
     expect(parsed).toEqual({
       sameQuestion: false,
+      // A design's arrows: none in a conversation.
+      draw: [],
       note: {
         title: "Keeping two services consistent",
         kind: "technical",
@@ -654,5 +664,446 @@ describe("whatever the model writes", () => {
         at: "2026-10-08T09:00:00.000Z",
       }),
     ).not.toThrow();
+  });
+});
+
+// The kind of round changes how many lines of each kind a note may hold and
+// which come first. A design also carries its stage and its arrows.
+describe("the kind of round", () => {
+  const CROWDED = reply(
+    "ASK: Everything at once",
+    ...["SAY", "ANCHOR", "QUESTION", "CAUTION"].flatMap((label) =>
+      Array.from({ length: 7 }, (_, at) => `${label}: ${label} ${at + 1}`),
+    ),
+  );
+  const shape = (mode?: (typeof COACH_MODES)[number]) =>
+    parseCoachReply(CROWDED, true, undefined, mode)?.note.sections?.map(
+      (section) => [section.kind, section.lines.length],
+    );
+
+  it("is a conversation, a system design or live coding", () => {
+    expect([...COACH_MODES]).toEqual([
+      "conversation",
+      "system-design",
+      "coding",
+    ]);
+  });
+
+  it.each([
+    [
+      "conversation",
+      [
+        ["say", 3],
+        ["anchors", 3],
+        ["ask", 1],
+        ["caution", 1],
+      ],
+    ],
+    [
+      "system-design",
+      [
+        ["ask", 5],
+        ["say", 3],
+        ["anchors", 3],
+        ["caution", 2],
+      ],
+    ],
+    [
+      "coding",
+      [
+        ["say", 2],
+        ["anchors", 4],
+        ["ask", 2],
+        ["caution", 2],
+      ],
+    ],
+  ] as const)(
+    "holds a %s note to its own caps, in its own order",
+    (mode, caps) => {
+      expect(shape(mode)).toEqual(caps);
+      // The lines kept are the first written.
+      const asked = parseCoachReply(
+        CROWDED,
+        true,
+        undefined,
+        mode,
+      )?.note.sections?.find((section) => section.kind === "ask");
+      expect(asked?.lines[0]).toEqual(spoken("QUESTION 1"));
+      expect(() =>
+        coachNoteInputSchema.parse(
+          parseCoachReply(CROWDED, true, undefined, mode)?.note,
+        ),
+      ).not.toThrow();
+    },
+  );
+
+  it("is a conversation when none is named", () => {
+    expect(shape()).toEqual(shape("conversation"));
+  });
+});
+
+describe("the arrows of a design", () => {
+  const drawn = (...lines: string[]) =>
+    parseCoachReply(reply(...lines), true, undefined, "system-design");
+
+  it("reads each DRAW line into an arrow, with or without what flows, in the order written", () => {
+    expect(
+      drawn(
+        "SAY: The simplest design first.",
+        "DRAW: Client -> API: place order",
+        "DRAW:   API   -->   Order queue  ",
+        "DRAW: Order queue -> Worker: one job: at least once",
+      )?.draw,
+    ).toEqual([
+      { from: "Client", to: "API", label: "place order" },
+      { from: "API", to: "Order queue" },
+      { from: "Order queue", to: "Worker", label: "one job: at least once" },
+    ]);
+  });
+
+  it("keeps a box name that has a hyphen whole", () => {
+    expect(drawn("DRAW: Read-replica -> Primary-db: lag")?.draw).toEqual([
+      { from: "Read-replica", to: "Primary-db", label: "lag" },
+    ]);
+  });
+
+  it.each([
+    ["no arrow", "DRAW: Client and API"],
+    ["nothing after the arrow", "DRAW: Client ->"],
+    ["nothing before the arrow", "DRAW: -> API"],
+    ["a box name longer than 40", `DRAW: Client -> ${"b".repeat(41)}`],
+    ["what flows longer than 60", `DRAW: Client -> API: ${"f".repeat(61)}`],
+  ])("leaves out a DRAW line that is not an arrow: %s", (_name, line) => {
+    expect(drawn("SAY: The design.", line)?.draw).toEqual([]);
+  });
+
+  it("a reply with only DRAW lines is still a note: no sections, its arrows", () => {
+    const only = drawn("DRAW: Client -> API", "DRAW: API -> Store: write");
+    expect(only).not.toBeNull();
+    expect(only?.note.sections).toEqual([]);
+    expect(only?.draw).toHaveLength(2);
+    expect(() => coachNoteInputSchema.parse(only?.note)).not.toThrow();
+    // While it is written, the arrow not yet ended is left out.
+    expect(
+      parseCoachReply(
+        "DRAW: Client -> API\nDRAW: API -> Sto",
+        false,
+        undefined,
+        "system-design",
+      )?.draw,
+    ).toEqual([{ from: "Client", to: "API" }]);
+  });
+
+  // DEFECT (reply.ts:312-314, `tone`): `shown.every(...)` is true of no
+  // sections at all, so a reply that only draws is given the tone "watch":
+  // the design's own note is drawn as a warning, though it warns of nothing.
+  // Remove `.fails` when that is fixed.
+  it.fails("DEFECT: a reply that only draws is not drawn as a warning", () => {
+    expect(drawn("DRAW: Client -> API")?.note.tone).toBe("say");
+  });
+
+  it("DRAW lines that are not arrows, alone, are no note", () => {
+    expect(drawn("STAGE: detail", "DRAW: nothing to see")).toBeNull();
+  });
+
+  it("never shows an arrow as a line of the note", () => {
+    const note = drawn("SAY: The design.", "DRAW: Client -> API: order")?.note;
+    expect(JSON.stringify(note)).not.toContain("Client");
+  });
+});
+
+describe("the stage of a design", () => {
+  it.each([...DESIGN_STAGES])("reads the stage %s", (stage) => {
+    expect(
+      parseCoachReply(
+        reply(`STAGE: ${stage}`, "SAY: Next."),
+        true,
+        undefined,
+        "system-design",
+      )?.stage,
+    ).toBe(stage);
+  });
+
+  it("names the four stages, in the order a design goes through them", () => {
+    expect([...DESIGN_STAGES]).toEqual([
+      "requirements",
+      "high-level",
+      "detail",
+      "issues",
+    ]);
+  });
+
+  it.each(["Detail", "design", "high level", "detail, mostly"])(
+    "carries no stage for one it does not know: %s",
+    (stage) => {
+      const parsed = parseCoachReply(
+        reply(`STAGE: ${stage}`, "SAY: Next."),
+        true,
+        undefined,
+        "system-design",
+      );
+      expect(parsed).not.toBeNull();
+      expect(parsed).not.toHaveProperty("stage");
+    },
+  );
+
+  it("a stage alone is no note", () => {
+    expect(
+      parseCoachReply("STAGE: detail", true, undefined, "system-design"),
+    ).toBeNull();
+  });
+});
+
+describe("the design as a diagram", () => {
+  it("is nothing when nothing is drawn", () => {
+    expect(designDiagram([])).toBeUndefined();
+  });
+
+  it("is a left-to-right flowchart, an arrow per line, labelled when something flows", () => {
+    expect(
+      designDiagram([
+        { from: "Client", to: "API Gateway", label: "place order" },
+        { from: "API Gateway", to: "Order queue" },
+      ]),
+    ).toBe(
+      [
+        "flowchart LR",
+        '  n_client["Client"] -->|place order| n_api_gateway["API Gateway"]',
+        '  n_api_gateway["API Gateway"] --> n_order_queue["Order queue"]',
+      ].join("\n"),
+    );
+  });
+
+  it("names a box by what it is called, so the same name is one box however it is written", () => {
+    const diagram = designDiagram([
+      { from: "Client", to: "API gateway" },
+      { from: "api-gateway", to: "Store" },
+      { from: " API  Gateway ", to: "Cache" },
+    ]) as string;
+    const ids = [...diagram.matchAll(/\b(n_\w*)\["/g)].map((match) => match[1]);
+    expect(ids).toEqual([
+      "n_client",
+      "n_api_gateway",
+      "n_api_gateway",
+      "n_store",
+      "n_api_gateway",
+      "n_cache",
+    ]);
+  });
+
+  it("strips the marks Mermaid reads as its own from every label, and closes up the space", () => {
+    const diagram = designDiagram([
+      {
+        from: 'Orders [primary] (eu) "db"',
+        to: "Cache | hot {keys} <ttl>",
+        label: "read (cached) | write [sync]",
+      },
+    ]) as string;
+    expect(diagram.split("\n")[1]).toBe(
+      '  n_orders_primary_eu_db["Orders primary eu db"] -->|read cached write sync| n_cache_hot_keys_ttl["Cache hot keys ttl"]',
+    );
+  });
+
+  it("cuts a label to 48 characters", () => {
+    const diagram = designDiagram([
+      { from: "a".repeat(60), to: "B", label: "f".repeat(60) },
+    ]) as string;
+    expect(diagram).toContain(`["${"a".repeat(47)}…"]`);
+    expect(diagram).toContain(`|${"f".repeat(47)}…|`);
+  });
+
+  it("is cut at a whole arrow under 1,500 characters, the first arrows kept", () => {
+    const edges = Array.from({ length: 80 }, (_, at) => ({
+      from: `Service number ${at}`,
+      to: `Store number ${at}`,
+      label: `what flows in arrow ${at}`,
+    }));
+    const diagram = designDiagram(edges) as string;
+    const lines = diagram.split("\n");
+    expect(diagram.length).toBeLessThanOrEqual(1_500);
+    expect(lines.length).toBeGreaterThan(5);
+    expect(lines.length).toBeLessThan(81);
+    expect(lines[0]).toBe("flowchart LR");
+    for (const line of lines.slice(1))
+      expect(line).toMatch(
+        /^ {2}n_\w+\["[^"]+"\] -->\|[^|]+\| n_\w+\["[^"]+"\]$/,
+      );
+    expect(lines[1]).toContain("Service number 0");
+    // One more whole arrow would not have fitted.
+    const next = designDiagram(edges.slice(0, lines.length)) as string;
+    expect(next).toBe(diagram);
+    expect(() =>
+      coachNoteInputSchema.parse({ title: "Design", diagram }),
+    ).not.toThrow();
+  });
+
+  it("is still a diagram when the very first arrow is as long as an arrow can be", () => {
+    const diagram = designDiagram([
+      { from: "a".repeat(40), to: "b".repeat(40), label: "c".repeat(60) },
+    ]) as string;
+    expect(diagram.split("\n")).toHaveLength(2);
+  });
+
+  // DEFECT (reply.ts:91-93): an arrow's label that is nothing but marks
+  // Mermaid reads as its own ("()", "[]") is stripped to nothing and still
+  // written, as `-->||`, which Mermaid cannot read: the one arrow loses the
+  // whole drawing. Remove `.fails` when it is drawn as an arrow with no label.
+  it.fails("DEFECT: an arrow whose label is only marks is drawn unlabelled", () => {
+    const diagram = designDiagram([
+      { from: "Client", to: "API", label: "()" },
+    ]) as string;
+    expect(diagram).not.toContain("||");
+  });
+
+  // DEFECT (reply.ts:75-79, `id`): a box's id is its name's ASCII letters and
+  // digits, so two boxes named without any (in another script, or by a mark)
+  // both get the id "n_" and are drawn as ONE box, under the first one's name.
+  // Remove `.fails` when distinct names are distinct boxes.
+  it.fails("DEFECT: two boxes named without an ASCII letter or digit are two boxes", () => {
+    const diagram = designDiagram([
+      { from: "Client", to: "数据库" },
+      { from: "Client", to: "缓存" },
+    ]) as string;
+    const [first, second] = [...diagram.matchAll(/--> (n_\w*)\["/g)].map(
+      (match) => match[1],
+    );
+    expect(first).not.toBe(second);
+  });
+});
+
+describe("what the coach writes for itself", () => {
+  it("is each LOG line, in the order written, wherever it stands in the reply", () => {
+    expect(
+      coachLogOf(
+        reply(
+          "LOG: The interviewer owns the pricing rules",
+          FULL,
+          "  LOG:   Two of five questions asked  ",
+        ),
+      ),
+    ).toEqual([
+      "The interviewer owns the pricing rules",
+      "Two of five questions asked",
+    ]);
+  });
+
+  it("is read after a first line of the silent word too", () => {
+    const text = reply(SILENT, "LOG: The ledger story has been used");
+    expect(coachLogOf(text)).toEqual(["The ledger story has been used"]);
+    // And the reply is still no note.
+    expect(parseCoachReply(text, true)).toBeNull();
+  });
+
+  it("is three lines at most: the first three", () => {
+    expect(
+      coachLogOf(reply(...[1, 2, 3, 4, 5].map((at) => `LOG: fact ${at}`))),
+    ).toEqual(["fact 1", "fact 2", "fact 3"]);
+  });
+
+  it("cuts a line to 200 characters, ending it with an ellipsis", () => {
+    expect(LOG_LINE_LENGTH).toBe(200);
+    const [exact, long] = coachLogOf(
+      reply(`LOG: ${"a".repeat(200)}`, `LOG: ${"b".repeat(201)}`),
+    );
+    expect(exact).toBe("a".repeat(200));
+    expect(long).toBe(`${"b".repeat(199)}…`);
+  });
+
+  it.each([
+    ["nothing", ""],
+    ["the silent word", SILENT],
+    ["a note with no LOG line", FULL],
+    ["a LOG label with nothing after it", "LOG:\nLOG:    "],
+    ["a label in lower case", "log: remember this"],
+    ["the word inside a line", "SAY: Keep a LOG: of it."],
+  ])("is nothing for %s", (_name, text) => {
+    expect(coachLogOf(text)).toEqual([]);
+  });
+
+  it("reads CRLF line ends", () => {
+    expect(coachLogOf("NONE\r\nLOG: one\r\nLOG: two\r\n")).toEqual([
+      "one",
+      "two",
+    ]);
+  });
+
+  it("is never part of the note", () => {
+    const note = parseCoachReply(
+      reply(FULL, "LOG: The interviewer owns the pricing rules"),
+      true,
+    )?.note;
+    expect(note).toEqual(parseCoachReply(FULL, true)?.note);
+    expect(JSON.stringify(note)).not.toContain("pricing");
+  });
+});
+
+describe("a pointer left in the spoken words", () => {
+  const shown = (say: string) =>
+    (segmentsOf(say, KNOWN) ?? []).map((segment) => segment.text).join("");
+
+  it.each([
+    "I ran the rota [/roles/1/responsibilities/2] for a year.",
+    "I ran the rota [/roles/1/responsibilities/2 for a year.",
+    "I ran the rota /roles/1/responsibilities/2] for a year.",
+    "I moved reads to a replica [/context/employerBrief/1].",
+    "[/roles/0/proof_points/0] I moved reads to a replica.",
+  ])("is never shown: %s", (say) => {
+    const text = shown(say);
+    expect(text).not.toMatch(/\[|\]|\/roles|\/context/);
+    expect(text).toMatch(/I (ran the rota|moved reads)/);
+    // It verifies nothing by standing there: every piece is spoken.
+    expect(
+      (segmentsOf(say, KNOWN) ?? []).every(
+        (segment) => segment.role === "spoken",
+      ),
+    ).toBe(true);
+  });
+
+  it("leaves ordinary words with a slash or a bracket as they are", () => {
+    for (const say of [
+      "I split the read/write paths early.",
+      "It was [roughly] a week of work.",
+      "We ran TCP/IP checks and CI/CD on every merge.",
+    ])
+      expect(shown(say)).toBe(say);
+  });
+});
+
+describe("a figure said with or without a space before its unit", () => {
+  const FACTS = new Map([
+    ["/roles/0/proof_points/0", "Cut p95 latency to 45 ms across 2.1M users"],
+    ["/roles/0/proof_points/1", "Held error rate under 3% at 900rps"],
+  ]);
+  const evidence = (say: string) =>
+    (segmentsOf(say, FACTS) ?? []).filter(
+      (segment) => segment.role === "evidence",
+    );
+
+  it.each([
+    ["**45ms**[/roles/0/proof_points/0]", "/roles/0/proof_points/0"],
+    ["**45 ms**[/roles/0/proof_points/0]", "/roles/0/proof_points/0"],
+    ["**2.1 m users**[/roles/0/proof_points/0]", "/roles/0/proof_points/0"],
+    ["**2.1M users**[/roles/0/proof_points/0]", "/roles/0/proof_points/0"],
+    ["**900 rps**[/roles/0/proof_points/1]", "/roles/0/proof_points/1"],
+    // Uncited: one fact holds every word once the figure is apart from its unit.
+    ["**p95 latency to 45ms**", "/roles/0/proof_points/0"],
+    ["**error rate under 3% at 900 rps**", "/roles/0/proof_points/1"],
+  ])("verifies %s", (say, source) => {
+    expect(evidence(`I got it to ${say}.`)).toEqual([
+      expect.objectContaining({ grounding: "verified", source }),
+    ]);
+  });
+
+  it.each([
+    "**54ms**[/roles/0/proof_points/0]",
+    "**45s**[/roles/0/proof_points/1]",
+    "**2.2M users**[/roles/0/proof_points/0]",
+    "**p95 latency to 54ms**",
+    // The figure is the fact's, its percent sign is not.
+    "**45%**[/roles/0/proof_points/0]",
+  ])("does not verify another figure: %s", (say) => {
+    expect(evidence(`I got it to ${say}.`)).toEqual([
+      expect.objectContaining({ grounding: "inferred" }),
+    ]);
   });
 });
