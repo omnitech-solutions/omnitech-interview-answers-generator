@@ -142,7 +142,7 @@ export function coachLoop(
         engine,
         profileId: COACH_PROFILE,
         ...coachApi(env["INTERVIEW_API_URL"] ?? "http://127.0.0.1:3000", token),
-        ...(database ? { context: createCoachContext(database) } : {}),
+        ...(database ? { context: createCoachContext(database, engine) } : {}),
         // The coach's transcript belongs to this machine's one Studio, not
         // to a tenant's stored record.
         scope: { tenantId: "local", actorId: "coach" },

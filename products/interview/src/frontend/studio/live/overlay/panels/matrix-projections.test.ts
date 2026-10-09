@@ -218,16 +218,17 @@ describe("factField: what a fact is, from its address", () => {
 });
 
 describe("the projections on offer", () => {
-  it("are five, ranked roles first, each named and saying how the matrix is consumed that way", () => {
+  it("are six, ranked roles first and the server's own selection last, each named and saying how the matrix is consumed that way", () => {
     expect(PROJECTIONS.map((each) => [each.id, each.label])).toEqual([
       ["ranked", "Ranked roles"],
       ["facts", "Facts the model can quote"],
       ["stories", "Stories by need"],
       ["technology", "By technology"],
       ["industry", "By industry"],
+      ["selected", "Selected for this question"],
     ]);
     for (const each of PROJECTIONS) expect(each.how.length).toBeGreaterThan(40);
-    expect(new Set(PROJECTIONS.map((each) => each.how)).size).toBe(5);
+    expect(new Set(PROJECTIONS.map((each) => each.how)).size).toBe(6);
   });
 });
 

@@ -2,6 +2,7 @@
 
 | id | title | status | date | supersedes | superseded_by | tags |
 |----|-------|--------|------|------------|---------------|------|
+| ADR-0041 | The first context pack slice derives identities from content and adds three rules | Accepted | 2026-10-09 | — (amends ADR-0038, ADR-0039) | — | context, projection, coach, experience-matrix, grounding |
 | ADR-0040 | The AI engine is imported at its one entry point | Accepted | 2026-10-08 | — (amends ADR-0037) | — | ai, sdk, engine, packages, boundaries |
 | ADR-0039 | A live coach reads the conversation and writes the coach's notes as it happens | Accepted | 2026-10-08 | — | — | coach, live-session, agents, transcript, grounding |
 | ADR-0038 | Prepare raw information into attributable context, then resolve it deterministically, inside the AI engine | Accepted | 2026-10-08 | — | — | context, projection, engine, documents, experience-matrix |

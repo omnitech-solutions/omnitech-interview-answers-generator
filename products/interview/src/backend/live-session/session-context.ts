@@ -88,6 +88,15 @@ export type SessionContext = {
   snapshot: ContextSnapshot;
   // The verified matrix the task ranking reads; null when no profile is pinned.
   matrix: CandidateMatrix | null;
+  // The same approved material before it was cut into the snapshot's lines:
+  // what the context pack prepares into records (ADR-0038). The database
+  // reader always gives it; a context built by hand for a test may not.
+  material?: {
+    profile: { id: string; revision: number; sha256: string } | null;
+    brief: (EmployerBrief & { candidacyId: string }) | null;
+    candidatePreferences: string | null;
+    draftRevision: number | null;
+  };
 };
 
 export type ContextUnavailableCode =
@@ -158,6 +167,7 @@ export async function loadSessionContext(
           brief?: string | undefined;
         }
       | undefined;
+    let cleanBrief: NonNullable<SessionContext["material"]>["brief"] = null;
     if (record.candidacyId) {
       const row = await firstRow<Record<string, unknown>>(
         tx,
@@ -171,6 +181,8 @@ export async function loadSessionContext(
       );
       if (row) {
         const brief = employerBriefSchema.safeParse(row["employer_brief"]);
+        if (brief.success)
+          cleanBrief = { ...brief.data, candidacyId: record.candidacyId };
         candidacy = {
           jobDescription: textOrUndefined(row["job_description"]),
           employerNotes: textOrUndefined(row["notes"]),
@@ -234,6 +246,12 @@ export async function loadSessionContext(
         : undefined;
     return {
       matrix,
+      material: {
+        profile,
+        brief: cleanBrief,
+        candidatePreferences: candidatePreferences ?? null,
+        draftRevision: draftRevision ?? null,
+      },
       snapshot: buildContextSnapshot({
         matrix,
         profile,

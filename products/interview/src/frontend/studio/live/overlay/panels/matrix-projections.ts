@@ -95,6 +95,13 @@ export const PROJECTIONS = [
     label: "By industry",
     how: "Which roles fit an industry. A role's industry counts as a domain match, the second signal in the ranking.",
   },
+  {
+    // Drawn from the server's own selection (the context pack), not worked
+    // out here: it is what the coach was given, not an estimate of it.
+    id: "selected",
+    label: "Selected for this question",
+    how: "Exactly what the coach is given for the question on show, chosen on the server from your matrix, the brief and your preferences, and what was left out and why. A fact marked yours can be stated as your experience; the employer's lines only aim the answer.",
+  },
 ] as const;
 export type ProjectionId = (typeof PROJECTIONS)[number]["id"];
 

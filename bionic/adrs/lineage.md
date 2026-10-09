@@ -49,6 +49,7 @@ graph TD
   ADR_0038["ADR-0038"]
   ADR_0039["ADR-0039"]
   ADR_0040["ADR-0040"]
+  ADR_0041["ADR-0041"]
   ADR_0010 -.-> ADR_0009
   ADR_0012 -.-> ADR_0011
   ADR_0013 -.-> ADR_0011
@@ -79,6 +80,8 @@ graph TD
   ADR_0037 -.-> ADR_0012
   ADR_0037 -.-> ADR_0034
   ADR_0040 -.-> ADR_0037
+  ADR_0041 -.-> ADR_0038
+  ADR_0041 -.-> ADR_0039
 ```
 
 ## Lineage table
@@ -126,6 +129,7 @@ graph TD
 | ADR-0038 | Prepare raw information into attributable context, then resolve it deterministically, inside the AI engine | Accepted | — | — | — |
 | ADR-0039 | A live coach reads the conversation and writes the coach's notes as it happens | Accepted | — | — | — |
 | ADR-0040 | The AI engine is imported at its one entry point | Accepted | — | ADR-0037 | — |
+| ADR-0041 | The first context pack slice derives identities from content and adds three rules | Accepted | — | ADR-0038, ADR-0039 | — |
 
 ## Topic clusters
 
@@ -137,15 +141,16 @@ ADRs grouped by shared tag (a tag appears below if ≥2 ADRs carry it). Use a cl
 - **architecture** — ADR-0002, ADR-0004, ADR-0029
 - **boundaries** — ADR-0003, ADR-0040
 - **capture** — ADR-0018, ADR-0021, ADR-0022, ADR-0027, ADR-0032
+- **coach** — ADR-0039, ADR-0041
 - **companion** — ADR-0018, ADR-0021
-- **context** — ADR-0036, ADR-0038
+- **context** — ADR-0036, ADR-0038, ADR-0041
 - **contracts** — ADR-0008, ADR-0011
 - **crux** — ADR-0001, ADR-0029
 - **documents** — ADR-0009, ADR-0010, ADR-0015, ADR-0036, ADR-0038
 - **drizzle** — ADR-0005, ADR-0023, ADR-0029
 - **engine** — ADR-0037, ADR-0038, ADR-0040
-- **experience-matrix** — ADR-0036, ADR-0038
-- **grounding** — ADR-0015, ADR-0039
+- **experience-matrix** — ADR-0036, ADR-0038, ADR-0041
+- **grounding** — ADR-0015, ADR-0039, ADR-0041
 - **interview** — ADR-0008, ADR-0009, ADR-0010, ADR-0011, ADR-0012, ADR-0013, ADR-0015
 - **live-ui** — ADR-0016, ADR-0024, ADR-0027, ADR-0032, ADR-0033
 - **macos** — ADR-0019, ADR-0028
@@ -160,7 +165,7 @@ ADRs grouped by shared tag (a tag appears below if ≥2 ADRs carry it). Use a cl
 - **postgresql** — ADR-0005, ADR-0023
 - **privacy** — ADR-0007, ADR-0009, ADR-0011, ADR-0012, ADR-0013, ADR-0018, ADR-0019, ADR-0020, ADR-0022, ADR-0024, ADR-0025, ADR-0026
 - **process** — ADR-0000, ADR-0001
-- **projection** — ADR-0036, ADR-0038
+- **projection** — ADR-0036, ADR-0038, ADR-0041
 - **screenshots** — ADR-0016, ADR-0024, ADR-0025, ADR-0026
 - **sdk** — ADR-0037, ADR-0040
 - **security** — ADR-0005, ADR-0006, ADR-0023, ADR-0031

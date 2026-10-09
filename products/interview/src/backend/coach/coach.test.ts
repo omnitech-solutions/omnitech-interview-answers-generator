@@ -677,7 +677,7 @@ describe("the person's record", () => {
     expect(JSON.stringify(w.calls[0]?.execution)).not.toContain("latency");
   });
 
-  it("only the candidate's own facts make a claim theirs: employer material and preferences never do", async () => {
+  it("only what is the person's own makes a claim theirs: their record and what they want do, employer material never does", async () => {
     const w = world({}, { session: SESSION, facts: async () => FACTS });
     w.reply({ chunks: [CITING] });
     await w.heardThenTick("interviewer", QUESTION);
@@ -687,8 +687,8 @@ describe("the person's record", () => {
       ["Kafka", "inferred", undefined],
       ["Postgres", "inferred", undefined],
       ["9 regions", "inferred", undefined],
-      // Cited to a preference: said, but not as verified experience.
-      ["4 weeks", "inferred", undefined],
+      // Cited to a preference: what the person wants is theirs to state.
+      ["4 weeks", "verified", "/context/candidatePreferences/0"],
     ]);
     for (const post of w.posts)
       expect(() => coachNoteInputSchema.parse(post)).not.toThrow();

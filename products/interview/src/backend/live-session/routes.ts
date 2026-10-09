@@ -40,11 +40,19 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
 import { briefingScope } from "../briefing-access";
+import {
+  type ContextEngine,
+  PROJECTIONS,
+  type ProjectionId,
+  prepareContextPack,
+  sessionSources,
+} from "../context-pack/index";
 import { SessionError, type SessionErrorCode } from "./errors";
 import { type IngestOptions, ingestObservation } from "./ingest";
 import { isProcessingPolicy, isRetentionMode } from "./mapping";
 import { ActiveSessionRepository } from "./repository";
 import type { OwnerScope } from "./scope";
+import { loadSessionContext } from "./session-context";
 import { MAX_PAGE } from "./session-reads";
 
 const SESSION_ROUTES_PREFIX = "/api/interview/t/:tenantSlug/sessions";
@@ -59,6 +67,9 @@ export type SessionRoutesOptions = {
   ingestLimits?: IngestOptions["limits"];
   // Told each transcript line a permitted-remote session stored (the coach).
   onHeard?: IngestOptions["onHeard"];
+  // Prepares and resolves the session's context pack for its owner's view.
+  // Absent: the view route answers that it is not available.
+  contextEngine?: ContextEngine;
 };
 
 // A start or control body is a few fields; this bounds it before parsing.
@@ -405,6 +416,38 @@ export function createSessionRoutes(options: SessionRoutesOptions) {
     );
     if (!session) throw new SessionError("not_found");
     return c.json({ session });
+  });
+
+  // [DOMAIN] The projection view (ADR-0038): for a question, what of the
+  // owner's approved material a model would be given under a projection, what
+  // was left out and why. Read in the owner's scope like the session itself;
+  // nothing is written and no model is called.
+  app.get(`${base}/:sessionId/context`, async (c) => {
+    if (!options.contextEngine) throw new SessionError("not_found");
+    const projection = c.req.query("projection") ?? PROJECTIONS.inspect;
+    const spoken = (c.req.query("q") ?? "").slice(0, 2_000);
+    if (!Object.values(PROJECTIONS).includes(projection as ProjectionId))
+      throw new SessionError("invalid_input");
+    const scope = c.get("scope");
+    const sessionId = c.req.param("sessionId");
+    const engine = options.contextEngine;
+    // [SAFETY] A pinned record that no longer verifies, or material the
+    // recipe refuses, is answered by a code alone: what it says never rides
+    // along in an error.
+    const pack = await loadSessionContext(options.database, scope, sessionId)
+      .then((context) =>
+        prepareContextPack(engine, sessionSources(context), {
+          scope,
+          signal: c.req.raw.signal,
+          for: { kind: "session", id: sessionId },
+        }),
+      )
+      .catch((error: unknown) => {
+        throw error instanceof SessionError
+          ? error
+          : new SessionError("invalid_input");
+      });
+    return c.json({ view: pack.view(projection as ProjectionId, spoken) });
   });
 
   // The stream is a cursor-paged read of the owner's session: observations

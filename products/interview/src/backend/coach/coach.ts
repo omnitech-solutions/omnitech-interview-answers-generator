@@ -159,10 +159,11 @@ export function createCoach(ports: CoachPorts, options: CoachOptions = {}) {
       session && ports.context
         ? await ports.context.facts(session, asked).catch(() => [])
         : [];
-    // Only the person's own record can make a claim theirs.
+    // Only what is the person's own (their record, what they want) can make
+    // a claim theirs; the employer's material never can.
     const known = new Map(
       facts
-        .filter((fact) => fact.about === "candidate")
+        .filter((fact) => fact.about !== "employer")
         .map((fact) => [fact.pointer, fact.text]),
     );
     const post = async (final: boolean) => {

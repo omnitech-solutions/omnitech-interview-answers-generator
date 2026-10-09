@@ -260,6 +260,7 @@ export function createInterviewBackend(services: InterviewBackendServices) {
     createSessionRoutes({
       database: services.database,
       resolveContext: services.resolveContext,
+      contextEngine: services.engine,
       // What a session hears is the coach's input, as it arrives.
       onHeard: (heard) =>
         coachTranscript.add(

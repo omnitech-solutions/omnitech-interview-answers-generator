@@ -117,7 +117,11 @@ const rows: Array<[file: string, maxCount: number, reason: string]> = [
       ["products/interview/src/backend/live-session/owner-capture.ts", 1],
       ["products/interview/src/backend/live-session/owner-input.ts", 2],
       ["products/interview/src/backend/live-session/repository.ts", 4],
-      ["products/interview/src/backend/live-session/routes.ts", 5],
+      // 2026-10-09: +2 for `c.req.query("projection")` and `c.req.query("q")`
+      // on the projection view route (ADR-0038): like the five before them
+      // they are Hono query parameters the scanner counts, not SQL. The route
+      // itself reads through loadSessionContext and writes nothing.
+      ["products/interview/src/backend/live-session/routes.ts", 7],
       ["products/interview/src/backend/live-session/session-drafts.ts", 1],
       ["products/interview/src/backend/live-session/status-transition.ts", 2],
       ["products/interview/src/backend/plan/repository.ts", 8],

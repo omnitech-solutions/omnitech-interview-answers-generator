@@ -480,17 +480,20 @@ type TabId = (typeof TABS)[number]["id"];
 function RightTabs({
   s,
   notes,
+  question,
 }: {
   s: PanelSession;
   // The notes on show, for the Context tab to mark what they lean on.
   notes: readonly CoachNote[];
+  // The question on show, as asked, for the Context tab's selection.
+  question: string;
 }) {
   const pane: Record<TabId, ReactNode> = {
     answer: <AnswerPanel s={s} />,
     transcript: <ChatPanel s={s} />,
     code: <CodePanel s={s} />,
     // What the answers are built from: the brief and the experience matrix.
-    context: <ContextPane s={s} notes={notes} />,
+    context: <ContextPane s={s} notes={notes} question={question} />,
   };
   const [open, setOpen] = useState<TabId>("answer");
   return (
@@ -720,7 +723,11 @@ export function CoachLayout({
         style={{ ...STYLE.panelFill, gap: 8 }}
       >
         {view === "coach" ? (
-          <RightTabs s={s} notes={shown?.notes ?? []} />
+          <RightTabs
+            s={s}
+            notes={shown?.notes ?? []}
+            question={shown?.question?.text ?? shown?.label ?? ""}
+          />
         ) : (
           <div style={STYLE.pane}>
             <ChatPanel s={s} />

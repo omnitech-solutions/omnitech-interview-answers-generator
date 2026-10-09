@@ -107,6 +107,13 @@ export {
   coachTranscriptSessionSchema,
 } from "./coach-transcript";
 export {
+  CONTEXT_PROJECTIONS,
+  type ContextProjection,
+  type ContextView,
+  contextViewResponseSchema,
+  contextViewSchema,
+} from "./context-view";
+export {
   type DocumentField,
   type DocumentFieldError,
   type DocumentFormat,

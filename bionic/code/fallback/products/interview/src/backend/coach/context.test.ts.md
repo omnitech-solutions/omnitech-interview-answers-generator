@@ -2,7 +2,8 @@
 
 _Source: `products/interview/src/backend/coach/context.test.ts` (header-comment fallback)_
 
-What the coach is given of a live session's approved context: the same
-snapshot the session's own answers read, each source named for whose it is,
-read once a minute at most. The database reader is replaced; the snapshot
-and its ranking are the real ones. Every fact here is invented.
+What the coach is given of a live session's approved material: the facts
+the context pack's "coach" projection selects for what was just said
+(ADR-0038), each named for whose it is, the material read once a minute at
+most. The database reader is replaced; the pack is the real one, on a real
+AI engine with no model behind it. Every fact here is invented.

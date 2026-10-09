@@ -5,6 +5,7 @@
 // in a URL; bounds before parsing; membership re-checked; and control state
 // carried on every acknowledgement (ADR-0011, ADR-0012).
 import { randomUUID } from "node:crypto";
+import { createAiEngine } from "@omnitech/ai-engine";
 import {
   liveCompanionCapabilityResponseSchema,
   liveSessionChoicesResponseSchema,
@@ -17,6 +18,7 @@ import type { PlatformContext } from "@omnitech/platform-contracts";
 import { Hono } from "hono";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { deriveLiveModel } from "../../frontend/studio/live/session-state";
+import { BRIEF, MATRIX, PREFERENCES } from "../context-pack/fixture";
 import {
   type Fixture,
   type Person,
@@ -25,6 +27,7 @@ import {
   startFixture,
   transcript,
 } from "./live-session-fixture";
+import { seedBriefingDraft, seedMatrixProfile } from "./processor-fixture";
 import { createSessionRoutes } from "./routes";
 
 let fx: Fixture;
@@ -1239,5 +1242,389 @@ describe("owner input route (ADR-0016)", () => {
     const ended = await post(`/${owner.id}/input`, input());
     expect(ended.status).toBe(409);
     expect(await ended.json()).toEqual({ error: { code: "status_refused" } });
+  });
+});
+
+describe("the projection view (ADR-0038)", () => {
+  // An engine with a model behind it that must never be asked: the view is
+  // prepared from structured material and resolved, and neither calls one.
+  let modelCalls = 0;
+  const engine = createAiEngine({
+    profiles: [{ id: "never-asked", provider: "scripted" }],
+    providers: {
+      scripted: {
+        // biome-ignore lint/correctness/useYield: it refuses before any chunk.
+        async *stream() {
+          modelCalls += 1;
+          throw new Error("the projection view asked a model");
+        },
+      },
+    },
+  });
+  const viewing = () =>
+    createSessionRoutes({
+      database: fx.member,
+      resolveContext,
+      contextEngine: engine,
+    });
+  const view = (id: string, query = "", a = viewing()) =>
+    a.request(`${base()}/${id}/context${query}`);
+
+  type View = {
+    projection: string;
+    spoken: string;
+    terms: string;
+    records: number;
+    selected: Array<{
+      id: string;
+      pointer: string;
+      text: string;
+      kind: string;
+      about: string;
+      slot: string;
+      exact: boolean;
+    }>;
+    excluded: Array<{ id: string; text: string; slot: string; reason: string }>;
+    slots: Array<{ slot: string; state: string; count: number }>;
+    digest: string;
+    sources: Array<{ id: string; revision: string }>;
+  };
+  const viewOf = async (response: Response) => {
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { view: View };
+    expect(Object.keys(body)).toEqual(["view"]);
+    return body.view;
+  };
+
+  // A member whose session pins an invented matrix, a candidacy with a
+  // cleaned employer brief, and a draft holding their preferences.
+  async function prepared(name: string) {
+    const person = await member(name);
+    const profile = await seedMatrixProfile(fx, fx.tenantA, person.id, {
+      matrix: MATRIX,
+    });
+    await fx.owner.query(
+      "UPDATE interview.candidacies SET employer_brief = $1::jsonb WHERE id = $2",
+      [JSON.stringify(BRIEF), person.candidacy],
+    );
+    const workspaceDraft = await seedBriefingDraft(
+      fx,
+      fx.tenantA,
+      person.id,
+      profile,
+      { candidatePreferences: PREFERENCES },
+      7,
+    );
+    as(person);
+    const response = await post("", {
+      ...START,
+      candidacyId: person.candidacy,
+      profile: { id: profile.id },
+      workspaceDraft,
+    });
+    expect(response.status).toBe(201);
+    const body = (await response.json()) as { session: { id: string } };
+    return { person, id: body.session.id, profile };
+  }
+
+  it("is not there when the routes were given no engine to prepare with", async () => {
+    const owner = await prepared("view-no-engine");
+    const absent = await view(owner.id, "", app());
+    expect(absent.status).toBe(404);
+    expect(await absent.json()).toEqual({ error: { code: "not_found" } });
+    expect(absent.headers.get("cache-control")).toBe("no-store");
+    // Whatever is asked of it, and for a session that does not exist too.
+    expect((await view(owner.id, "?projection=coach&q=Go", app())).status).toBe(
+      404,
+    );
+    expect((await view(randomUUID(), "", app())).status).toBe(404);
+  });
+
+  it("answers another member's session exactly as an unknown one, and needs a signed-in member", async () => {
+    const owner = await prepared("view-owned");
+    as(await member("view-intruder"));
+    const foreign = await view(owner.id, "?q=Have+you+used+Go");
+    const missing = await view(randomUUID(), "?q=Have+you+used+Go");
+    expect(foreign.status).toBe(404);
+    const body = await foreign.text();
+    expect([foreign.status, body]).toEqual([
+      missing.status,
+      await missing.text(),
+    ]);
+    expect(JSON.parse(body)).toEqual({ error: { code: "not_found" } });
+    // Nothing of the owner's material rides along.
+    for (const said of ["Mira", "Harbourline", "Larkspur", "salary"])
+      expect(body).not.toContain(said);
+    as(null);
+    expect((await view(owner.id)).status).toBe(401);
+    // A member of another tenant asking under their own tenant's address.
+    const outsider = await fx.provision(fx.tenantB, "view-outsider");
+    as(outsider);
+    const elsewhere = await viewing().request(
+      `${base(otherSlug)}/${owner.id}/context`,
+    );
+    expect(elsewhere.status).toBe(404);
+    expect(await elsewhere.json()).toEqual({ error: { code: "not_found" } });
+  });
+
+  it("refuses a projection it does not have, before reading anything", async () => {
+    const owner = await prepared("view-projection");
+    for (const projection of ["everything", "", "Coach", "inspect,coach"]) {
+      const refused = await view(
+        owner.id,
+        `?projection=${encodeURIComponent(projection)}`,
+      );
+      expect(refused.status, projection).toBe(400);
+      expect(await refused.json(), projection).toEqual({
+        error: { code: "invalid_input" },
+      });
+    }
+    // The same answer for a session that is not there: the projection is
+    // checked first, so it says nothing about the session.
+    const unknown = await view(randomUUID(), "?projection=everything");
+    expect(unknown.status).toBe(400);
+    expect(await unknown.json()).toEqual({ error: { code: "invalid_input" } });
+  });
+
+  it("answers a session id that is not one as an unknown session", async () => {
+    await prepared("view-bad-id");
+    const response = await view("not-a-uuid");
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: { code: "not_found" } });
+  });
+
+  it("returns the view of the owner's material for a question, and asks no model", async () => {
+    const owner = await prepared("view-ok");
+    const before = modelCalls;
+    const response = await view(
+      owner.id,
+      `?projection=inspect&q=${encodeURIComponent("Have you used Go?")}`,
+    );
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+    const seen = await viewOf(response);
+    expect(Object.keys(seen).sort()).toEqual([
+      "digest",
+      "excluded",
+      "projection",
+      "records",
+      "selected",
+      "slots",
+      "sources",
+      "spoken",
+      "terms",
+    ]);
+    expect(seen).toMatchObject({
+      projection: "inspect",
+      spoken: "Have you used Go?",
+      terms: "used go",
+      digest: expect.stringMatching(/^[0-9a-f]{8,}$/),
+      sources: [
+        { id: `matrix:${owner.profile.id}`, revision: "1" },
+        {
+          id: `brief:${owner.person.candidacy}`,
+          revision: expect.stringMatching(/^[0-9a-f]{16}$/),
+        },
+        { id: "preferences:draft", revision: "7" },
+      ],
+    });
+    expect(seen.records).toBeGreaterThan(20);
+
+    // What was selected: the exact fields, then the role that used Go.
+    expect(
+      seen.selected
+        .filter((fact) => fact.exact)
+        .map((fact) => [fact.slot, fact.text]),
+    ).toEqual([
+      ["candidate.name", "Mira Okonjo"],
+      ["candidate.headline", "Platform engineer"],
+      ["candidate.location", "Lisbon"],
+      ["employer.company", "Larkspur Analytics"],
+      ["employer.role", "Principal Engineer"],
+    ]);
+    const ranked = seen.selected.filter((fact) => !fact.exact);
+    expect(ranked.map((fact) => fact.text)).toContain(
+      "Rewrote the berth scheduler in Go for the harbour pilots",
+    );
+    for (const fact of ranked) {
+      expect(fact.id).toMatch(/^role:harbourline:staff-engineer/);
+      expect(fact.pointer).toMatch(/^\/roles\/0/);
+      expect(fact.about).toBe("candidate");
+    }
+    // What was left out, each with its reason.
+    expect(seen.excluded).toContainEqual({
+      id: expect.stringMatching(/^role:tidewater-labs:engineer:proof_points:/),
+      pointer: "/roles/2/proof_points/0",
+      text: "Shipped a Rails booking flow for ferry crews",
+      kind: "candidate-evidence",
+      about: "candidate",
+      slot: "evidence",
+      reason: "relevance",
+    });
+    for (const fact of seen.excluded)
+      expect(fact.reason, fact.id).toMatch(/^[a-z-]+$/);
+    // And what each slot came to.
+    expect(seen.slots.map((slot) => slot.slot)).toEqual([
+      "candidate.name",
+      "candidate.headline",
+      "candidate.location",
+      "employer.company",
+      "employer.role",
+      "stories",
+      "evidence",
+      "roles",
+      "preferences",
+      "requirements",
+      "employer",
+      "prep",
+    ]);
+    expect(seen.slots).toContainEqual({
+      slot: "evidence",
+      state: "covered",
+      count: 6,
+    });
+    expect(seen.slots).toContainEqual({
+      slot: "preferences",
+      state: "no-such-fact",
+      count: 0,
+    });
+    expect(modelCalls).toBe(before);
+  });
+
+  it("inspects by default, selects by priority when nothing is asked, and reads each named projection", async () => {
+    const owner = await prepared("view-defaults");
+    const plain = await viewOf(await view(owner.id));
+    expect(plain).toMatchObject({
+      projection: "inspect",
+      spoken: "",
+      terms: "",
+    });
+    expect(plain.selected.length).toBeGreaterThan(10);
+
+    const question = `&q=${encodeURIComponent("Which of these have you used in production: NestJS, Go, PostgreSQL?")}`;
+    const digests = new Set<string>();
+    const evidence: Record<string, number> = {};
+    for (const projection of ["coach", "answer", "inspect"]) {
+      const seen = await viewOf(
+        await view(owner.id, `?projection=${projection}${question}`),
+      );
+      expect(seen.projection).toBe(projection);
+      digests.add(seen.digest);
+      evidence[projection] = seen.selected.filter(
+        (fact) => fact.slot === "evidence",
+      ).length;
+      // The employer's requirement is there as the employer's, never the
+      // candidate's.
+      expect(
+        seen.selected
+          .filter((fact) => fact.slot === "requirements")
+          .map((fact) => [fact.text, fact.about]),
+      ).toContainEqual(["Five years of NestJS in production", "employer"]);
+    }
+    expect(digests.size).toBe(3);
+    expect(evidence).toEqual({ coach: 6, answer: 9, inspect: 9 });
+  });
+
+  it("gives the same view for the same question, and another for another", async () => {
+    const owner = await prepared("view-digest");
+    const ask = async (q: string) =>
+      viewOf(
+        await view(owner.id, `?projection=coach&q=${encodeURIComponent(q)}`),
+      );
+    const first = await ask("What are your salary expectations?");
+    expect(await ask("What are your salary expectations?")).toEqual(first);
+    expect(
+      first.selected
+        .filter((fact) => fact.slot === "preferences")
+        .map((fact) => [fact.text, fact.about, fact.pointer]),
+    ).toEqual([
+      [
+        "Base salary: 140k minimum.",
+        "preference",
+        "/context/candidatePreferences/0",
+      ],
+    ]);
+    expect((await ask("What is your notice period?")).digest).not.toBe(
+      first.digest,
+    );
+  });
+
+  it("reads no more than the first 2,000 characters of what was asked", async () => {
+    const owner = await prepared("view-long");
+    const long = `${"x".repeat(1_998)} Go Rails`;
+    const seen = await viewOf(
+      await view(owner.id, `?q=${encodeURIComponent(long)}`),
+    );
+    expect(seen.spoken.length).toBe(2_000);
+    expect(seen.spoken.endsWith(" G")).toBe(true);
+    expect(seen.terms).not.toContain("rails");
+  });
+
+  it("needs only interview.read, and writes nothing", async () => {
+    const owner = await prepared("view-read-only");
+    const counts = async () =>
+      (
+        await fx.owner.query(
+          `SELECT (SELECT count(*) FROM interview.session_observations WHERE session_id = $1) AS observations,
+                  (SELECT count(*) FROM interview.session_actions WHERE session_id = $1) AS actions`,
+          [owner.id],
+        )
+      ).rows[0];
+    const before = await counts();
+    permissions = ["interview.read"];
+    try {
+      expect((await view(owner.id, "?q=Go")).status).toBe(200);
+    } finally {
+      permissions = ["interview.read", "interview.write"];
+    }
+    expect(await counts()).toEqual(before);
+  });
+
+  it("gives an empty view for a session that pinned and linked nothing", async () => {
+    const owner = await begin("view-empty");
+    as(owner.person);
+    const seen = await viewOf(await view(owner.id, "?q=Have+you+used+Go"));
+    expect(seen).toMatchObject({
+      projection: "inspect",
+      spoken: "Have you used Go",
+      terms: "used go",
+      records: 0,
+      selected: [],
+      excluded: [],
+      sources: [],
+    });
+    expect(seen.slots.every((slot) => slot.count === 0)).toBe(true);
+    expect(seen.slots.find((slot) => slot.slot === "candidate.name")).toEqual({
+      slot: "candidate.name",
+      state: "known-empty",
+      count: 0,
+    });
+  });
+
+  it("answers a pinned profile that no longer verifies with a code alone", async () => {
+    // The fixture's own profile revision holds a matrix that is not one.
+    const person = await member("view-unverified");
+    as(person);
+    const started = await post("", {
+      ...START,
+      profile: { id: person.profile },
+    });
+    expect(started.status).toBe(201);
+    const { session } = (await started.json()) as { session: { id: string } };
+    const response = await view(session.id, "?q=Go");
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: { code: "invalid_input" } });
+  });
+
+  it("still answers once the session has ended", async () => {
+    const owner = await prepared("view-ended");
+    await post(`/${owner.id}/control`, {
+      version: 1,
+      kind: "session.control",
+      action: "end",
+    });
+    const response = await view(owner.id, "?q=Go");
+    // The material is still the owner's to inspect after the interview.
+    expect((await viewOf(response)).selected.length).toBeGreaterThan(5);
   });
 });

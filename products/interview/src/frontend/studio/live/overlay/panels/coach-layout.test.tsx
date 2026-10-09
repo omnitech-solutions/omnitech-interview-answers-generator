@@ -46,12 +46,19 @@ vi.mock("./panel-views", async (original) => ({
   CodePanel: () => <div data-testid="pane-code" />,
 }));
 // The Context pane reads the brief and the matrix (context-pane.test.tsx);
-// here it is a stand-in that says which notes it was given.
+// here it is a stand-in that says which notes and which question it was given.
 vi.mock("./context-pane", () => ({
-  ContextPane: ({ notes }: { notes: readonly CoachNote[] }) => (
+  ContextPane: ({
+    notes,
+    question,
+  }: {
+    notes: readonly CoachNote[];
+    question?: string;
+  }) => (
     <div
       data-testid="pane-context"
       data-notes={notes.map((each) => each.title).join(" | ")}
+      data-question={question}
     />
   ),
 }));
@@ -1188,6 +1195,29 @@ describe("the right column of the coach view", () => {
     openTab("context");
     expect(screen.getByTestId("pane-context")).toHaveAttribute(
       "data-notes",
+      "",
+    );
+  });
+
+  it("the Context tab is given the question on show as it was asked, and follows it", async () => {
+    await show("coach");
+    openTab("context");
+    const asked = () =>
+      screen.getByTestId("pane-context").getAttribute("data-question");
+    // What was heard, whole: not the coach's few words for it.
+    expect(asked()).toBe(QUESTION_TWO);
+    pickListed(1);
+    expect(asked()).toBe(QUESTION_ONE);
+    fireEvent.click(screen.getByTestId("pn-coach-live"));
+    expect(asked()).toBe(QUESTION_TWO);
+  });
+
+  it("the Context tab is given an empty question before anything is asked", async () => {
+    posted = [];
+    await show("coach", session([]));
+    openTab("context");
+    expect(screen.getByTestId("pane-context")).toHaveAttribute(
+      "data-question",
       "",
     );
   });

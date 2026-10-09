@@ -16,10 +16,12 @@ import {
   Textarea,
 } from "@oc-tech/omni-ui-components";
 import { createBriefingClient } from "@omnitech/interview-api-client";
-import type {
-  CandidacyContext,
-  CandidateMatrix,
-  CoachNote,
+import {
+  type CandidacyContext,
+  type CandidateMatrix,
+  type CoachNote,
+  type ContextView,
+  contextViewResponseSchema,
 } from "@omnitech/interview-contracts";
 import {
   type CSSProperties,
@@ -36,6 +38,7 @@ import {
 import { documentJson } from "../../../documents/documents-client";
 import { Icon } from "../../../icon";
 import { studioFetch } from "../../../studio-fetch";
+import { tenantFromLocation } from "../../session-registry";
 import { COACH_COLOUR } from "./coach-note-view";
 import { briefSections } from "./interview-context-modal";
 import {
@@ -437,21 +440,167 @@ function Mapping({
   );
 }
 
+// ---- Selected for this question ------------------------------------------------
+
+// [DOMAIN] The server's selection for the question on show (the context
+// pack's "coach" projection). Read again when the question changes; a failed
+// read says so and keeps nothing stale on show.
+function useContextView(
+  sessionId: string | null,
+  question: string,
+  enabled: boolean,
+) {
+  const [view, setView] = useState<ContextView | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    setView(null);
+    setFailed(false);
+    if (!enabled || !sessionId) return;
+    const stop = new AbortController();
+    const query = new URLSearchParams({ projection: "coach", q: question });
+    studioFetch(
+      `/api/interview/t/${encodeURIComponent(tenantFromLocation())}/sessions/${encodeURIComponent(sessionId)}/context?${query}`,
+      { signal: stop.signal },
+    )
+      .then(async (response) => {
+        if (!response.ok) throw new Error("unavailable");
+        const read = contextViewResponseSchema.parse(await response.json());
+        // An answer to a question no longer on show is not shown.
+        if (!stop.signal.aborted) setView(read.view);
+      })
+      .catch(() => {
+        if (!stop.signal.aborted) setFailed(true);
+      });
+    return () => stop.abort();
+  }, [sessionId, question, enabled]);
+  return { view, failed };
+}
+
+const SLOT_LABEL: Record<string, string> = {
+  "candidate.name": "Name",
+  "candidate.headline": "Headline",
+  "candidate.location": "Location",
+  "employer.company": "Company",
+  "employer.role": "Role",
+  stories: "Your story for this",
+  evidence: "Your evidence",
+  roles: "Your roles",
+  preferences: "Your preferences",
+  requirements: "What they require",
+  employer: "About them",
+  prep: "Your prep",
+};
+const ABOUT_LABEL: Record<ContextView["selected"][number]["about"], string> = {
+  candidate: "Yours",
+  employer: "Theirs",
+  preference: "Your preference",
+};
+const REASON_LABEL: Record<ContextView["excluded"][number]["reason"], string> =
+  {
+    relevance: "not about this question",
+    limit: "more than the note can use",
+    "over-limit": "too long to give whole",
+    budget: "no room left",
+    excluded: "excluded by you",
+  };
+
+function SelectedView({
+  view,
+  failed,
+  hasSession,
+  question,
+}: {
+  view: ContextView | null;
+  failed: boolean;
+  hasSession: boolean;
+  question: string;
+}) {
+  if (!hasSession)
+    return (
+      <p style={STYLE.empty}>
+        Start a session to see what is selected for each question.
+      </p>
+    );
+  if (failed)
+    return (
+      <p style={{ ...STYLE.note, color: COACH_COLOUR.caution }} role="status">
+        The selection could not be read for this session.
+      </p>
+    );
+  if (!view) return <p style={STYLE.empty}>Reading the selection…</p>;
+  // The slots in the order the model is given them, each with its facts.
+  const slots = [...new Set(view.selected.map((fact) => fact.slot))];
+  const left = new Map<string, number>();
+  for (const { reason } of view.excluded)
+    left.set(reason, (left.get(reason) ?? 0) + 1);
+  return (
+    <>
+      <p style={STYLE.note} data-testid="pn-context-selected-for">
+        {question
+          ? `For: “${question}”`
+          : "No question on show: chosen by importance alone."}
+        {view.terms ? ` Matched on: ${view.terms}.` : ""}
+      </p>
+      {slots.map((slot) => (
+        <div key={slot} style={STYLE.role} data-testid="pn-context-slot">
+          <span style={STYLE.factLabel}>{SLOT_LABEL[slot] ?? slot}</span>
+          {view.selected
+            .filter((fact) => fact.slot === slot)
+            .map((fact) => (
+              <div key={`${slot}:${fact.id}`} style={STYLE.row}>
+                <p style={{ ...STYLE.fact, flex: "1 1 240px" }}>{fact.text}</p>
+                <Tag variant="outline">{ABOUT_LABEL[fact.about]}</Tag>
+                {fact.pointer.startsWith("/") && (
+                  <span style={STYLE.pointer}>{fact.pointer}</span>
+                )}
+              </div>
+            ))}
+        </div>
+      ))}
+      {view.selected.every((fact) => fact.exact) && (
+        <p style={STYLE.empty}>
+          Nothing in your material is about this question.
+        </p>
+      )}
+      <p style={STYLE.note} data-testid="pn-context-left-out">
+        {`${view.selected.length} of ${view.records} facts given.`}
+        {left.size > 0
+          ? ` Left out: ${[...left]
+              .map(
+                ([reason, count]) =>
+                  `${count} ${REASON_LABEL[reason as keyof typeof REASON_LABEL] ?? reason}`,
+              )
+              .join(", ")}.`
+          : ""}
+      </p>
+    </>
+  );
+}
+
 // ---- The pane -----------------------------------------------------------------
 
 export function ContextPane({
   s,
   notes,
+  question = "",
 }: {
   s: PanelSession;
   // The notes on show: the roles they lean on are marked.
   notes: readonly CoachNote[];
+  // The question on show, as it was asked: what "selected" is selected for.
+  question?: string;
 }) {
   const { context: candidacy, setContext } = useCandidacy(s.model.candidacyId);
   const pinned = s.session?.profile ?? null;
   const matrix = useMatrix(pinned);
   const [projection, setProjection] = useState<ProjectionId>("ranked");
   const [allRoles, setAllRoles] = useState(false);
+  const sessionId = s.session?.id ?? null;
+  const selected = useContextView(
+    sessionId,
+    question,
+    projection === "selected",
+  );
   const loaded = matrix.loaded;
   const latest = matrix.profile?.latest ?? null;
   const editable = loaded !== null && loaded.revision === latest;
@@ -636,6 +785,14 @@ export function ContextPane({
             <p style={{ ...STYLE.note, color: COACH_COLOUR.caution }}>
               {matrix.failure}
             </p>
+          )}
+          {projection === "selected" && (
+            <SelectedView
+              view={selected.view}
+              failed={selected.failed}
+              hasSession={sessionId !== null}
+              question={question}
+            />
           )}
           {loaded && (projection === "ranked" || projection === "facts") && (
             <>

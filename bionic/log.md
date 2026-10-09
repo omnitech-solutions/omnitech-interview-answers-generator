@@ -2,6 +2,18 @@
 
 _Append-only. Newest first._
 
+## [2026-10-09] extract | regenerated bionic/code/ (1061 pages: 10 added, 2 changed, 0 removed)
+
+The default extractor ran after the context pack slice settled; the arch spine was regenerated with `pnpm docs:arch` in the same pass.
+
+## [2026-10-09] journal | decision: The first slice of the context pack recorded; four choices amend ADR-0038 and ADR-0039 as ADR-0041
+
+Entry in `bionic/journal/2026-10.md` at 2026-10-09T00:10-06:00. Refs: [[adrs/ADR-0038-prepare-raw-information-into-attributable-context]] [[adrs/ADR-0041-the-first-context-pack-slice-derives-identities-fr]] [[objectives]]
+
+## [2026-10-09] adr | ADR-0041: accept (accepted)
+
+The first context pack slice derives identities from content and adds three rules. Amends ADR-0038 and ADR-0039 on four points the first implementation chose: identity derived from content for structured sources, a chosen story widens the question, a question nothing matches is offered the recent roles, and a person's preferences verify as their own. Proposed and accepted together on the owner's request for the context pack; the code existed first. File `bionic/adrs/ADR-0041-the-first-context-pack-slice-derives-identities-fr.md`. Tags: context, projection, coach, experience-matrix, grounding.
+
 ## [2026-10-08] journal | decision: The live coach and the engine's single entry point recorded as ADR-0039 and ADR-0040
 
 Entry in `bionic/journal/2026-10.md` at 2026-10-08T23:55-06:00. Refs: [[adrs/ADR-0039-a-live-coach-reads-the-conversation-and-writes-the]] [[adrs/ADR-0040-the-ai-engine-is-imported-at-its-one-entry-point]] [[objectives]]

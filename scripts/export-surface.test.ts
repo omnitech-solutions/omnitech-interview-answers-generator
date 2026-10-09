@@ -96,7 +96,10 @@ const surfaces: Record<string, SurfaceRow> = {
   // +11: the coach transcript contract (COACH_SPEAKERS, the line input, input,
   // line, session and response schemas and their five types), shared by the
   // transcript route, its in-memory store and the live coach in the worker.
-  "@omnitech/interview-contracts": { entrypoints: 1, names: 419 },
+  // +5: the projection view contract (CONTEXT_PROJECTIONS, the view and its
+  // response schema and their two types), shared by the session's context
+  // route and the Context pane's "Selected for this question".
+  "@omnitech/interview-contracts": { entrypoints: 1, names: 424 },
   "@omnitech/interview-library": { entrypoints: 1, names: 5 },
   "@omnitech/interview-playground-control": { entrypoints: 1, names: 16 },
   "@omnitech/interview-storage": { entrypoints: 1, names: 8 },

@@ -7,6 +7,7 @@ import type {
   CandidacyContext,
   CandidateMatrix,
   CoachNote,
+  ContextView,
 } from "@omnitech/interview-contracts";
 import {
   cleanup,
@@ -879,6 +880,504 @@ describe("ContextPane", () => {
       render(<ContextPane s={session(null)} notes={[]} />);
       await waitFor(() => expect(roles().length).toBeGreaterThan(0));
       expect(screen.queryByTestId("pn-context-edit-notes")).toBeNull();
+    });
+  });
+
+  describe("the experience matrix: selected for this question", () => {
+    const QUESTION = "How do you keep Kafka & Postgres consistent?";
+    type Selected = ContextView["selected"][number];
+    type Excluded = ContextView["excluded"][number];
+    const given = (
+      slot: string,
+      text: string,
+      extra: Partial<Selected> = {},
+    ): Selected => ({
+      id: `${slot}:${text}`,
+      pointer: "/roles/1/proof_points/1",
+      text,
+      kind: "proof",
+      about: "candidate",
+      slot,
+      exact: false,
+      ...extra,
+    });
+    const leftOut = (reason: Excluded["reason"], at: number): Excluded => ({
+      id: `left-${reason}-${at}`,
+      pointer: `/roles/0/technologies/${at}`,
+      text: `left out ${at}`,
+      kind: "technology",
+      about: "candidate",
+      slot: "evidence",
+      reason,
+    });
+    const VIEW: ContextView = {
+      projection: "coach",
+      spoken: QUESTION,
+      terms: "kafka postgres consistent",
+      records: 9,
+      selected: [
+        given("employer.company", "Northwind", {
+          about: "employer",
+          pointer: "brief:company",
+          exact: true,
+        }),
+        given("evidence", "Cut retries by 40%"),
+        given("requirements", "Postgres at scale", {
+          about: "employer",
+          pointer: "brief:mustHaves/1",
+        }),
+        // A second fact of a slot already drawn joins that slot's block.
+        given("evidence", "Moved billing to the outbox", {
+          pointer: "/roles/1/proof_points/0",
+        }),
+        given("preferences", "Remote first", {
+          about: "preference",
+          pointer: "/candidate/preferences/0",
+        }),
+      ],
+      excluded: [
+        leftOut("relevance", 0),
+        leftOut("limit", 1),
+        leftOut("relevance", 2),
+        leftOut("budget", 3),
+      ],
+      slots: [{ slot: "evidence", state: "covered", count: 2 }],
+      digest: "0".repeat(64),
+      sources: [{ id: "profile-1", revision: "4" }],
+    };
+    // A session that has started: the selection is read for its id.
+    const started = (id = "session-1") =>
+      ({
+        model: { candidacyId: CANDIDACY.id },
+        session: { id, profile: PINNED },
+        notify,
+      }) as unknown as PanelSession;
+    const answer = (body: unknown, status = 200) =>
+      new Response(JSON.stringify(body), {
+        status,
+        headers: { "content-type": "application/json" },
+      });
+    // The selection's server: answers each read as the test says, and refuses
+    // one that was aborted the way the browser does.
+    type Read = { url: URL; init: RequestInit };
+    let reads: Read[] = [];
+    function serve(reply: (read: Read) => Promise<Response> | Response) {
+      reads = [];
+      return vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+        const read = {
+          url: new URL(String(input), "http://studio.test"),
+          init: init ?? {},
+        };
+        reads.push(read);
+        const signal = read.init.signal;
+        return new Promise<Response>((resolve, reject) => {
+          signal?.addEventListener("abort", () =>
+            reject(new DOMException("aborted", "AbortError")),
+          );
+          Promise.resolve(reply(read)).then(resolve, reject);
+        });
+      });
+    }
+    const selectedFor = () => screen.getByTestId("pn-context-selected-for");
+    const slots = () => screen.queryAllByTestId("pn-context-slot");
+    const NOTHING = "Nothing in your material is about this question.";
+    const READING = "Reading the selection…";
+    const FAILED = "The selection could not be read for this session.";
+    async function showSelected(question: string | undefined, s = started()) {
+      const drawn = render(
+        <ContextPane
+          s={s}
+          notes={[]}
+          {...(question === undefined ? {} : { question })}
+        />,
+      );
+      await waitFor(() => expect(roles().length).toBeGreaterThan(0));
+      await screen.findByText("Northwind · Principal");
+      readAs(/^Selected for this question$/);
+      return drawn;
+    }
+
+    it("is the last way the matrix is read, says how the coach uses it, and takes the roles' place", async () => {
+      serve(() => answer({ view: VIEW }));
+      await showSelected(QUESTION);
+      expect(screen.getByTestId("pn-context-projection")).toHaveTextContent(
+        "Selected for this question",
+      );
+      expect(artifact("Experience matrix")).toHaveTextContent(
+        "Exactly what the coach is given for the question on show",
+      );
+      expect(roles()).toEqual([]);
+      expect(screen.queryByTestId("pn-context-all-roles")).toBeNull();
+      await waitFor(() => expect(slots().length).toBeGreaterThan(0));
+    });
+
+    it("nothing is read until it is chosen", async () => {
+      const fetched = serve(() => answer({ view: VIEW }));
+      render(<ContextPane s={started()} notes={[]} question={QUESTION} />);
+      await waitFor(() => expect(roles().length).toBeGreaterThan(0));
+      readAs(/^Facts the model can quote$/);
+      expect(fetched).not.toHaveBeenCalled();
+      expect(screen.queryByTestId("pn-context-selected-for")).toBeNull();
+    });
+
+    it("asks the session's context for the coach projection of the question, written into the address safely", async () => {
+      serve(() => answer({ view: VIEW }));
+      await showSelected(QUESTION, started("s/1 a"));
+      await waitFor(() => expect(slots().length).toBeGreaterThan(0));
+      expect(reads).toHaveLength(1);
+      const [read] = reads as [Read];
+      expect(`${read.url.pathname}${read.url.search}`).toBe(
+        "/api/interview/t/local/sessions/s%2F1%20a/context?projection=coach&q=How+do+you+keep+Kafka+%26+Postgres+consistent%3F",
+      );
+      expect([...read.url.searchParams]).toEqual([
+        ["projection", "coach"],
+        ["q", QUESTION],
+      ]);
+      expect(read.init.method ?? "GET").toBe("GET");
+      expect(read.init.signal).toBeInstanceOf(AbortSignal);
+    });
+
+    it("names the tenant the page belongs to, in the address and to the host", async () => {
+      const before = window.location.pathname;
+      window.history.pushState({}, "", "/t/acme%20co/p/interview");
+      try {
+        serve(() => answer({ view: VIEW }));
+        await showSelected(QUESTION);
+        await waitFor(() => expect(reads).toHaveLength(1));
+        expect(reads[0]?.url.pathname).toBe(
+          "/api/interview/t/acme%20co/sessions/session-1/context",
+        );
+        expect(
+          new Headers(reads[0]?.init.headers).get("x-omnitech-tenant"),
+        ).toBe("acme co");
+      } finally {
+        window.history.pushState({}, "", before);
+      }
+    });
+
+    it("says what it was selected for and the words that matched", async () => {
+      serve(() => answer({ view: VIEW }));
+      await showSelected(QUESTION);
+      await waitFor(() =>
+        expect(selectedFor().textContent).toBe(
+          `For: “${QUESTION}” Matched on: kafka postgres consistent.`,
+        ),
+      );
+    });
+
+    it("draws one block a slot in the order the model is given them, each fact with whose it is and its address", async () => {
+      serve(() => answer({ view: VIEW }));
+      await showSelected(QUESTION);
+      await waitFor(() => expect(slots()).toHaveLength(4));
+      // A pointer that is not an address in the matrix ("brief:…") is not drawn.
+      expect(slots().map((each) => each.textContent)).toEqual([
+        "CompanyNorthwindTheirs",
+        "Your evidenceCut retries by 40%Yours/roles/1/proof_points/1Moved billing to the outboxYours/roles/1/proof_points/0",
+        "What they requirePostgres at scaleTheirs",
+        "Your preferencesRemote firstYour preference/candidate/preferences/0",
+      ]);
+      expect(artifact("Experience matrix")).not.toHaveTextContent("brief:");
+      // Something of the person's own was selected.
+      expect(screen.queryByText(NOTHING)).toBeNull();
+    });
+
+    it.each([
+      ["candidate.name", "Name"],
+      ["candidate.headline", "Headline"],
+      ["candidate.location", "Location"],
+      ["employer.role", "Role"],
+      ["stories", "Your story for this"],
+      ["roles", "Your roles"],
+      ["employer", "About them"],
+      ["prep", "Your prep"],
+      // A slot the pane has no name for is named as the server names it.
+      ["benefits", "benefits"],
+    ])("the slot %s is labelled %s", async (slot, label) => {
+      serve(() =>
+        answer({ view: { ...VIEW, selected: [given(slot, "A fact")] } }),
+      );
+      await showSelected(QUESTION);
+      await waitFor(() => expect(slots()).toHaveLength(1));
+      expect(slots()[0]?.textContent).toBe(
+        `${label}A factYours/roles/1/proof_points/1`,
+      );
+    });
+
+    it("says how many facts were given of how many, and what was left out by reason", async () => {
+      serve(() => answer({ view: VIEW }));
+      await showSelected(QUESTION);
+      expect(
+        (await screen.findByTestId("pn-context-left-out")).textContent,
+      ).toBe(
+        "5 of 9 facts given. Left out: 2 not about this question, 1 more than the note can use, 1 no room left.",
+      );
+    });
+
+    it("names every reason a fact is left out, twelve of one as twelve", async () => {
+      serve(() =>
+        answer({
+          view: {
+            ...VIEW,
+            records: 19,
+            excluded: [
+              ...Array.from({ length: 12 }, (_, at) =>
+                leftOut("relevance", at),
+              ),
+              leftOut("over-limit", 12),
+              leftOut("excluded", 13),
+            ],
+          },
+        }),
+      );
+      await showSelected(QUESTION);
+      expect(
+        (await screen.findByTestId("pn-context-left-out")).textContent,
+      ).toBe(
+        "5 of 19 facts given. Left out: 12 not about this question, 1 too long to give whole, 1 excluded by you.",
+      );
+    });
+
+    it("with nothing left out it says only how many were given", async () => {
+      serve(() => answer({ view: { ...VIEW, records: 5, excluded: [] } }));
+      await showSelected(QUESTION);
+      expect(
+        (await screen.findByTestId("pn-context-left-out")).textContent,
+      ).toBe("5 of 5 facts given.");
+    });
+
+    it("says nothing in the material is about the question when only exact facts were selected", async () => {
+      serve(() =>
+        answer({
+          view: {
+            ...VIEW,
+            terms: "",
+            selected: [
+              given("employer.company", "Northwind", {
+                about: "employer",
+                pointer: "brief:company",
+                exact: true,
+              }),
+              given("candidate.name", "Sam Example", {
+                pointer: "/candidate/name",
+                exact: true,
+              }),
+            ],
+          },
+        }),
+      );
+      await showSelected(QUESTION);
+      expect(await screen.findByText(NOTHING)).toBeInTheDocument();
+      // The exact facts are still drawn, and no words are said to have matched.
+      expect(slots().map((each) => each.textContent)).toEqual([
+        "CompanyNorthwindTheirs",
+        "NameSam ExampleYours/candidate/name",
+      ]);
+      expect(selectedFor().textContent).toBe(`For: “${QUESTION}”`);
+      expect(screen.getByTestId("pn-context-left-out")).toHaveTextContent(
+        "2 of 9 facts given.",
+      );
+    });
+
+    it("says the same when nothing at all was selected", async () => {
+      serve(() => answer({ view: { ...VIEW, selected: [] } }));
+      await showSelected(QUESTION);
+      expect(await screen.findByText(NOTHING)).toBeInTheDocument();
+      expect(slots()).toEqual([]);
+      expect(screen.getByTestId("pn-context-left-out")).toHaveTextContent(
+        "0 of 9 facts given.",
+      );
+    });
+
+    it("with no question on show it asks with an empty one, and says the facts were chosen by importance", async () => {
+      serve(() => answer({ view: { ...VIEW, spoken: "", terms: "" } }));
+      await showSelected(undefined);
+      await waitFor(() =>
+        expect(selectedFor().textContent).toBe(
+          "No question on show: chosen by importance alone.",
+        ),
+      );
+      expect(reads[0]?.url.search).toBe("?projection=coach&q=");
+    });
+
+    it("with no session it says to start one, and reads nothing", async () => {
+      const fetched = serve(() => answer({ view: VIEW }));
+      await showSelected(QUESTION, session());
+      expect(
+        screen.getByText(
+          "Start a session to see what is selected for each question.",
+        ),
+      ).toBeInTheDocument();
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(fetched).not.toHaveBeenCalled();
+      expect(screen.queryByText(READING)).toBeNull();
+      expect(screen.queryByTestId("pn-context-selected-for")).toBeNull();
+      expect(screen.queryByTestId("pn-context-left-out")).toBeNull();
+    });
+
+    it("says it is reading until the selection lands", async () => {
+      let land: (response: Response) => void = () => undefined;
+      serve(
+        () =>
+          new Promise<Response>((resolve) => {
+            land = resolve;
+          }),
+      );
+      await showSelected(QUESTION);
+      expect(screen.getByText(READING)).toBeInTheDocument();
+      expect(slots()).toEqual([]);
+      expect(screen.queryByTestId("pn-context-left-out")).toBeNull();
+      land(answer({ view: VIEW }));
+      await waitFor(() => expect(slots()).toHaveLength(4));
+      expect(screen.queryByText(READING)).toBeNull();
+    });
+
+    it.each([
+      ["the server refuses it", () => answer({ error: "not found" }, 404)],
+      ["the server fails", () => answer({ view: VIEW }, 500)],
+      [
+        "the network is down",
+        () => Promise.reject(new TypeError("Failed to fetch")),
+      ],
+      [
+        "what comes back is not a view",
+        () => answer({ view: { ...VIEW, projection: "debug" } }),
+      ],
+      ["what comes back is not JSON", () => new Response("<html>")],
+    ])("says the selection could not be read when %s", async (_why, reply) => {
+      serve(reply);
+      await showSelected(QUESTION);
+      const said = await screen.findByText(FAILED);
+      expect(said).toHaveAttribute("role", "status");
+      expect(screen.queryByText(READING)).toBeNull();
+      expect(slots()).toEqual([]);
+      expect(screen.queryByTestId("pn-context-left-out")).toBeNull();
+      // The rest of the pane stands.
+      expect(artifact("Interview brief")).toHaveTextContent(
+        "Northwind · Principal",
+      );
+    });
+
+    it("reads again when the question changes, and gives up the earlier read", async () => {
+      const NEXT = "Tell me about a failure.";
+      const landing: ((response: Response) => void)[] = [];
+      serve(
+        () =>
+          new Promise<Response>((resolve) => {
+            landing.push(resolve);
+          }),
+      );
+      const drawn = await showSelected(QUESTION);
+      expect(reads).toHaveLength(1);
+      drawn.rerender(<ContextPane s={started()} notes={[]} question={NEXT} />);
+      await waitFor(() => expect(reads).toHaveLength(2));
+      expect(reads[0]?.init.signal?.aborted).toBe(true);
+      expect(reads[1]?.init.signal?.aborted).toBe(false);
+      expect(reads[1]?.url.searchParams.get("q")).toBe(NEXT);
+      // Giving up a read is not a failure to read.
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(screen.queryByText(FAILED)).toBeNull();
+      expect(screen.getByText(READING)).toBeInTheDocument();
+      landing[1]?.(
+        answer({
+          view: {
+            ...VIEW,
+            terms: "failure",
+            selected: [given("stories", "The Initech outage")],
+          },
+        }),
+      );
+      await waitFor(() =>
+        expect(selectedFor().textContent).toBe(
+          `For: “${NEXT}” Matched on: failure.`,
+        ),
+      );
+      expect(slots().map((each) => each.textContent)).toEqual([
+        "Your story for thisThe Initech outageYours/roles/1/proof_points/1",
+      ]);
+    });
+
+    it("the earlier question's selection is not left on show while the next is read", async () => {
+      let hold = false;
+      serve(() =>
+        hold ? new Promise<Response>(() => undefined) : answer({ view: VIEW }),
+      );
+      const drawn = await showSelected(QUESTION);
+      await waitFor(() => expect(slots()).toHaveLength(4));
+      hold = true;
+      drawn.rerender(
+        <ContextPane s={started()} notes={[]} question="Why Northwind?" />,
+      );
+      await waitFor(() => expect(reads).toHaveLength(2));
+      expect(slots()).toEqual([]);
+      expect(screen.queryByTestId("pn-context-selected-for")).toBeNull();
+      expect(screen.getByText(READING)).toBeInTheDocument();
+    });
+
+    it("a failed read does not outlast its question: the next one is read and drawn", async () => {
+      let fail = true;
+      serve(() =>
+        fail ? answer({ error: "offline" }, 503) : answer({ view: VIEW }),
+      );
+      const drawn = await showSelected(QUESTION);
+      await screen.findByText(FAILED);
+      fail = false;
+      drawn.rerender(
+        <ContextPane s={started()} notes={[]} question="Why Northwind?" />,
+      );
+      await waitFor(() => expect(slots()).toHaveLength(4));
+      expect(screen.queryByText(FAILED)).toBeNull();
+    });
+
+    it("the same question drawn again is not read again", async () => {
+      serve(() => answer({ view: VIEW }));
+      const drawn = await showSelected(QUESTION);
+      await waitFor(() => expect(slots()).toHaveLength(4));
+      drawn.rerender(
+        <ContextPane s={started()} notes={[]} question={QUESTION} />,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(reads).toHaveLength(1);
+      expect(slots()).toHaveLength(4);
+    });
+
+    it("another session's selection is read in the first one's place", async () => {
+      serve(() => answer({ view: VIEW }));
+      const drawn = await showSelected(QUESTION);
+      await waitFor(() => expect(slots()).toHaveLength(4));
+      drawn.rerender(
+        <ContextPane s={started("session-2")} notes={[]} question={QUESTION} />,
+      );
+      await waitFor(() => expect(reads).toHaveLength(2));
+      expect(reads[1]?.url.pathname).toBe(
+        "/api/interview/t/local/sessions/session-2/context",
+      );
+    });
+
+    it("reading the matrix another way gives up the read, and coming back reads again", async () => {
+      serve(() => new Promise<Response>(() => undefined));
+      await showSelected(QUESTION);
+      expect(reads).toHaveLength(1);
+      readAs(/^Ranked roles$/);
+      expect(reads[0]?.init.signal?.aborted).toBe(true);
+      expect(roles()).toHaveLength(5);
+      expect(screen.queryByText(READING)).toBeNull();
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(screen.queryByText(FAILED)).toBeNull();
+      readAs(/^Selected for this question$/);
+      await waitFor(() => expect(reads).toHaveLength(2));
+      expect(screen.getByText(READING)).toBeInTheDocument();
+    });
+
+    it("a read still under way when the pane goes is given up, and raises nothing", async () => {
+      serve(() => new Promise<Response>(() => undefined));
+      const errors = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => undefined);
+      const drawn = await showSelected(QUESTION);
+      drawn.unmount();
+      expect(reads[0]?.init.signal?.aborted).toBe(true);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(errors).not.toHaveBeenCalled();
     });
   });
 

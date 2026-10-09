@@ -33,10 +33,11 @@ See [[research/index]].
 - [[research/references/interview-studio]] — Interview Studio views, code locations, assistant model, CLI pushes — sources: 0 — `last_reviewed: 2026-10-02`
 - [[research/references/ui-components]] — one config-driven component set: variants, sizes, states, design tokens, rules — sources: 0 — `last_reviewed: 2026-10-06`
 
-## ADRs (41)
+## ADRs (42)
 
 | id | title | status | date |
 |---|---|---|---|
+| [[adrs/ADR-0041-the-first-context-pack-slice-derives-identities-fr]] | The first context pack slice derives identities from content and adds three rules | Accepted | 2026-10-09 |
 | [[adrs/ADR-0040-the-ai-engine-is-imported-at-its-one-entry-point]] | The AI engine is imported at its one entry point | Accepted | 2026-10-08 |
 | [[adrs/ADR-0039-a-live-coach-reads-the-conversation-and-writes-the]] | A live coach reads the conversation and writes the coach's notes as it happens | Accepted | 2026-10-08 |
 | [[adrs/ADR-0038-prepare-raw-information-into-attributable-context]] | Prepare raw information into attributable context, then resolve it deterministically, inside the AI engine | Accepted | 2026-10-08 |

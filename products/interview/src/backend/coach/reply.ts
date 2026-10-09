@@ -53,11 +53,15 @@ const cut = (text: string, length: number): string =>
 export type KnownFacts = ReadonlyMap<string, string>;
 const NO_FACTS: KnownFacts = new Map();
 // A word or a figure, without the full stop or comma that ends its sentence
-// ("40%." is the figure "40%"; "2.1m" keeps its point).
+// ("40%." is the figure "40%"), and with a figure apart from its unit, so
+// "45ms" and "45 ms", "2.1M" and "2.1 m" are the same figure said two ways.
 const tokens = (text: string): string[] =>
-  (text.toLowerCase().match(/[a-z0-9][a-z0-9.%+#-]*/g) ?? []).map((token) =>
-    token.replace(/[.-]+$/, ""),
-  );
+  (
+    text
+      .toLowerCase()
+      .replace(/(\d)([a-z])/g, "$1 $2")
+      .match(/[a-z0-9][a-z0-9.%+#-]*/g) ?? []
+  ).map((token) => token.replace(/[.-]+$/, ""));
 const figures = (text: string): string[] =>
   tokens(text).filter((token) => /\d/.test(token));
 // Words too small to tell one fact from another.
