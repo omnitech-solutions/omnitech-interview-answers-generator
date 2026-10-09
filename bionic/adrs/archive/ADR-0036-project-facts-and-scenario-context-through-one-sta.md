@@ -1,11 +1,11 @@
 ---
 id: ADR-0036
 title: "Project facts and scenario context through one standalone package, declared as data, with no retrieval database"
-status: Proposed
+status: Deprecated
 date: 2026-10-08
 proposed_date: 2026-10-08
 accepted_date: null
-deprecated_date: null
+deprecated_date: 2026-10-08
 superseded_date: null
 supersedes: []
 amends: []

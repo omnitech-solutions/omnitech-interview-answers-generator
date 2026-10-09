@@ -1,11 +1,11 @@
 ---
 id: ADR-0035
 title: "Record every AI interaction with its content in development, as spans exported through OpenTelemetry"
-status: Proposed
+status: Deprecated
 date: 2026-10-08
 proposed_date: 2026-10-08
 accepted_date: null
-deprecated_date: null
+deprecated_date: 2026-10-08
 superseded_date: null
 supersedes: []
 amends: [ADR-0007, ADR-0012, ADR-0034]

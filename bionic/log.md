@@ -2,6 +2,30 @@
 
 _Append-only. Newest first._
 
+## [2026-10-08] adr | ADR-0038: Prepare raw information into attributable context, then resolve it deterministically, inside the AI engine
+
+Proposed. File `bionic/adrs/ADR-0038-prepare-raw-information-into-attributable-context.md`. Replaces ADR-0036. Tags: context, projection, engine, documents, experience-matrix.
+
+## [2026-10-08] adr | ADR-0037: Consolidate every AI interaction behind one SDK in a standalone omnitech-ai-engine repository
+
+Proposed. File `bionic/adrs/ADR-0037-consolidate-every-ai-interaction-behind-one-sdk-in.md`. Amends ADR-0003, ADR-0007, ADR-0012, ADR-0034; replaces ADR-0035. Tags: ai, sdk, engine, agents, observability, packages.
+
+## [2026-10-08] lint | ADR-0036: deprecated while still Proposed
+
+ADR was abandoned before acceptance. Replaced by ADR-0038, which moves the capability into the AI engine and shows it on worked scenarios.
+
+## [2026-10-08] adr | ADR-0036: deprecate (deprecated)
+
+Project facts and scenario context through one standalone package, declared as data, with no retrieval database. Never accepted; the owner found it open to interpretation and its home wrong.
+
+## [2026-10-08] lint | ADR-0035: deprecated while still Proposed
+
+ADR was abandoned before acceptance. Its decision (record every AI interaction, OpenTelemetry) is carried into ADR-0037 as a requirement of the engine.
+
+## [2026-10-08] adr | ADR-0035: deprecate (deprecated)
+
+Record every AI interaction with its content in development, as spans exported through OpenTelemetry. Never accepted; scoped to Studio alone.
+
 ## [2026-10-08] adr | ADR-0036: Project facts and scenario context through one standalone package, declared as data, with no retrieval database
 
 Proposed. File `bionic/adrs/ADR-0036-project-facts-and-scenario-context-through-one-sta.md`. Tags: projection, context, documents, experience-matrix, packages.

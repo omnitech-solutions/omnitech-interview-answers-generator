@@ -2,8 +2,8 @@
 
 | id | title | status | date | supersedes | superseded_by | tags |
 |----|-------|--------|------|------------|---------------|------|
-| ADR-0036 | Project facts and scenario context through one standalone package, declared as data, with no retrieval database | Proposed | 2026-10-08 | — | — | projection, context, documents, experience-matrix, packages |
-| ADR-0035 | Record every AI interaction with its content in development, as spans exported through OpenTelemetry | Proposed | 2026-10-08 | — (amends ADR-0007, ADR-0012, ADR-0034) | — | observability, ai, tracing, opentelemetry |
+| ADR-0038 | Prepare raw information into attributable context, then resolve it deterministically, inside the AI engine | Proposed | 2026-10-08 | — | — | context, projection, engine, documents, experience-matrix |
+| ADR-0037 | Consolidate every AI interaction behind one SDK in a standalone omnitech-ai-engine repository | Proposed | 2026-10-08 | — (amends ADR-0003, ADR-0007, ADR-0012, ADR-0034) | — | ai, sdk, engine, agents, observability, packages |
 | ADR-0034 | Record native-app and companion events through one redacting event log | Proposed | 2026-10-07 | — (amends ADR-0007) | — | observability, native, logging, active-session |
 | ADR-0033 | Remove Document Picture-in-Picture and the in-tab overlay card; the native shell is the live-session surface | Proposed | 2026-10-06 | — (amends ADR-0017) | — | active-session, overlay, pip, native, live-ui |
 | ADR-0032 | Keep the toolbar capture a one-shot analysis and stage answer-pane captures in the tray | Proposed | 2026-10-05 | — (amends ADR-0018) | — | active-session, capture, toolbar, live-ui |
@@ -40,7 +40,9 @@
 | ADR-0001 | Crux is the sole AI development workflow | Accepted | 2026-10-02 | — | — | process, tooling, agents, crux |
 | ADR-0000 | Record architectural decisions as ADRs | Accepted | 2026-10-02 | — | — | meta, process |
 
-## Archived (0)
+## Archived (2)
 
 | id | title | status |
 |----|-------|--------|
+| ADR-0036 | Project facts and scenario context through one standalone package, declared as data, with no retrieval database | Deprecated |
+| ADR-0035 | Record every AI interaction with its content in development, as spans exported through OpenTelemetry | Deprecated |
