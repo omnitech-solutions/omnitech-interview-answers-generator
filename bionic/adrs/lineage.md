@@ -119,8 +119,8 @@ graph TD
 | ADR-0034 | Record native-app and companion events through one redacting event log | Proposed | — | ADR-0007 | — |
 | ADR-0035 | Record every AI interaction with its content in development, as spans exported through OpenTelemetry | Deprecated | — | ADR-0007, ADR-0012, ADR-0034 | — |
 | ADR-0036 | Project facts and scenario context through one standalone package, declared as data, with no retrieval database | Deprecated | — | — | — |
-| ADR-0037 | Consolidate every AI interaction behind one SDK in a standalone omnitech-ai-engine repository | Proposed | — | ADR-0003, ADR-0007, ADR-0012, ADR-0034 | — |
-| ADR-0038 | Prepare raw information into attributable context, then resolve it deterministically, inside the AI engine | Proposed | — | — | — |
+| ADR-0037 | Consolidate every AI interaction behind one SDK in a standalone omnitech-ai-engine repository | Accepted | — | ADR-0003, ADR-0007, ADR-0012, ADR-0034 | — |
+| ADR-0038 | Prepare raw information into attributable context, then resolve it deterministically, inside the AI engine | Accepted | — | — | — |
 
 ## Topic clusters
 

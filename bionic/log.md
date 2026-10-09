@@ -2,6 +2,14 @@
 
 _Append-only. Newest first._
 
+## [2026-10-08] adr | ADR-0038: accept (accepted)
+
+Prepare raw information into attributable context, then resolve it deterministically, inside the AI engine. Accepted by the owner ("lets get started").
+
+## [2026-10-08] adr | ADR-0037: accept (accepted)
+
+Consolidate every AI interaction behind one SDK in a standalone omnitech-ai-engine repository. Accepted by the owner; the plan is in that repository's `docs/PLAN.md`.
+
 ## [2026-10-08] adr | ADR-0038: Prepare raw information into attributable context, then resolve it deterministically, inside the AI engine
 
 Proposed. File `bionic/adrs/ADR-0038-prepare-raw-information-into-attributable-context.md`. Replaces ADR-0036. Tags: context, projection, engine, documents, experience-matrix.

@@ -2,8 +2,8 @@
 
 | id | title | status | date | supersedes | superseded_by | tags |
 |----|-------|--------|------|------------|---------------|------|
-| ADR-0038 | Prepare raw information into attributable context, then resolve it deterministically, inside the AI engine | Proposed | 2026-10-08 | — | — | context, projection, engine, documents, experience-matrix |
-| ADR-0037 | Consolidate every AI interaction behind one SDK in a standalone omnitech-ai-engine repository | Proposed | 2026-10-08 | — (amends ADR-0003, ADR-0007, ADR-0012, ADR-0034) | — | ai, sdk, engine, agents, observability, packages |
+| ADR-0038 | Prepare raw information into attributable context, then resolve it deterministically, inside the AI engine | Accepted | 2026-10-08 | — | — | context, projection, engine, documents, experience-matrix |
+| ADR-0037 | Consolidate every AI interaction behind one SDK in a standalone omnitech-ai-engine repository | Accepted | 2026-10-08 | — (amends ADR-0003, ADR-0007, ADR-0012, ADR-0034) | — | ai, sdk, engine, agents, observability, packages |
 | ADR-0034 | Record native-app and companion events through one redacting event log | Proposed | 2026-10-07 | — (amends ADR-0007) | — | observability, native, logging, active-session |
 | ADR-0033 | Remove Document Picture-in-Picture and the in-tab overlay card; the native shell is the live-session surface | Proposed | 2026-10-06 | — (amends ADR-0017) | — | active-session, overlay, pip, native, live-ui |
 | ADR-0032 | Keep the toolbar capture a one-shot analysis and stage answer-pane captures in the tray | Proposed | 2026-10-05 | — (amends ADR-0018) | — | active-session, capture, toolbar, live-ui |

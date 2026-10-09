@@ -37,8 +37,8 @@ See [[research/index]].
 
 | id | title | status | date |
 |---|---|---|---|
-| [[adrs/ADR-0038-prepare-raw-information-into-attributable-context]] | Prepare raw information into attributable context, then resolve it deterministically, inside the AI engine | Proposed | 2026-10-08 |
-| [[adrs/ADR-0037-consolidate-every-ai-interaction-behind-one-sdk-in]] | Consolidate every AI interaction behind one SDK in a standalone omnitech-ai-engine repository | Proposed | 2026-10-08 |
+| [[adrs/ADR-0038-prepare-raw-information-into-attributable-context]] | Prepare raw information into attributable context, then resolve it deterministically, inside the AI engine | Accepted | 2026-10-08 |
+| [[adrs/ADR-0037-consolidate-every-ai-interaction-behind-one-sdk-in]] | Consolidate every AI interaction behind one SDK in a standalone omnitech-ai-engine repository | Accepted | 2026-10-08 |
 | [[adrs/ADR-0036-project-facts-and-scenario-context-through-one-sta]] | Project facts and scenario context through one standalone package, declared as data, with no retrieval database | Deprecated | 2026-10-08 |
 | [[adrs/ADR-0035-record-every-ai-interaction-with-its-content-in-dev]] | Record every AI interaction with its content in development, as spans exported through OpenTelemetry | Deprecated | 2026-10-08 |
 | [[adrs/ADR-0034-record-native-app-and-companion-events-through-one]] | Record native-app and companion events through one redacting event log | Proposed | 2026-10-07 |

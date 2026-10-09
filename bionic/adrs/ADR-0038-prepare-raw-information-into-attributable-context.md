@@ -1,10 +1,10 @@
 ---
 id: ADR-0038
 title: "Prepare raw information into attributable context, then resolve it deterministically, inside the AI engine"
-status: Proposed
+status: Accepted
 date: 2026-10-08
 proposed_date: 2026-10-08
-accepted_date: null
+accepted_date: 2026-10-08
 deprecated_date: null
 superseded_date: null
 supersedes: []

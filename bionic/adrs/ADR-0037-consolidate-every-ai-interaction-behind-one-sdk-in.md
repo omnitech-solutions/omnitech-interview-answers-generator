@@ -1,10 +1,10 @@
 ---
 id: ADR-0037
 title: "Consolidate every AI interaction behind one SDK in a standalone omnitech-ai-engine repository"
-status: Proposed
+status: Accepted
 date: 2026-10-08
 proposed_date: 2026-10-08
-accepted_date: null
+accepted_date: 2026-10-08
 deprecated_date: null
 superseded_date: null
 supersedes: []
@@ -211,6 +211,8 @@ This record replaces ADR-0035, which decided the interaction record for Studio a
 - Today the web server and the session worker each construct their own runner from different
   settings (`products/interview/src/backend/services.ts`, `apps/agent-worker/src/main.ts`), so
   configuring one does not configure the other.
+- The plan and the worked contract: `docs/PLAN.md` and `docs/CONTRACT.md` in the
+  `omnitech-ai-engine` repository.
 - Research of 2026-10-08: a comparison of four AI stacks by concern with a call-site census; a
   system audit of a neighbouring multi-repository ecosystem; a survey of AI SDK organisation,
   libraries that install their own tables, durable jobs and code sandboxes.
