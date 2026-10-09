@@ -2,6 +2,7 @@ import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 
 import {
   answerGuideSchema,
+  coachActivityInputSchema,
   coachNoteInputSchema,
   coachTranscriptInputSchema,
   explanationRequestSchema,
@@ -33,6 +34,12 @@ import { WorkspaceError, type WorkspaceScope } from "./assistant/workspace";
 import { coachNotes, replayCoachNotes } from "./coach-notes";
 import { COACH_PLAN_LENGTH, coachPlan } from "./coach-plan";
 import { coachTranscript } from "./coach-transcript";
+import {
+  CONVERSATION_HEADER,
+  coachWriters,
+  parseWriter,
+  WRITER_HEADER,
+} from "./coach-writer";
 import { LibraryIndexUnavailableError } from "./library-service";
 import {
   bundleReactPreview,
@@ -61,6 +68,8 @@ type ApiEnvironment = {
 // (/run, /run-all, /syntax-check, /react-preview) hand the body to a container
 // or the bundler, so they take a tighter body and per-field caps.
 const JSON_BODY_LIMIT_BYTES = 2 * 1024 * 1024;
+// A coach's ledger: its notes' summaries, its log and a design, no more.
+const COACH_LEDGER_LIMIT_BYTES = 256 * 1024;
 const EXECUTION_BODY_LIMIT_BYTES = 1024 * 1024;
 const MAX_CODE_CHARS = 200_000;
 const MAX_STDIN_CHARS = 64_000;
@@ -811,6 +820,32 @@ console.log(solve([1, 2, 3]));`,
         "The coach note is invalid.",
         parsed.error.issues.map((issue) => issue.path.join(".")),
       );
+    // [SAFETY] A note is checked against who holds the pen and against the
+    // conversation it was written from, here, where both are known: a coach
+    // that was replaced, or one still writing about a conversation that has
+    // been cleared, cannot put a note on screen however late it arrives.
+    const writer = context.req.header(WRITER_HEADER);
+    if (writer !== undefined) {
+      const claim = parseWriter(writer);
+      if (!claim || !coachWriters.accepts(claim))
+        return apiError(
+          context,
+          409,
+          "stale_writer",
+          "Another coach holds the notes.",
+        );
+    }
+    const conversation = context.req.header(CONVERSATION_HEADER);
+    if (
+      conversation !== undefined &&
+      conversation !== coachTranscript.since(Number.MAX_SAFE_INTEGER).epoch
+    )
+      return apiError(
+        context,
+        409,
+        "stale_conversation",
+        "The conversation this note was written from is over.",
+      );
     const added = notesOf(context).add(parsed.data);
     // An older revision of a note already held: refused, nothing changed.
     if (!added)
@@ -830,6 +865,72 @@ console.log(solve([1, 2, 3]));`,
     if (coachTranscript.since(Number.MAX_SAFE_INTEGER).space === space)
       coachTranscript.clear();
     return context.json(notesOf(context).clear());
+  });
+
+  // The coach's ledger of the conversation in hand: kept by the coach, held
+  // here with the transcript, so a restarted coach does not start again.
+  app.get("/api/v1/coach-ledger", (context) => {
+    const kept = coachTranscript.ledger(context.req.query("epoch") ?? "");
+    return kept === undefined
+      ? context.body(null, 204)
+      : context.json({ ledger: kept });
+  });
+  app.put("/api/v1/coach-ledger", async (context) => {
+    const body = await readBody(context, COACH_LEDGER_LIMIT_BYTES);
+    if (!body.ok) return body.response;
+    const kept = (body.value as { ledger?: { epoch?: unknown } } | null)
+      ?.ledger;
+    if (
+      typeof kept !== "object" ||
+      kept === null ||
+      typeof kept.epoch !== "string"
+    )
+      return apiError(
+        context,
+        400,
+        "invalid_coach_ledger",
+        "A ledger names the conversation it is of.",
+      );
+    // A ledger of a conversation that is over is not kept.
+    return coachTranscript.setLedger(kept.epoch, kept)
+      ? context.body(null, 204)
+      : apiError(
+          context,
+          409,
+          "stale_conversation",
+          "The conversation this ledger is of is over.",
+        );
+  });
+
+  // Who holds the pen: a coach claims it, renews it, and gives it up.
+  app.post("/api/v1/coach-writer", async (context) => {
+    const body = await readBody(context, JSON_BODY_LIMIT_BYTES);
+    if (!body.ok) return body.response;
+    const asked = body.value as {
+      id?: unknown;
+      takeover?: unknown;
+      leaseSeconds?: unknown;
+    } | null;
+    if (typeof asked?.id !== "string" || !/^[\w.-]{1,64}$/.test(asked.id))
+      return apiError(
+        context,
+        400,
+        "invalid_coach_writer",
+        "A coach names itself in letters, digits, dots and dashes.",
+      );
+    const claim = coachWriters.claim(asked.id, {
+      takeover: asked.takeover === true,
+      ...(typeof asked.leaseSeconds === "number"
+        ? { leaseMs: asked.leaseSeconds * 1000 }
+        : {}),
+    });
+    return claim
+      ? context.json(claim)
+      : apiError(context, 409, "coach_held", "Another coach holds the notes.");
+  });
+  app.delete("/api/v1/coach-writer", (context) => {
+    coachWriters.release(context.req.query("id") ?? "");
+    return context.body(null, 204);
   });
 
   // The plan for the call: written by the person, read by the coach.
@@ -870,6 +971,21 @@ console.log(solve([1, 2, 3]));`,
         parsed.error.issues.slice(0, 20).map((issue) => issue.path.join(".")),
       );
     return context.json(coachTranscript.add(parsed.data.lines), 201);
+  });
+  // Who is speaking, from whoever can tell (an audio source's voice activity).
+  app.post("/api/v1/coach-activity", async (context) => {
+    const body = await readBody(context, JSON_BODY_LIMIT_BYTES);
+    if (!body.ok) return body.response;
+    const parsed = coachActivityInputSchema.safeParse(body.value);
+    if (!parsed.success)
+      return apiError(
+        context,
+        400,
+        "invalid_coach_activity",
+        "The activity is invalid.",
+      );
+    coachTranscript.setSpeaking(parsed.data.speaker, parsed.data.speaking);
+    return context.body(null, 204);
   });
   app.delete("/api/v1/coach-transcript", (context) =>
     context.json(coachTranscript.clear()),

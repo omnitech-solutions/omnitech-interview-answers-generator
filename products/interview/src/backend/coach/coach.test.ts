@@ -16,8 +16,10 @@ import { describe, expect, it } from "vitest";
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
 import { createCoachTranscript } from "../coach-transcript";
 import {
+  COACH_LEDGER_VERSION,
   CoachCallError,
   type CoachEvent,
+  type CoachLedger,
   type CoachOptions,
   type CoachPorts,
   createCoach,
@@ -53,6 +55,8 @@ type Open = {
   profileId: string;
   system: string;
   prompt: string;
+  // Every user message of the call, in the order given.
+  users: string[];
   execution: Record<string, unknown>;
   // The coach stopped it (its signal was aborted).
   stopped: boolean;
@@ -116,15 +120,22 @@ function world(
     post?: (note: CoachNoteInput) => Promise<void>;
     // What the coach is answered, made from what the transcript holds.
     read?: (answer: CoachTranscriptResponse) => CoachTranscriptResponse;
+    // Where the coach keeps its ledger. Absent: it has nowhere to.
+    ledger?: NonNullable<CoachPorts["ledger"]>;
+    // The transcript the coach reads, when another coach reads it too (a
+    // coach that is restarted mid-conversation). Absent: one of its own.
+    transcript?: ReturnType<typeof createCoachTranscript>;
   } = {},
 ) {
   let clock = T0;
-  const transcript = createCoachTranscript();
+  const transcript = live.transcript ?? createCoachTranscript();
   const script: Scripted[] = [];
   const calls: Open[] = [];
   const posts: CoachNoteInput[] = [];
   // The space each post was made to, beside `posts`.
   const spaces: (CoachSpace | undefined)[] = [];
+  // The conversation each post was written from, beside `posts`.
+  const conversations: (string | undefined)[] = [];
   const events: CoachEvent[] = [];
   const reads: number[] = [];
   const asked: { session: CoachTranscriptSession; query: string }[] = [];
@@ -153,6 +164,9 @@ function world(
         profileId: input.profileId,
         system: input.messages[0]?.parts[0]?.text ?? "",
         prompt: input.messages[1]?.parts[0]?.text ?? "",
+        users: input.messages
+          .filter((message) => message.role === "user")
+          .map((message) => message.parts.map((part) => part.text).join("")),
         execution,
         stopped: false,
         text: (chunk, gapMs) => push({ type: "text", text: chunk }, gapMs),
@@ -207,12 +221,14 @@ function world(
         },
       },
       notes: {
-        post: async (note, _signal, space) => {
+        post: async (note, _signal, space, conversation) => {
           await live.post?.(note);
           posts.push(note);
           spaces.push(space);
+          conversations.push(conversation);
         },
       },
+      ...(live.ledger ? { ledger: live.ledger } : {}),
       ...(context ? { context } : {}),
       ...(live.plan ? { plan: live.plan } : {}),
       scope: { tenantId: "tenant-test", actorId: "actor-test" },
@@ -239,6 +255,7 @@ function world(
     calls,
     posts,
     spaces,
+    conversations,
     events,
     reads,
     asked,
@@ -3047,5 +3064,1470 @@ describe("the shared screen", () => {
     w.advance(60_000);
     expect(await w.tick()).toBe(false);
     expect(w.calls).toHaveLength(1);
+  });
+});
+
+// A note written a piece at a time: three revisions of it are posted.
+const WRITTEN = {
+  gapMs: 500,
+  chunks: [
+    "KIND: technical\nSAME: no\nASK: Sharding the booking table\n",
+    "SAY: I would shard by **region** first.\nSAY: Then by ",
+    "tenant inside a region.\nANCHOR: region, tenant",
+  ],
+} as const;
+
+describe("the conversation a note was written from", () => {
+  it("is named on every post, as the transcript's epoch: every revision of a note, and every note", async () => {
+    const w = world();
+    w.reply(WRITTEN, { chunks: [NOTE] });
+    await w.heard("interviewer", QUESTION);
+    w.later();
+    await w.heard("interviewer", HOT);
+    const epoch = w.transcript.since().epoch;
+    expect(w.posts.map((post) => post.revision)).toEqual([1, 2, 3, 1]);
+    expect(w.conversations).toEqual([epoch, epoch, epoch, epoch]);
+    // It is told beside the space, never instead of it.
+    expect(w.spaces).toEqual(w.posts.map(() => "replay"));
+  });
+
+  it("follows the transcript: a note written after a clear names the new conversation", async () => {
+    const w = world();
+    w.reply({ chunks: [NOTE] }, { chunks: [NOTE] });
+    await w.heard("interviewer", QUESTION);
+    const before = w.transcript.since().epoch;
+    w.transcript.clear();
+    await w.tick();
+    await w.heard("interviewer", "What is your notice period?");
+    const after = w.transcript.since().epoch;
+    expect(after).not.toBe(before);
+    expect(w.conversations).toEqual([before, after]);
+  });
+
+  it("is named for a live session's notes and for a design's one note alike", async () => {
+    const w = world(
+      {},
+      {
+        session: SESSION,
+        plan: async () => "mode: system-design\nBooking system for a clinic.",
+      },
+    );
+    w.reply({
+      chunks: ["ASK: Booking system\nSAY: Start with one **API**."],
+    });
+    await w.heard("interviewer", "Design a booking system for a clinic?");
+    expect(w.posts).toHaveLength(1);
+    expect(w.conversations).toEqual([w.transcript.since().epoch]);
+    expect(w.spaces).toEqual(["live"]);
+  });
+
+  it("a post refused because the conversation is over is a failed call like any other, and is not written again in the next one", async () => {
+    // What the worker's Studio client does with a refusal is its own (it
+    // reads 409 as nothing to do); here the port itself throws.
+    const refused = new Error("the conversation is over");
+    let over = false;
+    const w = world(
+      {},
+      {
+        post: async () => {
+          if (over) throw refused;
+        },
+      },
+    );
+    await w.hear("interviewer", QUESTION);
+    w.advance(finishedMs);
+    const call = await w.opens();
+    over = true;
+    w.transcript.clear();
+    call.text(NOTE);
+    call.done();
+    await w.flush();
+    // The coach sees the new conversation: the old call is stopped and
+    // nothing of it is thrown or told as a failure.
+    expect(await w.tick()).toBe(true);
+    await w.flush();
+    expect(await w.tick()).toBe(false);
+    expect(w.posts).toEqual([]);
+    expect(w.events.some((event) => event.what === "failed")).toBe(false);
+  });
+});
+
+describe("who is speaking, as the coach hears it", () => {
+  // The feed says who is speaking: the coach is answered that with the lines.
+  function speaking(
+    first: CoachSpeaker[] | undefined,
+    options: CoachOptions = {},
+  ) {
+    const said: { now: CoachSpeaker[] | undefined } = { now: first };
+    const w = world(options, {
+      read: (answer) => {
+        const { speaking: _dropped, ...rest } = answer;
+        return said.now ? { ...rest, speaking: said.now } : rest;
+      },
+    });
+    return {
+      w,
+      speaks: (...who: CoachSpeaker[]) => {
+        said.now = who;
+      },
+      unknown: () => {
+        said.now = undefined;
+      },
+    };
+  }
+  const TRAILING = "So the booking platform runs across nine regions and";
+
+  it("makes no call on a finished question while the interviewer is still speaking, however long since a line arrived", async () => {
+    const { w, speaks } = speaking(["interviewer"]);
+    await w.hear("interviewer", QUESTION);
+    for (const waited of [finishedMs, pauseMs, trailingMs, 120_000]) {
+      w.advance(waited);
+      expect(await w.tick()).toBe(false);
+    }
+    expect(w.calls).toEqual([]);
+    expect(w.events).toEqual([]);
+    // They stop: the question is acted on at the next look.
+    speaks();
+    w.reply({ chunks: [NOTE] });
+    expect(await w.act()).toBe(true);
+    expect(w.told()[0]).toEqual(["act", "question-finished", 1, 1]);
+    expect(w.posts).toHaveLength(1);
+  });
+
+  it("makes no call when the candidate starts to answer while the interviewer is still speaking", async () => {
+    const { w, speaks } = speaking(["interviewer"]);
+    await w.hear("interviewer", "How would you shard the booking table,");
+    expect(
+      await w.hear("candidate", "I would start with the region first."),
+    ).toBe(false);
+    w.advance(60_000);
+    expect(await w.tick()).toBe(false);
+    expect(w.calls).toEqual([]);
+    // The rest of the question lands; they stop; the answer has begun.
+    w.say(
+      "interviewer",
+      "given that nearly all of the traffic stays inside one region?",
+    );
+    speaks();
+    w.reply({ chunks: [NOTE] });
+    expect(await w.act()).toBe(true);
+    expect(w.told()[0]).toEqual(["act", "speaker-change", 1, 1]);
+  });
+
+  it("an unnamed voice speaking counts as the interviewer speaking", async () => {
+    const { w, speaks } = speaking(["unknown"]);
+    await w.hear("interviewer", QUESTION);
+    w.advance(60_000);
+    expect(await w.tick()).toBe(false);
+    expect(w.calls).toEqual([]);
+    // Beside the candidate's voice it still holds the coach back.
+    speaks("candidate", "unknown");
+    expect(await w.tick()).toBe(false);
+    speaks();
+    expect(await w.tick()).toBe(true);
+    expect(w.told()[0]).toEqual(["act", "question-finished", 1, 1]);
+  });
+
+  it("the candidate speaking does not hold the question's call back", async () => {
+    const { w } = speaking(["candidate"]);
+    await w.hear("interviewer", QUESTION);
+    w.advance(finishedMs - 1);
+    expect(await w.tick()).toBe(false);
+    w.advance(1);
+    expect(await w.tick()).toBe(true);
+    expect(w.told()[0]).toEqual(["act", "question-finished", 1, 1]);
+  });
+
+  it("a turn that trails off is acted on after the ordinary pause once nobody is known to be speaking", async () => {
+    const { w } = speaking([]);
+    await w.hear("interviewer", TRAILING);
+    w.advance(pauseMs - 1);
+    expect(await w.tick()).toBe(false);
+    w.advance(1);
+    expect(await w.tick()).toBe(true);
+    expect(w.told()[0]).toEqual(["act", "pause", 1, 1]);
+  });
+
+  it("where the feed cannot tell who is speaking the coach waits out the long pause, as before", async () => {
+    const { w } = speaking(undefined);
+    await w.hear("interviewer", TRAILING);
+    w.advance(pauseMs);
+    expect(await w.tick()).toBe(false);
+    w.advance(trailingMs - pauseMs - 1);
+    expect(await w.tick()).toBe(false);
+    w.advance(1);
+    expect(await w.tick()).toBe(true);
+    expect(w.told()[0]).toEqual(["act", "pause", 1, 1]);
+  });
+
+  it("is read afresh at every look: a feed that stops telling is not remembered as still speaking", async () => {
+    const { w, unknown } = speaking(["interviewer"]);
+    await w.hear("interviewer", QUESTION);
+    w.advance(finishedMs);
+    expect(await w.tick()).toBe(false);
+    unknown();
+    expect(await w.tick()).toBe(true);
+  });
+
+  it("takes the shorter pause from the options", async () => {
+    const { w } = speaking([], { timing: { pauseMs: 400 } });
+    await w.hear("interviewer", TRAILING);
+    w.advance(399);
+    expect(await w.tick()).toBe(false);
+    w.advance(1);
+    expect(await w.tick()).toBe(true);
+  });
+
+  it("hears it from the transcript itself: what an audio source reported holds the coach back until it says it stopped", async () => {
+    const w = world();
+    // The first line begins the conversation; the report is of it.
+    await w.hear("interviewer", "Thanks for joining us today.");
+    w.transcript.setSpeaking("interviewer", true);
+    await w.hear("interviewer", QUESTION);
+    w.advance(60_000);
+    expect(await w.tick()).toBe(false);
+    w.transcript.setSpeaking("interviewer", false);
+    expect(await w.tick()).toBe(true);
+    expect(w.told()[0]).toEqual(["act", "question-finished", 1, 2]);
+  });
+
+  it("the look at the candidate's answer is made at a gap in the text, whoever is said to be speaking", async () => {
+    const { candidateWords, candidateEveryMs } = TURN_TIMING;
+    const { w } = speaking(["candidate"]);
+    w.reply({ chunks: [NOTE] }, { chunks: [SILENT_REPLY] });
+    await w.heard("interviewer", QUESTION, finishedMs);
+    await w.hear("candidate", points(candidateWords));
+    w.advance(candidateEveryMs);
+    expect(await w.act()).toBe(true);
+    expect(w.told().filter(([what]) => what === "act")).toEqual([
+      ["act", "question-finished", 1, 1],
+      ["act", "answer-check", 2, 2],
+    ]);
+  });
+});
+
+describe("the coach's ledger of the conversation", () => {
+  // A place a ledger is kept, as the Studio keeps it: the latest only, given
+  // back whatever conversation is asked for (the coach checks that itself).
+  function keeping(first?: CoachLedger) {
+    const store: {
+      kept: CoachLedger | undefined;
+      saved: CoachLedger[];
+      loads: string[];
+    } = { kept: first, saved: [], loads: [] };
+    const port: NonNullable<CoachPorts["ledger"]> = {
+      load: async (epoch) => {
+        store.loads.push(epoch);
+        return store.kept ? structuredClone(store.kept) : undefined;
+      },
+      save: async (ledger) => {
+        const copy = structuredClone(ledger);
+        store.saved.push(copy);
+        store.kept = copy;
+      },
+    };
+    return { store, port };
+  }
+  // A coach started on a conversation another coach had begun: the same
+  // transcript, the same place for the ledger, nothing else carried over.
+  const restarted = (
+    from: ReturnType<typeof world>,
+    port: NonNullable<CoachPorts["ledger"]>,
+    live: Parameters<typeof world>[1] = {},
+    options: CoachOptions = {},
+  ) => world(options, { ...live, transcript: from.transcript, ledger: port });
+  const LOG_HEAD = "WHAT YOU HAVE NOTED SO FAR IN THIS CALL (oldest first):";
+  const empty = (
+    epoch: string,
+    more: Partial<CoachLedger> = {},
+  ): CoachLedger => ({
+    version: COACH_LEDGER_VERSION,
+    epoch,
+    readTo: 0,
+    given: [],
+    log: [],
+    cautions: [],
+    design: { edges: [] },
+    revisions: [],
+    looks: 0,
+    nudged: false,
+    ...more,
+  });
+
+  it("is version 1", () => {
+    expect(COACH_LEDGER_VERSION).toBe(1);
+  });
+
+  describe("kept", () => {
+    it("is saved when a revision is posted (the revision alone) and again when the call has settled: how far the coach read, the note it gave and its last revision", async () => {
+      const { store, port } = keeping();
+      const w = world({}, { ledger: port });
+      await w.hear("interviewer", QUESTION);
+      const epoch = w.transcript.since().epoch;
+      w.advance(finishedMs);
+      const call = await w.opens();
+      // A call that has written nothing has changed nothing.
+      expect(store.saved).toEqual([]);
+      call.text(NOTE);
+      call.done();
+      await w.idle();
+      // The note is posted, the call's outcome not yet taken: the revision is
+      // kept at once, the lines are not yet behind the coach and the note is
+      // not yet one it has given.
+      expect(w.posts).toHaveLength(1);
+      expect(store.saved).toEqual([
+        empty(epoch, { revisions: [[w.key(1), 1]] }),
+      ]);
+      expect(store.saved[0]).not.toHaveProperty("lastAskId");
+      expect(await w.tick()).toBe(true);
+      expect(store.saved).toHaveLength(2);
+      expect(store.saved.slice(1)).toEqual([
+        {
+          version: COACH_LEDGER_VERSION,
+          epoch,
+          readTo: 1,
+          given: [
+            {
+              key: w.key(1),
+              title: expect.any(String),
+              kind: "technical",
+              ask: "Sharding the booking table",
+              said: "I would shard by region first.",
+            },
+          ],
+          log: [],
+          cautions: [],
+          design: { edges: [] },
+          lastAskId: `${w.key(1)}-ask`,
+          revisions: [[w.key(1), 1]],
+          looks: 0,
+          nudged: false,
+        },
+      ]);
+    });
+
+    it("is saved once per revision posted and once per settled call, each time as it then stands", async () => {
+      const { store, port } = keeping();
+      const w = world({}, { ledger: port });
+      w.reply(
+        { chunks: [NOTE] },
+        { chunks: [NOTE] },
+        { chunks: [SILENT_REPLY] },
+      );
+      await w.heard("interviewer", QUESTION);
+      w.later();
+      await w.heard("interviewer", HOT);
+      w.later();
+      await w.heard("interviewer", "Thanks, that covers the sharding part.");
+      // Two notes of one revision each, then three settled calls (the silent
+      // one posts nothing): a save at each post, before its call's lines are
+      // behind the coach, and a save as each call settles.
+      expect(store.saved.map((each) => each.readTo)).toEqual([0, 1, 1, 2, 3]);
+      expect(store.saved.map((each) => each.given.length)).toEqual([
+        0, 1, 1, 2, 2,
+      ]);
+      expect(store.saved.map((each) => each.revisions.length)).toEqual([
+        1, 1, 2, 2, 2,
+      ]);
+      // The newest note first, as the model is reminded of them.
+      expect(store.saved.at(-1)?.given.map((note) => note.key)).toEqual([
+        w.key(2),
+        w.key(1),
+      ]);
+      expect(store.saved.at(-1)?.revisions).toEqual([
+        [w.key(1), 1],
+        [w.key(2), 1],
+      ]);
+      // Looking with nothing to do keeps nothing.
+      w.advance(60_000);
+      expect(await w.tick()).toBe(false);
+      expect(store.saved).toHaveLength(5);
+    });
+
+    it("is saved after a silent reply too: those lines are behind the coach, with no note and no question to join", async () => {
+      const { store, port } = keeping();
+      const w = world({}, { ledger: port });
+      w.reply({ chunks: [SILENT_REPLY] });
+      await w.heard("interviewer", QUESTION);
+      expect(store.saved).toEqual([
+        empty(w.transcript.since().epoch, { readTo: 1 }),
+      ]);
+      expect(store.saved[0]).not.toHaveProperty("lastAskId");
+    });
+
+    it("holds the last revision posted of a note written a piece at a time", async () => {
+      const { store, port } = keeping();
+      const w = world({}, { ledger: port });
+      w.reply(WRITTEN);
+      await w.heard("interviewer", QUESTION);
+      expect(w.posts.map((post) => post.revision)).toEqual([1, 2, 3]);
+      // Each revision as it was posted, then the settled call.
+      expect(store.saved.map((each) => each.revisions)).toEqual([
+        [[w.key(1), 1]],
+        [[w.key(1), 2]],
+        [[w.key(1), 3]],
+        [[w.key(1), 3]],
+      ]);
+      expect(store.saved.map((each) => each.readTo)).toEqual([0, 0, 0, 1]);
+    });
+
+    it("already holds revision 2 of a note once two revisions of it are posted, before the call settles", async () => {
+      const { store, port } = keeping();
+      const w = world({}, { ledger: port });
+      await w.hear("interviewer", QUESTION);
+      w.advance(finishedMs);
+      const call = await w.opens();
+      // The first piece is not yet a note; the next two are a revision each.
+      for (const piece of WRITTEN.chunks) call.text(piece, WRITTEN.gapMs);
+      await w.flush();
+      expect(w.posts.map((post) => [post.key, post.revision])).toEqual([
+        [w.key(1), 1],
+        [w.key(1), 2],
+      ]);
+      // The call is still being written: nothing of it has been taken.
+      expect(w.events.map((event) => event.what)).toEqual([
+        "act",
+        "note",
+        "note",
+      ]);
+      expect(await w.tick()).toBe(false);
+      expect(store.saved).toHaveLength(2);
+      expect(new Map(store.saved.at(-1)?.revisions).get(w.key(1))).toBe(2);
+      expect(new Map(store.kept?.revisions).get(w.key(1))).toBe(2);
+      // And only that: the lines are not behind the coach, the note not given.
+      expect(store.saved.at(-1)).toEqual(
+        empty(w.transcript.since().epoch, { revisions: [[w.key(1), 2]] }),
+      );
+      call.done();
+      await w.idle();
+      await w.tick();
+    });
+
+    it("holds what the model chose to remember, and the warnings it gave", async () => {
+      const { store, port } = keeping();
+      const w = world({}, { ledger: port });
+      w.reply({
+        chunks: [
+          [
+            NOTE,
+            "CAUTION: Say NestJS not Express when naming the framework",
+            "LOG: The interviewer owns the pricing rules",
+          ].join("\n"),
+        ],
+      });
+      await w.heard("interviewer", QUESTION);
+      expect(store.saved.at(-1)).toMatchObject({
+        log: ["The interviewer owns the pricing rules"],
+        cautions: [
+          {
+            key: w.key(1),
+            text: "Say NestJS not Express when naming the framework",
+          },
+        ],
+      });
+    });
+
+    it("holds the looks at the answer in hand, and that it was nudged", async () => {
+      const { candidateWords, candidateEveryMs } = TURN_TIMING;
+      const { store, port } = keeping();
+      const w = world({}, { ledger: port });
+      w.reply(
+        { chunks: [NOTE] },
+        { chunks: [SILENT_REPLY] },
+        { chunks: ["ASK: Land it\nSAY: Name the **figure** now."] },
+      );
+      await w.heard("interviewer", QUESTION, finishedMs);
+      for (const round of ["first", "second"]) {
+        await w.hear("candidate", points(candidateWords, round));
+        w.advance(candidateEveryMs);
+        expect(await w.act(), round).toBe(true);
+      }
+      expect(
+        store.saved.map((each) => [each.readTo, each.looks, each.nudged]),
+      ).toEqual([
+        // The question's note as it was posted, then its call settled.
+        [0, 0, false],
+        [1, 0, false],
+        // A look that came to nothing.
+        [2, 1, false],
+        // The nudge as it was posted, then its call settled.
+        [2, 2, false],
+        [3, 2, true],
+      ]);
+      // The nudge is filed under the question's note.
+      expect(store.saved.at(-1)?.lastAskId).toBe(`${w.key(1)}-ask`);
+    });
+
+    it("holds a design: its stage, its arrows and the words of its one note", async () => {
+      const { store, port } = keeping();
+      const w = world(
+        {},
+        {
+          ledger: port,
+          plan: async () => "mode: system-design\nBooking system for a clinic.",
+        },
+      );
+      w.reply({
+        chunks: [
+          [
+            "ASK: Booking system",
+            "STAGE: high-level",
+            "SAY: Start with one **API** in front of a store.",
+            "DRAW: Client -> API: book a slot",
+            "DRAW: API -> Store",
+          ].join("\n"),
+        ],
+      });
+      await w.heard("interviewer", "Design a booking system for a clinic?");
+      const key = `coach-${w.transcript.since().epoch.slice(0, 8)}-design`;
+      const kept = store.saved.at(-1);
+      expect(kept?.design.stage).toBe("high-level");
+      expect(kept?.design.edges).toHaveLength(2);
+      expect(JSON.stringify(kept?.design.edges)).toContain("book a slot");
+      expect(JSON.stringify(kept?.design.sections)).toContain(
+        "in front of a store.",
+      );
+      expect(kept?.revisions).toEqual([[key, w.posts.at(-1)?.revision]]);
+      expect(kept?.lastAskId).toBe(`${key}-ask`);
+    });
+
+    it("survives being written as JSON and read back, as it is over HTTP", async () => {
+      const { store, port } = keeping();
+      const w = world({}, { ledger: port });
+      w.reply({ chunks: [`${NOTE}\nLOG: Two of five questions asked`] });
+      await w.heard("interviewer", QUESTION);
+      const kept = store.saved.at(-1);
+      expect(JSON.parse(JSON.stringify(kept))).toEqual(kept);
+    });
+
+    it("is saved when a stretch is passed over after failing twice; the first failure, thrown to be tried again, keeps nothing", async () => {
+      const { store, port } = keeping();
+      const w = world({}, { ledger: port });
+      w.reply({ end: failure(true) }, { end: failure(true) });
+      await w.hear("interviewer", QUESTION);
+      w.advance(finishedMs);
+      expect(await w.tick()).toBe(true);
+      await w.idle();
+      await expect(w.tick()).rejects.toBeInstanceOf(CoachCallError);
+      expect(store.saved).toEqual([]);
+      expect(await w.act()).toBe(true);
+      expect(store.saved).toEqual([
+        empty(w.transcript.since().epoch, { readTo: 1 }),
+      ]);
+    });
+
+    it("is of the conversation in hand: after a clear the next one saved names the new epoch and holds nothing of the old", async () => {
+      const { store, port } = keeping();
+      const w = world({}, { ledger: port });
+      w.reply({
+        chunks: [`${NOTE}\nLOG: The interviewer owns the pricing rules`],
+      });
+      await w.heard("interviewer", QUESTION);
+      const before = w.transcript.since().epoch;
+      w.transcript.clear();
+      // As the Studio does: the ledger goes with the conversation.
+      store.kept = undefined;
+      await w.tick();
+      w.reply({ chunks: [SILENT_REPLY] });
+      await w.heard("interviewer", "What is your notice period?");
+      const after = w.transcript.since().epoch;
+      // The first conversation's note as it was posted and its call settled;
+      // the second's one silent call.
+      expect(store.saved.map((each) => each.epoch)).toEqual([
+        before,
+        before,
+        after,
+      ]);
+      expect(store.saved.at(-1)).toEqual(empty(after, { readTo: 1 }));
+    });
+
+    it("is not kept by a coach that was given nowhere to keep it", async () => {
+      const w = world();
+      w.reply({ chunks: [NOTE] });
+      expect(await w.heard("interviewer", QUESTION)).toBe(true);
+      expect(w.posts).toHaveLength(1);
+    });
+  });
+
+  describe("taken up by a coach that is restarted", () => {
+    it("is asked for once per conversation, by its epoch, when the coach first sees it", async () => {
+      const { store, port } = keeping();
+      const w = world({}, { ledger: port });
+      expect(store.loads).toEqual([]);
+      w.say("interviewer", QUESTION);
+      const first = w.transcript.since().epoch;
+      await w.tick();
+      await w.tick();
+      w.reply({ chunks: [SILENT_REPLY] }, { chunks: [SILENT_REPLY] });
+      w.advance(finishedMs);
+      await w.act();
+      w.later();
+      await w.heard("interviewer", HOT);
+      expect(w.calls).toHaveLength(2);
+      expect(store.loads).toEqual([first]);
+      w.transcript.clear();
+      store.kept = undefined;
+      await w.tick();
+      await w.tick();
+      expect(store.loads).toEqual([first, w.transcript.since().epoch]);
+    });
+
+    it("does not act again on lines at or before where the last coach read to, however long it waits", async () => {
+      const { store, port } = keeping();
+      const first = world({}, { ledger: port });
+      first.reply({ chunks: [NOTE] });
+      await first.heard("interviewer", QUESTION);
+      await first.hear("candidate", "I would start with the region.");
+      expect(store.kept?.readTo).toBe(1);
+
+      const again = restarted(first, port);
+      expect(await again.tick()).toBe(false);
+      // It read the whole conversation, to have it as background.
+      expect(again.reads).toEqual([0]);
+      for (const waited of [finishedMs, pauseMs, trailingMs, 120_000]) {
+        again.advance(waited);
+        expect(await again.tick()).toBe(false);
+      }
+      expect(again.calls).toEqual([]);
+      expect(again.posts).toEqual([]);
+      expect(again.events).toEqual([]);
+    });
+
+    it("without the ledger a restarted coach coaches the same question again: that is what the ledger is for", async () => {
+      const first = world();
+      first.reply({ chunks: [NOTE] });
+      await first.heard("interviewer", QUESTION);
+      const again = world({}, { transcript: first.transcript });
+      await again.tick();
+      again.advance(finishedMs);
+      expect(await again.tick()).toBe(true);
+      expect(again.told()[0]).toEqual(["act", "question-finished", 1, 1]);
+    });
+
+    it("acts on what is said after it, as new lines, with what came before as the conversation so far", async () => {
+      const { port } = keeping();
+      const first = world({}, { ledger: port });
+      first.reply({ chunks: [NOTE] });
+      await first.heard("interviewer", QUESTION);
+
+      const again = restarted(first, port);
+      await again.tick();
+      again.reply({
+        chunks: [NOTE.replace("Sharding the booking table", "A hot region")],
+      });
+      again.later();
+      expect(await again.heard("interviewer", HOT, finishedMs)).toBe(true);
+      const prompt = again.calls[0]?.prompt ?? "";
+      expect(newLines(prompt)).toEqual([`INTERVIEWER: ${HOT}`]);
+      expect(soFar(prompt)).toEqual([`INTERVIEWER: ${QUESTION}`]);
+      expect(again.told()[0]).toEqual(["act", "question-finished", 2, 2]);
+      // Its note is the second of the conversation, not the first again.
+      expect(again.posts.map((post) => [post.key, post.revision])).toEqual([
+        [again.key(2), 1],
+      ]);
+    });
+
+    it("remembers the notes already given and what was logged, in its next prompt", async () => {
+      const { port } = keeping();
+      const first = world({}, { ledger: port });
+      first.reply({
+        chunks: [`${NOTE}\nLOG: The interviewer owns the pricing rules`],
+      });
+      await first.heard("interviewer", QUESTION);
+
+      const again = restarted(first, port);
+      await again.tick();
+      again.reply({ chunks: [SILENT_REPLY] });
+      again.later();
+      await again.heard("interviewer", HOT, finishedMs);
+      const prompt = again.calls[0]?.prompt ?? "";
+      expect(under(prompt, GIVEN_HEAD)).toHaveLength(1);
+      expect(under(prompt, GIVEN_HEAD)[0]).toContain(
+        "Sharding the booking table",
+      );
+      expect(under(prompt, GIVEN_HEAD)[0]).toContain(
+        "I would shard by region first.",
+      );
+      expect(under(prompt, LOG_HEAD)).toEqual([
+        "- The interviewer owns the pricing rules",
+      ]);
+      // The same prompt the first coach would have made for these lines.
+      first.reply({ chunks: [SILENT_REPLY] });
+      first.later();
+      await first.tick();
+      first.advance(finishedMs);
+      await first.act();
+      expect(first.calls[1]?.prompt).toBe(prompt);
+    });
+
+    it("joins a note for the same question to the last coach's question", async () => {
+      const { port } = keeping();
+      const first = world({}, { ledger: port });
+      first.reply({ chunks: [NOTE] });
+      await first.heard("interviewer", QUESTION);
+
+      const again = restarted(first, port);
+      await again.tick();
+      again.reply({ chunks: [NOTE.replace("SAME: no", "SAME: yes")] });
+      again.later();
+      await again.heard("interviewer", "And what about hot regions?");
+      expect(again.posts.map((post) => [post.key, post.askId])).toEqual([
+        [again.key(2), `${again.key(1)}-ask`],
+      ]);
+    });
+
+    it("does not give again a warning the last coach gave", async () => {
+      const { port } = keeping();
+      const first = world({}, { ledger: port });
+      first.reply({
+        chunks: [
+          `${NOTE}\nCAUTION: Say NestJS not Express when naming the framework`,
+        ],
+      });
+      await first.heard("interviewer", QUESTION);
+
+      const again = restarted(first, port);
+      await again.tick();
+      again.reply({
+        chunks: [
+          [
+            "KIND: technical",
+            "SAME: no",
+            "ASK: Hot region",
+            "SAY: Split it.",
+            "CAUTION: Name NestJS not Express for the framework",
+          ].join("\n"),
+        ],
+      });
+      again.later();
+      await again.heard("interviewer", HOT);
+      expect(said(again.posts.at(-1))).toEqual([["say", ["Split it."]]]);
+    });
+
+    it("does not look again at an answer the last coach already nudged", async () => {
+      const { candidateWords, candidateEveryMs } = TURN_TIMING;
+      const { store, port } = keeping();
+      const first = world({}, { ledger: port });
+      first.reply(
+        { chunks: [NOTE] },
+        { chunks: ["ASK: Land it\nSAY: Name the **figure** now."] },
+      );
+      await first.heard("interviewer", QUESTION, finishedMs);
+      await first.hear("candidate", points(candidateWords, "first"));
+      first.advance(candidateEveryMs);
+      expect(await first.act()).toBe(true);
+      expect(store.kept?.nudged).toBe(true);
+
+      const again = restarted(first, port);
+      await again.tick();
+      await again.hear("candidate", points(candidateWords, "second"));
+      again.advance(candidateEveryMs);
+      expect(await again.tick()).toBe(false);
+      again.advance(60_000);
+      expect(await again.tick()).toBe(false);
+      expect(again.calls).toEqual([]);
+    });
+
+    it("goes on with a design: the same one note, its revisions carrying on, the arrows already drawn kept", async () => {
+      const plan = async () =>
+        "mode: system-design\nBooking system for a clinic.";
+      const { store, port } = keeping();
+      const first = world({}, { ledger: port, plan });
+      first.reply({
+        chunks: [
+          [
+            "ASK: Booking system",
+            "STAGE: high-level",
+            "SAY: Start with one **API** in front of a store.",
+            "DRAW: Client -> API: book a slot",
+            "DRAW: API -> Store",
+          ].join("\n"),
+        ],
+      });
+      await first.heard("interviewer", "Design a booking system for a clinic?");
+      const key = `coach-${first.transcript.since().epoch.slice(0, 8)}-design`;
+      const last = first.posts.at(-1)?.revision ?? 0;
+      expect(last).toBeGreaterThan(0);
+      expect(store.kept?.revisions).toEqual([[key, last]]);
+
+      const again = restarted(first, port, { plan });
+      await again.tick();
+      again.reply({
+        chunks: [
+          [
+            "ASK: Booking system",
+            "DRAW: API -> Reminder queue: after commit",
+          ].join("\n"),
+        ],
+      });
+      again.later();
+      await again.heard("interviewer", "And where do the reminders go?");
+      const prompt = again.calls[0]?.prompt ?? "";
+      expect(prompt).toContain("THE DESIGN SO FAR (stage: high-level):");
+      expect(prompt).toContain("book a slot");
+      // One note still: the next revision of the same key.
+      expect(again.posts.map((post) => [post.key, post.revision])).toEqual([
+        [key, last + 1],
+      ]);
+      // The drawing grew; the words the last coach wrote stay.
+      expect(again.posts[0]?.diagram).toContain("Reminder queue");
+      expect(again.posts[0]?.diagram).toContain("Client");
+      expect(said(again.posts[0])).toEqual([
+        ["say", ["Start with one API in front of a store."]],
+      ]);
+      expect(store.kept?.revisions).toEqual([[key, last + 1]]);
+      expect(store.kept?.design.edges).toHaveLength(3);
+    });
+
+    it("keeps the ledger going from where it took it up", async () => {
+      const { store, port } = keeping();
+      const first = world({}, { ledger: port });
+      first.reply({ chunks: [NOTE] });
+      await first.heard("interviewer", QUESTION);
+
+      const again = restarted(first, port);
+      await again.tick();
+      again.reply({
+        chunks: [NOTE.replace("Sharding the booking table", "A hot region")],
+      });
+      again.later();
+      await again.heard("interviewer", HOT, finishedMs);
+      // Each coach kept its note as it was posted and as its call settled.
+      expect(store.saved.map((each) => each.readTo)).toEqual([0, 1, 1, 2]);
+      // What the restarted coach kept mid-note already had the first's note.
+      expect(store.saved[2]).toMatchObject({
+        revisions: [
+          [again.key(1), 1],
+          [again.key(2), 1],
+        ],
+      });
+      expect(store.saved[2]?.given.map((note) => note.ask)).toEqual([
+        "Sharding the booking table",
+      ]);
+      expect(store.kept).toMatchObject({
+        epoch: first.transcript.since().epoch,
+        readTo: 2,
+        revisions: [
+          [again.key(1), 1],
+          [again.key(2), 1],
+        ],
+      });
+      expect(store.kept?.given.map((note) => note.ask)).toEqual([
+        "A hot region",
+        "Sharding the booking table",
+      ]);
+    });
+
+    it("a coach that is running takes up a ledger already kept for a conversation it comes to", async () => {
+      const { store, port } = keeping();
+      const w = world({}, { ledger: port });
+      w.reply({ chunks: [SILENT_REPLY] });
+      await w.heard("interviewer", QUESTION);
+      w.transcript.clear();
+      w.say("interviewer", "A first question of the next conversation?");
+      // Another coach had read that line and said so.
+      store.kept = empty(w.transcript.since().epoch, { readTo: 1 });
+      expect(await w.tick()).toBe(true);
+      expect(await w.tick()).toBe(false);
+      w.advance(60_000);
+      expect(await w.tick()).toBe(false);
+      expect(w.calls).toHaveLength(1);
+    });
+
+    it("takes up a ledger that holds only how far was read", async () => {
+      const first = world();
+      first.say("interviewer", QUESTION);
+      const epoch = first.transcript.since().epoch;
+      const { port } = keeping({
+        version: COACH_LEDGER_VERSION,
+        epoch,
+        readTo: 1,
+      } as unknown as CoachLedger);
+      const again = restarted(first, port);
+      await again.tick();
+      again.advance(60_000);
+      expect(await again.tick()).toBe(false);
+      again.reply({ chunks: [NOTE] });
+      expect(await again.heard("interviewer", HOT, finishedMs)).toBe(true);
+      expect(again.posts.map((post) => [post.key, post.revision])).toEqual([
+        [again.key(2), 1],
+      ]);
+    });
+  });
+
+  describe("a ledger that is not trusted", () => {
+    // The conversation: one question, heard and not yet coached by this coach.
+    const begun = () => {
+      const first = world();
+      first.say("interviewer", QUESTION);
+      return { first, epoch: first.transcript.since().epoch };
+    };
+    const told = (epoch: string, more: Partial<CoachLedger> = {}) =>
+      empty(epoch, {
+        readTo: 1,
+        given: [
+          {
+            key: `coach-${epoch.slice(0, 8)}-1`,
+            title: "Sharding",
+            kind: "technical",
+            ask: "A note from the ledger",
+            said: "By tenant first.",
+          },
+        ],
+        log: ["A thing only the ledger says"],
+        revisions: [[`coach-${epoch.slice(0, 8)}-1`, 7]],
+        ...more,
+      });
+    // The coach started from nothing: it acts on the question, as revision 1,
+    // and its prompt knows of no note and no log.
+    const startsFromNothing = async (again: ReturnType<typeof world>) => {
+      again.reply({ chunks: [NOTE] });
+      await again.tick();
+      again.advance(finishedMs);
+      expect(await again.act()).toBe(true);
+      expect(again.told()[0]).toEqual(["act", "question-finished", 1, 1]);
+      const prompt = again.calls[0]?.prompt ?? "";
+      expect(given(prompt)).toEqual(["(none)"]);
+      expect(prompt).not.toContain("A note from the ledger");
+      expect(prompt).not.toContain("A thing only the ledger says");
+      expect(again.posts.map((post) => post.revision)).toEqual([1]);
+    };
+
+    it("is trusted when it is this conversation's, of this version (the cases below differ from it in one thing)", async () => {
+      const { first, epoch } = begun();
+      const again = restarted(first, keeping(told(epoch)).port);
+      await again.tick();
+      again.advance(60_000);
+      expect(await again.tick()).toBe(false);
+      expect(again.calls).toEqual([]);
+    });
+
+    it.each<[string, (epoch: string) => unknown]>([
+      ["of a later version", (epoch) => ({ ...told(epoch), version: 2 })],
+      ["of an earlier version", (epoch) => ({ ...told(epoch), version: 0 })],
+      ["of no version", (epoch) => ({ ...told(epoch), version: undefined })],
+      [
+        "of a version said as a word",
+        (epoch) => ({ ...told(epoch), version: "1" }),
+      ],
+      ["of another conversation", () => told("another-conversation")],
+      ["of no conversation", (epoch) => ({ ...told(epoch), epoch: undefined })],
+      [
+        "that read to a line that is not a whole number",
+        (epoch) => told(epoch, { readTo: 0.5 }),
+      ],
+      [
+        "that read to a line before the first",
+        (epoch) => told(epoch, { readTo: -1 }),
+      ],
+      [
+        "that says how far it read as a word",
+        (epoch) => ({ ...told(epoch), readTo: "1" }),
+      ],
+      [
+        "that does not say how far it read",
+        (epoch) => ({ ...told(epoch), readTo: undefined }),
+      ],
+      ["that is nothing", () => null],
+    ])(
+      "one %s is ignored: the coach starts from nothing",
+      async (_name, ledger) => {
+        const { first, epoch } = begun();
+        const { store, port } = keeping();
+        store.kept = ledger(epoch) as CoachLedger;
+        await startsFromNothing(restarted(first, port));
+      },
+    );
+
+    it("one that read further than the transcript goes is not followed there: the coach acts on what was heard", async () => {
+      const { first, epoch } = begun();
+      const again = restarted(first, keeping(told(epoch, { readTo: 2 })).port);
+      again.reply({ chunks: [NOTE] });
+      await again.tick();
+      again.advance(finishedMs);
+      expect(await again.act()).toBe(true);
+      expect(again.told()[0]).toEqual(["act", "question-finished", 1, 1]);
+    });
+
+    // What such a ledger says was read is not in what was heard: it is of
+    // some other state of the conversation, and none of it is taken (not its
+    // notes, its log or its revisions, as well as how far it read).
+    it("one that read further than the transcript goes is ignored whole, not only in how far it read", async () => {
+      const { first, epoch } = begun();
+      await startsFromNothing(
+        restarted(first, keeping(told(epoch, { readTo: 2 })).port),
+      );
+    });
+
+    it("one that read exactly as far as the transcript goes is trusted", async () => {
+      const { first, epoch } = begun();
+      first.say("candidate", "I would start with the region.");
+      const again = restarted(first, keeping(told(epoch, { readTo: 2 })).port);
+      await again.tick();
+      again.advance(60_000);
+      expect(await again.tick()).toBe(false);
+      expect(again.calls).toEqual([]);
+    });
+  });
+
+  describe("a place to keep it that fails", () => {
+    const down = new Error("the ledger cannot be reached");
+
+    it("a load that fails never fails a look: the coach starts from nothing and coaches", async () => {
+      const saved: CoachLedger[] = [];
+      const w = world(
+        {},
+        {
+          ledger: {
+            load: async () => {
+              throw down;
+            },
+            save: async (ledger) => {
+              saved.push(structuredClone(ledger));
+            },
+          },
+        },
+      );
+      w.reply({ chunks: [NOTE] });
+      await expect(w.tick()).resolves.toBe(false);
+      expect(await w.heard("interviewer", QUESTION)).toBe(true);
+      expect(w.posts).toHaveLength(1);
+      expect(w.events.some((event) => event.what === "failed")).toBe(false);
+      // And it goes on keeping its own.
+      expect(saved.map((each) => each.readTo)).toEqual([0, 1]);
+      expect(saved.map((each) => each.revisions)).toEqual([
+        [[w.key(1), 1]],
+        [[w.key(1), 1]],
+      ]);
+    });
+
+    it("a save that fails never fails a look, is not told as a failed call, and is tried again at the next revision and the next call", async () => {
+      let asked = 0;
+      const w = world(
+        {},
+        {
+          ledger: {
+            load: async () => undefined,
+            save: async () => {
+              asked += 1;
+              throw down;
+            },
+          },
+        },
+      );
+      w.reply({ chunks: [NOTE] }, { chunks: [NOTE] });
+      expect(await w.heard("interviewer", QUESTION)).toBe(true);
+      await w.flush();
+      w.later();
+      expect(await w.heard("interviewer", HOT)).toBe(true);
+      await w.flush();
+      // Two notes of one revision each, and two settled calls.
+      expect(asked).toBe(4);
+      expect(w.posts).toHaveLength(2);
+      expect(w.events.some((event) => event.what === "failed")).toBe(false);
+      // The stretch whose ledger could not be kept is not coached again.
+      w.advance(60_000);
+      expect(await w.tick()).toBe(false);
+      expect(w.calls).toHaveLength(2);
+    });
+
+    it("a load that never comes back before the transcript is cleared does not carry a ledger into the next conversation", async () => {
+      // The store answers for whatever epoch it is asked: the coach checks.
+      const { store, port } = keeping();
+      const w = world({}, { ledger: port });
+      w.reply({ chunks: [NOTE] });
+      await w.heard("interviewer", QUESTION);
+      w.transcript.clear();
+      // The old conversation's ledger is still what the store gives back.
+      expect(store.kept?.readTo).toBe(1);
+      w.say("interviewer", "What is your notice period?");
+      expect(await w.tick()).toBe(true);
+      w.reply({ chunks: [NOTE] });
+      await w.tick();
+      w.advance(finishedMs);
+      expect(await w.act()).toBe(true);
+      expect(given(w.calls[1]?.prompt ?? "")).toEqual(["(none)"]);
+      expect(w.posts[1]?.key).toBe(w.key(1));
+    });
+
+    // A port that throws before it returns a promise (a plain function that
+    // validates its argument, a client that throws while building its
+    // request) costs the ledger only, as one that rejects does.
+    it("a load that throws outright never fails a look: the coach starts from nothing and coaches", async () => {
+      const w = world(
+        {},
+        {
+          ledger: {
+            load: () => {
+              throw down;
+            },
+            save: async () => undefined,
+          },
+        },
+      );
+      await expect(w.tick()).resolves.toBe(false);
+      w.reply({ chunks: [NOTE] });
+      await expect(w.heard("interviewer", QUESTION)).resolves.toBe(true);
+      expect(w.posts.map((post) => post.revision)).toEqual([1]);
+      expect(w.events.some((event) => event.what === "failed")).toBe(false);
+    });
+
+    it("a save that throws outright never fails a look, neither as a revision is posted nor as the call settles", async () => {
+      let asked = 0;
+      const w = world(
+        {},
+        {
+          ledger: {
+            load: async () => undefined,
+            save: () => {
+              asked += 1;
+              throw down;
+            },
+          },
+        },
+      );
+      w.reply({ chunks: [NOTE] });
+      await expect(w.heard("interviewer", QUESTION)).resolves.toBe(true);
+      expect(asked).toBe(2);
+      expect(w.posts.map((post) => post.revision)).toEqual([1]);
+      expect(w.events.map((event) => event.what)).toEqual(["act", "note"]);
+      // The stretch whose ledger could not be kept is not coached again.
+      w.advance(60_000);
+      expect(await w.tick()).toBe(false);
+      expect(w.calls).toHaveLength(1);
+    });
+  });
+
+  describe("a call that never settled", () => {
+    // A revision posted is a revision kept: the ledger is saved straight
+    // after each one, so a coach that is replaced mid-note (the worker
+    // restarted while the model was still writing) leaves a ledger that knows
+    // of the revisions on show. The coach that takes over answers the same
+    // stretch under the same key and goes on from them; a note numbered from
+    // 1 again would be refused by the Studio as older than the one it holds.
+    it("the coach that takes over a note half written does not post an older revision of it", async () => {
+      const { port } = keeping();
+      const first = world({}, { ledger: port });
+      await first.hear("interviewer", QUESTION);
+      first.advance(finishedMs);
+      const call = await first.opens();
+      for (const piece of WRITTEN.chunks) call.text(piece, WRITTEN.gapMs);
+      await first.flush();
+      const shown = first.posts.at(-1)?.revision ?? 0;
+      // Two revisions are on show; the note was never finished.
+      expect(shown).toBe(2);
+      // The first coach is gone before its call ends.
+
+      const again = restarted(first, port);
+      again.reply({ chunks: [NOTE] });
+      await again.tick();
+      again.advance(finishedMs);
+      expect(await again.act()).toBe(true);
+      expect(again.told()[0]).toEqual(["act", "question-finished", 1, 1]);
+      expect(again.posts[0]?.key).toBe(first.posts[0]?.key);
+      expect(again.posts[0]?.revision).toBe(shown + 1);
+    });
+
+    // By another road: a first attempt that posted part of a note and then
+    // failed is thrown to be tried again. Nothing is kept as it fails, and
+    // nothing needs to be: its revisions were kept as they were posted.
+    it("nor does the coach that takes over after a first attempt failed part-way", async () => {
+      const { port } = keeping();
+      const first = world({}, { ledger: port });
+      first.reply({ ...WRITTEN, end: failure(true) });
+      await first.hear("interviewer", QUESTION);
+      first.advance(finishedMs);
+      expect(await first.tick()).toBe(true);
+      await first.idle();
+      await expect(first.tick()).rejects.toBeInstanceOf(CoachCallError);
+      const shown = first.posts.at(-1)?.revision ?? 0;
+      expect(shown).toBeGreaterThan(0);
+
+      const again = restarted(first, port);
+      again.reply({ chunks: [NOTE] });
+      await again.tick();
+      again.advance(finishedMs);
+      expect(await again.act()).toBe(true);
+      expect(again.posts[0]?.key).toBe(first.posts[0]?.key);
+      expect(again.posts[0]?.revision).toBe(shown + 1);
+    });
+  });
+});
+
+describe("one session of the model kept for the call", () => {
+  const PLAN_HEAD = "THE PLAN FOR THIS CALL:";
+  const LOG_HEAD = "WHAT YOU HAVE NOTED SO FAR IN THIS CALL (oldest first):";
+  const RECORD_HEAD = "THE CANDIDATE'S RECORD (cite a fact by its [pointer]):";
+  const EMPLOYER_HEAD = "EMPLOYER MATERIAL (not the candidate's experience):";
+  const SCREEN_HEAD =
+    "ON THE SHARED SCREEN (text read from the latest capture; it may be cut or misread):";
+  const NEW_HEAD = "NEW LINES (decide on these):";
+  const SO_FAR_HEAD = "THE CONVERSATION SO FAR:";
+  const conversationOf = (call: Open | undefined) =>
+    call?.execution["conversation"];
+  // A call with everything a prompt can hold: a plan, a record, a screen, a
+  // note already given and a line already logged. Two calls are made.
+  const rich = async (options: CoachOptions) => {
+    const w = world(options, {
+      session: SESSION,
+      facts: async () => FACTS,
+      plan: async () => "Land the migration story.",
+      read: (answer) => ({
+        ...answer,
+        screen: {
+          text: "def book(slot): return slot",
+          at: new Date(T0).toISOString(),
+        },
+      }),
+    });
+    w.reply(
+      { chunks: [`${NOTE}\nLOG: The interviewer owns the pricing rules`] },
+      { chunks: [SILENT_REPLY] },
+    );
+    expect(await w.heard("interviewer", QUESTION)).toBe(true);
+    w.later();
+    expect(await w.heard("interviewer", HOT)).toBe(true);
+    expect(w.calls).toHaveLength(2);
+    return w;
+  };
+
+  it.each<[string, CoachOptions]>([
+    ["not asked for", {}],
+    ["said to be off", { retain: false }],
+  ])(
+    "%s: every call is one user message, the whole prompt, and names no conversation",
+    async (_name, options) => {
+      const w = await rich(options);
+      for (const call of w.calls) {
+        expect(call.users).toHaveLength(1);
+        expect(call.users[0]).toBe(call.prompt);
+        expect(call.execution).not.toHaveProperty("conversation");
+        expect(call.system).toBe(COACH_SYSTEM);
+      }
+      const whole = w.calls[1]?.users[0]?.split("\n") ?? [];
+      for (const head of [
+        PLAN_HEAD,
+        LOG_HEAD,
+        RECORD_HEAD,
+        EMPLOYER_HEAD,
+        GIVEN_HEAD,
+        SO_FAR_HEAD,
+        SCREEN_HEAD,
+        NEW_HEAD,
+      ])
+        expect(whole, head).toContain(head);
+    },
+  );
+
+  it("kept: every call is two user messages after the system's, the background then the turn", async () => {
+    const w = await rich({ retain: true });
+    for (const call of w.calls) {
+      expect(call.system).toBe(COACH_SYSTEM);
+      expect(call.users).toHaveLength(2);
+    }
+    const [background, turn] = (w.calls[1]?.users ?? []).map((each) =>
+      each.split("\n"),
+    ) as [string[], string[]];
+    // What the session is told when it opens: where the call stands.
+    expect(under(background.join("\n"), PLAN_HEAD)).toEqual([
+      "Land the migration story.",
+    ]);
+    expect(under(background.join("\n"), LOG_HEAD)).toEqual([
+      "- The interviewer owns the pricing rules",
+    ]);
+    expect(under(background.join("\n"), GIVEN_HEAD)).toEqual([
+      "- [technical] Sharding the booking table: I would shard by region first.",
+    ]);
+    expect(soFar(background.join("\n"))).toEqual([`INTERVIEWER: ${QUESTION}`]);
+    // What is new this time.
+    expect(under(turn.join("\n"), RECORD_HEAD)).toEqual([
+      "[/roles/0/proof_points/0] Cut booking latency 40% by sharding on region",
+      "[/context/candidatePreferences/0] Notice period: 4 weeks",
+    ]);
+    expect(under(turn.join("\n"), EMPLOYER_HEAD)).toEqual([
+      "[/context/employerBrief/1] Stack: Kafka and Postgres across 9 regions",
+    ]);
+    expect(under(turn.join("\n"), SCREEN_HEAD)).toEqual([
+      "def book(slot): return slot",
+    ]);
+    expect(newLines(turn.join("\n"))).toEqual([`INTERVIEWER: ${HOT}`]);
+    expect(turn.at(-1)).toMatch(/^WHY NOW: /);
+    for (const head of [RECORD_HEAD, EMPLOYER_HEAD, SCREEN_HEAD, NEW_HEAD])
+      expect(background, head).not.toContain(head);
+    for (const head of [PLAN_HEAD, LOG_HEAD, GIVEN_HEAD, SO_FAR_HEAD])
+      expect(turn, head).not.toContain(head);
+  });
+
+  it("kept or not, the model is told the same things: the two messages hold every line of the one, once", async () => {
+    const kept = await rich({ retain: true });
+    const plain = await rich({});
+    for (const at of [0, 1]) {
+      const whole = (plain.calls[at]?.users[0] ?? "").split("\n").sort();
+      const both = (kept.calls[at]?.users ?? [])
+        .flatMap((each) => each.split("\n"))
+        .sort();
+      expect(whole.length).toBeGreaterThan(8);
+      expect(both).toEqual(whole);
+    }
+  });
+
+  it("kept or not, the same notes are posted and the same things are told", async () => {
+    const kept = await rich({ retain: true });
+    const plain = await rich({});
+    const shape = (post: CoachNoteInput) => ({
+      ...post,
+      key: post.key?.replace(/^coach-[^-]+-/, ""),
+      askId: post.askId?.replace(/^coach-[^-]+-/, ""),
+    });
+    expect(kept.posts.map(shape)).toEqual(plain.posts.map(shape));
+    expect(kept.posts).toHaveLength(1);
+    expect(kept.told()).toEqual(plain.told());
+  });
+
+  it("names the conversation by its epoch, and leaves the rest of the execution as it is without", async () => {
+    const kept = await rich({ retain: true });
+    const plain = await rich({});
+    const epoch = kept.transcript.since().epoch;
+    expect(kept.calls.map(conversationOf)).toEqual([
+      { id: `coach:${epoch}:0` },
+      { id: `coach:${epoch}:0` },
+    ]);
+    const others = (call: Open | undefined) =>
+      Object.keys(call?.execution ?? {})
+        .filter((key) => key !== "conversation")
+        .sort();
+    expect(others(kept.calls[0])).toEqual(others(plain.calls[0]));
+    expect(kept.calls[0]?.execution).toMatchObject({
+      policy: "permitted-remote",
+      permissions: ["interview.read"],
+      idempotencyKey: `coach:${epoch}:1:0`,
+      for: { kind: "coach", id: epoch },
+      scope: {
+        tenantId: SESSION.tenantId,
+        actorId: SESSION.actorId,
+        productId: INTERVIEW_PRODUCT_ID,
+      },
+    });
+  });
+
+  // The coach makes `count` calls, one a question, each answered with silence.
+  const asks = async (w: ReturnType<typeof world>, count: number) => {
+    for (let each = 0; each < count; each += 1) {
+      w.reply({ chunks: [SILENT_REPLY] });
+      w.later();
+      const before = w.calls.length;
+      expect(
+        await w.heard(
+          "interviewer",
+          `How would you handle part ${before + 1} of the migration?`,
+        ),
+      ).toBe(true);
+      expect(w.calls).toHaveLength(before + 1);
+    }
+  };
+  const sessionOf = (call: Open | undefined) =>
+    Number(
+      /^coach:.+:(\d+)$/.exec(
+        (conversationOf(call) as { id: string } | undefined)?.id ?? "",
+      )?.[1],
+    );
+
+  it("begins the session anew every 12 calls: the first 12 are session 0, the next 12 session 1, the 25th session 2", async () => {
+    const w = world({ retain: true });
+    await asks(w, 25);
+    const epoch = w.transcript.since().epoch;
+    expect(w.calls.map(sessionOf)).toEqual([
+      ...Array.from({ length: 12 }, () => 0),
+      ...Array.from({ length: 12 }, () => 1),
+      2,
+    ]);
+    expect(conversationOf(w.calls[11])).toEqual({ id: `coach:${epoch}:0` });
+    expect(conversationOf(w.calls[12])).toEqual({ id: `coach:${epoch}:1` });
+    // A session begun anew is told where things stand: the background of its
+    // first call holds the conversation up to it.
+    expect(soFar(w.calls[12]?.users[0] ?? "")).toHaveLength(12);
+    expect(newLines(w.calls[12]?.users[1] ?? "")).toEqual([
+      "INTERVIEWER: How would you handle part 13 of the migration?",
+    ]);
+  });
+
+  it("without it no call names a conversation, however many are made", async () => {
+    const w = world();
+    await asks(w, 13);
+    expect(w.calls.map(conversationOf)).toEqual(
+      Array.from({ length: 13 }, () => undefined),
+    );
+  });
+
+  it("a call that fails is a call of the session too: the one made again for its stretch names the same conversation", async () => {
+    const w = world({ retain: true });
+    w.reply({ end: failure(true) }, { chunks: [NOTE] });
+    await w.hear("interviewer", QUESTION);
+    w.advance(finishedMs);
+    expect(await w.tick()).toBe(true);
+    await w.idle();
+    await expect(w.tick()).rejects.toBeInstanceOf(CoachCallError);
+    expect(await w.act()).toBe(true);
+    const epoch = w.transcript.since().epoch;
+    expect(w.calls.map(conversationOf)).toEqual([
+      { id: `coach:${epoch}:0` },
+      { id: `coach:${epoch}:0` },
+    ]);
+    expect(w.calls.map((call) => call.users.length)).toEqual([2, 2]);
+  });
+
+  it("a new conversation has a new session: its id names the new epoch", async () => {
+    const w = world({ retain: true });
+    await asks(w, 2);
+    const before = w.transcript.since().epoch;
+    w.transcript.clear();
+    await w.tick();
+    await asks(w, 1);
+    const after = w.transcript.since().epoch;
+    expect(after).not.toBe(before);
+    expect(conversationOf(w.calls[2])).toEqual({ id: `coach:${after}:0` });
+    // Nothing of the conversation before is in what the new session is told.
+    expect(soFar(w.calls[2]?.users[0] ?? "")).toEqual([
+      "(nothing before the new lines)",
+    ]);
+  });
+
+  // The calls are counted for the conversation, not for the coach's life.
+  it("a new conversation counts its 12 calls from its own first", async () => {
+    const w = world({ retain: true });
+    await asks(w, 11);
+    w.transcript.clear();
+    await w.tick();
+    await asks(w, 3);
+    const after = w.transcript.since().epoch;
+    expect(w.calls.slice(11).map(conversationOf)).toEqual([
+      { id: `coach:${after}:0` },
+      { id: `coach:${after}:0` },
+      { id: `coach:${after}:0` },
+    ]);
+  });
+
+  it("a coach that takes up a conversation begins at session 0 of it, told the conversation so far", async () => {
+    const saved: CoachLedger[] = [];
+    const ledger: NonNullable<CoachPorts["ledger"]> = {
+      load: async () => structuredClone(saved.at(-1)),
+      save: async (kept) => {
+        saved.push(structuredClone(kept));
+      },
+    };
+    const first = world({ retain: true }, { ledger });
+    await asks(first, 13);
+    const epoch = first.transcript.since().epoch;
+    expect(conversationOf(first.calls.at(-1))).toEqual({
+      id: `coach:${epoch}:1`,
+    });
+    const again = world(
+      { retain: true },
+      { ledger, transcript: first.transcript },
+    );
+    await again.tick();
+    await asks(again, 1);
+    expect(conversationOf(again.calls[0])).toEqual({ id: `coach:${epoch}:0` });
+    expect(soFar(again.calls[0]?.users[0] ?? "")).toHaveLength(13);
   });
 });

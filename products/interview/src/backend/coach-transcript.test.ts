@@ -397,6 +397,214 @@ describe("what is on the shared screen", () => {
   });
 });
 
+describe("who is speaking", () => {
+  const SESSION = {
+    tenantId: "00000000-0000-4000-8000-000000000001",
+    actorId: "00000000-0000-4000-8000-000000000002",
+    sessionId: "00000000-0000-4000-8000-000000000003",
+  };
+  const clocked = () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-09T10:15:00.000Z"));
+    return createCoachTranscript();
+  };
+
+  it("is absent from every answer until activity was ever reported: not known is not nobody", () => {
+    const transcript = createCoachTranscript();
+    expect(transcript.since()).not.toHaveProperty("speaking");
+    expect(
+      transcript.add([{ text: "live", at: AT }], SESSION),
+    ).not.toHaveProperty("speaking");
+    expect(transcript.since(1)).not.toHaveProperty("speaking");
+  });
+
+  it("is on every answer once reported, as the speakers speaking now, and still reads by the contract", () => {
+    const transcript = clocked();
+    transcript.add([{ text: "live", at: AT }], SESSION);
+    transcript.setSpeaking("interviewer", true);
+    const read = transcript.since();
+    expect(read.speaking).toEqual(["interviewer"]);
+    expect(coachTranscriptResponseSchema.safeParse(read).success).toBe(true);
+    expect(
+      transcript.add([{ text: "more", at: AT }], SESSION).speaking,
+    ).toEqual(["interviewer"]);
+    transcript.setSpeaking("candidate", true);
+    expect(new Set(transcript.since().speaking)).toEqual(
+      new Set(["interviewer", "candidate"]),
+    );
+    transcript.setSpeaking("unknown", true);
+    expect(new Set(transcript.since().speaking)).toEqual(
+      new Set(["interviewer", "candidate", "unknown"]),
+    );
+  });
+
+  it("a speaker who stopped is no longer listed; the list is then empty, not absent", () => {
+    const transcript = clocked();
+    transcript.setSpeaking("interviewer", true);
+    transcript.setSpeaking("candidate", true);
+    transcript.setSpeaking("interviewer", false);
+    expect(transcript.since().speaking).toEqual(["candidate"]);
+    transcript.setSpeaking("candidate", false);
+    expect(transcript.since()).toHaveProperty("speaking", []);
+  });
+
+  it("a first report that somebody stopped makes activity known: nobody is speaking", () => {
+    const transcript = createCoachTranscript();
+    transcript.setSpeaking("interviewer", false);
+    expect(transcript.since()).toHaveProperty("speaking", []);
+  });
+
+  it("names a speaker once however often they say they are speaking", () => {
+    const transcript = clocked();
+    transcript.setSpeaking("interviewer", true);
+    transcript.setSpeaking("interviewer", true);
+    expect(transcript.since().speaking).toEqual(["interviewer"]);
+  });
+
+  it("a speaking that is not said again lapses after 5 s, and not before", () => {
+    const transcript = clocked();
+    transcript.setSpeaking("interviewer", true);
+    vi.advanceTimersByTime(5_000);
+    expect(transcript.since().speaking).toEqual(["interviewer"]);
+    vi.advanceTimersByTime(1);
+    // Lapsed is nobody speaking, still known.
+    expect(transcript.since()).toHaveProperty("speaking", []);
+    // It stays lapsed until it is said again.
+    vi.advanceTimersByTime(60_000);
+    expect(transcript.since().speaking).toEqual([]);
+    transcript.setSpeaking("interviewer", true);
+    expect(transcript.since().speaking).toEqual(["interviewer"]);
+  });
+
+  it("a speaking said again is kept alive from the last time it was said", () => {
+    const transcript = clocked();
+    transcript.setSpeaking("interviewer", true);
+    for (let said = 0; said < 5; said += 1) {
+      vi.advanceTimersByTime(4_000);
+      transcript.setSpeaking("interviewer", true);
+    }
+    // Twenty seconds on, never five without a word of it.
+    expect(transcript.since().speaking).toEqual(["interviewer"]);
+    vi.advanceTimersByTime(5_001);
+    expect(transcript.since().speaking).toEqual([]);
+  });
+
+  it("each speaker lapses by their own clock", () => {
+    const transcript = clocked();
+    transcript.setSpeaking("interviewer", true);
+    vi.advanceTimersByTime(3_000);
+    transcript.setSpeaking("candidate", true);
+    vi.advanceTimersByTime(2_001);
+    expect(transcript.since().speaking).toEqual(["candidate"]);
+    vi.advanceTimersByTime(3_000);
+    expect(transcript.since().speaking).toEqual([]);
+  });
+
+  it("is forgotten by a clear: the next conversation does not know who is speaking", () => {
+    const transcript = clocked();
+    transcript.setSpeaking("interviewer", true);
+    expect(transcript.clear()).not.toHaveProperty("speaking");
+    expect(transcript.since()).not.toHaveProperty("speaking");
+    // Known again from the first report after it, and only who said so since.
+    transcript.setSpeaking("candidate", true);
+    expect(transcript.since().speaking).toEqual(["candidate"]);
+  });
+
+  it("is forgotten when a replay is attached after a live session: that is another conversation", () => {
+    const transcript = clocked();
+    transcript.add([{ text: "live", at: AT }], SESSION);
+    transcript.setSpeaking("interviewer", true);
+    expect(transcript.add([{ text: "attached", at: AT }])).not.toHaveProperty(
+      "speaking",
+    );
+  });
+});
+
+describe("the coach's ledger of the conversation", () => {
+  const kept = (epoch: string, readTo = 3) => ({
+    version: 1,
+    epoch,
+    readTo,
+    given: [],
+  });
+
+  it("is absent until one is kept", () => {
+    const transcript = createCoachTranscript();
+    expect(transcript.ledger(transcript.since().epoch)).toBeUndefined();
+  });
+
+  it("is kept for the conversation in hand and given back as it was kept", () => {
+    const transcript = createCoachTranscript();
+    const epoch = transcript.since().epoch;
+    const ledger = kept(epoch);
+    expect(transcript.setLedger(epoch, ledger)).toBe(true);
+    expect(transcript.ledger(epoch)).toEqual(ledger);
+    // The latest takes the last one's place.
+    expect(transcript.setLedger(epoch, kept(epoch, 9))).toBe(true);
+    expect(transcript.ledger(epoch)).toEqual(kept(epoch, 9));
+  });
+
+  it("is never on a reading of the transcript: it is the coach's, read by its own name", () => {
+    const transcript = createCoachTranscript();
+    const epoch = transcript.since().epoch;
+    transcript.setLedger(epoch, kept(epoch));
+    expect(transcript.since()).not.toHaveProperty("ledger");
+    expect(
+      coachTranscriptResponseSchema.safeParse(transcript.since()).success,
+    ).toBe(true);
+  });
+
+  it.each(["", "another-epoch", "00000000-0000-4000-8000-000000000009"])(
+    "is refused for another conversation (%j), and what was held stays",
+    (other) => {
+      const transcript = createCoachTranscript();
+      const epoch = transcript.since().epoch;
+      expect(transcript.setLedger(other, kept(other))).toBe(false);
+      expect(transcript.ledger(epoch)).toBeUndefined();
+      transcript.setLedger(epoch, kept(epoch));
+      expect(transcript.setLedger(other, kept(other, 99))).toBe(false);
+      expect(transcript.ledger(epoch)).toEqual(kept(epoch));
+      // And it is not read by another conversation's name.
+      expect(transcript.ledger(other)).toBeUndefined();
+    },
+  );
+
+  it("goes with the conversation on a clear: not read by the old epoch, nor by the new one", () => {
+    const transcript = createCoachTranscript();
+    const before = transcript.since().epoch;
+    transcript.setLedger(before, kept(before));
+    const after = transcript.clear().epoch;
+    expect(transcript.ledger(before)).toBeUndefined();
+    expect(transcript.ledger(after)).toBeUndefined();
+    // The conversation that is over takes no ledger any more.
+    expect(transcript.setLedger(before, kept(before))).toBe(false);
+    expect(transcript.setLedger(after, kept(after))).toBe(true);
+  });
+
+  it("goes when a replay is attached after a live session, which is another conversation", () => {
+    const transcript = createCoachTranscript();
+    const SESSION = {
+      tenantId: "00000000-0000-4000-8000-000000000001",
+      actorId: "00000000-0000-4000-8000-000000000002",
+      sessionId: "00000000-0000-4000-8000-000000000003",
+    };
+    const live = transcript.add([{ text: "live", at: AT }], SESSION).epoch;
+    transcript.setLedger(live, kept(live));
+    const replay = transcript.add([{ text: "attached", at: AT }]).epoch;
+    expect(replay).not.toBe(live);
+    expect(transcript.ledger(replay)).toBeUndefined();
+    expect(transcript.ledger(live)).toBeUndefined();
+  });
+
+  it("outlives lines being added to the same conversation", () => {
+    const transcript = createCoachTranscript();
+    const epoch = transcript.add([{ text: "attached", at: AT }]).epoch;
+    transcript.setLedger(epoch, kept(epoch));
+    transcript.add([{ text: "more", at: AT }]);
+    expect(transcript.ledger(epoch)).toEqual(kept(epoch));
+  });
+});
+
 describe("who an audio source is to the coach", () => {
   it.each([
     ["microphone", "candidate"],

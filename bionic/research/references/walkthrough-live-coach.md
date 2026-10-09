@@ -274,6 +274,28 @@ node scripts/coach-note.mjs '{"title":"x","points":["y"]}'   # one note by hand;
 
 `coach-transcript.mjs` joins consecutive blocks of one speaker, so Studio sees fewer, longer lines than the replay does. The Studio must be running; the token is `INTERVIEW_API_TOKEN` or `.dev-local/api-token`. For a desktop agent, run Studio with `INTERVIEW_COACH=off`, then loop `pnpm -s coach:listen` (prints one JSON moment: `reason`, `about`, `turn`, `new`, `before`, `plan`, `key`; exit 0 moment, 2 nothing in 10 minutes, 1 Studio unreachable) and post with `coach-note.mjs`. Rules are in `.agents/skills/live-coach/SKILL.md`.
 
+## Benchmarks: the same calls, run after run
+
+Two calls are kept as fixtures in `apps/agent-worker/fixtures/calls/` (its README lists the files). Each has an `expected.json`: the questions, the words that complete each, and the stretches that ask the candidate nothing.
+
+| Call | What it holds |
+|---|---|
+| `screening-services` | 107 s of a recorded screening call: a slow two-part question, a long answer, a follow-up. |
+| `panel-round` | 10 minutes, five interviewers and one candidate. Opens with the stretch above, then a scripted, exaggerated panel: back-channel noises, a handover, "can you hear me?", a question with a 2.8 s pause in it, an interruption, pushback, two people starting at once, a three-part question, a rambling answer, a question taken back, an instruction with no question mark, rapid short questions, a question answered with a question, logistics, salary, the close. |
+
+```bash
+pnpm -s coach:bench:timing          # decisions only, a second
+pnpm -s coach:bench:panel:timing
+pnpm -s coach:bench:claude          # live, under 2 minutes; also :codex
+pnpm -s coach:bench:panel:claude    # live, about 10 minutes; also :codex
+pnpm -s coach:bench:claude -- --trace   # every prompt, raw reply and note revision
+pnpm -s coach:fixture panel-round   # remake a scripted call's transcript from script.json
+```
+
+A run prints, per question: whether it was acted on whole, acts on part of it, question end to first line, and looks and nudges during the answer; per quiet stretch: acts and notes shown. It ends with one line in short, keeps its result in `.dev-local/benchmarks/` and compares with the last run of the same call on the same runtime. The `call fixtures` suite in `pnpm test` runs both calls with no model and fails when a question is no longer acted on whole or the early and wasted acts exceed the fixture's `budget`.
+
+In a panel every interviewer reaches the coach as "INTERVIEWER": call audio is one stream, so who asked is not known, and two panelists talking over each other arrive as one muddled turn.
+
 ## Limits and decisions
 
 - No transcript at rest ([[adrs/ADR-0039-a-live-coach-reads-the-conversation-and-writes-the]]); a verified mark comes from a check in code only.

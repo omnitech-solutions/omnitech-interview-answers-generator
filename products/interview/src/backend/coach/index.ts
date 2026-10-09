@@ -1,7 +1,9 @@
 export {
+  COACH_LEDGER_VERSION,
   type Coach,
   CoachCallError,
   type CoachEvent,
+  type CoachLedger,
   type CoachOptions,
   type CoachPorts,
   createCoach,
@@ -26,6 +28,7 @@ export {
   type ActReason,
   type Decision,
   decide,
+  type Speaking,
   TURN_TIMING,
   type TurnTiming,
   turnsOf,

@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 import {
   COACH_SPEAKERS,
+  coachActivityInputSchema,
   coachTranscriptInputSchema,
   coachTranscriptLineInputSchema,
   coachTranscriptLineSchema,
@@ -152,5 +153,62 @@ describe("the coach transcript as it is read", () => {
         }).success,
       ).toBe(false);
     }
+  });
+});
+
+describe("who is speaking, as an audio source reports it", () => {
+  it("names one speaker of the fixed list and whether they are speaking", () => {
+    for (const speaker of COACH_SPEAKERS)
+      for (const speaking of [true, false])
+        expect(coachActivityInputSchema.parse({ speaker, speaking })).toEqual({
+          speaker,
+          speaking,
+        });
+  });
+
+  it.each<[string, unknown]>([
+    ["no speaker", { speaking: true }],
+    ["no state", { speaker: "interviewer" }],
+    ["a label that is not a speaker", { speaker: "Speaker 1", speaking: true }],
+    ["a state that is not a boolean", { speaker: "candidate", speaking: 1 }],
+    ["a state said as a word", { speaker: "candidate", speaking: "true" }],
+    [
+      "a field it does not know",
+      { speaker: "candidate", speaking: true, level: 0.4 },
+    ],
+    ["several speakers at once", { speaker: ["candidate"], speaking: true }],
+    ["nothing", null],
+  ])("refuses %s", (_name, body) => {
+    expect(coachActivityInputSchema.safeParse(body).success).toBe(false);
+  });
+});
+
+describe("who is speaking, on the transcript as it is read", () => {
+  const read = { epoch: "e-1", cursor: 0, lines: [] };
+
+  it("is optional: absent is not known, and an empty list is nobody speaking", () => {
+    expect(coachTranscriptResponseSchema.parse(read)).not.toHaveProperty(
+      "speaking",
+    );
+    expect(
+      coachTranscriptResponseSchema.parse({ ...read, speaking: [] }).speaking,
+    ).toEqual([]);
+    expect(
+      coachTranscriptResponseSchema.parse({
+        ...read,
+        speaking: [...COACH_SPEAKERS],
+      }).speaking,
+    ).toEqual(["interviewer", "candidate", "unknown"]);
+  });
+
+  it.each<[string, unknown]>([
+    ["a label that is not a speaker", ["Speaker 1"]],
+    ["one speaker, not a list", "interviewer"],
+    ["a flag", true],
+    ["a map of who is speaking", { interviewer: true }],
+  ])("refuses %s", (_name, speaking) => {
+    expect(
+      coachTranscriptResponseSchema.safeParse({ ...read, speaking }).success,
+    ).toBe(false);
   });
 });

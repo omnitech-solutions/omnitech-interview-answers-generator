@@ -13,5 +13,9 @@
       "completeWhenSaid": "How do you take data",
       "about": ["boundary", "ownership", "data"]
     }
-  ]
+  ],
+  "budget": {
+    "actsOnPart": 0,
+    "actsOnQuiet": 0
+  }
 }

@@ -6,6 +6,10 @@
 // it, and like every suite of this app it reads the interview product as
 // built (`@omnitech/product-interview/session-worker`). Timing only: no model
 // is called and nothing leaves the process.
+//
+// By default a replay tells the coach who is speaking, from the recording's
+// own timings (a piece begun and not yet ended); `--no-activity` leaves the
+// coach with the text alone. Both are run here, over the same files.
 import { execFile } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -53,6 +57,22 @@ Speaker 1: and how would you roll that back safely?
 
 00:01:14 --> 00:01:20
 Speaker 2: I would add a second level of keys and keep the old path live.
+`;
+
+// An interviewer whose question comes in two phrases: a sentence that reads
+// as finished, then a long phrase begun a second later that is not heard as
+// text until it ends, five seconds on.
+const LATE_FIRST = "We run the booking platform across nine regions.";
+const LATE_SECOND =
+  "Given that, how would you move the busiest region to a new shard key without taking bookings offline?";
+const LATE_TRANSCRIPT = `00:00:02 --> 00:00:05
+Speaker 1: ${LATE_FIRST}
+
+00:00:06 --> 00:00:11
+Speaker 1: ${LATE_SECOND}
+
+00:00:14 --> 00:00:20
+Speaker 2: I would copy the region behind a flag and switch reads first.
 `;
 
 type Ran = { code: number; stdout: string; stderr: string };
@@ -118,6 +138,9 @@ const pieces = (ran: Ran) =>
 const runs = {} as Record<
   | "speakers"
   | "timing"
+  | "noActivity"
+  | "late"
+  | "lateNoActivity"
   | "leaveOut"
   | "hideMe"
   | "stretch"
@@ -127,7 +150,8 @@ const runs = {} as Record<
   | "slow"
   | "plan"
   | "missing"
-  | "missingPlan",
+  | "missingPlan"
+  | "retained",
   Ran
 >;
 
@@ -135,6 +159,8 @@ beforeAll(async () => {
   directory = await mkdtemp(join(tmpdir(), "coach-replay-"));
   file = join(directory, "practice-round.txt");
   await writeFile(file, TRANSCRIPT);
+  const late = join(directory, "late-phrase.txt");
+  await writeFile(late, LATE_TRANSCRIPT);
   const plan = join(directory, "plan.txt");
   await writeFile(
     plan,
@@ -143,6 +169,10 @@ beforeAll(async () => {
   const made = await Promise.all([
     replay(file, "--speakers"),
     replay(file, ...CAST, "--timing"),
+    replay(file, ...CAST, "--timing", "--no-activity"),
+    replay(late, ...CAST, "--timing"),
+    // The flag is named before the file, and is not taken for it.
+    replay("--no-activity", late, ...CAST, "--timing"),
     replay(file, ...CAST, "--leave-out", "Speaker 3,Unknown", "--timing"),
     replay(file, ...CAST, "--hide-me", "--timing"),
     replay(file, ...CAST, "--from", "00:00:41", "--to", "00:00:59", "--timing"),
@@ -160,10 +190,14 @@ beforeAll(async () => {
       "--plan",
       join(directory, "no-such-plan.txt"),
     ),
+    replay(file, ...CAST, "--timing", "--retain"),
   ]);
   const names = Object.keys({
     speakers: 0,
     timing: 0,
+    noActivity: 0,
+    late: 0,
+    lateNoActivity: 0,
     leaveOut: 0,
     hideMe: 0,
     stretch: 0,
@@ -174,6 +208,7 @@ beforeAll(async () => {
     plan: 0,
     missing: 0,
     missingPlan: 0,
+    retained: 0,
   } satisfies Record<keyof typeof runs, 0>) as (keyof typeof runs)[];
   names.forEach((name, at) => {
     runs[name] = made[at] as Ran;
@@ -247,8 +282,10 @@ describe("pnpm coach:replay", () => {
     expect(ran.stdout).toMatch(
       /^\d+ actions in 1\.\d minutes \(one every \d+ s\): (\d+ [a-z-]+(, )?)+\.$/m,
     );
+    // The opening sentence is not acted on as a pause: by the recording's
+    // timings its speaker has begun the question that follows.
     expect(ran.stdout).toContain(
-      "\n6 actions in 1.3 minutes (one every 13 s): 2 pause, 2 recall, 3 question-finished, 1 answer-check.\n",
+      "\n5 actions in 1.3 minutes (one every 15 s): 3 question-finished, 1 answer-check, 1 recall, 1 pause.\n",
     );
     expect(ran.stdout).toMatch(
       /^From the end of the interviewer's turn to acting: median \d+\.\d s\.$/m,
@@ -261,7 +298,6 @@ describe("pnpm coach:replay", () => {
 
   it("lists every act in the order it was made, a turn answered again as another act", () => {
     expect(acts(runs.timing)).toEqual([
-      ["pause", "Thanks for joining us today, Marisol."],
       [
         "question-finished",
         "Thanks for joining us today, Marisol. So how would you shard the booking table?",
@@ -284,6 +320,9 @@ describe("pnpm coach:replay", () => {
 
   it.each([
     "timing",
+    "noActivity",
+    "late",
+    "lateNoActivity",
     "leaveOut",
     "hideMe",
     "stretch",
@@ -326,7 +365,139 @@ describe("pnpm coach:replay", () => {
     expect(lines[at + 2]).toMatch(
       /^00:00:51 {2}ACT {4}pause +\+\d\.\ds after "Tell me about a time you led a migration\. The projector in room nine needs a new bulb today\."$/,
     );
-    expect(agains(runs.timing)).toHaveLength(2);
+    // The one call made again: Speaker 3 began a second after the question
+    // was acted on, so nothing said they were speaking when the call began.
+    expect(agains(runs.timing)).toHaveLength(1);
+  });
+
+  describe("who is speaking, from the recording's timings", () => {
+    const OPENING = "Thanks for joining us today, Marisol.";
+    const at = (line: string | undefined) => {
+      const found = /^(\d\d):(\d\d):(\d\d) /.exec(line ?? "");
+      return found
+        ? Number(found[1]) * 3600 + Number(found[2]) * 60 + Number(found[3])
+        : Number.NaN;
+    };
+    const lineOf = (ran: Ran, ending: string) =>
+      ran.stdout.split("\n").find((line) => line.endsWith(ending));
+
+    it("is told by default: the opening sentence is not acted on while its speaker is already asking the question", () => {
+      expect(runs.timing.code).toBe(0);
+      expect(acts(runs.timing).map(([, quoted]) => quoted)).not.toContain(
+        OPENING,
+      );
+      expect(acts(runs.timing)[0]).toEqual([
+        "question-finished",
+        `${OPENING} So how would you shard the booking table?`,
+      ]);
+    });
+
+    it("--no-activity leaves the coach the text alone: the opening sentence is acted on as a pause, and the call made again when the question lands", () => {
+      const ran = runs.noActivity;
+      expect(ran.code).toBe(0);
+      expect(ran.stderr).toBe("");
+      expect(acts(ran)).toEqual([
+        ["pause", OPENING],
+        [
+          "question-finished",
+          `${OPENING} So how would you shard the booking table?`,
+        ],
+        [
+          "answer-check",
+          expect.stringMatching(/^I would start with the region .*…$/),
+        ],
+        ["question-finished", "Tell me about a time you led a migration."],
+        [
+          "pause",
+          "Tell me about a time you led a migration. The projector in room nine needs a new bulb today.",
+        ],
+        [
+          "question-finished",
+          "And what would you do about hot regions, and how would you roll that back safely?",
+        ],
+      ]);
+      expect(agains(ran)).toHaveLength(2);
+      expect(ran.stdout).toContain(
+        "\n6 actions in 1.3 minutes (one every 13 s): 2 pause, 2 recall, 3 question-finished, 1 answer-check.\n",
+      );
+    });
+
+    it("the two runs replay the same pieces and differ in that one act and its call made again", () => {
+      expect(pieces(runs.noActivity)).toBe(pieces(runs.timing));
+      expect(acts(runs.noActivity).slice(1)).toEqual(acts(runs.timing));
+      expect(agains(runs.noActivity).slice(1)).toEqual(agains(runs.timing));
+    });
+
+    it("a long phrase that arrives late: with activity the half-said turn is never acted on and no call is made again", () => {
+      const ran = runs.late;
+      expect(ran.code).toBe(0);
+      expect(ran.stderr).toBe("");
+      expect(ran.stdout).toMatch(
+        /^Replaying 00:00:05 to 00:00:20: 3 pieces\. Speaker 1 = interviewer, Speaker 2 = me\.$/m,
+      );
+      expect(agains(ran)).toEqual([]);
+      expect(ran.stdout).not.toContain("AGAIN");
+      expect(summary(ran).counts).not.toHaveProperty("recall");
+      // One act, on the whole turn, once its second phrase had been heard.
+      // (The turn is quoted cut short, so its start is what is compared.)
+      expect(acts(ran)).toEqual([
+        [
+          "question-finished",
+          expect.stringMatching(
+            /^We run the booking platform across nine regions\. Given that, how would you move .*…$/,
+          ),
+        ],
+      ]);
+      expect(acts(ran).some(([, quoted]) => quoted === LATE_FIRST)).toBe(false);
+      const acted = ran.stdout
+        .split("\n")
+        .find((line) => / ACT {4}question-finished/.test(line));
+      // The phrase ends at 00:00:11; a finished question is acted on at once.
+      expect(at(acted)).toBeGreaterThanOrEqual(11);
+      expect(at(acted)).toBeLessThanOrEqual(12);
+      expect(Number(/\+(\d+\.\d)s after/.exec(acted ?? "")?.[1])).toBeLessThan(
+        1.5,
+      );
+      expect(summary(ran)).toMatchObject({
+        actions: 1,
+        counts: { "question-finished": 1 },
+      });
+    });
+
+    it("the same file with --no-activity: the first sentence is acted on mid-phrase, and the call is made again when the phrase lands", () => {
+      const ran = runs.lateNoActivity;
+      expect(ran.code).toBe(0);
+      expect(ran.stderr).toBe("");
+      expect(pieces(ran)).toBe(pieces(runs.late));
+      const lines = ran.stdout.split("\n");
+      // Acted on the partial turn, while its speaker was still talking.
+      const partial = lineOf(ran, `after "${LATE_FIRST}"`);
+      expect(partial).toMatch(/^00:00:0[78] {2}ACT {4}pause +\+2\.\ds after /);
+      expect(lines[lines.indexOf(partial as string) + 1]).toMatch(
+        /^00:00:11 {2}AGAIN {2}the interviewer went on: the call is made again with the whole turn$/,
+      );
+      expect(agains(ran)).toHaveLength(1);
+      expect(acts(ran).map(([reason]) => reason)).toEqual([
+        "pause",
+        "question-finished",
+      ]);
+      expect(acts(ran)[0]).toEqual(["pause", LATE_FIRST]);
+      expect(acts(ran)[1]?.[1]).toMatch(
+        /^We run the booking platform across nine regions\. Given that, /,
+      );
+      expect(summary(ran)).toMatchObject({
+        actions: 2,
+        counts: { pause: 1, recall: 1, "question-finished": 1 },
+      });
+    });
+
+    it("either way the whole turn is acted on at the same moment: activity removes the early act, it does not delay the right one", () => {
+      const whole = (ran: Ran) =>
+        ran.stdout
+          .split("\n")
+          .find((line) => / ACT {4}question-finished/.test(line));
+      expect(whole(runs.late)).toBe(whole(runs.lateNoActivity));
+    });
   });
 
   it("--latency says how long the absent model takes: at 0 no call is still running to be made again, and the same acts are made", () => {
@@ -338,6 +509,15 @@ describe("pnpm coach:replay", () => {
     // The default is 4 s; a slower model is caught out by the same turns.
     expect(agains(runs.slow)).toHaveLength(agains(runs.timing).length);
     expect(runs.slow.stdout).toBe(runs.timing.stdout);
+  });
+
+  it("--retain keeps one session of the model and changes nothing of when the coach acts or why", () => {
+    const ran = runs.retained;
+    expect(ran.code).toBe(0);
+    expect(acts(ran)).toEqual(acts(runs.timing));
+    expect(agains(ran)).toEqual(agains(runs.timing));
+    expect(summary(ran)).toEqual(summary(runs.timing));
+    expect(ran.stdout).toBe(runs.timing.stdout);
   });
 
   it("--plan names the plan's file, which is never taken for the transcript", () => {

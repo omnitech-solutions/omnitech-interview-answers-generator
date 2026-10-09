@@ -6,8 +6,9 @@ description: Coach a live or replayed interview by hand from a desktop agent (Cl
 # Live coach (by hand)
 
 The Studio decides **when** to act (the same turn-taking its built-in coach
-uses). You decide **what** to say. One coach at a time: the Studio must be
-running with `INTERVIEW_COACH=off`, or its own coach will write notes too.
+uses). You decide **what** to say. One coach at a time: listening takes the
+pen, so the Studio's own coach stands by and writes nothing while you coach
+(it takes the pen back three minutes after your last listen).
 
 ## The loop
 

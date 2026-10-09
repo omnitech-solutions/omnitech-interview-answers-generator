@@ -2,7 +2,13 @@
 // so far, and the new lines it must decide on, which are never cut.
 import type { CoachTranscriptLine } from "@omnitech/interview-contracts";
 import { describe, expect, it } from "vitest";
-import { COACH_PROMPT_VERSION, COACH_SYSTEM, coachPrompt } from "./prompt";
+import {
+  COACH_PROMPT_VERSION,
+  COACH_SYSTEM,
+  type CoachPromptInput,
+  coachPrompt,
+  coachPromptParts,
+} from "./prompt";
 import { SILENT } from "./reply";
 import type { ActReason } from "./turns";
 
@@ -632,5 +638,238 @@ describe("the shared screen in the prompt", () => {
       "WHY NOW: what is on the shared screen has changed. Read ON THE SHARED SCREEN:",
     );
     expect(prompt).toContain(SILENT);
+  });
+});
+
+describe("the prompt in two parts, for a model kept in one session", () => {
+  const PLAN_HEAD = "THE PLAN FOR THIS CALL:";
+  const LOG_HEAD = "WHAT YOU HAVE NOTED SO FAR IN THIS CALL (oldest first):";
+  const RECORD_HEAD = "THE CANDIDATE'S RECORD (cite a fact by its [pointer]):";
+  const EMPLOYER_HEAD = "EMPLOYER MATERIAL (not the candidate's experience):";
+  const SCREEN_HEAD =
+    "ON THE SHARED SCREEN (text read from the latest capture; it may be cut or misread):";
+  const lines: CoachTranscriptLine[] = [
+    line(1, "interviewer", "Welcome, thanks for making the time."),
+    line(2, "candidate", "Glad to be here."),
+    line(3, "interviewer", "How would you shard the booking table?"),
+  ];
+  const least: CoachPromptInput = { lines, readTo: 2, notes: [] };
+  const full: CoachPromptInput = {
+    lines,
+    readTo: 2,
+    notes: [
+      { title: "Opening", kind: "direct-answer", ask: "Opening line" },
+      { title: "Earlier", kind: "technical", said: "By tenant first." },
+    ],
+    facts: [
+      {
+        pointer: "/roles/0/proof_points/0",
+        text: "Cut booking latency 40% by sharding on region",
+        about: "candidate",
+      },
+      {
+        pointer: "/context/employerBrief/1",
+        text: "Stack: Kafka and Postgres across 9 regions",
+        about: "employer",
+      },
+      {
+        pointer: "/context/candidatePreferences/0",
+        text: "Notice period: 4 weeks",
+        about: "preference",
+      },
+    ],
+    reason: "question-finished",
+    plan: "  Land the migration story.\nAsk about on-call.  ",
+    log: ["The interviewer owns the pricing rules", "Two of five asked"],
+    screen: "def book(slot):\n    return slot",
+  };
+  const design: CoachPromptInput = {
+    ...full,
+    mode: "system-design",
+    design: {
+      stage: "high-level",
+      edges: [{ from: "Client", to: "API", label: "book a slot" }],
+    },
+  };
+  const coding: CoachPromptInput = {
+    ...full,
+    mode: "coding",
+    reason: "screen-change",
+  };
+  const cases: [string, CoachPromptInput][] = [
+    ["nothing but the conversation", least],
+    ["everything a conversation can have", full],
+    ["a system design", design],
+    ["live coding", coding],
+    ["nothing new said", { ...full, readTo: 3 }],
+    ["nothing said before", { ...full, readTo: 0 }],
+    [
+      "an empty plan, log and screen",
+      { ...least, plan: " ", log: [], screen: "" },
+    ],
+  ];
+  const sorted = (...texts: string[]) =>
+    texts.flatMap((text) => text.split("\n")).sort();
+  const worded = (text: string) =>
+    text.split("\n").filter((each) => each.trim() !== "");
+
+  it.each(cases)("`whole` is the prompt itself: %s", (_name, input) => {
+    expect(coachPromptParts(input).whole).toBe(coachPrompt(input));
+  });
+
+  it.each(cases)(
+    "every line of `whole` is in `background` or `turn`, once, and nothing else is: %s",
+    (_name, input) => {
+      const { whole, background, turn } = coachPromptParts(input);
+      expect(sorted(background, turn)).toEqual(sorted(whole));
+    },
+  );
+
+  it.each(cases)("no line is in both parts: %s", (_name, input) => {
+    const { background, turn } = coachPromptParts(input);
+    const told = new Set(worded(background));
+    expect(worded(turn).filter((each) => told.has(each))).toEqual([]);
+  });
+
+  it.each(cases)(
+    "each part keeps the order `whole` has its lines in: %s",
+    (_name, input) => {
+      const { whole, background, turn } = coachPromptParts(input);
+      for (const part of [background, turn]) {
+        const all = worded(whole);
+        let from = 0;
+        for (const each of worded(part)) {
+          const at = all.indexOf(each, from);
+          expect(at, each).toBeGreaterThanOrEqual(from);
+          from = at + 1;
+        }
+      }
+    },
+  );
+
+  it("`background` is the plan, the log, the notes given and the conversation so far, each closed by a blank line", () => {
+    expect(coachPromptParts(full).background).toBe(
+      [
+        PLAN_HEAD,
+        "Land the migration story.\nAsk about on-call.",
+        "",
+        LOG_HEAD,
+        "- The interviewer owns the pricing rules",
+        "- Two of five asked",
+        "",
+        NOTES_HEAD,
+        "- [technical] Earlier: By tenant first.",
+        "- [direct-answer] Opening line",
+        "",
+        SO_FAR_HEAD,
+        "INTERVIEWER: Welcome, thanks for making the time.",
+        "CANDIDATE: Glad to be here.",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("`turn` is the record, the employer's material, the screen, the new lines and why now", () => {
+    const { turn } = coachPromptParts(full);
+    expect(turn.split("\n").slice(0, -1)).toEqual([
+      RECORD_HEAD,
+      "[/roles/0/proof_points/0] Cut booking latency 40% by sharding on region",
+      "[/context/candidatePreferences/0] Notice period: 4 weeks",
+      "",
+      EMPLOYER_HEAD,
+      "[/context/employerBrief/1] Stack: Kafka and Postgres across 9 regions",
+      "",
+      SCREEN_HEAD,
+      "def book(slot):",
+      "    return slot",
+      "",
+      NEW_HEAD,
+      "INTERVIEWER: How would you shard the booking table?",
+      "",
+    ]);
+    expect(turn.split("\n").at(-1)).toMatch(
+      /^WHY NOW: the interviewer has just finished asking\./,
+    );
+  });
+
+  it("with nothing but the conversation, `background` is no notes and what was said, `turn` the new lines alone", () => {
+    expect(coachPromptParts(least)).toEqual({
+      whole: coachPrompt(least),
+      background: [
+        NOTES_HEAD,
+        "(none)",
+        "",
+        SO_FAR_HEAD,
+        "INTERVIEWER: Welcome, thanks for making the time.",
+        "CANDIDATE: Glad to be here.",
+        "",
+      ].join("\n"),
+      turn: [
+        NEW_HEAD,
+        "INTERVIEWER: How would you shard the booking table?",
+      ].join("\n"),
+    });
+  });
+
+  it("the mode block and the design so far are in `turn`, after the reason, and never in `background`", () => {
+    const { background, turn } = coachPromptParts(design);
+    const said = turn.split("\n");
+    const why = said.findIndex((each) => each.startsWith("WHY NOW:"));
+    const mode = said.findIndex((each) =>
+      each.startsWith("MODE: SYSTEM DESIGN."),
+    );
+    expect(why).toBeGreaterThan(said.indexOf(NEW_HEAD));
+    expect(mode).toBeGreaterThan(why);
+    expect(said.slice(-2)).toEqual([
+      "THE DESIGN SO FAR (stage: high-level):",
+      "Client -> API: book a slot",
+    ]);
+    expect(background).not.toContain("MODE:");
+    expect(background).not.toContain("THE DESIGN SO FAR");
+    expect(background).toBe(coachPromptParts(full).background);
+    expect(coachPromptParts(coding).turn).toContain("MODE: LIVE CODING.");
+    expect(coachPromptParts(coding).background).toBe(background);
+  });
+
+  it("neither part has the other's headings", () => {
+    const { background, turn } = coachPromptParts(design);
+    for (const head of [PLAN_HEAD, LOG_HEAD, NOTES_HEAD, SO_FAR_HEAD]) {
+      expect(background.split("\n")).toContain(head);
+      expect(turn.split("\n")).not.toContain(head);
+    }
+    for (const head of [RECORD_HEAD, EMPLOYER_HEAD, SCREEN_HEAD, NEW_HEAD]) {
+      expect(turn.split("\n")).toContain(head);
+      expect(background.split("\n")).not.toContain(head);
+    }
+    expect(background).not.toContain("WHY NOW:");
+  });
+
+  it("what is new this time changes `turn` and leaves `background` as it was", () => {
+    const before = coachPromptParts(full);
+    const after = coachPromptParts({
+      ...full,
+      facts: [],
+      screen: "another screen",
+      reason: "pause",
+      mode: "coding",
+    });
+    expect(after.background).toBe(before.background);
+    expect(after.turn).not.toBe(before.turn);
+  });
+
+  it("the new lines are never cut from `turn`, and the earlier ones are dropped from `background` oldest first", () => {
+    const long: CoachPromptInput = {
+      lines: [
+        line(1, "interviewer", `oldest ${"a".repeat(7_000)}`),
+        line(2, "candidate", `recent ${"b".repeat(7_000)}`),
+        line(3, "interviewer", `fresh ${"c".repeat(4_000)}`),
+      ],
+      readTo: 2,
+      notes: [],
+    };
+    const { background, turn } = coachPromptParts(long);
+    expect(turn).toContain("c".repeat(4_000));
+    expect(background).toContain("b".repeat(7_000));
+    expect(background).not.toContain("a".repeat(100));
   });
 });

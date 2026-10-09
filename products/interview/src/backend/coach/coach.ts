@@ -18,7 +18,11 @@ import type {
 } from "@omnitech/interview-contracts";
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
 import type { CoachContextPort, CoachFact } from "./context";
-import { COACH_SYSTEM, coachPrompt, type GivenNote as Given } from "./prompt";
+import {
+  COACH_SYSTEM,
+  coachPromptParts,
+  type GivenNote as Given,
+} from "./prompt";
 import {
   COACH_MODES,
   type CoachMode,
@@ -30,6 +34,7 @@ import {
 import {
   type ActReason,
   decide,
+  type Speaking,
   shouldRecall,
   type TurnTiming,
   turnsOf,
@@ -45,10 +50,13 @@ export type CoachPorts = {
   notes: {
     // `space` says whose notes these are: the person's own ("live"), or a
     // replay's, which are kept apart.
+    // `conversation` is the transcript epoch the note was written from, so
+    // whoever takes the note can refuse one about a conversation that is over.
     post(
       note: CoachNoteInput,
       signal: AbortSignal,
       space?: CoachSpace,
+      conversation?: string,
     ): Promise<void>;
   };
   // The person's approved record, for a transcript heard in a live session.
@@ -57,6 +65,13 @@ export type CoachPorts = {
   // Who the coach's calls are made as when no live session is behind the
   // transcript; otherwise they are made as that session's owner.
   scope: { tenantId: string; actorId: string };
+  // Where the coach keeps what it knows of the conversation, so a coach that
+  // is restarted mid-call takes up where the last one stopped instead of
+  // coaching every question again. Absent: it starts from nothing.
+  ledger?: {
+    load(epoch: string): Promise<CoachLedger | undefined>;
+    save(ledger: CoachLedger): Promise<void>;
+  };
   // The plan for this call, as the person wrote it. Read again now and then,
   // so an edit made during the call is used. Absent: there is none.
   plan?: () => Promise<string | undefined>;
@@ -71,6 +86,11 @@ export type CoachOptions = {
   timing?: Partial<TurnTiming>;
   // The least time between two revisions of a note while it is being written.
   postEveryMs?: number;
+  // [DOMAIN] Keep one session of the model open for the call, where the
+  // engine's provider can (an agent runtime): the model then remembers the
+  // conversation and its own notes, and each turn sends only what is new.
+  // Without it every call is put to a model that starts from nothing.
+  retain?: boolean;
 };
 
 // What the coach did and why, for whoever watches it work (a replay, a log).
@@ -88,6 +108,32 @@ export type CoachEvent = {
   final?: boolean;
 };
 
+// [DOMAIN] What a coach knows of one conversation beyond the transcript
+// itself: how far it has read, what it has already told the person, what it
+// chose to remember, and the design it is drawing. It is the coach's memory,
+// kept outside the coach so that the process running it can be replaced. The
+// model session is not in it: that is rebuilt from this, never the reverse.
+export const COACH_LEDGER_VERSION = 1;
+export type CoachLedger = {
+  version: typeof COACH_LEDGER_VERSION;
+  // The conversation it is the ledger of.
+  epoch: string;
+  readTo: number;
+  given: GivenNote[];
+  log: string[];
+  cautions: { key: string; text: string }[];
+  design: {
+    stage?: string;
+    edges: DesignEdge[];
+    sections?: CoachNoteInput["sections"];
+  };
+  lastAskId?: string;
+  // The last revision posted of each note, so a revision never goes back.
+  revisions: [string, number][];
+  looks: number;
+  nudged: boolean;
+};
+
 export class CoachCallError extends Error {
   constructor(readonly failure: Failure | undefined) {
     super("The coach's call did not finish.");
@@ -97,6 +143,8 @@ export class CoachCallError extends Error {
 
 const LINES_HELD = 600;
 const ATTEMPTS = 2;
+// A retained session is begun anew after this many calls.
+const ROTATE_AFTER = 12;
 // How long after answering a turn a further sentence from the interviewer
 // still counts as the same question.
 const SAME_TURN_MS = 20_000;
@@ -228,7 +276,7 @@ type Call = {
 };
 
 export function createCoach(ports: CoachPorts, options: CoachOptions = {}) {
-  const { postEveryMs = 500, timing } = options;
+  const { postEveryMs = 500, timing, retain = false } = options;
   const now = ports.nowMs ?? Date.now;
   const tell = (event: Omit<CoachEvent, "atMs">) =>
     ports.onEvent?.({ atMs: now(), ...event });
@@ -256,6 +304,8 @@ export function createCoach(ports: CoachPorts, options: CoachOptions = {}) {
     edges: DesignEdge[];
     sections?: CoachNoteInput["sections"];
   } = { edges: [] };
+  // Who is speaking right now, where the feed can tell.
+  let speaking: Speaking | undefined;
   // Whose conversation this is, and so where its notes go.
   let space: CoachSpace = "live";
   // What is on the shared screen, and whether the coach has looked at it.
@@ -269,6 +319,8 @@ export function createCoach(ports: CoachPorts, options: CoachOptions = {}) {
   let revisions = new Map<string, number>();
   let lastAskId: string | undefined;
   let failures = 0;
+  // How many calls this coach has made in the conversation.
+  let calls = 0;
   // What the coach has chosen to remember of this call (reply.ts, LOG lines).
   let log: string[] = [];
   let plan: { text: string | undefined; atMs: number } | undefined;
@@ -297,7 +349,63 @@ export function createCoach(ports: CoachPorts, options: CoachOptions = {}) {
     revisions = new Map();
     lastAskId = undefined;
     failures = 0;
+    calls = 0;
   };
+
+  const ledgerOf = (): CoachLedger => ({
+    version: COACH_LEDGER_VERSION,
+    epoch,
+    readTo,
+    given,
+    log,
+    cautions,
+    design,
+    ...(lastAskId ? { lastAskId } : {}),
+    revisions: [...revisions],
+    looks,
+    nudged,
+  });
+  // Kept after everything that changes it. [SAFETY] A ledger that cannot be
+  // kept costs the saving, never the coaching.
+  const keep = () => {
+    try {
+      void ports.ledger?.save(ledgerOf()).catch(() => undefined);
+    } catch {
+      // A ledger that cannot even be asked is the same as one that fails.
+    }
+  };
+  // Takes up a conversation another coach had begun. A ledger of another
+  // shape, or one that says it read further than the transcript goes, is not
+  // trusted: the coach then starts from nothing.
+  async function restore(heardTo: number): Promise<void> {
+    let kept: CoachLedger | undefined;
+    try {
+      kept = await ports.ledger?.load(epoch);
+    } catch {
+      return;
+    }
+    // [GUARD] What the ledger says was read must be in what was heard: one
+    // that read further than the transcript goes is of something else, and
+    // none of it is taken.
+    if (
+      !kept ||
+      kept.version !== COACH_LEDGER_VERSION ||
+      kept.epoch !== epoch ||
+      !Number.isInteger(kept.readTo) ||
+      kept.readTo < 0 ||
+      kept.readTo > heardTo
+    )
+      return;
+    readTo = kept.readTo;
+    given = kept.given ?? [];
+    log = kept.log ?? [];
+    cautions = kept.cautions ?? [];
+    design = kept.design ?? { edges: [] };
+    lastAskId = kept.lastAskId;
+    revisions = new Map(kept.revisions ?? []);
+    looks = kept.looks ?? 0;
+    nudged = kept.nudged ?? false;
+  }
 
   // One call: the stretch is put to the model and its note is posted as it
   // is written. Returns once the model has finished or said nothing.
@@ -394,7 +502,10 @@ export function createCoach(ports: CoachPorts, options: CoachOptions = {}) {
       if (shape !== posted) {
         revision += 1;
         revisions.set(noteKey, revision);
-        await ports.notes.post({ ...note, revision }, signal, space);
+        await ports.notes.post({ ...note, revision }, signal, space, epoch);
+        // Kept at once: a coach that takes over mid-note must go on from
+        // this revision, or its note would be refused as an older one.
+        keep();
         posted = shape;
         postedAtMs = now();
         tell({
@@ -453,31 +564,43 @@ export function createCoach(ports: CoachPorts, options: CoachOptions = {}) {
       }
     };
 
+    const prompt = coachPromptParts({
+      lines: lines.filter((line) => line.seq <= until.seq),
+      readTo,
+      notes: given,
+      facts,
+      reason,
+      ...(callPlan ? { plan: callPlan } : {}),
+      log,
+      mode,
+      ...(designing ? { design } : {}),
+      ...(screen ? { screen: screen.text } : {}),
+    });
+    // One session per conversation, begun again every so often so that it
+    // does not grow without bound: the background then says where things are.
+    calls += 1;
     const stream = ports.engine.stream(
       {
         profileId: ports.profileId,
         messages: [
           { role: "system", parts: [{ type: "text", text: COACH_SYSTEM }] },
-          {
-            role: "user",
-            parts: [
-              {
-                type: "text",
-                text: coachPrompt({
-                  lines: lines.filter((line) => line.seq <= until.seq),
-                  readTo,
-                  notes: given,
-                  facts,
-                  reason,
-                  ...(callPlan ? { plan: callPlan } : {}),
-                  log,
-                  mode,
-                  ...(designing ? { design } : {}),
-                  ...(screen ? { screen: screen.text } : {}),
-                }),
-              },
-            ],
-          },
+          ...(retain
+            ? [
+                {
+                  role: "user" as const,
+                  parts: [{ type: "text" as const, text: prompt.background }],
+                },
+                {
+                  role: "user" as const,
+                  parts: [{ type: "text" as const, text: prompt.turn }],
+                },
+              ]
+            : [
+                {
+                  role: "user" as const,
+                  parts: [{ type: "text" as const, text: prompt.whole }],
+                },
+              ]),
         ],
       },
       {
@@ -492,6 +615,13 @@ export function createCoach(ports: CoachPorts, options: CoachOptions = {}) {
         // [SAFETY] Only lines of a session that may be processed off the
         // device, or a transcript a person attached, ever reach the coach.
         policy: "permitted-remote",
+        ...(retain
+          ? {
+              conversation: {
+                id: `coach:${epoch}:${Math.floor((calls - 1) / ROTATE_AFTER)}`,
+              },
+            }
+          : {}),
         idempotencyKey: `coach:${epoch}:${until.seq}:${failures}`,
         for: { kind: "coach", id: epoch },
         traceId: createHash("sha256")
@@ -574,10 +704,19 @@ export function createCoach(ports: CoachPorts, options: CoachOptions = {}) {
       if (read.epoch !== epoch) {
         const again = cursor > 0;
         forget(read.epoch);
+        await restore(read.cursor);
         if (again) return true;
       }
       session = read.session;
       space = read.space ?? "live";
+      // An unnamed voice is treated as the interviewer's: the coach would
+      // sooner wait for it than talk over a question.
+      speaking = read.speaking
+        ? {
+            interviewer: read.speaking.some((who) => who !== "candidate"),
+            candidate: read.speaking.includes("candidate"),
+          }
+        : undefined;
       // A screen that reads differently is a screen not yet looked at.
       if (read.screen && read.screen.text !== screen?.text)
         screen = { text: read.screen.text, seen: false };
@@ -610,6 +749,7 @@ export function createCoach(ports: CoachPorts, options: CoachOptions = {}) {
         }
         failures = 0;
         readTo = Math.max(readTo, ended.until);
+        keep();
         return true;
       }
 
@@ -677,6 +817,7 @@ export function createCoach(ports: CoachPorts, options: CoachOptions = {}) {
       if (fresh.length === 0) return false;
       const decision = decide({
         fresh,
+        ...(speaking ? { speaking } : {}),
         silenceMs: now() - lastArrivalMs,
         sinceActMs: now() - lastActMs,
         ...(timing ? { timing } : {}),

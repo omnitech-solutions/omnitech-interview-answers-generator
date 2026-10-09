@@ -1,0 +1,246 @@
+{
+  "about": "A ten-minute panel round, exaggerated on purpose: five interviewers and one candidate. It opens with the recorded screening stretch (real speech, 107 seconds) and goes on as a scripted panel that packs in what makes turn-taking hard: back-channel noises, a handover, side talk, a question with a long pause in it, an interruption, pushback, two people starting at once, a question in three parts, a rambling answer, a question taken back and asked again, a question that is an instruction with no question mark, rapid short questions, a question answered with a question, logistics, salary and the close.",
+  "startsAt": "10:41:36",
+  "opening": {
+    "file": "../screening-services/transcript.txt",
+    "relabel": { "Speaker 1": "Priya", "Speaker 2": "Candidate" }
+  },
+  "pace": 2.5,
+  "people": {
+    "Priya": { "part": "interviewer", "who": "hiring manager, runs the panel" },
+    "Marcus": { "part": "interviewer", "who": "staff engineer" },
+    "Tom": {
+      "part": "interviewer",
+      "who": "engineering director, interrupts and pushes back"
+    },
+    "Elena": { "part": "interviewer", "who": "product manager" },
+    "Aisha": { "part": "interviewer", "who": "people team" },
+    "Candidate": { "part": "me", "who": "the person being coached" }
+  },
+  "lines": [
+    {
+      "who": "Candidate",
+      "after": 1800,
+      "say": "So I start from who owns the data, not from the code. If two features write the same tables under different rules, that is one boundary, and splitting them only gives you a distributed monolith."
+    },
+    { "who": "Marcus", "after": -2600, "say": "Mm-hm." },
+    {
+      "who": "Candidate",
+      "after": 500,
+      "say": "In the migration I led, we kept policies and billing in one service for exactly that reason, and we put contracts in front of them so each side could change behind its own interface."
+    },
+    { "who": "Tom", "after": -1500, "say": "Right." },
+
+    {
+      "who": "Priya",
+      "after": 1400,
+      "say": "Great, thank you. I'm going to hand over to Marcus now, he is one of our staff engineers."
+    },
+    {
+      "who": "Marcus",
+      "after": 900,
+      "say": "Thanks, Priya. Can everyone hear me okay?"
+    },
+    { "who": "Elena", "after": 700, "say": "You're a little quiet, Marcus." },
+    { "who": "Marcus", "after": 2200, "say": "Okay, is that better?" },
+    { "who": "Elena", "after": 500, "say": "Yes, much better." },
+
+    {
+      "who": "Marcus",
+      "after": 1200,
+      "say": "So, we have a quoting service that calls four insurance carriers, and each of them answers at a different speed, right? [2.8s] And some of them time out. So given that, how would you keep a quote request from waiting on the slowest carrier?"
+    },
+    {
+      "who": "Candidate",
+      "after": 2000,
+      "say": "I would fan out to the carriers in parallel with a deadline for each one, return the quotes that made it, and mark the rest as pending. A circuit breaker per carrier stops us waiting on one that is down, and the late answers arrive on a stream the page listens to, so the customer sees them fill in—"
+    },
+
+    {
+      "who": "Tom",
+      "after": -700,
+      "say": "Sorry, let me jump in there. Why not just put a queue in front of all of it?"
+    },
+    {
+      "who": "Candidate",
+      "after": 1700,
+      "say": "A queue helps with the retries, but the customer is waiting on a page, so I still need an answer in a couple of seconds. I would use the queue behind the deadline, for the carriers that missed it, not in front of the request."
+    },
+    {
+      "who": "Tom",
+      "after": 900,
+      "say": "Hmm. I don't buy that. What happens when the queue itself backs up?"
+    },
+    {
+      "who": "Candidate",
+      "after": 1500,
+      "say": "Then I shed load on purpose. I cap the queue, drop the oldest quote refreshes first, and alert on the depth, because a stale quote is worth nothing to the customer."
+    },
+    { "who": "Tom", "after": 800, "say": "Okay. Fair enough." },
+
+    {
+      "who": "Elena",
+      "after": 1300,
+      "say": "Can I ask about, um, how you work with product when—"
+    },
+    {
+      "who": "Marcus",
+      "after": -1900,
+      "say": "And what about idempotency, if a—"
+    },
+    { "who": "Marcus", "after": 600, "say": "Sorry, go ahead, Elena." },
+    {
+      "who": "Elena",
+      "after": 400,
+      "say": "No, no, you go, mine is a longer one."
+    },
+    {
+      "who": "Marcus",
+      "after": 700,
+      "say": "Okay. If a broker double-clicks submit and we get the same payment request twice, how do you make sure they are only charged once?"
+    },
+    {
+      "who": "Candidate",
+      "after": 1600,
+      "say": "An idempotency key from the client, stored with the result in the same transaction as the ledger entry. The second request finds the key and gets the first answer back. I built that as a ledger keyed by correlation id, so a retry could never post twice."
+    },
+    { "who": "Marcus", "after": 700, "say": "Nice." },
+
+    {
+      "who": "Elena",
+      "after": 1100,
+      "say": "Thanks. So mine is in a few parts. Tell me about a time product pushed for a date you thought was unrealistic. What did you do, and what would you do differently now?"
+    },
+    {
+      "who": "Candidate",
+      "after": 2400,
+      "pace": 2.9,
+      "say": "Yeah, so, um, there was this one release where, you know, product wanted the new billing flow before the end of the quarter, and, uh, I looked at it and we had, like, three integrations that were not even specified yet, and I remember thinking this is not going to happen, and so I went back and forth with them for a while, and we had a few meetings, and, um, the team was getting pretty frustrated at that point, and I was trying to keep everybody calm, and anyway eventually we, uh, we cut the scope down to one integration and shipped that on the date. What I would do differently is bring the options with their costs on day one, instead of arguing about the date for two weeks."
+    },
+    { "who": "Elena", "after": 900, "say": "Okay, that's helpful, thank you." },
+
+    {
+      "who": "Tom",
+      "after": 1200,
+      "say": "Okay. How many people did you— actually, scratch that. What I really want to know is, when did you last change your mind because of someone more junior than you?"
+    },
+    {
+      "who": "Candidate",
+      "after": 2200,
+      "say": "Last month. A junior developer showed me that my caching layer hid a consistency bug, with a failing test to prove it. I dropped the cache, and I thanked him in the review, in front of the team."
+    },
+
+    {
+      "who": "Elena",
+      "after": 1100,
+      "say": "One more from me. Imagine it is Friday afternoon, a carrier changes their API without telling us, and quotes start failing for a third of our brokers. Walk me through your first thirty minutes."
+    },
+    {
+      "who": "Candidate",
+      "after": 2100,
+      "say": "First I stop the bleeding. I switch that carrier off behind its flag, so brokers still get quotes from the other three. Then I tell support and the brokers what they will see, check that the error rate has dropped, and only then read the carrier's change and write the fix with a contract test, so the next change fails in our pipeline and not in production."
+    },
+
+    {
+      "who": "Marcus",
+      "after": 1000,
+      "say": "Quick ones from me now. Have you used NestJS in production?"
+    },
+    { "who": "Candidate", "after": 500, "say": "Yes, for two years." },
+    { "who": "Marcus", "after": 400, "say": "Kafka?" },
+    { "who": "Candidate", "after": 500, "say": "Yes, and SQS more recently." },
+    {
+      "who": "Marcus",
+      "after": 500,
+      "say": "And have you ever run a zero downtime Postgres migration?"
+    },
+    {
+      "who": "Candidate",
+      "after": 700,
+      "say": "Yes. Expand and contract, with a backfill in between."
+    },
+    { "who": "Marcus", "after": 600, "say": "Great. That's all from me." },
+
+    {
+      "who": "Priya",
+      "after": 1300,
+      "say": "Last technical one, from me. How would you design rate limiting for our public quote API?"
+    },
+    {
+      "who": "Candidate",
+      "after": 1800,
+      "say": "Can I ask, is the limit per broker or per end customer?"
+    },
+    {
+      "who": "Priya",
+      "after": 900,
+      "say": "Per broker. Each broker has an API key, and the big ones send about fifty requests a second."
+    },
+    {
+      "who": "Candidate",
+      "after": 1900,
+      "say": "Then a token bucket per API key, held in Redis so every instance agrees, with the limit and the burst in configuration per broker. I would return a 429 with a retry-after header, and watch the rejected count per key, so we see a broker hitting the limit before they call us."
+    },
+    { "who": "Priya", "after": 800, "say": "Good. Aisha, over to you." },
+
+    {
+      "who": "Aisha",
+      "after": 1100,
+      "say": "Thanks. I'm Aisha, from the people team, just two things from me. Are you legally able to work in Canada, and what notice period do you have?"
+    },
+    {
+      "who": "Candidate",
+      "after": 1100,
+      "say": "Yes, I am, and I can start two weeks after an offer."
+    },
+    {
+      "who": "Aisha",
+      "after": 800,
+      "say": "Perfect. And what are your salary expectations?"
+    },
+    {
+      "who": "Candidate",
+      "after": 2300,
+      "say": "I would like to understand the whole package first. Could you share the range for the role?"
+    },
+    {
+      "who": "Aisha",
+      "after": 1200,
+      "say": "Sure. I will send that over with the benefits summary after the call."
+    },
+
+    { "who": "Tom", "after": 900, "say": "Priya, are we at time?" },
+    { "who": "Priya", "after": 600, "say": "We have about two minutes." },
+    {
+      "who": "Priya",
+      "after": 1000,
+      "say": "Okay. So before we wrap up, what questions do you have for us?"
+    },
+    {
+      "who": "Candidate",
+      "after": 2000,
+      "say": "Two, if there is time. What does the team look like day to day, and what is the hardest problem with the rules tool today?"
+    },
+    {
+      "who": "Marcus",
+      "after": 1500,
+      "say": "I can take the second one. The rules are written by underwriters, and today every change needs an engineer to ship it. That is the thing we most want to fix this year."
+    },
+    {
+      "who": "Priya",
+      "after": 1000,
+      "say": "And the team is six engineers, a designer and Elena, with a planning call on Mondays and not many meetings after that."
+    },
+    {
+      "who": "Candidate",
+      "after": 1200,
+      "say": "That is very helpful, thank you."
+    },
+    {
+      "who": "Priya",
+      "after": 900,
+      "say": "Thank you so much for your time. We will be in touch by Monday."
+    },
+    { "who": "Candidate", "after": 700, "say": "Thank you all." }
+  ]
+}

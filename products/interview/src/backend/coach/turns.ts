@@ -51,6 +51,13 @@ export type ActReason =
   // What is on the shared screen changed (live coding): a look at the task.
   | "screen-change";
 
+// [DOMAIN] Text arrives when its speaker has finished a phrase, so the last
+// line heard says nothing about whether they are still talking: the next
+// phrase may be half said. Where a source can say who is speaking, that is
+// the stronger evidence, and the coach never acts on a turn whose speaker is
+// still going.
+export type Speaking = { interviewer: boolean; candidate: boolean };
+
 export type Decision =
   | { action: "wait"; why: string }
   | {
@@ -191,6 +198,9 @@ export function decide(input: {
   silenceMs: number;
   sinceActMs: number;
   timing?: Partial<TurnTiming>;
+  // Who is speaking right now, where that is known (a voice-activity signal,
+  // or a recording's timings). Absent: not known.
+  speaking?: Speaking;
 }): Decision {
   const timing = { ...TURN_TIMING, ...input.timing };
   const turns = turnsOf(input.fresh);
@@ -208,6 +218,10 @@ export function decide(input: {
       .some((turn) => turn.side === "candidate");
     // The candidate has started to answer: the question is over, whatever
     // its punctuation says. This is the certain signal, and the late one.
+    // The interviewer is still talking: whatever the text so far reads as,
+    // the turn is not over.
+    if (input.speaking?.interviewer)
+      return { action: "wait", why: "the interviewer is still speaking" };
     if (answered)
       return {
         action: "act",
@@ -216,10 +230,13 @@ export function decide(input: {
         about: "interviewer",
       };
     const reads = readsAs(theirs.text);
+    // A turn that trails off is waited on for long only when the coach
+    // cannot tell whether its speaker has stopped. Where it can, and they
+    // have, the ordinary pause is enough.
     const need =
       reads === "question"
         ? timing.finishedMs
-        : reads === "finished"
+        : reads === "finished" || input.speaking
           ? timing.pauseMs
           : timing.trailingMs;
     if (input.silenceMs >= need)
@@ -248,6 +265,9 @@ export function decide(input: {
     return { action: "wait", why: "the candidate has said little yet" };
   if (input.sinceActMs < timing.candidateEveryMs)
     return { action: "wait", why: "the coach looked at this answer recently" };
+  // The gap is read from the text alone: an answer is one long stretch of
+  // speech, and a look is wanted at a sentence's end inside it, which a
+  // phrase arriving marks and "still speaking" would hide.
   if (input.silenceMs < timing.candidateGapMs)
     return { action: "wait", why: "the candidate is mid-sentence" };
   return {

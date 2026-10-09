@@ -9,6 +9,7 @@ import {
   decide,
   isNoise,
   readsAs,
+  type Speaking,
   shouldRecall,
   TURN_TIMING,
   type TurnTiming,
@@ -557,6 +558,199 @@ describe("the decision", () => {
     });
   });
 
+  describe("who is speaking, where the feed can tell", () => {
+    const { finishedMs, pauseMs, trailingMs } = TURN_TIMING;
+    const STILL = {
+      action: "wait",
+      why: "the interviewer is still speaking",
+    };
+    const told = (
+      pairs: readonly Said[],
+      silenceMs: number,
+      speaking: Speaking | undefined,
+      more: { sinceActMs?: number; timing?: Partial<TurnTiming> } = {},
+    ) =>
+      decide({
+        fresh: heard(pairs),
+        silenceMs,
+        sinceActMs: more.sinceActMs ?? LONG_AGO,
+        ...(speaking ? { speaking } : {}),
+        ...(more.timing ? { timing: more.timing } : {}),
+      });
+    const INTERVIEWER: Speaking = { interviewer: true, candidate: false };
+    const CANDIDATE: Speaking = { interviewer: false, candidate: true };
+    const BOTH: Speaking = { interviewer: true, candidate: true };
+    const NOBODY: Speaking = { interviewer: false, candidate: false };
+    const STATEMENT = "We run the booking platform across nine regions.";
+    const TRAILING = "So the booking platform runs across nine regions and";
+
+    it.each<[string, Said[]]>([
+      ["a finished question", [["interviewer", QUESTION]]],
+      [
+        "a request ending in a full stop",
+        [["interviewer", "Tell me about a time you led a migration."]],
+      ],
+      ["finished talk that is not a question", [["interviewer", STATEMENT]]],
+      ["a turn that trails off", [["interviewer", TRAILING]]],
+      [
+        "a question asked in pieces",
+        [
+          ["interviewer", "How would you handle one region running hot,"],
+          ["interviewer", "and how would you roll that change back?"],
+        ],
+      ],
+      ["a question from a speaker nobody could name", [["unknown", QUESTION]]],
+    ])(
+      "while the interviewer is speaking %s is never acted on, however long since a line arrived",
+      (_name, said) => {
+        for (const silenceMs of [0, finishedMs, pauseMs, trailingMs, 600_000])
+          for (const speaking of [INTERVIEWER, BOTH])
+            expect(told(said, silenceMs, speaking)).toEqual(STILL);
+      },
+    );
+
+    it("while the interviewer is speaking a turn the candidate has begun to answer is not acted on either: no speaker change", () => {
+      const said: Said[] = [
+        ["interviewer", QUESTION],
+        ["candidate", "I would start with the region as the first key."],
+      ];
+      // Without the signal this is the certain one, and acted on at once.
+      expect(told(said, 0, undefined)).toEqual(acts("speaker-change", 1));
+      expect(told(said, 0, NOBODY)).toEqual(acts("speaker-change", 1));
+      for (const silenceMs of [0, trailingMs, 600_000]) {
+        expect(told(said, silenceMs, INTERVIEWER)).toEqual(STILL);
+        expect(told(said, silenceMs, BOTH)).toEqual(STILL);
+      }
+    });
+
+    it("while the interviewer is speaking a backlog is not begun: the first question waits with the rest", () => {
+      const said: Said[] = [
+        ["interviewer", QUESTION],
+        ["candidate", "I would start with the region as the first key."],
+        ["interviewer", "And how would you roll that change back?"],
+      ];
+      expect(told(said, 600_000, INTERVIEWER)).toEqual(STILL);
+      expect(told(said, 0, NOBODY)).toEqual(acts("speaker-change", 1));
+    });
+
+    it("says so by its own reason, never as a turn that may go on", () => {
+      const waited = told([["interviewer", QUESTION]], 600_000, INTERVIEWER);
+      expect(waited).toEqual(STILL);
+      expect(told([["interviewer", QUESTION]], 0, NOBODY)).toEqual({
+        action: "wait",
+        why: "the interviewer may go on",
+      });
+    });
+
+    it("once the interviewer has stopped, a finished question is acted on after finishedMs as before", () => {
+      const said: Said[] = [["interviewer", QUESTION]];
+      for (const speaking of [NOBODY, CANDIDATE]) {
+        expect(told(said, finishedMs - 1, speaking).action).toBe("wait");
+        expect(told(said, finishedMs, speaking)).toEqual(
+          acts("question-finished", 1),
+        );
+      }
+    });
+
+    it("once the interviewer has stopped, finished talk is acted on after pauseMs as before", () => {
+      const said: Said[] = [["interviewer", STATEMENT]];
+      expect(told(said, pauseMs - 1, NOBODY)).toEqual({
+        action: "wait",
+        why: "the interviewer may go on",
+      });
+      expect(told(said, pauseMs, NOBODY)).toEqual(acts("pause", 1));
+    });
+
+    it("a turn that trails off needs only pauseMs when activity is known and the interviewer is not speaking; trailingMs when it is not known", () => {
+      const said: Said[] = [["interviewer", TRAILING]];
+      expect(readsAs(TRAILING)).toBe("trailing");
+      // Not known: the long wait.
+      expect(told(said, pauseMs, undefined).action).toBe("wait");
+      expect(told(said, trailingMs - 1, undefined).action).toBe("wait");
+      expect(told(said, trailingMs, undefined)).toEqual(acts("pause", 1));
+      // Known, and they have stopped: the ordinary pause.
+      for (const speaking of [NOBODY, CANDIDATE]) {
+        expect(told(said, pauseMs - 1, speaking)).toEqual({
+          action: "wait",
+          why: "the interviewer has not finished the sentence",
+        });
+        expect(told(said, pauseMs, speaking)).toEqual(acts("pause", 1));
+      }
+    });
+
+    it("a trailing turn is never acted on sooner than pauseMs, and never as a finished question", () => {
+      const said: Said[] = [["interviewer", TRAILING]];
+      expect(told(said, finishedMs, NOBODY).action).toBe("wait");
+      expect(told(said, 600_000, NOBODY)).toEqual(acts("pause", 1));
+    });
+
+    it("takes the shorter wait from the caller's pauseMs, not from the caller's trailingMs", () => {
+      const said: Said[] = [["interviewer", TRAILING]];
+      const timing = { pauseMs: 400, trailingMs: 9_000 };
+      expect(told(said, 399, NOBODY, { timing }).action).toBe("wait");
+      expect(told(said, 400, NOBODY, { timing })).toEqual(acts("pause", 1));
+      expect(told(said, 8_999, undefined, { timing }).action).toBe("wait");
+      expect(told(said, 9_000, undefined, { timing })).toEqual(
+        acts("pause", 1),
+      );
+    });
+
+    it("the candidate speaking does not hold an interviewer's turn back", () => {
+      // Their first phrase has not arrived as text yet: the question is over.
+      expect(told([["interviewer", QUESTION]], finishedMs, CANDIDATE)).toEqual(
+        acts("question-finished", 1),
+      );
+    });
+
+    describe("the look at the candidate's answer", () => {
+      const { candidateWords, candidateEveryMs, candidateGapMs } = TURN_TIMING;
+      const answer = (words: number): Said[] => [
+        ["candidate", points(Math.floor(words / 2), "first")],
+        ["candidate", points(words - Math.floor(words / 2), "second")],
+      ];
+
+      it.each<[string, Speaking | undefined]>([
+        ["the candidate is speaking", CANDIDATE],
+        ["nobody is speaking", NOBODY],
+        ["it is not known who is speaking", undefined],
+      ])(
+        "is decided from the text alone, the same when %s",
+        (_name, speaking) => {
+          expect(told(answer(candidateWords - 1), 60_000, speaking)).toEqual({
+            action: "wait",
+            why: "the candidate has said little yet",
+          });
+          expect(
+            told(answer(candidateWords), 60_000, speaking, {
+              sinceActMs: candidateEveryMs - 1,
+            }),
+          ).toEqual({
+            action: "wait",
+            why: "the coach looked at this answer recently",
+          });
+          expect(
+            told(answer(candidateWords), candidateGapMs - 1, speaking, {
+              sinceActMs: candidateEveryMs,
+            }),
+          ).toEqual({ action: "wait", why: "the candidate is mid-sentence" });
+          expect(
+            told(answer(candidateWords), candidateGapMs, speaking, {
+              sinceActMs: candidateEveryMs,
+            }),
+          ).toEqual(acts("answer-check", 2, "candidate"));
+        },
+      );
+
+      it("is never told that the candidate is still speaking: a gap in the text is the moment", () => {
+        const waited = told(answer(candidateWords), 0, CANDIDATE);
+        expect(waited).toEqual({
+          action: "wait",
+          why: "the candidate is mid-sentence",
+        });
+      });
+    });
+  });
+
   describe("timing given by the caller", () => {
     it.each<[keyof TurnTiming, Said[], number, number]>([
       ["finishedMs", [["interviewer", QUESTION]], 200, LONG_AGO],
@@ -702,9 +896,14 @@ type Acted = { atMs: number; reason: ActReason; from: number; until: number };
 // instantly, so every act is collected before the next look).
 function replay(
   spoken: readonly Spoken[],
-  options: { stepMs?: number; tailMs?: number } = {},
+  options: {
+    stepMs?: number;
+    tailMs?: number;
+    // Who is speaking at a moment, where the conversation's feed can tell.
+    speakingAt?: (nowMs: number) => Speaking;
+  } = {},
 ): Acted[] {
-  const { stepMs = 100, tailMs = 12_000 } = options;
+  const { stepMs = 100, tailMs = 12_000, speakingAt } = options;
   const lines = spoken.map(([atMs, speaker, text], at) => ({
     atMs,
     line: { seq: at + 1, speaker, text, at: AT },
@@ -723,6 +922,7 @@ function replay(
       fresh,
       silenceMs: now - (held.at(-1)?.atMs ?? 0),
       sinceActMs: now - lastActMs,
+      ...(speakingAt ? { speaking: speakingAt(now) } : {}),
     });
     if (decision.action === "wait") continue;
     acted.push({
@@ -946,5 +1146,177 @@ describe("the brief's conversations", () => {
     ]);
     // The candidate's own short questions never bring a look at "the answer".
     expect(acted.some((each) => each.reason === "answer-check")).toBe(false);
+  });
+});
+
+// A phrase arrives as text when it ends; it was being said from `fromMs`.
+type Phrase = readonly [
+  fromMs: number,
+  toMs: number,
+  speaker: Speaker,
+  text: string,
+];
+const spokenOf = (phrases: readonly Phrase[]): Spoken[] =>
+  phrases.map(([, toMs, speaker, text]) => [toMs, speaker, text]);
+// Who is speaking, from when each phrase began and ended: what a
+// voice-activity signal says, and a recording's timings stand in for.
+const activityOf =
+  (phrases: readonly Phrase[]) =>
+  (nowMs: number): Speaking => {
+    const speaking = phrases.filter(
+      ([fromMs, toMs]) => fromMs < nowMs && nowMs < toMs,
+    );
+    return {
+      interviewer: speaking.some(([, , speaker]) => speaker !== "candidate"),
+      candidate: speaking.some(([, , speaker]) => speaker === "candidate"),
+    };
+  };
+
+describe("conversations where the feed says who is speaking", () => {
+  const { finishedMs, pauseMs, trailingMs } = TURN_TIMING;
+
+  it("a long second phrase that arrives late: with activity the half-said question is never acted on, without it it is", () => {
+    // The first phrase reads as finished talk; the second takes eight seconds
+    // to say, and nothing of it is heard as text until it ends.
+    const phrases: Phrase[] = [
+      [
+        0,
+        3_000,
+        "interviewer",
+        "We run the booking platform across nine regions.",
+      ],
+      [
+        3_400,
+        11_400,
+        "interviewer",
+        "Given that, how would you move the busiest region to a new shard key without taking bookings offline?",
+      ],
+    ];
+    expect(replay(spokenOf(phrases))).toEqual([
+      // Acted on half the turn, mid-phrase.
+      { atMs: 3_000 + pauseMs, reason: "pause", from: 1, until: 1 },
+      {
+        atMs: 11_400 + finishedMs,
+        reason: "question-finished",
+        from: 2,
+        until: 2,
+      },
+    ]);
+    expect(
+      replay(spokenOf(phrases), { speakingAt: activityOf(phrases) }),
+    ).toEqual([
+      {
+        atMs: 11_400 + finishedMs,
+        reason: "question-finished",
+        from: 1,
+        until: 2,
+      },
+    ]);
+  });
+
+  it("a question that reads as finished while the asker is already adding to it is acted on once, whole", () => {
+    const phrases: Phrase[] = [
+      [0, 2_000, "interviewer", "How would you shard the booking table?"],
+      // Begun before finishedMs has passed, heard five seconds later.
+      [
+        2_500,
+        7_500,
+        "interviewer",
+        "And tell me what you would do when one tenant outgrows its shard.",
+      ],
+    ];
+    expect(replay(spokenOf(phrases)).map((act) => act.until)).toEqual([1, 2]);
+    expect(
+      replay(spokenOf(phrases), { speakingAt: activityOf(phrases) }),
+    ).toEqual([
+      {
+        atMs: 7_500 + finishedMs,
+        reason: "question-finished",
+        from: 1,
+        until: 2,
+      },
+    ]);
+  });
+
+  it("the candidate starting to answer while the interviewer is still talking over them is not the end of the turn", () => {
+    const phrases: Phrase[] = [
+      [0, 2_000, "interviewer", "How would you shard the booking table,"],
+      [2_200, 3_000, "candidate", "I would start with the region."],
+      [
+        2_100,
+        6_000,
+        "interviewer",
+        "given that nearly all of the traffic stays inside one region?",
+      ],
+    ];
+    const acted = replay(spokenOf(phrases), {
+      speakingAt: activityOf(phrases),
+    });
+    // Not at 3,000, when the candidate's line is heard: the interviewer is
+    // mid-phrase. At 6,000 their phrase lands and the answer has begun.
+    expect(acted[0]).toEqual({
+      atMs: 6_000,
+      reason: "speaker-change",
+      from: 1,
+      until: 1,
+    });
+    expect(replay(spokenOf(phrases))[0]).toMatchObject({
+      atMs: 3_000,
+      reason: "speaker-change",
+    });
+  });
+
+  it("a turn that trails off is acted on after the ordinary pause once the asker is known to have stopped", () => {
+    const phrases: Phrase[] = [
+      [
+        0,
+        3_000,
+        "interviewer",
+        "So what I would like to understand is how you would",
+      ],
+    ];
+    expect(replay(spokenOf(phrases))).toEqual([
+      { atMs: 3_000 + trailingMs, reason: "pause", from: 1, until: 1 },
+    ]);
+    expect(
+      replay(spokenOf(phrases), { speakingAt: activityOf(phrases) }),
+    ).toEqual([{ atMs: 3_000 + pauseMs, reason: "pause", from: 1, until: 1 }]);
+  });
+
+  it("a signal that says the interviewer never stops holds the coach back for as long as it says so", () => {
+    // The decision trusts the signal; that a lost one lapses is the
+    // transcript's guard (coach-transcript.ts), not this function's.
+    const spoken: Spoken[] = [[0, "interviewer", QUESTION]];
+    expect(
+      replay(spoken, {
+        tailMs: 120_000,
+        speakingAt: () => ({ interviewer: true, candidate: false }),
+      }),
+    ).toEqual([]);
+    expect(
+      replay(spoken, {
+        speakingAt: (nowMs) => ({
+          interviewer: nowMs < 5_000,
+          candidate: false,
+        }),
+      }),
+    ).toEqual([
+      { atMs: 5_000, reason: "question-finished", from: 1, until: 1 },
+    ]);
+  });
+
+  it("a long answer is looked at as before: the candidate speaking throughout does not hide its gaps", () => {
+    const phrases: Phrase[] = [
+      [0, 2_000, "interviewer", QUESTION],
+      [3_000, 12_000, "candidate", points(30, "first")],
+      [12_200, 24_000, "candidate", points(30, "second")],
+      [24_100, 30_000, "candidate", points(10, "third")],
+    ];
+    const without = replay(spokenOf(phrases));
+    const withActivity = replay(spokenOf(phrases), {
+      speakingAt: activityOf(phrases),
+    });
+    expect(withActivity).toEqual(without);
+    expect(withActivity.map((act) => act.reason)).toContain("answer-check");
   });
 });

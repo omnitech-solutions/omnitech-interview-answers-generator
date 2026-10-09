@@ -1,0 +1,809 @@
+10:39:53 --> 10:39:53
+Unknown: Um,
+
+10:39:53 --> 10:39:54
+Unknown: okay,
+
+10:39:54 --> 10:39:58
+Priya: so the first question I have is about microservices and our,
+
+10:39:58 --> 10:39:59
+Priya: um,
+
+10:39:59 --> 10:39:59
+Priya: monoliths,
+
+10:39:59 --> 10:39:59
+Priya: so,
+
+10:39:59 --> 10:40:00
+Priya: um…
+
+10:40:00 --> 10:40:08
+Priya: what are… how do you decide when a feature that's being discussed should be a microservice or stay in the existing,
+
+10:40:08 --> 10:40:08
+Priya: uh,
+
+10:40:08 --> 10:40:09
+Candidate: monolith?
+
+10:40:09 --> 10:40:09
+Candidate: Um,
+
+10:40:09 --> 10:40:11
+Candidate: so for… for me,
+
+10:40:11 --> 10:40:12
+Candidate: they kind of…
+
+10:40:12 --> 10:40:14
+Candidate: Biggest kind of question is,
+
+10:40:14 --> 10:40:16
+Candidate: can you,
+
+10:40:16 --> 10:40:16
+Candidate: um…
+
+10:40:17 --> 10:40:18
+Candidate: is it intuitive,
+
+10:40:18 --> 10:40:19
+Candidate: I guess,
+
+10:40:19 --> 10:40:20
+Candidate: for it to,
+
+10:40:20 --> 10:40:21
+Candidate: kind of,
+
+10:40:21 --> 10:40:22
+Candidate: for example,
+
+10:40:22 --> 10:40:23
+Candidate: if it's,
+
+10:40:23 --> 10:40:23
+Candidate: um,
+
+10:40:23 --> 10:40:23
+Candidate: something,
+
+10:40:23 --> 10:40:24
+Candidate: like,
+
+10:40:24 --> 10:40:25
+Candidate: that's more holistic?
+
+10:40:25 --> 10:40:26
+Candidate: Like,
+
+10:40:26 --> 10:40:26
+Candidate: let's say,
+
+10:40:26 --> 10:40:27
+Candidate: um…
+
+10:40:27 --> 10:40:27
+Candidate: Um,
+
+10:40:27 --> 10:40:29
+Candidate: listening users,
+
+10:40:29 --> 10:40:33
+Candidate: something that can be used across multiple services,
+
+10:40:33 --> 10:40:34
+Candidate: then…
+
+10:40:34 --> 10:40:35
+Candidate: then…
+
+10:40:35 --> 10:40:38
+Candidate: I think microservices is definitely an option.
+
+10:40:38 --> 10:40:38
+Candidate: Um,
+
+10:40:38 --> 10:40:39
+Candidate: however,
+
+10:40:39 --> 10:40:44
+Candidate: a lot of times I find that we can kind of… almost kind of…
+
+10:40:44 --> 10:40:47
+Candidate: over-engineer from the… from the get-go.
+
+10:40:47 --> 10:40:47
+Candidate: So,
+
+10:40:47 --> 10:40:48
+Candidate: in general,
+
+10:40:48 --> 10:40:51
+Candidate: the approach that I would take is to,
+
+10:40:51 --> 10:40:52
+Candidate: kind of,
+
+10:40:52 --> 10:40:53
+Candidate: um,
+
+10:40:53 --> 10:40:54
+Candidate: just use the,
+
+10:40:54 --> 10:40:55
+Candidate: kind of,
+
+10:40:55 --> 10:40:55
+Candidate: let's say,
+
+10:40:55 --> 10:40:56
+Candidate: the…
+
+10:40:56 --> 10:40:57
+Candidate: the,
+
+10:40:57 --> 10:40:58
+Candidate: the.
+
+10:40:58 --> 10:41:00
+Candidate: Unless it's very obvious,
+
+10:41:00 --> 10:41:02
+Candidate: you say kind of they.
+
+10:41:02 --> 10:41:05
+Candidate: use business use cases.
+
+10:41:05 --> 10:41:06
+Candidate: kind of in,
+
+10:41:06 --> 10:41:07
+Candidate: let's say,
+
+10:41:07 --> 10:41:08
+Candidate: within the monolith,
+
+10:41:08 --> 10:41:10
+Candidate: and then kind of drive them out.
+
+10:41:10 --> 10:41:14
+Candidate: And then what I try to do is kind of,
+
+10:41:14 --> 10:41:14
+Candidate: again,
+
+10:41:14 --> 10:41:15
+Candidate: like,
+
+10:41:15 --> 10:41:15
+Candidate: almost organically,
+
+10:41:15 --> 10:41:18
+Candidate: kind of isolate the different areas,
+
+10:41:18 --> 10:41:18
+Candidate: um,
+
+10:41:18 --> 10:41:21
+Candidate: so that it's much easier to kind of,
+
+10:41:21 --> 10:41:21
+Candidate: um,
+
+10:41:21 --> 10:41:22
+Candidate: decompose later.
+
+10:41:22 --> 10:41:23
+Candidate: So yeah,
+
+10:41:23 --> 10:41:26
+Candidate: it kind of really depends.
+
+10:41:26 --> 10:41:26
+Unknown: OK.
+
+10:41:26 --> 10:41:30
+Priya: I want to hear a little bit more.
+
+10:41:30 --> 10:41:34
+Priya: So what about business boundary or data ownership point of views?
+
+10:41:34 --> 10:41:36
+Priya: How do you take data?
+
+10:41:37.800 --> 10:41:41.000
+Candidate: So I start from who owns the data,
+
+10:41:41.080 --> 10:41:42.680
+Candidate: not from the code.
+
+10:41:42.760 --> 10:41:46.760
+Candidate: If two features write the same tables under different rules,
+
+10:41:46.840 --> 10:41:48.440
+Candidate: that is one boundary,
+
+10:41:49.520 --> 10:41:49.920
+Marcus: Mm-hm.
+
+10:41:48.520 --> 10:41:52.120
+Candidate: and splitting them only gives you a distributed monolith.
+
+10:41:52.620 --> 10:41:54.620
+Candidate: In the migration I led,
+
+10:41:54.700 --> 10:41:59.500
+Candidate: we kept policies and billing in one service for exactly that reason,
+
+10:42:04.880 --> 10:42:05.280
+Tom: Right.
+
+10:41:59.580 --> 10:42:06.380
+Candidate: and we put contracts in front of them so each side could change behind its own interface.
+
+10:42:07.780 --> 10:42:08.180
+Priya: Great,
+
+10:42:08.260 --> 10:42:09.060
+Priya: thank you.
+
+10:42:09.140 --> 10:42:12.340
+Priya: I'm going to hand over to Marcus now,
+
+10:42:12.420 --> 10:42:15.220
+Priya: he is one of our staff engineers.
+
+10:42:16.120 --> 10:42:16.520
+Marcus: Thanks,
+
+10:42:16.600 --> 10:42:17.000
+Marcus: Priya.
+
+10:42:17.080 --> 10:42:19.080
+Marcus: Can everyone hear me okay?
+
+10:42:19.780 --> 10:42:21.380
+Elena: You're a little quiet,
+
+10:42:21.460 --> 10:42:21.860
+Elena: Marcus.
+
+10:42:24.060 --> 10:42:24.460
+Marcus: Okay,
+
+10:42:24.540 --> 10:42:25.740
+Marcus: is that better?
+
+10:42:26.240 --> 10:42:26.640
+Elena: Yes,
+
+10:42:26.720 --> 10:42:27.520
+Elena: much better.
+
+10:42:28.720 --> 10:42:29.120
+Marcus: So,
+
+10:42:29.200 --> 10:42:33.200
+Marcus: we have a quoting service that calls four insurance carriers,
+
+10:42:33.280 --> 10:42:36.880
+Marcus: and each of them answers at a different speed,
+
+10:42:36.960 --> 10:42:37.360
+Marcus: right?
+
+10:42:40.240 --> 10:42:42.640
+Marcus: And some of them time out.
+
+10:42:42.720 --> 10:42:43.920
+Marcus: So given that,
+
+10:42:44.000 --> 10:42:49.200
+Marcus: how would you keep a quote request from waiting on the slowest carrier?
+
+10:42:51.200 --> 10:42:57.200
+Candidate: I would fan out to the carriers in parallel with a deadline for each one,
+
+10:42:57.280 --> 10:42:59.680
+Candidate: return the quotes that made it,
+
+10:42:59.760 --> 10:43:02.160
+Candidate: and mark the rest as pending.
+
+10:43:02.240 --> 10:43:07.440
+Candidate: A circuit breaker per carrier stops us waiting on one that is down,
+
+10:43:07.520 --> 10:43:12.320
+Candidate: and the late answers arrive on a stream the page listens to,
+
+10:43:14.500 --> 10:43:14.900
+Tom: Sorry,
+
+10:43:12.400 --> 10:43:15.200
+Candidate: so the customer sees them fill in—
+
+10:43:14.980 --> 10:43:16.980
+Tom: let me jump in there.
+
+10:43:17.060 --> 10:43:21.860
+Tom: Why not just put a queue in front of all of it?
+
+10:43:23.560 --> 10:43:25.960
+Candidate: A queue helps with the retries,
+
+10:43:26.040 --> 10:43:29.240
+Candidate: but the customer is waiting on a page,
+
+10:43:29.320 --> 10:43:33.720
+Candidate: so I still need an answer in a couple of seconds.
+
+10:43:33.800 --> 10:43:37.000
+Candidate: I would use the queue behind the deadline,
+
+10:43:37.080 --> 10:43:39.480
+Candidate: for the carriers that missed it,
+
+10:43:39.560 --> 10:43:41.960
+Candidate: not in front of the request.
+
+10:43:42.860 --> 10:43:43.260
+Tom: Hmm.
+
+10:43:43.340 --> 10:43:44.940
+Tom: I don't buy that.
+
+10:43:45.020 --> 10:43:48.220
+Tom: What happens when the queue itself backs up?
+
+10:43:49.720 --> 10:43:52.120
+Candidate: Then I shed load on purpose.
+
+10:43:52.200 --> 10:43:53.800
+Candidate: I cap the queue,
+
+10:43:53.880 --> 10:43:56.280
+Candidate: drop the oldest quote refreshes first,
+
+10:43:56.360 --> 10:43:58.360
+Candidate: and alert on the depth,
+
+10:43:58.440 --> 10:44:02.440
+Candidate: because a stale quote is worth nothing to the customer.
+
+10:44:03.240 --> 10:44:03.640
+Tom: Okay.
+
+10:44:03.720 --> 10:44:04.520
+Tom: Fair enough.
+
+10:44:05.820 --> 10:44:07.420
+Elena: Can I ask about,
+
+10:44:07.500 --> 10:44:07.900
+Elena: um,
+
+10:44:08.480 --> 10:44:10.080
+Marcus: And what about idempotency,
+
+10:44:07.980 --> 10:44:10.380
+Elena: how you work with product when—
+
+10:44:10.160 --> 10:44:10.960
+Marcus: if a—
+
+10:44:11.560 --> 10:44:11.960
+Marcus: Sorry,
+
+10:44:12.040 --> 10:44:12.840
+Marcus: go ahead,
+
+10:44:12.920 --> 10:44:13.320
+Marcus: Elena.
+
+10:44:13.720 --> 10:44:14.120
+Elena: No,
+
+10:44:14.200 --> 10:44:14.600
+Elena: no,
+
+10:44:14.680 --> 10:44:15.480
+Elena: you go,
+
+10:44:15.560 --> 10:44:17.560
+Elena: mine is a longer one.
+
+10:44:18.260 --> 10:44:18.660
+Marcus: Okay.
+
+10:44:18.740 --> 10:44:23.940
+Marcus: If a broker double-clicks submit and we get the same payment request twice,
+
+10:44:24.020 --> 10:44:28.020
+Marcus: how do you make sure they are only charged once?
+
+10:44:29.620 --> 10:44:32.020
+Candidate: An idempotency key from the client,
+
+10:44:32.100 --> 10:44:36.900
+Candidate: stored with the result in the same transaction as the ledger entry.
+
+10:44:36.980 --> 10:44:41.780
+Candidate: The second request finds the key and gets the first answer back.
+
+10:44:41.860 --> 10:44:45.860
+Candidate: I built that as a ledger keyed by correlation id,
+
+10:44:45.940 --> 10:44:48.740
+Candidate: so a retry could never post twice.
+
+10:44:49.440 --> 10:44:49.840
+Marcus: Nice.
+
+10:44:50.940 --> 10:44:51.340
+Elena: Thanks.
+
+10:44:51.420 --> 10:44:54.220
+Elena: So mine is in a few parts.
+
+10:44:54.300 --> 10:44:59.900
+Elena: Tell me about a time product pushed for a date you thought was unrealistic.
+
+10:44:59.980 --> 10:45:01.580
+Elena: What did you do,
+
+10:45:01.660 --> 10:45:04.460
+Elena: and what would you do differently now?
+
+10:45:06.860 --> 10:45:07.205
+Candidate: Yeah,
+
+10:45:07.285 --> 10:45:07.630
+Candidate: so,
+
+10:45:07.710 --> 10:45:08.055
+Candidate: um,
+
+10:45:08.135 --> 10:45:10.204
+Candidate: there was this one release where,
+
+10:45:10.284 --> 10:45:10.974
+Candidate: you know,
+
+10:45:11.054 --> 10:45:15.192
+Candidate: product wanted the new billing flow before the end of the quarter,
+
+10:45:15.272 --> 10:45:15.617
+Candidate: and,
+
+10:45:15.697 --> 10:45:16.042
+Candidate: uh,
+
+10:45:16.122 --> 10:45:18.536
+Candidate: I looked at it and we had,
+
+10:45:18.616 --> 10:45:18.961
+Candidate: like,
+
+10:45:19.041 --> 10:45:21.800
+Candidate: three integrations that were not even specified yet,
+
+10:45:21.880 --> 10:45:25.328
+Candidate: and I remember thinking this is not going to happen,
+
+10:45:25.408 --> 10:45:29.546
+Candidate: and so I went back and forth with them for a while,
+
+10:45:29.626 --> 10:45:31.695
+Candidate: and we had a few meetings,
+
+10:45:31.775 --> 10:45:32.120
+Candidate: and,
+
+10:45:32.200 --> 10:45:32.545
+Candidate: um,
+
+10:45:32.625 --> 10:45:35.728
+Candidate: the team was getting pretty frustrated at that point,
+
+10:45:35.808 --> 10:45:38.567
+Candidate: and I was trying to keep everybody calm,
+
+10:45:38.647 --> 10:45:40.026
+Candidate: and anyway eventually we,
+
+10:45:40.106 --> 10:45:40.451
+Candidate: uh,
+
+10:45:40.531 --> 10:45:45.359
+Candidate: we cut the scope down to one integration and shipped that on the date.
+
+10:45:45.439 --> 10:45:50.611
+Candidate: What I would do differently is bring the options with their costs on day one,
+
+10:45:50.691 --> 10:45:53.794
+Candidate: instead of arguing about the date for two weeks.
+
+10:45:54.694 --> 10:45:55.094
+Elena: Okay,
+
+10:45:55.174 --> 10:45:55.974
+Elena: that's helpful,
+
+10:45:56.054 --> 10:45:56.854
+Elena: thank you.
+
+10:45:58.054 --> 10:45:58.454
+Tom: Okay.
+
+10:45:58.534 --> 10:46:00.534
+Tom: How many people did you—
+
+10:46:00.614 --> 10:46:01.014
+Tom: actually,
+
+10:46:01.094 --> 10:46:01.894
+Tom: scratch that.
+
+10:46:01.974 --> 10:46:04.774
+Tom: What I really want to know is,
+
+10:46:04.854 --> 10:46:10.454
+Tom: when did you last change your mind because of someone more junior than you?
+
+10:46:12.654 --> 10:46:13.454
+Candidate: Last month.
+
+10:46:13.534 --> 10:46:18.734
+Candidate: A junior developer showed me that my caching layer hid a consistency bug,
+
+10:46:18.814 --> 10:46:21.614
+Candidate: with a failing test to prove it.
+
+10:46:21.694 --> 10:46:23.294
+Candidate: I dropped the cache,
+
+10:46:23.374 --> 10:46:26.174
+Candidate: and I thanked him in the review,
+
+10:46:26.254 --> 10:46:28.254
+Candidate: in front of the team.
+
+10:46:29.354 --> 10:46:30.954
+Elena: One more from me.
+
+10:46:31.034 --> 10:46:33.034
+Elena: Imagine it is Friday afternoon,
+
+10:46:33.114 --> 10:46:36.314
+Elena: a carrier changes their API without telling us,
+
+10:46:36.394 --> 10:46:40.394
+Elena: and quotes start failing for a third of our brokers.
+
+10:46:40.474 --> 10:46:43.274
+Elena: Walk me through your first thirty minutes.
+
+10:46:45.374 --> 10:46:47.374
+Candidate: First I stop the bleeding.
+
+10:46:47.454 --> 10:46:50.654
+Candidate: I switch that carrier off behind its flag,
+
+10:46:50.734 --> 10:46:54.334
+Candidate: so brokers still get quotes from the other three.
+
+10:46:54.414 --> 10:46:58.814
+Candidate: Then I tell support and the brokers what they will see,
+
+10:46:58.894 --> 10:47:01.694
+Candidate: check that the error rate has dropped,
+
+10:47:01.774 --> 10:47:07.774
+Candidate: and only then read the carrier's change and write the fix with a contract test,
+
+10:47:07.854 --> 10:47:12.654
+Candidate: so the next change fails in our pipeline and not in production.
+
+10:47:13.654 --> 10:47:15.654
+Marcus: Quick ones from me now.
+
+10:47:15.734 --> 10:47:18.134
+Marcus: Have you used NestJS in production?
+
+10:47:18.634 --> 10:47:19.034
+Candidate: Yes,
+
+10:47:19.114 --> 10:47:20.314
+Candidate: for two years.
+
+10:47:20.714 --> 10:47:21.114
+Marcus: Kafka?
+
+10:47:21.614 --> 10:47:22.014
+Candidate: Yes,
+
+10:47:22.094 --> 10:47:23.694
+Candidate: and SQS more recently.
+
+10:47:24.194 --> 10:47:28.194
+Marcus: And have you ever run a zero downtime Postgres migration?
+
+10:47:28.894 --> 10:47:29.294
+Candidate: Yes.
+
+10:47:29.374 --> 10:47:30.574
+Candidate: Expand and contract,
+
+10:47:30.654 --> 10:47:32.654
+Candidate: with a backfill in between.
+
+10:47:33.254 --> 10:47:33.654
+Marcus: Great.
+
+10:47:33.734 --> 10:47:35.334
+Marcus: That's all from me.
+
+10:47:36.634 --> 10:47:37.834
+Priya: Last technical one,
+
+10:47:37.914 --> 10:47:38.714
+Priya: from me.
+
+10:47:38.794 --> 10:47:43.194
+Priya: How would you design rate limiting for our public quote API?
+
+10:47:44.994 --> 10:47:46.194
+Candidate: Can I ask,
+
+10:47:46.274 --> 10:47:49.874
+Candidate: is the limit per broker or per end customer?
+
+10:47:50.774 --> 10:47:51.574
+Priya: Per broker.
+
+10:47:51.654 --> 10:47:54.054
+Priya: Each broker has an API key,
+
+10:47:54.134 --> 10:47:58.134
+Priya: and the big ones send about fifty requests a second.
+
+10:48:00.034 --> 10:48:02.834
+Candidate: Then a token bucket per API key,
+
+10:48:02.914 --> 10:48:05.714
+Candidate: held in Redis so every instance agrees,
+
+10:48:05.794 --> 10:48:09.794
+Candidate: with the limit and the burst in configuration per broker.
+
+10:48:09.874 --> 10:48:13.474
+Candidate: I would return a 429 with a retry-after header,
+
+10:48:13.554 --> 10:48:16.354
+Candidate: and watch the rejected count per key,
+
+10:48:16.434 --> 10:48:21.234
+Candidate: so we see a broker hitting the limit before they call us.
+
+10:48:22.034 --> 10:48:22.434
+Priya: Good.
+
+10:48:22.514 --> 10:48:22.914
+Priya: Aisha,
+
+10:48:22.994 --> 10:48:24.194
+Priya: over to you.
+
+10:48:25.294 --> 10:48:25.694
+Aisha: Thanks.
+
+10:48:25.774 --> 10:48:26.574
+Aisha: I'm Aisha,
+
+10:48:26.654 --> 10:48:28.254
+Aisha: from the people team,
+
+10:48:28.334 --> 10:48:30.334
+Aisha: just two things from me.
+
+10:48:30.414 --> 10:48:33.614
+Aisha: Are you legally able to work in Canada,
+
+10:48:33.694 --> 10:48:36.494
+Aisha: and what notice period do you have?
+
+10:48:37.594 --> 10:48:37.994
+Candidate: Yes,
+
+10:48:38.074 --> 10:48:38.874
+Candidate: I am,
+
+10:48:38.954 --> 10:48:42.554
+Candidate: and I can start two weeks after an offer.
+
+10:48:43.354 --> 10:48:43.754
+Aisha: Perfect.
+
+10:48:43.834 --> 10:48:46.234
+Aisha: And what are your salary expectations?
+
+10:48:48.534 --> 10:48:52.134
+Candidate: I would like to understand the whole package first.
+
+10:48:52.214 --> 10:48:55.414
+Candidate: Could you share the range for the role?
+
+10:48:56.614 --> 10:48:57.014
+Aisha: Sure.
+
+10:48:57.094 --> 10:49:01.894
+Aisha: I will send that over with the benefits summary after the call.
+
+10:49:02.794 --> 10:49:03.194
+Tom: Priya,
+
+10:49:03.274 --> 10:49:04.874
+Tom: are we at time?
+
+10:49:05.474 --> 10:49:07.474
+Priya: We have about two minutes.
+
+10:49:08.474 --> 10:49:08.874
+Priya: Okay.
+
+10:49:08.954 --> 10:49:10.954
+Priya: So before we wrap up,
+
+10:49:11.034 --> 10:49:13.834
+Priya: what questions do you have for us?
+
+10:49:15.834 --> 10:49:16.234
+Candidate: Two,
+
+10:49:16.314 --> 10:49:17.914
+Candidate: if there is time.
+
+10:49:17.994 --> 10:49:21.594
+Candidate: What does the team look like day to day,
+
+10:49:21.674 --> 10:49:26.074
+Candidate: and what is the hardest problem with the rules tool today?
+
+10:49:27.574 --> 10:49:29.974
+Marcus: I can take the second one.
+
+10:49:30.054 --> 10:49:32.454
+Marcus: The rules are written by underwriters,
+
+10:49:32.534 --> 10:49:36.534
+Marcus: and today every change needs an engineer to ship it.
+
+10:49:36.614 --> 10:49:41.014
+Marcus: That is the thing we most want to fix this year.
+
+10:49:42.014 --> 10:49:44.414
+Priya: And the team is six engineers,
+
+10:49:44.494 --> 10:49:46.094
+Priya: a designer and Elena,
+
+10:49:46.174 --> 10:49:50.974
+Priya: with a planning call on Mondays and not many meetings after that.
+
+10:49:52.174 --> 10:49:53.774
+Candidate: That is very helpful,
+
+10:49:53.854 --> 10:49:54.654
+Candidate: thank you.
+
+10:49:55.554 --> 10:49:58.354
+Priya: Thank you so much for your time.
+
+10:49:58.434 --> 10:50:01.234
+Priya: We will be in touch by Monday.
+
+10:50:01.934 --> 10:50:03.134
+Candidate: Thank you all.

@@ -1,6 +1,6 @@
 // The listen command, run as an agent runs it by hand: as its own process,
-// against a tiny local server standing in for the Studio's coach transcript
-// and coach plan. The command is a script (top-level await, `process.exit`),
+// against a tiny local server standing in for the Studio's coach transcript,
+// coach plan and the pen (who may write the notes). The command is a script (top-level await, `process.exit`),
 // so it is never imported here. Every line said is invented, and the token is
 // a made-up one that only this stand-in knows.
 //
@@ -41,6 +41,10 @@ type Held = {
 };
 const held: Held = { lines: [], plan: "" };
 let asked: { method: string; url: string; authorization: string }[] = [];
+// Every claim on the pen the stand-in was sent, as its body read.
+let claims: unknown[] = [];
+// The epoch the stand-in gives the pen under: one holder, so it never rises.
+const PEN_EPOCH = 3;
 let server: Server;
 let base = "";
 // An address nothing listens on.
@@ -105,6 +109,25 @@ beforeAll(async () => {
     if (held.refuse) return answer(held.refuse, { error: { code: "refused" } });
     if (request.headers.authorization !== `Bearer ${TOKEN}`)
       return answer(401, { error: { code: "unauthorized" } });
+    if (url.pathname === "/api/v1/coach-writer" && request.method === "POST") {
+      let sent = "";
+      request.setEncoding("utf8");
+      request.on("data", (chunk: string) => {
+        sent += chunk;
+      });
+      request.on("end", () => {
+        let body: unknown;
+        try {
+          body = JSON.parse(sent);
+        } catch {
+          body = sent;
+        }
+        claims.push(body);
+        const id = (body as { id?: unknown } | null)?.id;
+        answer(200, { id: typeof id === "string" ? id : "", epoch: PEN_EPOCH });
+      });
+      return;
+    }
     if (url.pathname === "/api/v1/coach-transcript") {
       const after = Number(url.searchParams.get("after") ?? "0");
       return answer(200, {
@@ -140,6 +163,7 @@ describe("pnpm coach:listen", () => {
     held.lines = [line(1, "interviewer", FIRST)];
     held.plan = "Land the ledger migration story.";
     asked = [];
+    claims = [];
 
     const ran = await listen(["--reset"]);
 
@@ -156,8 +180,15 @@ describe("pnpm coach:listen", () => {
       plan: "Land the ledger migration story.",
       key: "agent-1a2b3c4d-1",
     });
-    // It read the Studio as a coach does: from its cursor, with the token.
+    // [DOMAIN] Before it reads a word it takes the pen: a person who runs
+    // this has put an agent in charge, so the built-in coach stands down.
     expect(asked[0]).toEqual({
+      method: "POST",
+      url: "/api/v1/coach-writer",
+      authorization: `Bearer ${TOKEN}`,
+    });
+    // It read the Studio as a coach does: from its cursor, with the token.
+    expect(asked[1]).toEqual({
       method: "GET",
       url: "/api/v1/coach-transcript?after=0",
       authorization: `Bearer ${TOKEN}`,
@@ -166,7 +197,10 @@ describe("pnpm coach:listen", () => {
     expect(new Set(asked.map((each) => each.authorization))).toEqual(
       new Set([`Bearer ${TOKEN}`]),
     );
-    expect(new Set(asked.map((each) => each.method))).toEqual(new Set(["GET"]));
+    // The claim is the one thing it writes: everything after it is a read.
+    expect(asked.slice(1).map((each) => each.method)).toEqual(
+      asked.slice(1).map(() => "GET"),
+    );
     // It waited for the pause after the question before saying so.
     expect(
       asked.filter((each) => each.url.includes("coach-transcript")).length,
@@ -181,6 +215,20 @@ describe("pnpm coach:listen", () => {
     expect(readFileSync(STATE, "utf8")).not.toContain("shard");
   }, 60_000);
 
+  it("took the pen as the desktop agent, by takeover, for three minutes: once, for a listen this short", () => {
+    // The run above: what its one claim asked for.
+    expect(claims).toEqual([
+      { id: "desktop-agent", takeover: true, leaseSeconds: 180 },
+    ]);
+  });
+
+  it("keeps the pen when it exits with a moment: the agent writes its note next, so nothing gives it up", () => {
+    expect(asked.filter((each) => each.method === "DELETE")).toEqual([]);
+    expect(
+      asked.filter((each) => each.url.startsWith("/api/v1/coach-writer")),
+    ).toHaveLength(1);
+  });
+
   it("the next listen begins after what was coached: the new lines, the turn to answer, and what came before", async () => {
     held.lines = [
       line(1, "interviewer", FIRST),
@@ -189,6 +237,8 @@ describe("pnpm coach:listen", () => {
     ];
     // No plan is set.
     held.plan = "";
+    asked = [];
+    claims = [];
 
     const ran = await listen([]);
 
@@ -211,16 +261,30 @@ describe("pnpm coach:listen", () => {
       epoch: EPOCH,
       readTo: 3,
     });
+    // Every listen takes the pen anew, the same way, before it reads.
+    expect(claims).toEqual([
+      { id: "desktop-agent", takeover: true, leaseSeconds: 180 },
+    ]);
+    expect(asked[0]?.url).toBe("/api/v1/coach-writer");
   }, 60_000);
 
   it("prints nothing while there is nothing new to coach", async () => {
     asked = [];
+    claims = [];
     // Stopped by the test: left alone it waits ten minutes, then exits 2.
     // Long enough for the script to start and ask twice on a busy machine.
     const ran = await listen([], { timeout: 9_000 });
     expect(ran.code).toBeNull();
     expect(ran.stdout).toBe("");
     expect(asked.length).toBeGreaterThan(1);
+    // It holds the pen while it waits, on the one claim: a claim of three
+    // minutes is renewed every thirty seconds, not on every look.
+    expect(claims).toEqual([
+      { id: "desktop-agent", takeover: true, leaseSeconds: 180 },
+    ]);
+    expect(
+      asked.filter((each) => each.url.includes("coach-transcript")).length,
+    ).toBeGreaterThan(1);
     expect(JSON.parse(readFileSync(STATE, "utf8"))).toMatchObject({
       readTo: 3,
     });
@@ -255,6 +319,7 @@ describe("pnpm coach:listen", () => {
 
   it("exits 1 the same way when the Studio refuses it, saying nothing of what was said", async () => {
     held.refuse = 503;
+    asked = [];
     try {
       const ran = await listen(["--reset"]);
       expect(ran.code).toBe(1);
@@ -262,6 +327,10 @@ describe("pnpm coach:listen", () => {
       expect(ran.stderr).toBe(
         "The Studio could not be reached (CoachApiError). Is it running?\n",
       );
+      // The claim is what was refused: without the pen it reads nothing.
+      expect(asked.map((each) => [each.method, each.url])).toEqual([
+        ["POST", "/api/v1/coach-writer"],
+      ]);
     } finally {
       delete held.refuse;
     }

@@ -102,6 +102,7 @@ export {
   type CoachTranscriptLineInput,
   type CoachTranscriptResponse,
   type CoachTranscriptSession,
+  coachActivityInputSchema,
   coachTranscriptInputSchema,
   coachTranscriptLineInputSchema,
   coachTranscriptLineSchema,

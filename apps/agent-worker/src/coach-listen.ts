@@ -7,9 +7,9 @@
 //   pnpm coach:listen --reset    forget where it had read to, then wait
 //
 // The Studio decides WHEN (the same turn-taking the built-in coach uses,
-// turns.ts); the agent decides WHAT. It reads the same feed the built-in coach
-// reads, so run the Studio with INTERVIEW_COACH=off while an agent coaches:
-// one coach at a time.
+// turns.ts); the agent decides WHAT. Running this takes the pen: the built-in
+// coach stands by and writes nothing while an agent is listening, and takes
+// it back three minutes after the agent's last listen.
 //
 // What it prints, on one line:
 //   { "reason": "question-finished" | "pause" | "speaker-change" | "answer-check",
@@ -45,6 +45,8 @@ const token =
 const api = coachApi(
   process.env["INTERVIEW_API_URL"] ?? "http://127.0.0.1:3000",
   token,
+  fetch,
+  "desktop-agent",
 );
 
 // Where the last listen read to, and when it last acted: kept between runs,
@@ -66,7 +68,16 @@ let cursor = 0;
 let lastArrivalMs = Date.now();
 
 try {
+  // [DOMAIN] A person who runs this has put an agent in charge: it takes the
+  // pen from the built-in coach, and holds it long enough for the agent to
+  // think between one listen and the next.
+  await api.claim({ takeover: true, leaseSeconds: 180 });
+  let renewedAtMs = Date.now();
   while (!stop.signal.aborted && Date.now() - started < WAIT_MS) {
+    if (Date.now() - renewedAtMs > 30_000) {
+      await api.claim({ takeover: true, leaseSeconds: 180 });
+      renewedAtMs = Date.now();
+    }
     const read = await api.transcript.since(cursor, stop.signal);
     // A cleared transcript is another conversation.
     if (read.epoch !== state.epoch) {

@@ -100,7 +100,11 @@ const rows: Array<[file: string, maxCount: number, reason: string]> = [
       // routes (the live notes or a replay's, kept apart): a Hono query
       // parameter again, not SQL.
       // +1: `context.req.query("space")` on the coach-notes DELETE, the same.
-      ["products/interview/src/backend/api.ts", 12],
+      // +2: `context.req.query("epoch")` on the coach-ledger read (which
+      // conversation's ledger) and `context.req.query("id")` on the
+      // coach-writer DELETE (which coach gives up the pen): Hono query
+      // parameters again, not SQL.
+      ["products/interview/src/backend/api.ts", 14],
       ["products/interview/src/backend/assistant/adapter.ts", 1],
       ["products/interview/src/backend/assistant/workspace.ts", 31],
       ["products/interview/src/backend/briefing/repository.ts", 17],

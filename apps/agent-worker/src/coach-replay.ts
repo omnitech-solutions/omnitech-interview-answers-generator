@@ -16,10 +16,19 @@
 //   --plan FILE       the plan for the call, given to the coach with every stretch
 //   --trace           print everything: each prompt the model is given, its raw
 //                     reply, and each revision of each note as it is posted
+//   --bench NAME      a call fixture (fixtures/calls/NAME): its transcript, its
+//                     plan, who is who and what is expected, in one word
+//   --results DIR     where a benchmark's result is kept and the last looked
+//                     for (default .dev-local/benchmarks/)
 //   --expect FILE     a benchmark: the questions the stretch holds and the words
 //                     that complete each. The run is scored against them, the
 //                     result is kept in .dev-local/benchmarks/ and compared with
 //                     the last run of the same benchmark on the same runtime
+//   --no-activity     do not tell the coach who is speaking (by default a replay
+//                     derives it from the recording's timings, as a stand-in
+//                     for a voice-activity signal)
+//   --retain          keep one session of the model open for the whole replay
+//                     (each turn then sends only what is new)
 //   --hide-me         the coach does not hear the person being coached
 //   --from T --to T   the stretch to replay (HH:MM:SS of the file's clock)
 //   --timing          decisions only, no model
@@ -34,8 +43,15 @@
 // process, unless --studio is given. With no part named for any label and a
 // terminal to ask in, it asks.
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { createInterface } from "node:readline/promises";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   type AiEngine,
   agentRuntime,
@@ -75,16 +91,31 @@ const VALUED = new Set([
   "--latency",
   "--plan",
   "--expect",
+  "--bench",
+  "--results",
 ]);
 const all = (name: string): string[] =>
   args.flatMap((arg, at) =>
     arg === name ? (args[at + 1] ?? "").split(",").map((v) => v.trim()) : [],
   );
-const one = (name: string) => all(name).at(-1);
 const has = (name: string) => args.includes(name);
-const file = args.find(
-  (arg, at) => !arg.startsWith("--") && !VALUED.has(args[at - 1] ?? ""),
-);
+// A fixture names its own transcript, plan and expectations.
+const bench = all("--bench").at(-1);
+const fixture = (part: string) =>
+  fileURLToPath(new URL(`../fixtures/calls/${bench}/${part}`, import.meta.url));
+const one = (name: string) =>
+  all(name).at(-1) ??
+  (bench === undefined
+    ? undefined
+    : name === "--expect"
+      ? fixture("expected.json")
+      : name === "--plan" && existsSync(fixture("plan.md"))
+        ? fixture("plan.md")
+        : undefined);
+const file =
+  args.find(
+    (arg, at) => !arg.startsWith("--") && !VALUED.has(args[at - 1] ?? ""),
+  ) ?? (bench === undefined ? undefined : fixture("transcript.txt"));
 if (!file) {
   console.error("Give the transcript file. See the top of coach-replay.ts.");
   process.exit(1);
@@ -134,6 +165,15 @@ const cast: Record<string, SpeakerRole> = {};
 for (const label of all("--interviewer")) cast[label] = "interviewer";
 for (const label of all("--me")) cast[label] = "me";
 for (const label of all("--leave-out")) cast[label] = "leave-out";
+// A fixture says who is who.
+if (bench !== undefined && Object.keys(cast).length === 0) {
+  const named = JSON.parse(readFileSync(fixture("expected.json"), "utf8")) as {
+    interviewer?: string[];
+    me?: string[];
+  };
+  for (const label of named.interviewer ?? []) cast[label] = "interviewer";
+  for (const label of named.me ?? []) cast[label] = "me";
+}
 if (Object.keys(cast).length === 0 && process.stdin.isTTY) {
   console.log("Who is in this conversation?");
   listSpeakers();
@@ -211,6 +251,18 @@ const feed = () => {
     });
   }
 };
+
+// [DOMAIN] Who is speaking, taken from the recording's own timings: a piece
+// that has begun and not yet ended is someone still talking. This stands in
+// for a voice-activity signal; it is derived from the transcript, not heard.
+const activity = !has("--no-activity");
+const speakingAt = (atMs: number) => [
+  ...new Set(
+    heard
+      .filter((block) => block.startMs < atMs && atMs < block.endMs)
+      .map((block) => block.speaker),
+  ),
+];
 
 // A stand-in that says nothing, after as long as a model takes: the decisions
 // are what is being looked at, and a call that is still running when the
@@ -428,43 +480,47 @@ function traced(engine: Pick<AiEngine, "stream">): Pick<AiEngine, "stream"> {
   };
 }
 
-const coach = createCoach({
-  engine: timingOnly ? silent : traced(modelEngine()),
-  profileId: "coach",
-  transcript: {
-    since: async (after) => ({
-      epoch: "replay",
-      cursor: seq,
-      lines: lines.filter((line) => line.seq > after),
-    }),
-  },
-  notes: {
-    post: async (note, signal) => {
-      if (trace)
-        console.log(
-          `     note ${note.key} revision ${note.revision}: ${(
-            note.sections ?? []
-          )
-            .flatMap((section) =>
-              section.lines.map(
-                (line) =>
-                  `[${section.kind}] ${line.segments.map((segment) => segment.text).join("")}`,
-              ),
-            )
-            .join(" | ")}`,
-        );
-      notes.set(note.key ?? "", {
-        atMs: notes.get(note.key ?? "")?.atMs ?? fileNow(),
-        note,
-      });
-      await studio?.notes.post(note, signal, "replay");
+const coach = createCoach(
+  {
+    engine: timingOnly ? silent : traced(modelEngine()),
+    profileId: "coach",
+    transcript: {
+      since: async (after) => ({
+        epoch: "replay",
+        cursor: seq,
+        lines: lines.filter((line) => line.seq > after),
+        ...(activity ? { speaking: speakingAt(fileNow()) } : {}),
+      }),
     },
+    notes: {
+      post: async (note, signal) => {
+        if (trace)
+          console.log(
+            `     note ${note.key} revision ${note.revision}: ${(
+              note.sections ?? []
+            )
+              .flatMap((section) =>
+                section.lines.map(
+                  (line) =>
+                    `[${section.kind}] ${line.segments.map((segment) => segment.text).join("")}`,
+                ),
+              )
+              .join(" | ")}`,
+          );
+        notes.set(note.key ?? "", {
+          atMs: notes.get(note.key ?? "")?.atMs ?? fileNow(),
+          note,
+        });
+        await studio?.notes.post(note, signal, "replay");
+      },
+    },
+    ...(planText ? { plan: async () => planText } : {}),
+    scope: { tenantId: "local", actorId: "coach-replay" },
+    nowMs: fileNow,
+    onEvent,
   },
-  ...(planText ? { plan: async () => planText } : {}),
-  scope: { tenantId: "local", actorId: "coach-replay" },
-  nowMs: fileNow,
-  onEvent,
-});
+  { retain: has("--retain") },
+);
 
 const stop = new AbortController();
 process.once("SIGINT", () => stop.abort());
@@ -555,7 +611,16 @@ if (!timingOnly) {
 
 if (one("--expect")) {
   type Expected = {
-    questions: { id: string; completeWhenSaid: string; about?: string[] }[];
+    questions: {
+      id: string;
+      scenario?: string;
+      // A question too quick to coach: nothing is asked of it.
+      optional?: boolean;
+      completeWhenSaid: string;
+      about?: string[];
+    }[];
+    // Things said that are no question for the candidate.
+    quiet?: { id: string; said: string }[];
   };
   const expected = JSON.parse(
     readFileSync(one("--expect") as string, "utf8"),
@@ -595,6 +660,8 @@ if (one("--expect")) {
     );
     return {
       id: question.id,
+      scenario: question.scenario ?? "",
+      optional: question.optional === true,
       answeredWhole: whole !== undefined,
       // Acts on part of the question, and how many of those put a note on screen.
       prematureActs: before.length,
@@ -624,15 +691,31 @@ if (one("--expect")) {
       ).length,
     };
   });
+  // [DOMAIN] An act whose turn ends in words that ask the candidate nothing
+  // (a handover, "can you hear me?") is a wasted call, and a note shown for
+  // it is a distraction.
+  const quiet = (expected.quiet ?? []).map((stretch) => {
+    const acts = interviewerActs.filter((record) =>
+      said(record.turn.slice(-(stretch.said.length + 40)), stretch.said),
+    );
+    return {
+      id: stretch.id,
+      acts: acts.length,
+      notesShown: acts.filter((record) => record.firstLineS !== undefined)
+        .length,
+    };
+  });
   const runtimeName = timingOnly
     ? "timing"
     : one("--runtime") === "codex"
       ? "codex"
       : "claude";
-  const name = (one("--expect") as string)
-    .split("/")
-    .at(-1)
-    ?.replace(/\.expected\.json$/, "") as string;
+  const name =
+    bench ??
+    ((one("--expect") as string)
+      .split("/")
+      .at(-1)
+      ?.replace(/\.expected\.json$/, "") as string);
   const result = {
     benchmark: name,
     runtime: runtimeName,
@@ -653,8 +736,12 @@ if (one("--expect")) {
     silent: silences,
     failed: records.filter((record) => record.failed).length,
     questions,
+    quiet,
   };
-  const folder = new URL("../../../.dev-local/benchmarks/", import.meta.url);
+  const kept = all("--results").at(-1);
+  const folder = kept
+    ? pathToFileURL(`${kept.replace(/\/$/, "")}/`)
+    : new URL("../../../.dev-local/benchmarks/", import.meta.url);
   mkdirSync(folder, { recursive: true });
   const earlier = readdirSync(folder)
     .filter((file) => file.startsWith(`${name}-${runtimeName}-`))
@@ -703,7 +790,9 @@ if (one("--expect")) {
   row("calls that failed", result.failed, previous?.failed);
   for (const [at, question] of result.questions.entries()) {
     const was = previous?.questions[at];
-    console.log(`  ${question.id}`);
+    console.log(
+      `  ${question.id}${question.scenario ? `  (${question.scenario})` : ""}`,
+    );
     row(
       "  answered as a whole question",
       question.answeredWhole,
@@ -743,5 +832,15 @@ if (one("--expect")) {
       was?.otherNotesBeforeNextQuestion,
     );
   }
+  for (const [at, stretch] of result.quiet.entries()) {
+    const was = previous?.quiet?.[at];
+    console.log(`  ${stretch.id}  (no question for the candidate)`);
+    row("  acts on it", stretch.acts, was?.acts);
+    row("  notes shown for it", stretch.notesShown, was?.notesShown);
+  }
+  const asked = result.questions.filter((question) => !question.optional);
+  console.log(
+    `\n  IN SHORT: ${asked.filter((question) => question.answeredWhole).length} of ${asked.length} questions acted on whole; ${result.questions.reduce((sum, question) => sum + question.prematureActs, 0)} acts on part of a question; ${result.quiet.reduce((sum, stretch) => sum + stretch.acts, 0)} acts on what was no question.`,
+  );
 }
 process.exit(0);

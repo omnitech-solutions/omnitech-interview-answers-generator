@@ -15,6 +15,7 @@ import {
 import type { PlatformDatabase } from "@omnitech/database";
 import { resolveAgentProfiles } from "@omnitech/platform-runtime/ai-config";
 import {
+  type CoachLedger,
   type CoachPorts,
   createCoach,
   createCoachContext,
@@ -27,6 +28,8 @@ type Environment = Readonly<Record<string, string | undefined>>;
 export const COACH_ENV = "INTERVIEW_COACH";
 const COACH_PROFILE = "interview-live-coach";
 const COACH_PROVIDER = "interview-coach-agent";
+// How often the coach renews its claim on the notes (a claim stands 15 s).
+const CLAIM_EVERY_MS = 5_000;
 // Which runtime and bounded agent profile each choice is (never user input).
 const RUNTIMES = {
   claude: { runtime: "claude-code", agentProfile: "assistant-claude-code" },
@@ -42,40 +45,132 @@ export class CoachApiError extends Error {
   }
 }
 
+// The Studio refused a note because another coach holds the pen: this coach
+// stands down until it can claim it again.
+export class CoachStoodDown extends Error {
+  constructor() {
+    super("Another coach holds the notes.");
+    this.name = "CoachStoodDown";
+  }
+}
+
+export type CoachApi = Required<
+  Pick<CoachPorts, "transcript" | "notes" | "plan" | "ledger">
+> & {
+  // Claims (or renews) the pen for this coach. False when another holds it.
+  claim(options?: {
+    takeover?: boolean;
+    leaseSeconds?: number;
+  }): Promise<boolean>;
+  release(): Promise<void>;
+};
+
 export function coachApi(
   base: string,
   token: string,
   fetcher: typeof fetch = fetch,
-): Required<Pick<CoachPorts, "transcript" | "notes" | "plan">> {
+  // How this coach names itself when it claims the pen.
+  writerId = `coach-${process.pid}`,
+): CoachApi {
   const root = base.replace(/\/$/, "");
-  const call = async (path: string, signal: AbortSignal, body?: unknown) => {
+  // The claim this coach last held, named on every note it posts.
+  // [SAFETY] It is never forgotten on losing the pen: a note from a coach
+  // that was replaced must still say whose it is, so the Studio refuses it.
+  // A coach that asked for the pen and never got it posts nothing at all.
+  let claimed: { id: string; epoch: number } | undefined;
+  let refused = false;
+  const call = async (
+    path: string,
+    signal: AbortSignal,
+    body?: unknown,
+    headers: Record<string, string> = {},
+  ) => {
     const response = await fetcher(`${root}${path}`, {
       method: body === undefined ? "GET" : "POST",
       headers: {
         authorization: `Bearer ${token}`,
         ...(body === undefined ? {} : { "content-type": "application/json" }),
+        ...headers,
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       signal,
     });
-    // An older revision of a note already on show: nothing to do.
-    if (response.status === 409) return null;
+    if (response.status === 409) {
+      const code = (
+        (await response.json().catch(() => null)) as {
+          error?: { code?: string };
+        } | null
+      )?.error?.code;
+      if (code === "stale_writer") {
+        refused = true;
+        throw new CoachStoodDown();
+      }
+      // An older revision of a note already on show, a conversation that is
+      // over, or a pen that is held: nothing to do.
+      return null;
+    }
     if (!response.ok) throw new CoachApiError(response.status);
-    return response.json();
+    return response.status === 204 ? null : response.json();
   };
   return {
+    async claim(options = {}) {
+      const held = (await call(
+        "/api/v1/coach-writer",
+        new AbortController().signal,
+        { id: writerId, ...options },
+      )) as { id: string; epoch: number } | null;
+      if (held) claimed = held;
+      refused = held === null;
+      return held !== null;
+    },
+    async release() {
+      refused = true;
+      await fetcher(`${root}/api/v1/coach-writer?id=${writerId}`, {
+        method: "DELETE",
+        headers: { authorization: `Bearer ${token}` },
+      }).catch(() => undefined);
+    },
+    ledger: {
+      load: async (epoch) =>
+        (
+          (await call(
+            `/api/v1/coach-ledger?epoch=${encodeURIComponent(epoch)}`,
+            new AbortController().signal,
+          )) as { ledger?: CoachLedger } | null
+        )?.ledger,
+      save: async (ledger) => {
+        const response = await fetcher(`${root}/api/v1/coach-ledger`, {
+          method: "PUT",
+          headers: {
+            authorization: `Bearer ${token}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ ledger }),
+        });
+        // A conversation that is over has no ledger to keep.
+        if (!response.ok && response.status !== 409)
+          throw new CoachApiError(response.status);
+      },
+    },
     transcript: {
       since: (after, signal) =>
         call(`/api/v1/coach-transcript?after=${after}`, signal),
     },
     notes: {
-      post: async (note, signal, space) => {
+      post: async (note, signal, space, conversation) => {
+        if (refused) throw new CoachStoodDown();
         await call(
           space === "replay"
             ? "/api/v1/coach-notes?space=replay"
             : "/api/v1/coach-notes",
           signal,
           note,
+          {
+            ...(claimed
+              ? { "x-coach-writer": `${claimed.id}:${claimed.epoch}` }
+              : {}),
+            ...(conversation ? { "x-coach-conversation": conversation } : {}),
+          },
         );
       },
     },
@@ -150,25 +245,66 @@ export function coachLoop(
         trace: kept.trace,
         ...(level ? { log: { level: level as "info" } } : {}),
       });
-      const coach = createCoach({
-        engine,
-        profileId: COACH_PROFILE,
-        ...coachApi(env["INTERVIEW_API_URL"] ?? "http://127.0.0.1:3000", token),
-        ...(database ? { context: createCoachContext(database, engine) } : {}),
-        // The coach's transcript belongs to this machine's one Studio, not
-        // to a tenant's stored record.
-        scope: { tenantId: "local", actorId: "coach" },
-      });
+      const studio = coachApi(
+        env["INTERVIEW_API_URL"] ?? "http://127.0.0.1:3000",
+        token,
+      );
+      const coach = createCoach(
+        {
+          engine,
+          profileId: COACH_PROFILE,
+          ...studio,
+          ...(database
+            ? { context: createCoachContext(database, engine) }
+            : {}),
+          // The coach's transcript belongs to this machine's one Studio, not
+          // to a tenant's stored record.
+          scope: { tenantId: "local", actorId: "coach" },
+        },
+        {
+          // One session of the runtime for the call, unless the host says not.
+          retain:
+            (env["INTERVIEW_COACH_RETAIN"] ?? "").trim().toLowerCase() !==
+            "off",
+        },
+      );
       log(`coach listening (${choice.runtime}, ${agent.model})`);
       let failures = 0;
+      // Not yet known: the first answer is said either way.
+      let writing: boolean | undefined;
+      let claimedAtMs = 0;
       try {
         while (!signal.aborted) {
           try {
+            // [DOMAIN] One coach at a time. The pen is claimed, and renewed
+            // every few seconds; while another coach holds it (a desktop
+            // agent a person put in charge) this one writes nothing.
+            if (Date.now() - claimedAtMs > CLAIM_EVERY_MS) {
+              const holds = await studio.claim();
+              claimedAtMs = Date.now();
+              if (holds !== writing)
+                log(
+                  holds
+                    ? "coach writing: it holds the notes"
+                    : "coach standing by: another coach holds the notes",
+                );
+              writing = holds;
+            }
+            if (!writing) {
+              await abortableSleep(1_000, signal);
+              continue;
+            }
             const worked = await coach.tick(signal);
             failures = 0;
             if (!worked) await abortableSleep(300, signal);
           } catch (error) {
             if (signal.aborted) break;
+            if (error instanceof CoachStoodDown) {
+              // Replaced mid-note: back to asking for the pen.
+              claimedAtMs = 0;
+              writing = false;
+              continue;
+            }
             failures += 1;
             // Studio not up yet, or a model that did not answer: wait, longer
             // each time, and say so by name only.
@@ -181,6 +317,7 @@ export function coachLoop(
           }
         }
       } finally {
+        await studio.release();
         await engine.traceSettled().catch(() => undefined);
         await kept.close();
       }

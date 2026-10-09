@@ -12,6 +12,8 @@ import type {
 const MAX_LINES = 4_000;
 // The most of a screen's text held: a full editor pane.
 const SCREEN_CHARS = 8_000;
+// How long a "speaking" stands without being said again.
+const SPEAKING_LAPSES_MS = 5_000;
 
 // [DOMAIN] The coach's transcript, held by this process only. It is what a
 // coach (an agent in the worker, holding the API token) reads to decide what
@@ -25,12 +27,25 @@ export function createCoachTranscript() {
   // The live session last heard, by its ids only. It outlives a clear, so a
   // transcript attached afterwards is coached with that session's context.
   let session: CoachTranscriptSession | undefined;
+  let ledger: unknown;
   // What is on the shared screen now, as text. The latest only.
   let screen: { text: string; at: string } | undefined;
   // Whose conversation is held: a live session's, or one attached to replay.
   let space: CoachSpace = "live";
+  // Who is speaking now, by when each last said so. [GUARD] A "speaking" that
+  // is never followed by its "stopped" (a source that dropped) lapses, so a
+  // lost signal can never hold the coach back for good.
+  const speakingSince = new Map<CoachSpeaker, number>();
+  let activityKnown = false;
+  const speakingNow = (): CoachSpeaker[] => {
+    const now = Date.now();
+    for (const [speaker, at] of speakingSince)
+      if (now - at > SPEAKING_LAPSES_MS) speakingSince.delete(speaker);
+    return [...speakingSince.keys()];
+  };
   const held = () => ({
     space,
+    ...(activityKnown ? { speaking: speakingNow() } : {}),
     // A replay is coached from itself alone, never from a session's record.
     ...(session && space === "live" ? { session } : {}),
     ...(screen ? { screen } : {}),
@@ -72,6 +87,19 @@ export function createCoachTranscript() {
         ...held(),
       };
     },
+    // An audio source says its speaker started or stopped. A source that
+    // keeps saying "speaking" keeps it alive; silence from it lets it lapse.
+    setSpeaking(
+      speaker: CoachSpeaker,
+      speaking: boolean,
+      // From a live session's own audio: it says nothing about a replay.
+      fromLive = false,
+    ): void {
+      if (fromLive && space !== "live") return;
+      activityKnown = true;
+      if (speaking) speakingSince.set(speaker, Date.now());
+      else speakingSince.delete(speaker);
+    },
     // The text of the latest capture of the screen takes the last one's place.
     setScreen(text: string, from?: CoachTranscriptSession): void {
       const read = text.trim().slice(0, SCREEN_CHARS);
@@ -80,8 +108,23 @@ export function createCoachTranscript() {
       if (from) session = from;
       screen = { text: read, at: new Date().toISOString() };
     },
+    // [DOMAIN] The coach's own ledger of this conversation (how far it read,
+    // what it has said), held with the conversation so that a coach which
+    // restarts takes up where the last one stopped. It goes when the
+    // conversation does, and like it is never written anywhere.
+    ledger(forEpoch: string): unknown {
+      return ledger && forEpoch === epoch ? ledger : undefined;
+    },
+    setLedger(forEpoch: string, kept: unknown): boolean {
+      if (forEpoch !== epoch) return false;
+      ledger = kept;
+      return true;
+    },
     clear(): CoachTranscriptResponse {
+      ledger = undefined;
       screen = undefined;
+      speakingSince.clear();
+      activityKnown = false;
       epoch = randomUUID();
       lines = [];
       seq = 0;

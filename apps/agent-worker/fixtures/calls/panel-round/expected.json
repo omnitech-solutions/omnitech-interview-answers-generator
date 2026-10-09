@@ -1,0 +1,129 @@
+{
+  "about": "A ten-minute panel round: five interviewers, one candidate. The first two questions are the recorded screening stretch; the rest is scripted (see script.json). Each question names the words that complete it: an act before those words were said is premature. Each quiet stretch names words that are no question for the candidate: an act on them is wasted.",
+  "interviewer": ["Priya", "Marcus", "Tom", "Elena", "Aisha"],
+  "me": ["Candidate"],
+  "questions": [
+    {
+      "id": "service-or-monolith",
+      "scenario": "slow question in two parts",
+      "completeWhenSaid": "stay in the existing",
+      "about": ["microservice", "monolith"]
+    },
+    {
+      "id": "data-ownership",
+      "scenario": "follow-up in three sentences",
+      "completeWhenSaid": "How do you take data",
+      "about": ["boundary", "ownership"]
+    },
+    {
+      "id": "slowest-carrier",
+      "scenario": "long preamble, a tag question, a 2.8 s pause, then the question",
+      "completeWhenSaid": "waiting on the slowest carrier",
+      "about": ["quoting service", "different speed", "time out"]
+    },
+    {
+      "id": "why-not-a-queue",
+      "scenario": "interruption of the candidate's answer",
+      "completeWhenSaid": "put a queue in front",
+      "about": ["jump in"]
+    },
+    {
+      "id": "queue-backs-up",
+      "scenario": "pushback",
+      "completeWhenSaid": "queue itself backs up",
+      "about": ["don't buy that"]
+    },
+    {
+      "id": "charged-once",
+      "scenario": "two panelists start at once, then one gives way",
+      "completeWhenSaid": "only charged once",
+      "about": ["idempotency", "double-clicks", "go ahead"]
+    },
+    {
+      "id": "unrealistic-date",
+      "scenario": "question in three parts, then a rambling answer",
+      "completeWhenSaid": "do differently now",
+      "about": ["few parts", "unrealistic", "What did you do"]
+    },
+    {
+      "id": "changed-your-mind",
+      "scenario": "question taken back and asked again",
+      "completeWhenSaid": "more junior than you",
+      "about": ["How many people", "scratch that"]
+    },
+    {
+      "id": "first-thirty-minutes",
+      "scenario": "an instruction with no question mark",
+      "completeWhenSaid": "first thirty minutes",
+      "about": ["Friday afternoon", "quotes start failing"]
+    },
+    {
+      "id": "nestjs",
+      "scenario": "rapid short question",
+      "optional": true,
+      "completeWhenSaid": "NestJS in production",
+      "about": ["Quick ones"]
+    },
+    {
+      "id": "zero-downtime",
+      "scenario": "rapid short question",
+      "optional": true,
+      "completeWhenSaid": "zero downtime Postgres migration",
+      "about": []
+    },
+    {
+      "id": "rate-limiting",
+      "scenario": "answered with a question; the interviewer's reply is a statement",
+      "completeWhenSaid": "public quote API",
+      "about": ["Last technical one"]
+    },
+    {
+      "id": "work-and-notice",
+      "scenario": "logistics, two questions in one",
+      "completeWhenSaid": "notice period do you have",
+      "about": ["legally able"]
+    },
+    {
+      "id": "salary",
+      "scenario": "salary",
+      "completeWhenSaid": "salary expectations",
+      "about": []
+    },
+    {
+      "id": "questions-for-us",
+      "scenario": "the close",
+      "completeWhenSaid": "questions do you have for us",
+      "about": ["before we wrap up"]
+    }
+  ],
+  "quiet": [
+    {
+      "id": "handover",
+      "said": "hand over to Marcus"
+    },
+    {
+      "id": "can-you-hear-me",
+      "said": "hear me okay"
+    },
+    {
+      "id": "is-that-better",
+      "said": "is that better"
+    },
+    {
+      "id": "are-we-at-time",
+      "said": "are we at time"
+    },
+    {
+      "id": "panel-answers-the-candidate",
+      "said": "meetings after that"
+    },
+    {
+      "id": "goodbye",
+      "said": "in touch by Monday"
+    }
+  ],
+  "budget": {
+    "actsOnPart": 1,
+    "actsOnQuiet": 2
+  }
+}

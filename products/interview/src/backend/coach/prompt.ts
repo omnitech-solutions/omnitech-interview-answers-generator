@@ -108,7 +108,7 @@ const SPEAKER_LABEL = {
 const said = (line: CoachTranscriptLine): string =>
   `${SPEAKER_LABEL[line.speaker]}: ${line.text}`;
 
-export function coachPrompt(input: {
+export type CoachPromptInput = {
   // The whole conversation held, oldest first.
   lines: readonly CoachTranscriptLine[];
   // Lines after this `seq` are new since the coach last read.
@@ -129,7 +129,9 @@ export function coachPrompt(input: {
   // The kind of round, and for a design the arrows drawn so far.
   mode?: CoachMode;
   design?: { stage?: string; edges: readonly DesignEdge[] };
-}): string {
+};
+
+export function coachPromptParts(input: CoachPromptInput) {
   const fresh = input.lines.filter((line) => line.seq > input.readTo);
   // [STRATEGY] Earlier lines are kept newest first until the window is full,
   // so a long interview still fits and the recent part is never cut.
@@ -151,25 +153,28 @@ export function coachPrompt(input: {
   const record = [...cited("candidate"), ...cited("preference")];
   const employer = cited("employer");
   const plan = input.plan?.trim();
-  return [
-    ...(plan ? ["THE PLAN FOR THIS CALL:", plan, ""] : []),
-    ...(input.log && input.log.length > 0
+  const planLines = plan ? ["THE PLAN FOR THIS CALL:", plan, ""] : [];
+  const logLines =
+    input.log && input.log.length > 0
       ? [
           "WHAT YOU HAVE NOTED SO FAR IN THIS CALL (oldest first):",
           ...input.log.map((line) => `- ${line}`),
           "",
         ]
-      : []),
-    ...(record.length > 0
+      : [];
+  const recordLines =
+    record.length > 0
       ? [
           "THE CANDIDATE'S RECORD (cite a fact by its [pointer]):",
           ...record,
           "",
         ]
-      : []),
-    ...(employer.length > 0
+      : [];
+  const employerLines =
+    employer.length > 0
       ? ["EMPLOYER MATERIAL (not the candidate's experience):", ...employer, ""]
-      : []),
+      : [];
+  const givenLines = [
     "NOTES YOU HAVE ALREADY GIVEN (oldest first):",
     given.length > 0
       ? given
@@ -180,16 +185,20 @@ export function coachPrompt(input: {
           .join("\n")
       : "(none)",
     "",
+  ];
+  const earlierLines = [
     "THE CONVERSATION SO FAR:",
     earlier.length > 0 ? earlier.join("\n") : "(nothing before the new lines)",
     "",
-    ...(input.screen
-      ? [
-          "ON THE SHARED SCREEN (text read from the latest capture; it may be cut or misread):",
-          input.screen.slice(0, SCREEN_CHARS),
-          "",
-        ]
-      : []),
+  ];
+  const screenLines = input.screen
+    ? [
+        "ON THE SHARED SCREEN (text read from the latest capture; it may be cut or misread):",
+        input.screen.slice(0, SCREEN_CHARS),
+        "",
+      ]
+    : [];
+  const nowLines = [
     "NEW LINES (decide on these):",
     fresh.length > 0 ? fresh.map(said).join("\n") : "(nothing new was said)",
     ...(input.reason ? ["", WHY[input.reason]] : []),
@@ -212,5 +221,34 @@ export function coachPrompt(input: {
             : []),
         ]
       : []),
-  ].join("\n");
+  ];
+  return {
+    // One prompt that says everything: for a model asked afresh each time.
+    whole: [
+      ...planLines,
+      ...logLines,
+      ...recordLines,
+      ...employerLines,
+      ...givenLines,
+      ...earlierLines,
+      ...screenLines,
+      ...nowLines,
+    ].join("\n"),
+    // [DOMAIN] For a model kept in one session for the call: `background` is
+    // what it is told when the session opens (and again only if it has to be
+    // opened anew), `turn` is what is new this time. The session itself
+    // remembers the earlier turns and its own replies.
+    background: [
+      ...planLines,
+      ...logLines,
+      ...givenLines,
+      ...earlierLines,
+    ].join("\n"),
+    turn: [...recordLines, ...employerLines, ...screenLines, ...nowLines].join(
+      "\n",
+    ),
+  };
 }
+
+export const coachPrompt = (input: CoachPromptInput): string =>
+  coachPromptParts(input).whole;

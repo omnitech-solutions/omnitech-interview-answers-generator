@@ -14,7 +14,16 @@ import {
   vi,
 } from "vitest";
 
-const held = vi.hoisted(() => ({ directory: "" }));
+const held = vi.hoisted(() => ({
+  directory: "",
+  // The pen the routes use: the real one, made anew for each test over a
+  // clock the test holds.
+  nowMs: 0,
+  writers: undefined as
+    | ReturnType<typeof import("./coach-writer").createCoachWriters>
+    | undefined,
+  renew: () => {},
+}));
 
 vi.mock("esbuild", () => ({ build: vi.fn() }));
 vi.mock("./services", () => ({
@@ -38,6 +47,28 @@ vi.mock("./coach-notes", async () => {
     coachNotes: actual.createCoachNotes(
       join(held.directory, "coach-notes.json"),
     ),
+  };
+});
+vi.mock("./coach-writer", async () => {
+  const actual =
+    await vi.importActual<typeof import("./coach-writer")>("./coach-writer");
+  type Writers = ReturnType<typeof actual.createCoachWriters>;
+  held.renew = () => {
+    held.nowMs = Date.parse("2026-10-09T09:00:00.000Z");
+    held.writers = actual.createCoachWriters(() => held.nowMs);
+  };
+  held.renew();
+  const pen = () => held.writers as Writers;
+  return {
+    ...actual,
+    coachWriters: {
+      claim: (...args: Parameters<Writers["claim"]>) => pen().claim(...args),
+      accepts: (...args: Parameters<Writers["accepts"]>) =>
+        pen().accepts(...args),
+      release: (...args: Parameters<Writers["release"]>) =>
+        pen().release(...args),
+      current: () => pen().current(),
+    } satisfies Writers,
   };
 });
 
@@ -403,5 +434,501 @@ describe("the coach notes API", () => {
         ).toEqual([]);
       },
     );
+  });
+});
+
+describe("who may write the coach's notes (the pen, over HTTP)", () => {
+  const WRITER = "http://localhost/api/v1/coach-writer";
+  const TRANSCRIPT = "http://localhost/api/v1/coach-transcript";
+  const CANARY = "canary words nobody should see quoted";
+  const originalToken = process.env["INTERVIEW_API_TOKEN"];
+  beforeEach(async () => {
+    delete process.env["INTERVIEW_API_TOKEN"];
+    held.renew();
+    await send("DELETE");
+    await send("DELETE", undefined, REPLAY);
+    await send("DELETE", undefined, TRANSCRIPT);
+  });
+  afterEach(() => {
+    if (originalToken === undefined) delete process.env["INTERVIEW_API_TOKEN"];
+    else process.env["INTERVIEW_API_TOKEN"] = originalToken;
+  });
+
+  type Claim = { id: string; epoch: number };
+  const claim = (body: unknown) => send("POST", body, WRITER);
+  const claimed = async (body: unknown) =>
+    (await (await claim(body)).json()) as Claim;
+  const release = (id?: string) =>
+    send(
+      "DELETE",
+      undefined,
+      id === undefined ? WRITER : `${WRITER}?id=${encodeURIComponent(id)}`,
+    );
+  const code = async (response: Response) =>
+    ((await response.json()) as { error: { code: string } }).error.code;
+  const epochNow = async () =>
+    (
+      (await (await send("GET", undefined, TRANSCRIPT)).json()) as {
+        epoch: string;
+      }
+    ).epoch;
+  const note = (
+    body: unknown,
+    headers: Record<string, string> = {},
+    url = URL,
+  ) =>
+    app().request(url, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...headers },
+      body: JSON.stringify(body),
+    });
+  const titles = async (url = URL) =>
+    (await listed(await send("GET", undefined, url))).notes.map(
+      (each) => each.title,
+    );
+  const signed = (held: Claim) => ({
+    "x-coach-writer": `${held.id}:${held.epoch}`,
+  });
+
+  describe("claiming it", () => {
+    it("gives the pen to the first coach that asks: 200 with its id and an epoch, and nothing else", async () => {
+      const given = await claim({ id: "worker-coach" });
+      expect(given.status).toBe(200);
+      expect(await given.json()).toEqual({
+        id: "worker-coach",
+        epoch: expect.any(Number),
+      });
+    });
+
+    it("a renewal is answered the same claim", async () => {
+      const first = await claimed({ id: "worker-coach" });
+      held.nowMs += 5_000;
+      const again = await claim({ id: "worker-coach" });
+      expect(again.status).toBe(200);
+      expect(await again.json()).toEqual(first);
+    });
+
+    it("refuses another coach's plain claim with 409 coach_held while the pen is held", async () => {
+      const first = await claimed({ id: "worker-coach" });
+      for (const body of [
+        { id: "desktop-agent" },
+        { id: "desktop-agent", takeover: false },
+        // Only `true` is a takeover.
+        { id: "desktop-agent", takeover: "true" },
+        { id: "desktop-agent", takeover: 1 },
+      ]) {
+        const refused = await claim(body);
+        expect(refused.status).toBe(409);
+        expect(await code(refused)).toBe("coach_held");
+      }
+      // The holder still holds it.
+      expect(await claimed({ id: "worker-coach" })).toEqual(first);
+    });
+
+    it("the refusal names neither coach", async () => {
+      await claim({ id: "worker-coach" });
+      const text = await (await claim({ id: "desktop-agent" })).text();
+      expect(text).not.toContain("worker-coach");
+      expect(text).not.toContain("desktop-agent");
+    });
+
+    it("gives it to a takeover under a higher epoch, and the coach it was taken from is then refused", async () => {
+      const first = await claimed({ id: "worker-coach" });
+      const taken = await claim({ id: "desktop-agent", takeover: true });
+      expect(taken.status).toBe(200);
+      const now = (await taken.json()) as Claim;
+      expect(now.id).toBe("desktop-agent");
+      expect(now.epoch).toBeGreaterThan(first.epoch);
+      expect((await claim({ id: "worker-coach" })).status).toBe(409);
+    });
+
+    it("a claim lapses after 15 s unless renewed: another coach's plain claim is then given the pen", async () => {
+      await claim({ id: "worker-coach" });
+      held.nowMs += 14_999;
+      expect((await claim({ id: "desktop-agent" })).status).toBe(409);
+      held.nowMs += 1;
+      expect((await claim({ id: "desktop-agent" })).status).toBe(200);
+    });
+
+    it("leaseSeconds is how long the claim stands, in seconds", async () => {
+      await claim({ id: "desktop-agent", takeover: true, leaseSeconds: 180 });
+      held.nowMs += 179_999;
+      expect((await claim({ id: "worker-coach" })).status).toBe(409);
+      held.nowMs += 1;
+      expect((await claim({ id: "worker-coach" })).status).toBe(200);
+    });
+
+    it("leaseSeconds is 5 minutes at most, and a second at least", async () => {
+      await claim({ id: "desktop-agent", leaseSeconds: 86_400 });
+      held.nowMs += 5 * 60_000 - 1;
+      expect((await claim({ id: "worker-coach" })).status).toBe(409);
+      held.nowMs += 1;
+      expect((await claim({ id: "worker-coach" })).status).toBe(200);
+      held.renew();
+      await claim({ id: "desktop-agent", leaseSeconds: 0 });
+      held.nowMs += 999;
+      expect((await claim({ id: "worker-coach" })).status).toBe(409);
+      held.nowMs += 1;
+      expect((await claim({ id: "worker-coach" })).status).toBe(200);
+    });
+
+    it("a leaseSeconds that is not a number is the default 15 s", async () => {
+      await claim({ id: "desktop-agent", leaseSeconds: "180" });
+      held.nowMs += 15_000;
+      expect((await claim({ id: "worker-coach" })).status).toBe(200);
+    });
+
+    it.each<[string, unknown]>([
+      ["no id", {}],
+      ["an empty id", { id: "" }],
+      ["an id that is a number", { id: 48213 }],
+      ["an id with a space", { id: "worker coach" }],
+      ["an id with a colon", { id: "worker:1" }],
+      ["an id with a slash", { id: "worker/coach" }],
+      ["an id of sixty-five characters", { id: "a".repeat(65) }],
+      ["an id that quotes something", { id: CANARY, takeover: true }],
+      ["a body that is null", null],
+      ["a body that is a list", ["worker-coach"]],
+    ])(
+      "refuses %s with 400 invalid_coach_writer, quoting nothing, and the pen stays free",
+      async (_name, body) => {
+        const refused = await claim(body);
+        expect(refused.status).toBe(400);
+        const text = await refused.text();
+        expect(
+          (JSON.parse(text) as { error: { code: string } }).error.code,
+        ).toBe("invalid_coach_writer");
+        expect(text).not.toContain("canary");
+        expect((await claim({ id: "worker-coach" })).status).toBe(200);
+      },
+    );
+
+    it("takes an id of sixty-four letters, digits, dots, dashes and underscores", async () => {
+      const id = `coach-48213.worker_${"a".repeat(45)}`;
+      expect(id).toHaveLength(64);
+      expect(await claimed({ id })).toMatchObject({ id });
+    });
+
+    it("refuses a body that is not JSON with 400, and the pen stays free", async () => {
+      const refused = await app().request(WRITER, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{not json",
+      });
+      expect(refused.status).toBe(400);
+      expect(await code(refused)).toBe("invalid_request");
+      expect((await claim({ id: "worker-coach" })).status).toBe(200);
+    });
+  });
+
+  describe("giving it up", () => {
+    it("answers 204 with no body, and another coach's plain claim is then given the pen", async () => {
+      const first = await claimed({ id: "worker-coach" });
+      const freed = await release("worker-coach");
+      expect(freed.status).toBe(204);
+      expect(await freed.text()).toBe("");
+      const next = await claimed({ id: "desktop-agent" });
+      expect(next.epoch).toBeGreaterThan(first.epoch);
+    });
+
+    it.each(["desktop-agent", "", undefined])(
+      "answers 204 to a coach that does not hold it (%j), and the holder still holds it",
+      async (other) => {
+        await claim({ id: "worker-coach" });
+        expect((await release(other)).status).toBe(204);
+        expect((await claim({ id: "desktop-agent" })).status).toBe(409);
+      },
+    );
+  });
+
+  describe("a note that names its writer", () => {
+    it("is taken from the coach that holds the pen", async () => {
+      const mine = await claimed({ id: "worker-coach" });
+      const posted = await note({ title: "From the holder" }, signed(mine));
+      expect(posted.status).toBe(201);
+      expect(await titles()).toEqual(["From the holder"]);
+    });
+
+    it("is refused 409 stale_writer from a coach that was taken over from, and nothing is put on show", async () => {
+      const first = await claimed({ id: "worker-coach" });
+      const taken = await claimed({ id: "desktop-agent", takeover: true });
+      const refused = await note({ title: CANARY }, signed(first));
+      expect(refused.status).toBe(409);
+      const text = await refused.text();
+      expect((JSON.parse(text) as { error: { code: string } }).error.code).toBe(
+        "stale_writer",
+      );
+      expect(text).not.toContain("canary");
+      expect(await titles()).toEqual([]);
+      // The coach that took over writes.
+      expect(
+        (await note({ title: "From the agent" }, signed(taken))).status,
+      ).toBe(201);
+      expect(await titles()).toEqual(["From the agent"]);
+    });
+
+    it("a refused revision leaves the note already on show as it was", async () => {
+      const first = await claimed({ id: "worker-coach" });
+      await note({ title: "First", key: "q-1", revision: 1 }, signed(first));
+      await claim({ id: "desktop-agent", takeover: true });
+      const refused = await note(
+        { title: "Second", key: "q-1", revision: 2 },
+        signed(first),
+      );
+      expect(await code(refused)).toBe("stale_writer");
+      expect(await titles()).toEqual(["First"]);
+    });
+
+    it.each<[string, (held: Claim) => string]>([
+      ["another epoch under its own name", (h) => `${h.id}:${h.epoch + 1}`],
+      ["its epoch under another name", (h) => `desktop-agent:${h.epoch}`],
+      ["a name alone", (h) => h.id],
+      ["an epoch that is not a number", (h) => `${h.id}:first`],
+      ["nothing at all", () => ""],
+      ["something that is no claim", () => "let me in"],
+    ])(
+      "is refused 409 stale_writer when the header is %s",
+      async (_name, header) => {
+        const mine = await claimed({ id: "worker-coach" });
+        const refused = await note(
+          { title: "Not taken" },
+          { "x-coach-writer": header(mine) },
+        );
+        expect(refused.status).toBe(409);
+        expect(await code(refused)).toBe("stale_writer");
+        expect(await titles()).toEqual([]);
+      },
+    );
+
+    it("is taken from the last holder once the pen is free (its lease lapsed, or it gave the pen up), until another coach holds it", async () => {
+      const mine = await claimed({ id: "worker-coach" });
+      held.nowMs += 15_000;
+      expect(
+        (await note({ title: "After lapsing" }, signed(mine))).status,
+      ).toBe(201);
+      const again = await claimed({ id: "worker-coach" });
+      await release("worker-coach");
+      expect(
+        (await note({ title: "After release" }, signed(again))).status,
+      ).toBe(201);
+      await claim({ id: "desktop-agent" });
+      expect(await code(await note({ title: "Too late" }, signed(again)))).toBe(
+        "stale_writer",
+      );
+      // Newest first, as the window lists them.
+      expect(await titles()).toEqual(["After release", "After lapsing"]);
+    });
+
+    it("is checked the same way for a replay's notes", async () => {
+      const first = await claimed({ id: "worker-coach" });
+      const taken = await claimed({ id: "desktop-agent", takeover: true });
+      const refused = await note({ title: "Stale" }, signed(first), REPLAY);
+      expect(refused.status).toBe(409);
+      expect(await code(refused)).toBe("stale_writer");
+      expect(
+        (await note({ title: "Current" }, signed(taken), REPLAY)).status,
+      ).toBe(201);
+      expect(await titles(REPLAY)).toEqual(["Current"]);
+      expect(await titles()).toEqual([]);
+    });
+
+    it("an invalid note is still answered 400 first, whoever wrote it", async () => {
+      const first = await claimed({ id: "worker-coach" });
+      await claim({ id: "desktop-agent", takeover: true });
+      const refused = await note({ kind: "steer" }, signed(first));
+      expect(refused.status).toBe(400);
+      expect(await code(refused)).toBe("invalid_coach_note");
+    });
+  });
+
+  describe("a note that names its conversation", () => {
+    it("is taken when it is the transcript's current epoch", async () => {
+      const posted = await note(
+        { title: "About this call" },
+        { "x-coach-conversation": await epochNow() },
+      );
+      expect(posted.status).toBe(201);
+      expect(await titles()).toEqual(["About this call"]);
+    });
+
+    it("is refused 409 stale_conversation once the transcript was cleared, and nothing is put on show", async () => {
+      const before = await epochNow();
+      await send("DELETE", undefined, TRANSCRIPT);
+      const refused = await note(
+        { title: CANARY },
+        { "x-coach-conversation": before },
+      );
+      expect(refused.status).toBe(409);
+      const text = await refused.text();
+      expect((JSON.parse(text) as { error: { code: string } }).error.code).toBe(
+        "stale_conversation",
+      );
+      expect(text).not.toContain("canary");
+      expect(await titles()).toEqual([]);
+      // The same note written from the conversation in hand is taken.
+      expect(
+        (
+          await note(
+            { title: "About the new call" },
+            { "x-coach-conversation": await epochNow() },
+          )
+        ).status,
+      ).toBe(201);
+    });
+
+    it.each(["", "another-epoch", "replay"])(
+      "is refused 409 stale_conversation for an epoch that is not the transcript's (%j)",
+      async (epoch) => {
+        const refused = await note(
+          { title: "Not taken" },
+          { "x-coach-conversation": epoch },
+        );
+        expect(refused.status).toBe(409);
+        expect(await code(refused)).toBe("stale_conversation");
+        expect(await titles()).toEqual([]);
+      },
+    );
+
+    it("is checked the same way for a replay's notes", async () => {
+      await send("POST", { lines: [{ text: "attached" }] }, TRANSCRIPT);
+      const epoch = await epochNow();
+      expect(
+        (
+          await note(
+            { title: "Of the replay" },
+            { "x-coach-conversation": epoch },
+            REPLAY,
+          )
+        ).status,
+      ).toBe(201);
+      await send("DELETE", undefined, TRANSCRIPT);
+      expect(
+        await code(
+          await note(
+            { title: "Too late" },
+            { "x-coach-conversation": epoch },
+            REPLAY,
+          ),
+        ),
+      ).toBe("stale_conversation");
+      expect(await titles(REPLAY)).toEqual(["Of the replay"]);
+    });
+  });
+
+  describe("a note that names both, as the worker's coach does", () => {
+    it("is taken when both are current", async () => {
+      const mine = await claimed({ id: "worker-coach" });
+      const posted = await note(
+        { title: "Both current" },
+        { ...signed(mine), "x-coach-conversation": await epochNow() },
+      );
+      expect(posted.status).toBe(201);
+    });
+
+    it("is refused as a stale writer first when neither is current", async () => {
+      const first = await claimed({ id: "worker-coach" });
+      const before = await epochNow();
+      await claim({ id: "desktop-agent", takeover: true });
+      await send("DELETE", undefined, TRANSCRIPT);
+      const refused = await note(
+        { title: "Neither" },
+        { ...signed(first), "x-coach-conversation": before },
+      );
+      expect(refused.status).toBe(409);
+      expect(await code(refused)).toBe("stale_writer");
+    });
+
+    it("is refused for a conversation that is over even from the coach that holds the pen", async () => {
+      const mine = await claimed({ id: "worker-coach" });
+      const before = await epochNow();
+      await send("DELETE", undefined, TRANSCRIPT);
+      const refused = await note(
+        { title: "Old call" },
+        { ...signed(mine), "x-coach-conversation": before },
+      );
+      expect(await code(refused)).toBe("stale_conversation");
+      expect(await titles()).toEqual([]);
+    });
+  });
+
+  describe("a note that names neither (a person, a script)", () => {
+    it("is always taken: while a coach holds the pen, after a takeover, and after the transcript was cleared", async () => {
+      await claim({ id: "worker-coach" });
+      expect((await note({ title: "While held" })).status).toBe(201);
+      await claim({ id: "desktop-agent", takeover: true });
+      expect((await note({ title: "After a takeover" })).status).toBe(201);
+      await send("DELETE", undefined, TRANSCRIPT);
+      expect((await note({ title: "After a clear" })).status).toBe(201);
+      expect((await note({ title: "A replay's" }, {}, REPLAY)).status).toBe(
+        201,
+      );
+      expect(await titles()).toEqual([
+        "After a clear",
+        "After a takeover",
+        "While held",
+      ]);
+    });
+
+    it("an older revision of it is still refused as a stale note, by its own code", async () => {
+      await note({ title: "Newer", key: "q-1", revision: 2 });
+      const refused = await note({ title: "Older", key: "q-1", revision: 1 });
+      expect(refused.status).toBe(409);
+      expect(await code(refused)).not.toMatch(
+        /stale_writer|stale_conversation/,
+      );
+    });
+  });
+
+  describe("access", () => {
+    const anonymous = () =>
+      createApi({
+        resolveScope: async () => null,
+        verifySession: async () => false,
+      });
+
+    it("nobody claims the pen, or makes its holder give it up, without being signed in", async () => {
+      const refused = await anonymous().request(WRITER, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: "desktop-agent", takeover: true }),
+      });
+      expect(refused.status).toBe(401);
+      expect(await code(refused)).toBe("unauthorized");
+      await claim({ id: "worker-coach" });
+      expect(
+        (
+          await anonymous().request(`${WRITER}?id=worker-coach`, {
+            method: "DELETE",
+          })
+        ).status,
+      ).toBe(401);
+      // The holder still holds it.
+      expect((await claim({ id: "desktop-agent" })).status).toBe(409);
+    });
+
+    it("takes the configured API token as a bearer, as the coach in the worker sends it", async () => {
+      process.env["INTERVIEW_API_TOKEN"] = "coach-pen-test-token";
+      const given = await anonymous().request(WRITER, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: "Bearer coach-pen-test-token",
+        },
+        body: JSON.stringify({ id: "worker-coach" }),
+      });
+      expect(given.status).toBe(200);
+      expect(
+        (
+          await anonymous().request(WRITER, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              authorization: "Bearer another-token",
+            },
+            body: JSON.stringify({ id: "desktop-agent", takeover: true }),
+          })
+        ).status,
+      ).toBe(401);
+    });
   });
 });
