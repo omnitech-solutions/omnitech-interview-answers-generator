@@ -20,10 +20,19 @@ Options
 --plan FILE       the plan for the call, given to the coach with every stretch
 --trace           print everything: each prompt the model is given, its raw
 reply, and each revision of each note as it is posted
+--bench NAME      a call fixture (fixtures/calls/NAME): its transcript, its
+plan, who is who and what is expected, in one word
+--results DIR     where a benchmark's result is kept and the last looked
+for (default .dev-local/benchmarks/)
 --expect FILE     a benchmark: the questions the stretch holds and the words
 that complete each. The run is scored against them, the
 result is kept in .dev-local/benchmarks/ and compared with
 the last run of the same benchmark on the same runtime
+--no-activity     do not tell the coach who is speaking (by default a replay
+derives it from the recording's timings, as a stand-in
+for a voice-activity signal)
+--retain          keep one session of the model open for the whole replay
+(each turn then sends only what is new)
 --hide-me         the coach does not hear the person being coached
 --from T --to T   the stretch to replay (HH:MM:SS of the file's clock)
 --timing          decisions only, no model

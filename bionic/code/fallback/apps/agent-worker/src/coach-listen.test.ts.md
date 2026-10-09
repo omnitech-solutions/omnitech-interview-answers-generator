@@ -3,8 +3,8 @@
 _Source: `apps/agent-worker/src/coach-listen.test.ts` (header-comment fallback)_
 
 The listen command, run as an agent runs it by hand: as its own process,
-against a tiny local server standing in for the Studio's coach transcript
-and coach plan. The command is a script (top-level await, `process.exit`),
+against a tiny local server standing in for the Studio's coach transcript,
+coach plan and the pen (who may write the notes). The command is a script (top-level await, `process.exit`),
 so it is never imported here. Every line said is invented, and the token is
 a made-up one that only this stand-in knows.
 

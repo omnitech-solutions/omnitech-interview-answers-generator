@@ -2,8 +2,8 @@
 
 _Source: `products/interview/src/backend/live-session/ingest.ts` (header-comment fallback)_
 
-Ingest: one credential-authenticated message (an observation or a heartbeat)
-from the capture companion. Identity comes only from the credential
+Ingest: one credential-authenticated message (an observation, a heartbeat or
+another content-free report) from the capture companion. Identity comes only from the credential
 (rule:identity-from-credential): the credential's hash resolves the ONE
 session, and every later read or write runs in a tenant-and-actor transaction
 for that session's owner. A failed lookup is one refusal (rule:credential-

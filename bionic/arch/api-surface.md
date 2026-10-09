@@ -2,7 +2,7 @@
 
 _Static route scan (Express/Fastify verb calls + NestJS decorators, labeling GraphQL resolvers as a residual rather than reading them); the app is not executed._
 
-## Routes (88)
+## Routes (93)
 
 | method | path | handler |
 |---|---|---|
@@ -11,6 +11,7 @@ _Static route scan (Express/Fastify verb calls + NestJS decorators, labeling Gra
 | DELETE | `/api/v1/answers/:id` | — |
 | DELETE | `/api/v1/coach-notes` | — |
 | DELETE | `/api/v1/coach-transcript` | — |
+| DELETE | `/api/v1/coach-writer` | — |
 | DELETE | `/api/v1/explanations/:id` | — |
 | DELETE | `/api/v1/library/items/:id` | — |
 | DELETE | `/api/v1/playground-control` | — |
@@ -31,6 +32,7 @@ _Static route scan (Express/Fastify verb calls + NestJS decorators, labeling Gra
 | GET | `/api/teapot` | — |
 | GET | `/api/v1/answers` | — |
 | GET | `/api/v1/answers/:id` | — |
+| GET | `/api/v1/coach-ledger` | — |
 | GET | `/api/v1/coach-notes` | — |
 | GET | `/api/v1/coach-plan` | — |
 | GET | `/api/v1/coach-transcript` | — |
@@ -61,8 +63,10 @@ _Static route scan (Express/Fastify verb calls + NestJS decorators, labeling Gra
 | POST | `/api/auth/callback/local` | — |
 | POST | `/api/fake/v1/chat/completions` | — |
 | POST | `/api/v1/answers` | — |
+| POST | `/api/v1/coach-activity` | — |
 | POST | `/api/v1/coach-notes` | — |
 | POST | `/api/v1/coach-transcript` | — |
+| POST | `/api/v1/coach-writer` | — |
 | POST | `/api/v1/explain` | — |
 | POST | `/api/v1/explanations` | — |
 | POST | `/api/v1/generate` | — |
@@ -89,6 +93,7 @@ _Static route scan (Express/Fastify verb calls + NestJS decorators, labeling Gra
 | POST | `/presentation/v1/themes` | — |
 | POST | `/presentation/v1/themes/import` | — |
 | PUT | `/api/platform/v1/preferences` | — |
+| PUT | `/api/v1/coach-ledger` | — |
 | PUT | `/api/v1/coach-plan` | — |
 | PUT | `/api/v1/library/items/:id` | — |
 | PUT | `/presentation/v1/documents/:id/favorite` | — |
@@ -97,5 +102,4 @@ _Static route scan (Express/Fastify verb calls + NestJS decorators, labeling Gra
 
 ## Residuals
 
-- Skipped for exceeding the 2 MB bound: `apps/web/public/ocr.docs-arch-aside/core/tesseract-core-lstm.wasm.js`, `apps/web/public/ocr.docs-arch-aside/core/tesseract-core-relaxedsimd-lstm.wasm.js`, `apps/web/public/ocr.docs-arch-aside/core/tesseract-core-simd-lstm.wasm.js`
 - 10 route declarations dropped: the path is composed at runtime and has no static value, and the application is not executed, so no path is rendered for them (a named residual) — `products/interview/src/backend/live-session/hardening/cross-user.test.ts` lines 118, 123, 141, 142, 154, 208, 211, 217, 247; `products/interview/src/backend/live-session/hardening/world.ts` line 178.

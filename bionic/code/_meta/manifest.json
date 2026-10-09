@@ -2,24 +2,45 @@
   "extractor_version": "1",
   "pages": [
     {
+      "doc_path": "fallback/apps/agent-worker/src/call-fixtures.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "b3378a0d6a85000b305acbbee68d8b26e0c6ac71a4c508e1a466085869eea0a2",
+      "source_path": "apps/agent-worker/src/call-fixtures.test.ts"
+    },
+    {
+      "doc_path": "fallback/apps/agent-worker/src/call-script.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "3323c9a7fddc4460af99cb834eff241999cef8d5cddd553b5a3f024070348d39",
+      "source_path": "apps/agent-worker/src/call-script.ts"
+    },
+    {
+      "doc_path": "fallback/apps/agent-worker/src/coach-fixture.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "e60115a383fabb6a28a54630440b710f84697692bf806c23f16ed3623430767e",
+      "source_path": "apps/agent-worker/src/coach-fixture.ts"
+    },
+    {
       "doc_path": "fallback/apps/agent-worker/src/coach-listen.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "8da3bf6d1cb753875a81852f6dcf76bcf5b3a3722b469cf6d4fa2da7c1c2f2a3",
+      "sha256": "0bb436cb00cdbaee226650ffcfd2de32294e67f9772c533eefa29f4f008e4b5f",
       "source_path": "apps/agent-worker/src/coach-listen.test.ts"
     },
     {
       "doc_path": "fallback/apps/agent-worker/src/coach-listen.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "29ab9e90dd6f9038fb6a834cb74cd9a6f82f8e492eb4632f74ae7fe4e8315c11",
+      "sha256": "d51454a788d5c86e61cc6cd465704ed350d71a75c4ef29acc4e1088da15b87a4",
       "source_path": "apps/agent-worker/src/coach-listen.ts"
     },
     {
       "doc_path": "fallback/apps/agent-worker/src/coach-loop.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "e49f20add3a5be4be90c45af945ab7b2b8285fd32e9020ab24c84afaf6b2ff9c",
+      "sha256": "1835d5b92fb837566da0fe0c3e3186dfa4b740b1561503c6a9a8013877247d33",
       "source_path": "apps/agent-worker/src/coach-loop.test.ts"
     },
     {
@@ -33,14 +54,14 @@
       "doc_path": "fallback/apps/agent-worker/src/coach-replay.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "6550abea7fb112e821bd381089ea8605e7bd3a2e7656cf1048e655ce22f3ba7b",
+      "sha256": "94c8fb19ec1c769b277a87de29ab91dff7225cc28ffa7b1910a98e47d3300eb1",
       "source_path": "apps/agent-worker/src/coach-replay.test.ts"
     },
     {
       "doc_path": "fallback/apps/agent-worker/src/coach-replay.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "38486cc83b19e77c8e7ee62c746370bb657bb51a7a3fd0d685011552ff9726e1",
+      "sha256": "66d13c59b629c70e3a1cedcd210018bf1cb02ad3be813c006b93fab6193a147f",
       "source_path": "apps/agent-worker/src/coach-replay.ts"
     },
     {
@@ -980,6 +1001,20 @@
       "owner": "typescript",
       "sha256": "a8f7452007e499d596a59c1d1973315ce2cc96d5c3d9568694ce25db530ed062",
       "source_path": "packages/active-session-contracts/src/screenshot.ts"
+    },
+    {
+      "doc_path": "fallback/packages/active-session-contracts/src/voice-activity.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "fa7a9785679a2ef5d6fe09838716c1635d4ddb993969885e4a8a65467cf10a88",
+      "source_path": "packages/active-session-contracts/src/voice-activity.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/active-session-contracts/src/voice-activity.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "86bbe541bbaeaf6fe77ae2c335ab0f0907ad1ef44620f571a003caf102420146",
+      "source_path": "packages/active-session-contracts/src/voice-activity.ts"
     },
     {
       "doc_path": "fallback/packages/active-session-contracts/src/wire-schema.test.ts.md",
@@ -2228,6 +2263,20 @@
       "source_path": "products/interview/src/backend/coach-transcript.ts"
     },
     {
+      "doc_path": "fallback/products/interview/src/backend/coach-writer.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "f78c910e8633a1596263481c9765b6a3234e1696d364408273ce0edcd001f692",
+      "source_path": "products/interview/src/backend/coach-writer.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/coach-writer.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "b9a20045b74682a974b2dc74d2e2b0531f98ee2be1b70cf6bbcaf3ce611dce65",
+      "source_path": "products/interview/src/backend/coach-writer.ts"
+    },
+    {
       "doc_path": "fallback/products/interview/src/backend/coach/coach.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
@@ -3008,7 +3057,7 @@
       "doc_path": "fallback/products/interview/src/backend/live-session/ingest.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "6fe3355cc92840ace2ca2c5655ec30d859d3b03dbc38fcc1f72c433390cb2c5c",
+      "sha256": "60c0b9f2182ffdf7506659b27871ea3b9ef6670e38593ab0ab8eea7d3a97c399",
       "source_path": "products/interview/src/backend/live-session/ingest.ts"
     },
     {
@@ -3745,6 +3794,20 @@
       "owner": "typescript",
       "sha256": "637f203b6fd73fedda1c9e054c7d3f76628cf88de287dec0f1bde5eff8f36153",
       "source_path": "products/interview/src/backend/live-session/transcript-recording.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/live-session/voice-activity.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "5d92eeb401b14ec5baa4cf7cbb7b057edf782f314fc1867a045602545b8b75b0",
+      "source_path": "products/interview/src/backend/live-session/voice-activity.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/live-session/voice-activity.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "52a7e32cb0ce5902697fc0f932951530d84a354081396224c76be85c9df5da17",
+      "source_path": "products/interview/src/backend/live-session/voice-activity.ts"
     },
     {
       "doc_path": "fallback/products/interview/src/backend/live-session/withheld.test.ts.md",

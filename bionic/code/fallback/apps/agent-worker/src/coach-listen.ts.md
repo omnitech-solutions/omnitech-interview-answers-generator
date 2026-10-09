@@ -11,9 +11,9 @@ pnpm coach:listen            wait for the next moment (at most 10 minutes)
 pnpm coach:listen --reset    forget where it had read to, then wait
 
 The Studio decides WHEN (the same turn-taking the built-in coach uses,
-turns.ts); the agent decides WHAT. It reads the same feed the built-in coach
-reads, so run the Studio with INTERVIEW_COACH=off while an agent coaches:
-one coach at a time.
+turns.ts); the agent decides WHAT. Running this takes the pen: the built-in
+coach stands by and writes nothing while an agent is listening, and takes
+it back three minutes after the agent's last listen.
 
 What it prints, on one line:
 { "reason": "question-finished" | "pause" | "speaker-change" | "answer-check",
