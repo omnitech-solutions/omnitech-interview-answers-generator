@@ -1,4 +1,4 @@
-import type { AgentProfile } from "@omnitech/ai-engine/providers/agents";
+import type { AgentProfile } from "@omnitech/ai-engine";
 import {
   createPlatformDatabase,
   type PlatformDatabase,

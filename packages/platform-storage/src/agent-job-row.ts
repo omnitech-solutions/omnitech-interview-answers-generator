@@ -1,8 +1,8 @@
-import type { AgentJob } from "@omnitech/ai-engine/jobs";
 import type {
+  AgentJob,
   AgentJobStatus,
   AgentProfile,
-} from "@omnitech/ai-engine/providers/agents";
+} from "@omnitech/ai-engine";
 
 // One ai.agent_jobs row, as both job repositories read it.
 export type JobRow = {

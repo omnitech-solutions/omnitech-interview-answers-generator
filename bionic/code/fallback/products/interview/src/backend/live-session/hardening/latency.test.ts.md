@@ -12,7 +12,7 @@ SIMULATED model latency (a constant, below);
 processing  real wall-clock time the processor spent from that
 utterance's delivery (companion -> route -> store) to the
 dispatch finishing; excludes the simulated model.
-What this does NOT measure: the real model's latency. The gateway is a fake
+What this does NOT measure: the real model's latency. The engine is a fake
 that answers instantly and a constant stands in for the model, so the real
 question-to-first-draft latency stays UNOBSERVED here; it would be settled
 by one agreed rehearsal against a real provider with the packaged companion.

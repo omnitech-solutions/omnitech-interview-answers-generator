@@ -2,4 +2,4 @@
 
 _Source: `products/interview/src/backend/assistant-models.test.ts` (header-comment fallback)_
 
-_No leading comment block found._
+How the host presents the assistant's own profile.

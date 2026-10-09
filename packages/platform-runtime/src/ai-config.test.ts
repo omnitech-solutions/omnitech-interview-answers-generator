@@ -1,4 +1,4 @@
-import { validateAgentProfile } from "@omnitech/ai-engine/providers/agents";
+import { validateAgentProfile } from "@omnitech/ai-engine";
 import { describe, expect, it } from "vitest";
 import {
   declareLocality,

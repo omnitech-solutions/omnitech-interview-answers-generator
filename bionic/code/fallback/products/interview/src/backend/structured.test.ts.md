@@ -2,4 +2,5 @@
 
 _Source: `products/interview/src/backend/structured.test.ts` (header-comment fallback)_
 
-The shape a direct model reads in its instructions is the same schema.
+The instructions and the prompt travel as written: the shape is the
+engine's to state, in the provider's own structured format.

@@ -22,11 +22,18 @@ import { openExternalThroughHost } from "../../host-adapter";
 import { isCoachView, useChatView } from "./chat-view-pref";
 import { windowTenant } from "./use-account";
 
-const POLL_MS = 2_000;
+// Often enough that a note is read as it is written: an unchanged read
+// carries no content (the server answers 204 to the revision on show).
+const POLL_MS = 500;
 const ENDPOINT = "/api/v1/coach-notes";
 
-const request = (method: "GET" | "DELETE") =>
-  fetch(ENDPOINT, { method, headers: { [TENANT_HEADER]: windowTenant() } });
+const request = (method: "GET" | "DELETE", revision?: number) =>
+  fetch(
+    revision === undefined || revision < 0
+      ? ENDPOINT
+      : `${ENDPOINT}?revision=${revision}`,
+    { method, headers: { [TENANT_HEADER]: windowTenant() } },
+  );
 
 // The notes as the server holds them, read on a short interval while the
 // session is open. A failed read keeps what is on show.
@@ -41,8 +48,9 @@ export function useCoachNotes(enabled: boolean): {
     let live = true;
     const read = async () => {
       try {
-        const response = await request("GET");
-        if (!response.ok) return;
+        const response = await request("GET", revision.current);
+        // 204: nothing has changed since the revision on show.
+        if (!response.ok || response.status === 204) return;
         const body = coachNotesResponseSchema.parse(await response.json());
         if (!live || body.revision === revision.current) return;
         revision.current = body.revision;

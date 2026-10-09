@@ -2,18 +2,32 @@
   "extractor_version": "1",
   "pages": [
     {
-      "doc_path": "fallback/apps/agent-worker/src/index.test.ts.md",
+      "doc_path": "fallback/apps/agent-worker/src/coach-loop.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "f7199413b506bc6c7c4c1f6c12c92367e8fa3f35f82cf2e332c2ebe6c3358f55",
-      "source_path": "apps/agent-worker/src/index.test.ts"
+      "sha256": "e49f20add3a5be4be90c45af945ab7b2b8285fd32e9020ab24c84afaf6b2ff9c",
+      "source_path": "apps/agent-worker/src/coach-loop.test.ts"
     },
     {
-      "doc_path": "fallback/apps/agent-worker/src/index.ts.md",
+      "doc_path": "fallback/apps/agent-worker/src/coach-loop.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "be5b765c3cd1a674500583c1b8aed201c2f0d79d54e793698bef85293cb1dacb",
-      "source_path": "apps/agent-worker/src/index.ts"
+      "sha256": "b6acfba5b5c7dbcf4f828b730576e80d986dfe1a7b3a8ae9373ba873b81663ad",
+      "source_path": "apps/agent-worker/src/coach-loop.ts"
+    },
+    {
+      "doc_path": "fallback/apps/agent-worker/src/engine-trace.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "477febb89e11e0549f91d005c491339c924439fc2b7a2a02c3bd0b769a8cc9cb",
+      "source_path": "apps/agent-worker/src/engine-trace.test.ts"
+    },
+    {
+      "doc_path": "fallback/apps/agent-worker/src/engine-trace.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "d5184da8091d226ef1abb1ad0756f25f2a15b6648afad606fa18cb4899e333da",
+      "source_path": "apps/agent-worker/src/engine-trace.ts"
     },
     {
       "doc_path": "fallback/apps/agent-worker/src/loops.test.ts.md",
@@ -47,43 +61,43 @@
       "doc_path": "fallback/apps/agent-worker/src/session-agent-port.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "e9250cb45396d02bbb90537f82782b76e53e3ffcd1c54791396c7f645b0bfd25",
+      "sha256": "549a92520602aae150bb2c3c45665c4e32e97c8d40b37e1c0725e7565425c9bb",
       "source_path": "apps/agent-worker/src/session-agent-port.test.ts"
     },
     {
       "doc_path": "fallback/apps/agent-worker/src/session-agent-port.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "bbf86c2e9c621bbb8a837cf911f35143be7676c7d14dfefe47483b308207fba1",
+      "sha256": "472c4e016c9bc648a0c2fad2211eb8474a925b58ccaef853d21eb8fa92a65ebb",
       "source_path": "apps/agent-worker/src/session-agent-port.ts"
     },
     {
       "doc_path": "fallback/apps/agent-worker/src/session-e2e-support.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "072f10a611a0837c84f1716f7f97958618809f0802442529c54ab1a00e4159f8",
+      "sha256": "9b6804e337a8c51587401d69e6e5db28f199d03f8fcc5f9c2055d7fd7cf3fa46",
       "source_path": "apps/agent-worker/src/session-e2e-support.ts"
     },
     {
       "doc_path": "fallback/apps/agent-worker/src/session-e2e.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "ecd381d13125fab4301dea55308f442850314d0a2cb0c3aa1a0c4425e06b26e3",
+      "sha256": "3fc55b7f1473ad829ffa9fd9cea556dabef2d9e3f156c44186b562b6d0856d66",
       "source_path": "apps/agent-worker/src/session-e2e.test.ts"
     },
     {
-      "doc_path": "fallback/apps/agent-worker/src/session-gateway.test.ts.md",
+      "doc_path": "fallback/apps/agent-worker/src/session-engine.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "07935085fba8b822a017ae1c57424d0e7a29a9a35d22e11af844bcf068a865f6",
-      "source_path": "apps/agent-worker/src/session-gateway.test.ts"
+      "sha256": "30ba45565faa96db3ada6771f90bdfaff587082619b4564ddf5bf78ed10657d6",
+      "source_path": "apps/agent-worker/src/session-engine.test.ts"
     },
     {
-      "doc_path": "fallback/apps/agent-worker/src/session-gateway.ts.md",
+      "doc_path": "fallback/apps/agent-worker/src/session-engine.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "815b6919da9bc3bcde40793418ca400df2f70d91618df0e6a6efc2f62688f213",
-      "source_path": "apps/agent-worker/src/session-gateway.ts"
+      "sha256": "685337f25ec136ea65d5a1e129cbcf4d41ffaf2f4bfab02ee86a63ecc4c4668e",
+      "source_path": "apps/agent-worker/src/session-engine.ts"
     },
     {
       "doc_path": "fallback/apps/agent-worker/src/session-loop.test.ts.md",
@@ -649,7 +663,7 @@
       "doc_path": "fallback/apps/web/src/platform/agent-api.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "eca728706f5b2a36afc4b9209de184c7bb9a928d55533e5c0b56d146d20bb105",
+      "sha256": "482bad80afc9d3419818cd7a934ad30093a3b0cbd9220f02437dc16d29d8e657",
       "source_path": "apps/web/src/platform/agent-api.ts"
     },
     {
@@ -663,7 +677,7 @@
       "doc_path": "fallback/apps/web/src/platform/agent-models.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "43c964f599aa3142820f4c556b95f601da4a007b5067f13fae158d1b9a106236",
+      "sha256": "a403bbcc61d21f37ccf852916612416a2a27bde8146d02e9d9c10b292265d6f0",
       "source_path": "apps/web/src/platform/agent-models.ts"
     },
     {
@@ -677,7 +691,7 @@
       "doc_path": "fallback/apps/web/src/platform/ai.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "f7a033fd75822d0d065e910afef2b6c19d42ae1fd9b40bc6aac30eee1a8771e8",
+      "sha256": "e94e972999f3f5c47db61978b668234bb5a8fdb82756761d2fc40d65724a2f94",
       "source_path": "apps/web/src/platform/ai.ts"
     },
     {
@@ -742,20 +756,6 @@
       "owner": "typescript",
       "sha256": "9fb38e55582913dc48d99b3c76d005464c66853e3e2de3d683a9978027889b09",
       "source_path": "apps/web/src/platform/fake-auth.ts"
-    },
-    {
-      "doc_path": "fallback/apps/web/src/platform/local-model.test.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "2faf780229f40cf3af3d04da8ede099293917d3a21396bef52530d0978702dce",
-      "source_path": "apps/web/src/platform/local-model.test.ts"
-    },
-    {
-      "doc_path": "fallback/apps/web/src/platform/local-model.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "f2ac0987e245d1625b04d19beafb1473a8bb1bd8f9104f72247c134e95054f26",
-      "source_path": "apps/web/src/platform/local-model.ts"
     },
     {
       "doc_path": "fallback/apps/web/src/platform/native-handoff.test.ts.md",
@@ -966,272 +966,6 @@
       "owner": "typescript",
       "sha256": "8257b928cd0c02dcb4a832329cdc77f9143e7356c22e05903fb71cca06327144",
       "source_path": "packages/active-session-contracts/src/wire-schema.ts"
-    },
-    {
-      "doc_path": "fallback/packages/agent-job-service/src/index.test.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "092a5417b4412b3b33e44e8c839a3698c26ffbb17d264530bf201b744f1cb2a1",
-      "source_path": "packages/agent-job-service/src/index.test.ts"
-    },
-    {
-      "doc_path": "fallback/packages/agent-job-service/src/index.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "484d81583918801ee84c34c27190c5bd1fc051fa056807e451b575c7e565eb78",
-      "source_path": "packages/agent-job-service/src/index.ts"
-    },
-    {
-      "doc_path": "fallback/packages/agent-runtime-claude/src/index.test.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "019af727f1d4d2ac9e0f5a68a19f0f304a8b56fd7b9c303cd1a2caf0125bccdd",
-      "source_path": "packages/agent-runtime-claude/src/index.test.ts"
-    },
-    {
-      "doc_path": "fallback/packages/agent-runtime-claude/src/index.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "0943c6e58fadc42d3c703dfec50a07d621d94afcd20c592d5880dada6a967b8e",
-      "source_path": "packages/agent-runtime-claude/src/index.ts"
-    },
-    {
-      "doc_path": "fallback/packages/agent-runtime-claude/src/lifecycle.test.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "d703c387a41038ce21c9b8abc8f2dbb0943b3e84b6da9c64f26a3355a34ac463",
-      "source_path": "packages/agent-runtime-claude/src/lifecycle.test.ts"
-    },
-    {
-      "doc_path": "fallback/packages/agent-runtime-claude/src/pool.test.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "8e08aecd9c3f134359ddcb092864bce29ee5c1f66f03affb029e6a7480f52d6c",
-      "source_path": "packages/agent-runtime-claude/src/pool.test.ts"
-    },
-    {
-      "doc_path": "fallback/packages/agent-runtime-claude/src/terminal.test.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "62918c816577b58dd79ae63ef319f3e52e5b85fbbc3f56caeb7e9c0b1043d59d",
-      "source_path": "packages/agent-runtime-claude/src/terminal.test.ts"
-    },
-    {
-      "doc_path": "fallback/packages/agent-runtime-codex/src/index.test.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "5084737124b279dc42bad37654d19fe75728a8de4b59cb81aa54bd57da7af962",
-      "source_path": "packages/agent-runtime-codex/src/index.test.ts"
-    },
-    {
-      "doc_path": "fallback/packages/agent-runtime-codex/src/index.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "f57090901f2e931ad0a44a812d43f113c077c37e1448ca016ce4de5a99571892",
-      "source_path": "packages/agent-runtime-codex/src/index.ts"
-    },
-    {
-      "doc_path": "fallback/packages/agent-runtime-codex/src/runtime.test.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "ff2c77aed96dbf8dee61af36c52a51071ad9cc9c57095295ac08d5cadb2f76af",
-      "source_path": "packages/agent-runtime-codex/src/runtime.test.ts"
-    },
-    {
-      "doc_path": "fallback/packages/agent-runtime-codex/src/strict-schema.test.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "c4a81edad79f7381f92f78b79f26f4e59bb0bf3b2f3a2c67a1471f51fc17cf37",
-      "source_path": "packages/agent-runtime-codex/src/strict-schema.test.ts"
-    },
-    {
-      "doc_path": "fallback/packages/agent-runtime-codex/src/strict-schema.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "5401dcc5195d9e6c4821b16fb9c7f5ae4c345e25bca884473fae1b06f4f67b06",
-      "source_path": "packages/agent-runtime-codex/src/strict-schema.ts"
-    },
-    {
-      "doc_path": "fallback/packages/agent-runtime-contracts/src/index.test.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "751827b7e0d76f5a597797e33a6f3ea45ca14237a3b0ac45e346159970267597",
-      "source_path": "packages/agent-runtime-contracts/src/index.test.ts"
-    },
-    {
-      "doc_path": "fallback/packages/agent-runtime-contracts/src/index.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "dd4230999a647eceb8b6830a2006a086cf67cbb7814189225b0d1d5fcf0fca95",
-      "source_path": "packages/agent-runtime-contracts/src/index.ts"
-    },
-    {
-      "doc_path": "fallback/packages/ai-contracts/src/index.test.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "620c77686bcb9d10c54e530b3552d574f09ba3d17fea9b58da6c91c54e98a48f",
-      "source_path": "packages/ai-contracts/src/index.test.ts"
-    },
-    {
-      "doc_path": "fallback/packages/ai-contracts/src/index.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "1f80aa433765b1fa9f316e0377e7ea2c555e2ca73484fab325aa6957f62cd3bd",
-      "source_path": "packages/ai-contracts/src/index.ts"
-    },
-    {
-      "doc_path": "fallback/packages/ai-provider-anthropic/src/index.test.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "34278d96075ecd4e89e295bab7781a18c6c4e856f35ff6ead78c958ee0c86aa4",
-      "source_path": "packages/ai-provider-anthropic/src/index.test.ts"
-    },
-    {
-      "doc_path": "fallback/packages/ai-provider-anthropic/src/index.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "28d5711e9758e813087bf9c8052a37fe6b515bcb901b1144d1524c6976abc384",
-      "source_path": "packages/ai-provider-anthropic/src/index.ts"
-    },
-    {
-      "doc_path": "fallback/packages/ai-provider-anthropic/src/messages-api.test.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "a47717a3155673c2281b02202414f26cd8db1ef69ba36842f3a118a132440800",
-      "source_path": "packages/ai-provider-anthropic/src/messages-api.test.ts"
-    },
-    {
-      "doc_path": "fallback/packages/ai-provider-images/src/index.test.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "1ec28f334ab78824ae3478cb5499b437ed7e6f3b31eca40b181fc2149e039403",
-      "source_path": "packages/ai-provider-images/src/index.test.ts"
-    },
-    {
-      "doc_path": "fallback/packages/ai-provider-images/src/index.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "b8ffd29d1437692eac514be0c2fe46fe4019862a4668e130dfdbc06f216723fc",
-      "source_path": "packages/ai-provider-images/src/index.ts"
-    },
-    {
-      "doc_path": "fallback/packages/ai-provider-openai/src/catalog.test.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "46be1ce7e4a6032d99f3a593fafc9c8838d56ba4cb5106cd6c5430607bd20b77",
-      "source_path": "packages/ai-provider-openai/src/catalog.test.ts"
-    },
-    {
-      "doc_path": "fallback/packages/ai-provider-openai/src/catalog.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "c471bcd6b83575720153d335a966e23f3d4ddc8d0388d1e66da8fd8d01c820ca",
-      "source_path": "packages/ai-provider-openai/src/catalog.ts"
-    },
-    {
-      "doc_path": "fallback/packages/ai-provider-openai/src/chat-completions.test.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "a839b57d00d9a53a7a6a9375d755bb2f21891dc875aedeefad7c263cabc40bc4",
-      "source_path": "packages/ai-provider-openai/src/chat-completions.test.ts"
-    },
-    {
-      "doc_path": "fallback/packages/ai-provider-openai/src/chat-completions.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "0935f563fbc01a387b23e8e0821fd75de68974bfedaefbb95e0b145fe821447d",
-      "source_path": "packages/ai-provider-openai/src/chat-completions.ts"
-    },
-    {
-      "doc_path": "fallback/packages/ai-provider-openai/src/index.test.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "0f66fc825d7394d72bcbb0c5785905c5a097c121be19e6ccc6979009e7afd9fb",
-      "source_path": "packages/ai-provider-openai/src/index.test.ts"
-    },
-    {
-      "doc_path": "fallback/packages/ai-provider-openai/src/index.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "b0e66726e3e134f1c2e05763fe691e7c980e4ac9b110fa6ac8f8387b8e3fd8a9",
-      "source_path": "packages/ai-provider-openai/src/index.ts"
-    },
-    {
-      "doc_path": "fallback/packages/ai-provider-openai/src/structured-chat.test.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "087dd0277ef126648ef12803c8e82f3ac8da696533e91f7b7b5c4c4229413fbf",
-      "source_path": "packages/ai-provider-openai/src/structured-chat.test.ts"
-    },
-    {
-      "doc_path": "fallback/packages/ai-provider-openai/src/structured-output.test.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "9fa2d80b1008bf2e6405f09ebbf1b23cf250668a0824b708b46c47af23c56d11",
-      "source_path": "packages/ai-provider-openai/src/structured-output.test.ts"
-    },
-    {
-      "doc_path": "fallback/packages/ai-provider-openai/src/structured-output.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "77b99cd34b7f4c6fa4a3aa3b4cb2af32e803c91f14df1f7c232af1ffa1353962",
-      "source_path": "packages/ai-provider-openai/src/structured-output.ts"
-    },
-    {
-      "doc_path": "fallback/packages/ai-runtime/src/approval-policy.test.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "57d27f1efcd94d2017b1cea346fee818bdb154aea575d10b1ff3905b53278851",
-      "source_path": "packages/ai-runtime/src/approval-policy.test.ts"
-    },
-    {
-      "doc_path": "fallback/packages/ai-runtime/src/catalog.test.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "1eaed502b9ca92c4a658e5769c1c9942c2445f22fad169ca8ed4a3289d7e07df",
-      "source_path": "packages/ai-runtime/src/catalog.test.ts"
-    },
-    {
-      "doc_path": "fallback/packages/ai-runtime/src/config.test.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "a450f2c4f6d5cc76a28f8c46b25259263a80e2d175b0df9be77b2e49dd25fe07",
-      "source_path": "packages/ai-runtime/src/config.test.ts"
-    },
-    {
-      "doc_path": "fallback/packages/ai-runtime/src/config.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "e8d7b15d27fd7b58b349b6107063370d395c0a93aa5b3dc38fb563630d247c58",
-      "source_path": "packages/ai-runtime/src/config.ts"
-    },
-    {
-      "doc_path": "fallback/packages/ai-runtime/src/gateway.test.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "aac4523f267a597d5ac1f4066d82448de05e6027552b20bb60b7004a9e26ed93",
-      "source_path": "packages/ai-runtime/src/gateway.test.ts"
-    },
-    {
-      "doc_path": "fallback/packages/ai-runtime/src/index.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "7814b9bcb28639f887004e31beb53e4bfe25730d4da9f2b902811559f729747e",
-      "source_path": "packages/ai-runtime/src/index.ts"
-    },
-    {
-      "doc_path": "fallback/packages/ai-runtime/src/locality.test.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "db9e6effdfa9ea57d5fbccb103977307a7c89df8f887fc39517432642c321bb8",
-      "source_path": "packages/ai-runtime/src/locality.test.ts"
-    },
-    {
-      "doc_path": "fallback/packages/ai-runtime/src/structured-chat.test.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "39d94daea511d9855be169473e5146d6faeaa1832e9e6eba70cf0f7c9eb4f8cf",
-      "source_path": "packages/ai-runtime/src/structured-chat.test.ts"
     },
     {
       "doc_path": "fallback/packages/code-runner/src/host-main.ts.md",
@@ -1605,6 +1339,34 @@
       "source_path": "packages/interview-contracts/src/briefing.ts"
     },
     {
+      "doc_path": "fallback/packages/interview-contracts/src/coach-notes.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "705d251d010680a29ba3c668554926496e7ab58c043db8173175104e9007e3ac",
+      "source_path": "packages/interview-contracts/src/coach-notes.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-contracts/src/coach-notes.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "dcb389944d0a9a40e136c27d37cfd33d874d9e7ce905e287588ac3e3b5098283",
+      "source_path": "packages/interview-contracts/src/coach-notes.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-contracts/src/coach-transcript.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "facc412d1fd90a188284676d0b521bf7e8f41f52775050de1596c644a819d557",
+      "source_path": "packages/interview-contracts/src/coach-transcript.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-contracts/src/coach-transcript.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "e1aa02418397333fa44ba6a67ef1039b934a0a4bc5b1b050d4ab05f2b4518009",
+      "source_path": "packages/interview-contracts/src/coach-transcript.ts"
+    },
+    {
       "doc_path": "fallback/packages/interview-contracts/src/documents.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
@@ -1755,7 +1517,7 @@
       "doc_path": "fallback/packages/interview-library/src/index.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "a01100c018fe482ea6fe83d55bce5bd47d86c6b324df59ef07a83bbf7c60a150",
+      "sha256": "4a0df45c1d39f104762c7e966dab0e5326443635e9060928feb68dae0d106958",
       "source_path": "packages/interview-library/src/index.ts"
     },
     {
@@ -1785,6 +1547,13 @@
       "owner": "typescript",
       "sha256": "7a399a9f81e28d28c78100c52e4e2665eb5afd9ab2df0c45d80373b43599fdb7",
       "source_path": "packages/interview-library/src/seed-usage.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-library/src/seed-web-stack.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "08c77b326bb977a86a8068c35fa1401ff076b5285f03034ab8fb1e459ac4c019",
+      "source_path": "packages/interview-library/src/seed-web-stack.ts"
     },
     {
       "doc_path": "fallback/packages/interview-library/src/seed.ts.md",
@@ -1818,7 +1587,7 @@
       "doc_path": "fallback/packages/interview-storage/src/index.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "4943c97b6a56c147eb8665748e4bdbedd8d73b764da275b4c1775da8edf0f108",
+      "sha256": "d8de1f45fdc4d76239e5415c1a6f3c0c0e4c35a4f1949e3cdf153f7fa99a2174",
       "source_path": "packages/interview-storage/src/index.ts"
     },
     {
@@ -1934,6 +1703,20 @@
       "source_path": "packages/platform-integrations/src/oauth.ts"
     },
     {
+      "doc_path": "fallback/packages/platform-runtime/src/ai-config.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "103016932d9b613bcd9c68269c61abcd97dc5697393a173fb8150a2473780274",
+      "source_path": "packages/platform-runtime/src/ai-config.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-runtime/src/ai-config.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "1b9796fdeaaa6cc3bdfc5f1a02301bf004869b7df719b8b05663c236e88992b7",
+      "source_path": "packages/platform-runtime/src/ai-config.ts"
+    },
+    {
       "doc_path": "fallback/packages/platform-runtime/src/index.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
@@ -1988,6 +1771,20 @@
       "owner": "typescript",
       "sha256": "42cf0b8a28cc6c476513ad03ef6ade8597bdaa635614fcd9d4f761e8fa982ae7",
       "source_path": "packages/platform-storage/src/agent-job-worker-repository.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-storage/src/agent-payload-secret.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "56c7b811bddaface4c368381585ddde818677e91499e1094761ef11244e9c3f4",
+      "source_path": "packages/platform-storage/src/agent-payload-secret.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-storage/src/agent-payload-secret.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "73dd87f8e55a0d234b14c6ca24fcaa7aa08a6640ce2419e64d659ea082c8dc16",
+      "source_path": "packages/platform-storage/src/agent-payload-secret.ts"
     },
     {
       "doc_path": "fallback/packages/platform-storage/src/bootstrap.test.ts.md",
@@ -2109,6 +1906,13 @@
       "source_path": "products/interview/src/assistant-profile.ts"
     },
     {
+      "doc_path": "fallback/products/interview/src/backend/ai-messages.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "64a06588bd579740f59a7eb9106f2ddbe92a2be82b51a8b336aa6248b4b269b5",
+      "source_path": "products/interview/src/backend/ai-messages.ts"
+    },
+    {
       "doc_path": "fallback/products/interview/src/backend/api.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
@@ -2133,7 +1937,7 @@
       "doc_path": "fallback/products/interview/src/backend/assistant-models.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "f2f5394553bcde178d798280a9d42caa9495c636b792306da9c20296b0bec656",
+      "sha256": "e27095e3c56d4b624a1d786f61b5b746dda232477e8fcc14766f2dcbdb74aa1a",
       "source_path": "products/interview/src/backend/assistant-models.test.ts"
     },
     {
@@ -2308,7 +2112,7 @@
       "doc_path": "fallback/products/interview/src/backend/briefs/api.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "53d96e90901269e688e4ac84cd50f48ef82c121465f8a0ca62e989a467b16248",
+      "sha256": "fd9b790254e6d523f85a5b630cca084c3dd057a083773abe2af6dcfa441938a0",
       "source_path": "products/interview/src/backend/briefs/api.test.ts"
     },
     {
@@ -2317,6 +2121,111 @@
       "owner": "typescript",
       "sha256": "21776362654032c06f9eab29192cbbba2aba3249500643d5fd3f39ae675ac4bd",
       "source_path": "products/interview/src/backend/briefs/api.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/coach-notes-api.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "62d47245e24247dae18935163558caf09bb2bba69d74fad4ef6149f71b60519c",
+      "source_path": "products/interview/src/backend/coach-notes-api.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/coach-notes.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "75c286a70ead6bccbe2ec48452f294286f5cb1d26ddf06ffd886957f7906f55f",
+      "source_path": "products/interview/src/backend/coach-notes.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/coach-notes.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "fadc6fac6138744639980ebc2c8d282c544c6f4fa6ed9900e5d44503d44d9ccb",
+      "source_path": "products/interview/src/backend/coach-notes.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/coach-transcript-api.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "5c36647a35cdc9af38dd7b068e1239647792594c1a5ce5e3dab360bcb9a23286",
+      "source_path": "products/interview/src/backend/coach-transcript-api.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/coach-transcript.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "f77a80f402b3112edd8d734265598d6c5f421f11dca9eb347bc6272f7c09522a",
+      "source_path": "products/interview/src/backend/coach-transcript.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/coach-transcript.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "a6928d478635252b06dfd53d8a18402e2b84925c34a70d42c9a4d0f09a276bce",
+      "source_path": "products/interview/src/backend/coach-transcript.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/coach/coach.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "cc8d79957b2f9e5eadba2193791faa36f529f2f28287d3ea3d84d11da12c4cbf",
+      "source_path": "products/interview/src/backend/coach/coach.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/coach/coach.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "6f722c8ccaec060b671bd101681cba97f91ecfebade768597faf161e47696f10",
+      "source_path": "products/interview/src/backend/coach/coach.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/coach/context.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "941e87487a073c0c3623609295f9f2b9fa151dbfb2a790d2b7df38e3880c4608",
+      "source_path": "products/interview/src/backend/coach/context.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/coach/context.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "d03edbbadf8f7d78f64a29dc8bdbb30516f98c94bea765a0d93304da87de7661",
+      "source_path": "products/interview/src/backend/coach/context.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/coach/index.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "e562efe162c3da993411836b2ba3097bccba02eb5933daddb092c6b8da9fffeb",
+      "source_path": "products/interview/src/backend/coach/index.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/coach/prompt.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "7acc325546b5b18aae7c07d759011050611524990a772fadcb45986787aab818",
+      "source_path": "products/interview/src/backend/coach/prompt.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/coach/prompt.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "d9f197a3d9bb8b58988377417ade05d812f03268f72171f39c181e6feb796cce",
+      "source_path": "products/interview/src/backend/coach/prompt.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/coach/reply.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "50273575720f2ebd44a66a81f44cb7bd10ef9ee1b52398e6f11a01c381897837",
+      "source_path": "products/interview/src/backend/coach/reply.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/coach/reply.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "a17aba9ecc99b4c15e1d74b9f68ee1a57e6181fabde66f0bdcdff4629546b201",
+      "source_path": "products/interview/src/backend/coach/reply.ts"
     },
     {
       "doc_path": "fallback/products/interview/src/backend/db/documents-security.test.ts.md",
@@ -2385,14 +2294,14 @@
       "doc_path": "fallback/products/interview/src/backend/documents/api.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "bf9e0c094e5a67bac8ec1ef39c005d0e5a5d53d534c9dd61da924de63fff0597",
+      "sha256": "f3c510e3b582d36a7bbca756ad58da06ae45bee81fdadd34f923486c8fe9e4d1",
       "source_path": "products/interview/src/backend/documents/api.test.ts"
     },
     {
       "doc_path": "fallback/products/interview/src/backend/documents/api.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "999e74c37153ee51d3d7010cb7d632a958188cf9ebfd502b1cbea4fdb158d98f",
+      "sha256": "499e5b5c26762be3dc3292f516901a90d7f6fdb22a37cebb08dc98fc9a9af041",
       "source_path": "products/interview/src/backend/documents/api.ts"
     },
     {
@@ -2455,7 +2364,7 @@
       "doc_path": "fallback/products/interview/src/backend/documents/generate.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "c0ab42f05e0aad1996c3bd3e87857bb10a89735e15e99713262d7785d0698d60",
+      "sha256": "f6c2ff0c8ca4e06be86ef47b9ce3293c66ee72978ba29c8d6f3f297bd4d87d4a",
       "source_path": "products/interview/src/backend/documents/generate.test.ts"
     },
     {
@@ -2504,7 +2413,7 @@
       "doc_path": "fallback/products/interview/src/backend/documents/repository.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "1a3a96a29196083729293db67de704eedb4d4a811b787d135f4994bbdc341902",
+      "sha256": "5a68ab063344d9b608660a5fc85d3a6859ae0820f23ea266537097e4e1143e37",
       "source_path": "products/interview/src/backend/documents/repository.ts"
     },
     {
@@ -2532,7 +2441,7 @@
       "doc_path": "fallback/products/interview/src/backend/interview-backend.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "f37ae75a4c3838b607ace3d9df0471e21a3ee55a1b1a4833f96d60ed63e197e3",
+      "sha256": "9619e6daf836dc3fc51296bf2660daeb7c59c9aa80ceb1d92bbbfc9fa05201c1",
       "source_path": "products/interview/src/backend/interview-backend.test.ts"
     },
     {
@@ -2658,14 +2567,14 @@
       "doc_path": "fallback/products/interview/src/backend/live-session/coding-fixture.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "759d45ac97f69fecbbf22fe7f8499035c355a1614d4de8330f5033390abc8530",
+      "sha256": "786dea9c32624da98b49194275e0bf7ce99357c15a72da9a6a5c554b50886ffd",
       "source_path": "products/interview/src/backend/live-session/coding-fixture.ts"
     },
     {
       "doc_path": "fallback/products/interview/src/backend/live-session/coding-path.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "61a087fe325b5ded06366e01e7eaf12983f5aba728b05a0cb0659795092e0b54",
+      "sha256": "6589f2c37ff9e306e4a2741943f91205b63a71b4ebf552c542e8b2ef4e7eaf95",
       "source_path": "products/interview/src/backend/live-session/coding-path.test.ts"
     },
     {
@@ -2802,6 +2711,13 @@
       "source_path": "products/interview/src/backend/live-session/credential-lookup.ts"
     },
     {
+      "doc_path": "fallback/products/interview/src/backend/live-session/engine-call.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "3183aad017003f12c01eacb2ead7bc355a4b1e52239cdb3ed4942cf1a5777ff7",
+      "source_path": "products/interview/src/backend/live-session/engine-call.ts"
+    },
+    {
       "doc_path": "fallback/products/interview/src/backend/live-session/errors.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
@@ -2828,13 +2744,6 @@
       "owner": "typescript",
       "sha256": "71f555ba68a707c4576e72832002b1650abe3abbec07ff5aef6f3f47a4ba2202",
       "source_path": "products/interview/src/backend/live-session/fenced-writes.ts"
-    },
-    {
-      "doc_path": "fallback/products/interview/src/backend/live-session/gateway-context.ts.md",
-      "extractor_version": "1",
-      "owner": "typescript",
-      "sha256": "60bfa8060fab9a3ecc8f4f60798f84b2a97c6ff055647f7c54584ac3b2583767",
-      "source_path": "products/interview/src/backend/live-session/gateway-context.ts"
     },
     {
       "doc_path": "fallback/products/interview/src/backend/live-session/grounding-eval.test.ts.md",
@@ -2868,14 +2777,14 @@
       "doc_path": "fallback/products/interview/src/backend/live-session/hardening/egress.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "558ab514a31fd30c382123b8c62d049c0d086bd3a6005ef75ac8d9e9243e5ee1",
+      "sha256": "2ac7fa1fa346e967d427ea8bb94ecb28bdbafcb73dff08243a5bebb7464b24b8",
       "source_path": "products/interview/src/backend/live-session/hardening/egress.test.ts"
     },
     {
       "doc_path": "fallback/products/interview/src/backend/live-session/hardening/latency.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "9117ebe29f3bdac7ec97c60f044fcc648e42d332a2a14f8b93da5d4e42f5649e",
+      "sha256": "724cc5bd471023c941e06aa3760b5740fd3d97c89a9ee99d177f3807dd709791",
       "source_path": "products/interview/src/backend/live-session/hardening/latency.test.ts"
     },
     {
@@ -2933,6 +2842,13 @@
       "owner": "typescript",
       "sha256": "74cc8b795770f27e1110e343e301890339beb3bcdea0d24aac1b09bc2d85071c",
       "source_path": "products/interview/src/backend/live-session/ingest-hardening.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/live-session/ingest-heard.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "e78502c7fc9261f129895d0054a202956c2c7ecc74443019d608360b86f9a324",
+      "source_path": "products/interview/src/backend/live-session/ingest-heard.test.ts"
     },
     {
       "doc_path": "fallback/products/interview/src/backend/live-session/ingest.test.ts.md",
@@ -3043,7 +2959,7 @@
       "doc_path": "fallback/products/interview/src/backend/live-session/no-content-canary.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "b2db1a8271342260c0b6088fb0df097aa53f98fcb19a670f1af5c18c1fc0da73",
+      "sha256": "6f866a19ca24a4f1f6342a5cae2df9c141e54a161489df63feb0dc024aeb8379",
       "source_path": "products/interview/src/backend/live-session/no-content-canary.test.ts"
     },
     {
@@ -3064,7 +2980,7 @@
       "doc_path": "fallback/products/interview/src/backend/live-session/owner-apply-db.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "c84a72d074dbd29c286a5aa2edcd607b90bf379ef71a5459716f7fd5f621a07f",
+      "sha256": "8f3a1b08f5e4bb9a65ca39c5e01b2cd935be44bc6ff54cdf49cca270a7134234",
       "source_path": "products/interview/src/backend/live-session/owner-apply-db.test.ts"
     },
     {
@@ -3113,21 +3029,21 @@
       "doc_path": "fallback/products/interview/src/backend/live-session/processor-fixture.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "389277324a27099d00f5d0d422fc68892c334e3d7443c4ca4178403b95273945",
+      "sha256": "058be594e8459a44cb5359c5db6367910a54bad51c0428ddf74aafb20628a744",
       "source_path": "products/interview/src/backend/live-session/processor-fixture.ts"
     },
     {
       "doc_path": "fallback/products/interview/src/backend/live-session/processor-latency.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "c03a436f828456c37bc5052df4b0116a04b87fb044706010a01a1e057343d0bb",
+      "sha256": "ba8c58cea6d0579bf0dc50e7d4d18546f275c74a7a5869ae00b003a5491b979a",
       "source_path": "products/interview/src/backend/live-session/processor-latency.test.ts"
     },
     {
       "doc_path": "fallback/products/interview/src/backend/live-session/processor-locality.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "38aa487cb93b7c5329dc70a246fb5e01c166ba88e6a0155078105bb4028a72f3",
+      "sha256": "18fc5d4bc25134433eb7b433d92b596de9770bee6a978da395eb9387b87bf4cc",
       "source_path": "products/interview/src/backend/live-session/processor-locality.test.ts"
     },
     {
@@ -3141,7 +3057,7 @@
       "doc_path": "fallback/products/interview/src/backend/live-session/processor-ports.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "e20d017332bc9d2824495104759e99ef503a650e1e14d221b20b9fc172ff7b1a",
+      "sha256": "b8066c8396aee6cd616a39ea06d3350fd790095283ebd601a7d4b309d70b19c8",
       "source_path": "products/interview/src/backend/live-session/processor-ports.ts"
     },
     {
@@ -3155,7 +3071,7 @@
       "doc_path": "fallback/products/interview/src/backend/live-session/processor-rebuild-boundaries.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "3fe54a9127ea0e5b3bb1efdd531f5374c2ede476f9fbf3ccb91a3b8a63cfa74b",
+      "sha256": "1595d8c076c9f047e7c7e3740320779c165adc1082be2fcf277c6c8b33e6bab3",
       "source_path": "products/interview/src/backend/live-session/processor-rebuild-boundaries.test.ts"
     },
     {
@@ -3169,21 +3085,21 @@
       "doc_path": "fallback/products/interview/src/backend/live-session/processor-rebuild-state.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "7e393576fe6e44d7c4deeb3a6e821c6da526dbe2606dc7bedd8df7104995bbfc",
+      "sha256": "fd0946f035e5102ec5d824eb1b284499b2ddf3f7a4382ff1171cd1a793589a83",
       "source_path": "products/interview/src/backend/live-session/processor-rebuild-state.test.ts"
     },
     {
       "doc_path": "fallback/products/interview/src/backend/live-session/processor-rebuild.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "f63bd6668e2d4ac3fbf06528c099c3fd977430661d5abbd41d4501c9a889ca2f",
+      "sha256": "f34de76d431c9ef61e1902dcf0aa165b2f07394f8d7c2254ac223c2aa8795a1a",
       "source_path": "products/interview/src/backend/live-session/processor-rebuild.test.ts"
     },
     {
       "doc_path": "fallback/products/interview/src/backend/live-session/processor-recheck.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "a8a0dd7f78a78e0582ecb553a68954ea20f5e9750e0e02c0b63f03225c7bb73c",
+      "sha256": "b83d7ae2fa16e1450f9dc2122b3f7dd26c7af188457fbae1e0fe23daa9b6bf42",
       "source_path": "products/interview/src/backend/live-session/processor-recheck.test.ts"
     },
     {
@@ -3197,14 +3113,14 @@
       "doc_path": "fallback/products/interview/src/backend/live-session/processor-replay.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "34546ad92c24c88830b13fd0cca14bf1d10f8089ab0e0efeba3d42bd7f076155",
+      "sha256": "34578c80d3139e45a91c7089ae98acc420fb672fa50a2fa7add05b6770775f80",
       "source_path": "products/interview/src/backend/live-session/processor-replay.test.ts"
     },
     {
       "doc_path": "fallback/products/interview/src/backend/live-session/processor-slots.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "78a9d0a3bb2303c32746480323604ee86aac6a7af5bd5d4378d3e49d27a8fd70",
+      "sha256": "4be89f77f088ca72b1123f14c02b9aec4ec87dc3898e210c3966624c4152c30d",
       "source_path": "products/interview/src/backend/live-session/processor-slots.test.ts"
     },
     {
@@ -3218,7 +3134,7 @@
       "doc_path": "fallback/products/interview/src/backend/live-session/processor-tighten.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "89d0ea1677782f7c528d152cc0e3865b712bea67ae3f4bf1a447f630baad34c3",
+      "sha256": "9c4ce0fe329406fcf6a2eb5c81190e46bdaf2b56868a8d5d50b7745e951d9c21",
       "source_path": "products/interview/src/backend/live-session/processor-tighten.test.ts"
     },
     {
@@ -3239,14 +3155,14 @@
       "doc_path": "fallback/products/interview/src/backend/live-session/prompt-injection.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "f71fe3a2c2d478aa50a4c9125e9fb4507587a25fb85f4475c3d6aea8d23913c8",
+      "sha256": "3d9ef15da38cfff9c366e5665a422ead61c5a14a59505cb303121b92710e2d1f",
       "source_path": "products/interview/src/backend/live-session/prompt-injection.test.ts"
     },
     {
       "doc_path": "fallback/products/interview/src/backend/live-session/replay-evidence-fixture.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "6b63681d5b7addfdf8f495a991fb39568190819805479e00b40cc37544891cf5",
+      "sha256": "8002cbcabd35cad14fc6ba79f7853004a2c4449c8a36c08197e04d36076f3183",
       "source_path": "products/interview/src/backend/live-session/replay-evidence-fixture.ts"
     },
     {
@@ -3358,7 +3274,7 @@
       "doc_path": "fallback/products/interview/src/backend/live-session/screenshot-send-db.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "d306bc7a9b75e5304256615dd50371e7226e49d5d012f23d03d232a46884e6e8",
+      "sha256": "c73bd112bcf9a647ee7e2a241f7e64a25067c620b451e7313a003c4a6928bc2e",
       "source_path": "products/interview/src/backend/live-session/screenshot-send-db.test.ts"
     },
     {
@@ -3386,7 +3302,7 @@
       "doc_path": "fallback/products/interview/src/backend/live-session/service.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "60f6107fc1a65cf5925a7c89cde1aa6303849123b6855e8c5cbe011b397026c2",
+      "sha256": "5db2561d121693b28edc3d895cdae581aac642d1865d1892999f154843f2d686",
       "source_path": "products/interview/src/backend/live-session/service.test.ts"
     },
     {
@@ -3435,7 +3351,7 @@
       "doc_path": "fallback/products/interview/src/backend/live-session/session-dispatch.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "5d63b445de08c74d0ea722afcb78910ec724eece52d72c72e5c6d7bca9e1099c",
+      "sha256": "c78add22d3a0c856d8c68c3a6e852b1a260ea942aaec31a8580fdfa901aeb84b",
       "source_path": "products/interview/src/backend/live-session/session-dispatch.test.ts"
     },
     {
@@ -3533,7 +3449,7 @@
       "doc_path": "fallback/products/interview/src/backend/live-session/session-replay-evidence.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "3090590019a9f5b6737cabe8c2e9333928b1ab0577f092512c1489d9762756ce",
+      "sha256": "b33dae60cf45a2c3f752ea342aca50aaed1b01c4a70667fec834e35922f6799e",
       "source_path": "products/interview/src/backend/live-session/session-replay-evidence.test.ts"
     },
     {
@@ -3687,7 +3603,7 @@
       "doc_path": "fallback/products/interview/src/backend/live-session/worker-entry.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "712770ee62bb96d47939bd3e5c90a2ac5220b02d6b4b3893de9483ee89d0eb9b",
+      "sha256": "c8d6bdf9be3f4246c014144a49f3cc22c9e496f38a3e9f89308e71795aee71ff",
       "source_path": "products/interview/src/backend/live-session/worker-entry.ts"
     },
     {
@@ -3799,7 +3715,7 @@
       "doc_path": "fallback/products/interview/src/backend/structured.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "10123b1c0d6f5c806b9eb8dee9115ffae6477863a71622218c78e32e835b805a",
+      "sha256": "d2a5aa28d36666afc26ea700add8efaed9ef0da15c4ebdb78be047a42ff01cf5",
       "source_path": "products/interview/src/backend/structured.test.ts"
     },
     {
@@ -4170,7 +4086,7 @@
       "doc_path": "fallback/products/interview/src/frontend/studio/documents/assistant-model.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "2b96e2b99ec93976904ce48263f63dfb03f6217a0a342b388feb3eec67cd505d",
+      "sha256": "2bcd28dcc7f1352c44e939c07907133396c1a257497357c437a160235b6fb7e6",
       "source_path": "products/interview/src/frontend/studio/documents/assistant-model.test.ts"
     },
     {
@@ -5063,6 +4979,76 @@
       "source_path": "products/interview/src/frontend/studio/live/overlay/panels/chat-panel.tsx"
     },
     {
+      "doc_path": "fallback/products/interview/src/frontend/studio/live/overlay/panels/chat-view-pref.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "5ac8c4ebdb7fd228ddb60d8863c84ed9d136b801f1f8d402be5f15cb66122978",
+      "source_path": "products/interview/src/frontend/studio/live/overlay/panels/chat-view-pref.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/live/overlay/panels/chat-view-pref.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "7a6c314e79f1d631a0950ddd8d26243c3ceafb4b3162e9aa40a0b4dcb720901c",
+      "source_path": "products/interview/src/frontend/studio/live/overlay/panels/chat-view-pref.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/live/overlay/panels/coach-columns.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "5bb134888d9578f50be1e2dbadca553c023aedd093087fcbff01358b5e1e0020",
+      "source_path": "products/interview/src/frontend/studio/live/overlay/panels/coach-columns.test.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/live/overlay/panels/coach-columns.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "45ae457b961cef8ab4b3de3e06db4ff2f157c214903984a31ebe38b7a21d1ad7",
+      "source_path": "products/interview/src/frontend/studio/live/overlay/panels/coach-columns.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/live/overlay/panels/coach-layout.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "a6cfed3a7b2c5081a5e56afd66e6912e764e5299e65c76a5d4641eec7c59524c",
+      "source_path": "products/interview/src/frontend/studio/live/overlay/panels/coach-layout.test.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/live/overlay/panels/coach-layout.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "770b3aa51ac9798c1e74a2b8654e1e2871f0a4021b15bfadc576f84311d27383",
+      "source_path": "products/interview/src/frontend/studio/live/overlay/panels/coach-layout.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/live/overlay/panels/coach-note-view.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "ddb83b289b2dc7b428138486b2bfc2e87c0624cf234e760494c021e046960325",
+      "source_path": "products/interview/src/frontend/studio/live/overlay/panels/coach-note-view.test.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/live/overlay/panels/coach-note-view.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "c102244ed088ff74c0e9b8a8a7d3988a29baae3352dc7011231a850cc70a630b",
+      "source_path": "products/interview/src/frontend/studio/live/overlay/panels/coach-note-view.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/live/overlay/panels/coach-notes.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "8449686194b7261f2b02e13c3a87ad9483c8b34df025805ca92c9d58ab6d4868",
+      "source_path": "products/interview/src/frontend/studio/live/overlay/panels/coach-notes.test.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/live/overlay/panels/coach-notes.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "dc86f886d2484915c951e21f06fce3bec0103f53aa98610c250e22278905fd0f",
+      "source_path": "products/interview/src/frontend/studio/live/overlay/panels/coach-notes.tsx"
+    },
+    {
       "doc_path": "fallback/products/interview/src/frontend/studio/live/overlay/panels/code-card.tsx.md",
       "extractor_version": "1",
       "owner": "typescript",
@@ -5089,6 +5075,34 @@
       "owner": "typescript",
       "sha256": "16fd51d355d6ed7fd9a2139dbdaa80568a3fd3fb2d32965da96af2ca19a4657f",
       "source_path": "products/interview/src/frontend/studio/live/overlay/panels/commands.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/live/overlay/panels/context-pane.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "7fbaab36eae3234a0ff7e0b8c4278dea1142f2eb8c7648d9dc95717c7ef4bb33",
+      "source_path": "products/interview/src/frontend/studio/live/overlay/panels/context-pane.test.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/live/overlay/panels/context-pane.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "f99758896230e470008ccee03598b33fb2df63f8cdc19859813645dd88c7c6a2",
+      "source_path": "products/interview/src/frontend/studio/live/overlay/panels/context-pane.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/live/overlay/panels/conversation-model.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "67875f5f0f5b6445bb3de2a6fe31811ad447784a00f8f2b7ab38ee2666e606ad",
+      "source_path": "products/interview/src/frontend/studio/live/overlay/panels/conversation-model.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/live/overlay/panels/conversation-model.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "496c6fc55b9362d49ee4dd87d59cd769f1ab4b153f1fe0eabefc18a1d8ecb910",
+      "source_path": "products/interview/src/frontend/studio/live/overlay/panels/conversation-model.ts"
     },
     {
       "doc_path": "fallback/products/interview/src/frontend/studio/live/overlay/panels/display-picker-model.test.ts.md",
@@ -5166,6 +5180,20 @@
       "owner": "typescript",
       "sha256": "172b0cb707017e00df03eb3d8cd3b405bb5d2444811042d3e4492a52ace03ce3",
       "source_path": "products/interview/src/frontend/studio/live/overlay/panels/languages.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/live/overlay/panels/matrix-projections.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "f664f00bff39990e96e3f62392f86325f4bc45c5c83431d410b7bb7f6a2a09f2",
+      "source_path": "products/interview/src/frontend/studio/live/overlay/panels/matrix-projections.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/live/overlay/panels/matrix-projections.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "f22a414b5fb819a5fb4e976bd37471c50e595988ca66b32a507896ee0437075a",
+      "source_path": "products/interview/src/frontend/studio/live/overlay/panels/matrix-projections.ts"
     },
     {
       "doc_path": "fallback/products/interview/src/frontend/studio/live/overlay/panels/mic-menu-actions.test.tsx.md",

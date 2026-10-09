@@ -3,7 +3,7 @@
 _Source: `products/interview/src/backend/live-session/coding-path.test.ts` (header-comment fallback)_
 
 The coding path through the REAL processor on a disposable PostgreSQL with a
-scripted fake gateway and a fake runner (neither a model nor a container is
+scripted fake engine and a fake runner (neither a model nor a container is
 reached): a coding category in the prose draft owes a second solve-code
 action for the same revision; the prose draft is never delayed; the three
 states stay distinct; one direct repair attempt; a runner that is absent or

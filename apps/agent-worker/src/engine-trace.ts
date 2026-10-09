@@ -2,14 +2,11 @@
 // loops: the session loop's model calls and the job loop's agent runs are kept
 // the same way, in the same place, or not at all.
 import {
-  type ConnectedEngineStore,
-  connectEngineStore,
-} from "@omnitech/ai-engine/store/postgres";
-import {
   combineTraces,
   createOtelTrace,
+  keepTraceIn,
   type TraceConfig,
-} from "@omnitech/ai-engine/trace";
+} from "@omnitech/ai-engine";
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
@@ -33,31 +30,26 @@ export function engineTrace(
   log?: (line: string) => void,
 ): EngineTrace {
   const url = env[ENGINE_DATABASE_ENV]?.trim();
-  let connected: ConnectedEngineStore | undefined;
-  if (url) {
-    connected = connectEngineStore(url);
-    // Said once, so a store that does not answer is seen and not guessed at.
-    void connected
-      .ready()
-      .then((ready) =>
-        log?.(
-          ready
-            ? "ai engine: runs are kept in the engine's database"
-            : "ai engine: the engine's database did not answer; runs are not kept",
-        ),
-      );
-  }
+  const kept = url ? keepTraceIn(url) : undefined;
+  // Said once, so a store that does not answer is seen and not guessed at.
+  void kept
+    ?.ready()
+    .then((ready) =>
+      log?.(
+        ready
+          ? "ai engine: runs are kept in the engine's database"
+          : "ai engine: the engine's database did not answer; runs are not kept",
+      ),
+    );
   return {
     trace: {
       // A telemetry span for every step; it does nothing until the host
       // registers an OpenTelemetry SDK.
-      sink: connected
-        ? combineTraces(connected.store.trace, createOtelTrace())
-        : createOtelTrace(),
+      sink: kept ? combineTraces(kept, createOtelTrace()) : createOtelTrace(),
       capture: env[ENGINE_CAPTURE_ENV] === "full" ? "full" : "metadata",
     },
     close: async () => {
-      await connected?.close().catch(() => undefined);
+      await kept?.close().catch(() => undefined);
     },
   };
 }

@@ -3,7 +3,7 @@
 _Source: `apps/agent-worker/src/session-e2e.test.ts` (header-comment fallback)_
 
 The Active Session assistance path end to end (ADR-0016), without a
-database or a provider: the REAL processor, the REAL AiExecutionGateway and
+database or a provider: the REAL processor, the REAL AI engine and
 the REAL session agent port, with a FAKE runtime adapter in the shape of each
 provider (claude-code, codex) and a fake direct model for the text-only
 stages, over the product's in-memory session world. It shows the same

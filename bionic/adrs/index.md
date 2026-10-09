@@ -2,6 +2,8 @@
 
 | id | title | status | date | supersedes | superseded_by | tags |
 |----|-------|--------|------|------------|---------------|------|
+| ADR-0040 | The AI engine is imported at its one entry point | Accepted | 2026-10-08 | — (amends ADR-0037) | — | ai, sdk, engine, packages, boundaries |
+| ADR-0039 | A live coach reads the conversation and writes the coach's notes as it happens | Accepted | 2026-10-08 | — | — | coach, live-session, agents, transcript, grounding |
 | ADR-0038 | Prepare raw information into attributable context, then resolve it deterministically, inside the AI engine | Accepted | 2026-10-08 | — | — | context, projection, engine, documents, experience-matrix |
 | ADR-0037 | Consolidate every AI interaction behind one SDK in a standalone omnitech-ai-engine repository | Accepted | 2026-10-08 | — (amends ADR-0003, ADR-0007, ADR-0012, ADR-0034) | — | ai, sdk, engine, agents, observability, packages |
 | ADR-0034 | Record native-app and companion events through one redacting event log | Proposed | 2026-10-07 | — (amends ADR-0007) | — | observability, native, logging, active-session |

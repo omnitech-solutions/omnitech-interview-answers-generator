@@ -7,7 +7,7 @@ secrets (ADR-0012 rule:captured-input-untrusted, ADR-0011
 rule:fast-path-no-tools, rule:structured-field-decisions). A synthetic corpus
 (prompt-injection-fixtures.ts) of hostile transcript lines, window labels,
 employer context and model replies is driven through the REAL processor and
-assist stage on a disposable PostgreSQL with a scripted fake gateway (no real
+assist stage on a disposable PostgreSQL with a scripted fake engine (no real
 model is reached) and these properties are proven:
 - the policy text of every request is constant and equals the policy built
 with no input at all; hostile text appears only inside the labelled

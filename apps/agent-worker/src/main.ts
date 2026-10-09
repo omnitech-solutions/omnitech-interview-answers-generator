@@ -1,10 +1,11 @@
 import { accessSync, constants } from "node:fs";
 import { delimiter, join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { runAgentWorker } from "@omnitech/ai-engine/jobs";
-import type { AgentRuntimeAdapter } from "@omnitech/ai-engine/providers/agents";
-import { createClaudeRuntimeAdapter } from "@omnitech/ai-engine/providers/agents/claude-sdk";
-import { createCodexRuntimeAdapter } from "@omnitech/ai-engine/providers/agents/codex-app-server";
+import {
+  type AgentRuntimeAdapter,
+  agentRuntime,
+  runAgentWorker,
+} from "@omnitech/ai-engine";
 import { DockerCodeRunner } from "@omnitech/code-runner";
 import {
   createPlatformDatabase,
@@ -26,6 +27,7 @@ import {
   createSessionWorker,
   type SessionCodeRunner,
 } from "@omnitech/product-interview/session-worker";
+import { coachLoop } from "./coach-loop";
 import { engineTrace } from "./engine-trace";
 import { defaultStagingBase, sweepStagingBase } from "./session-agent-port";
 import { createSessionEngine, SESSION_AGENT_FLAG } from "./session-engine";
@@ -104,11 +106,13 @@ function agentRuntimes(
 ): Readonly<Record<string, AgentRuntimeAdapter>> {
   const codexPath = installedCodex(env);
   return {
-    codex: createCodexRuntimeAdapter({
+    codex: agentRuntime({
+      runtime: "codex",
       environment: agentEnvironment(env, "codex"),
-      ...(codexPath ? { codexPathOverride: codexPath } : {}),
+      ...(codexPath ? { executable: codexPath } : {}),
     }),
-    "claude-code": createClaudeRuntimeAdapter({
+    "claude-code": agentRuntime({
+      runtime: "claude-code",
       environment: agentEnvironment(env, "claude-code"),
     }),
   };
@@ -392,6 +396,8 @@ export async function runConfiguredAgentWorker(
     // still purged (their observations, owner inputs and staged images).
     sessionLoop(env, database, log, runtimes) ??
       sessionSweepLoop(env, database, log),
+    // The live coach, when the host names a runtime for it.
+    coachLoop(env, runtimes, log, database),
   ].filter((loop): loop is WorkerLoop => loop !== null);
   try {
     await runWorkerLoops(loops, signal, database, log);

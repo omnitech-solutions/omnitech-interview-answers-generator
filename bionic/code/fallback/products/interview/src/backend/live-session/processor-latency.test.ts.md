@@ -6,7 +6,7 @@ Latency of the fast interpret-and-answer path over EVERY synthetic replay set
 that has questions (recruiter screen, the grounding-hazard sets, the
 engineering-manager set and the live-coding first draft), at real pacing (1x)
 and at 4x (E-A2). The processor runs for real (ingest, replay, core, fenced
-writes on a disposable PostgreSQL) against a fake gateway; time is a virtual
+writes on a disposable PostgreSQL) against a fake engine; time is a virtual
 clock so each set's own pacing and the settle window are exact without
 waiting minutes. Two figures per question, p50 and p95 over every question
 of a set and over every question of a speed, are recorded:

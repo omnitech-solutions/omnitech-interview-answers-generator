@@ -1,5 +1,5 @@
 import type { Execution, ModelInput } from "@omnitech/ai-engine";
-import { createMemoryTrace } from "@omnitech/ai-engine/trace";
+import { createMemoryTrace } from "@omnitech/ai-engine";
 import { resolveAgentProfiles } from "@omnitech/platform-runtime/ai-config";
 import {
   INTERVIEW_ANSWER_PROFILE,

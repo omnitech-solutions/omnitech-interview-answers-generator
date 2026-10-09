@@ -9,21 +9,19 @@
 // locality is `device`, so a device-only session can only ever reach a model
 // the environment declared to run on this device. The engine itself refuses a
 // profile that does not run on the device for a device-only call, twice.
+
+import type {
+  AgentProfile,
+  AgentRuntimeAdapter,
+  TraceConfig,
+} from "@omnitech/ai-engine";
 import {
   type AiEngine,
   createAiEngine,
   type ModelPort,
+  modelProvider,
   type Profile,
 } from "@omnitech/ai-engine";
-import {
-  createLmStudioModelPort,
-  createOpenAIModelPort,
-} from "@omnitech/ai-engine/providers";
-import type {
-  AgentProfile,
-  AgentRuntimeAdapter,
-} from "@omnitech/ai-engine/providers/agents";
-import type { TraceConfig } from "@omnitech/ai-engine/trace";
 import {
   resolveAgentProfiles,
   resolveDefaultLanguageModel,
@@ -242,15 +240,15 @@ export function createSessionEngine(
     // Without a key the endpoint is this machine's own (checked above): the
     // anonymous port refuses any address that is not loopback.
     providers[SESSION_MODEL_PROVIDER] = language.apiKey
-      ? createOpenAIModelPort(
-          {
-            apiKey: language.apiKey,
-            baseUrl: language.baseUrl,
-            timeoutMs: language.timeoutMs,
-          },
-          sized,
-        )
-      : createLmStudioModelPort({
+      ? modelProvider({
+          kind: "openai",
+          ...sized,
+          apiKey: language.apiKey,
+          baseUrl: language.baseUrl,
+          timeoutMs: language.timeoutMs,
+        })
+      : modelProvider({
+          kind: "lm-studio",
           ...sized,
           baseURL: language.baseUrl,
           timeoutMs: language.timeoutMs,

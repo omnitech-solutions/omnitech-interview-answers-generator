@@ -2,5 +2,6 @@
 
 _Source: `products/interview/src/backend/documents/repository.ts` (header-comment fallback)_
 
-jsonb hands object keys back in its own order, so equal fields must be
-compared without regard to key order.
+What a kept batch used, as the engine states usage. A batch kept before
+the engine holds flat counts ({ inputTokens, outputTokens, totalTokens,
+costUsd }): those are read as the counts they are.

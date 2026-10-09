@@ -23,6 +23,7 @@ import { createApi } from "./api";
 import { createAssistantModels } from "./assistant-models";
 import { BriefingRepository } from "./briefing/repository";
 import { briefingScope } from "./briefing-access";
+import { coachTranscript, speakerOfSource } from "./coach-transcript";
 import { createDocumentsApi, resolveDocumentsScope } from "./documents/api";
 import { resolveDocumentsConfig } from "./documents/config";
 import { createSessionRoutes } from "./live-session/routes";
@@ -259,6 +260,18 @@ export function createInterviewBackend(services: InterviewBackendServices) {
     createSessionRoutes({
       database: services.database,
       resolveContext: services.resolveContext,
+      // What a session hears is the coach's input, as it arrives.
+      onHeard: (heard) =>
+        coachTranscript.add(
+          [
+            {
+              speaker: speakerOfSource(heard.source),
+              text: heard.text,
+              at: heard.occurredAt,
+            },
+          ],
+          heard.session,
+        ),
     }),
   );
   // Interview answers and explanations, generated on the engine for the

@@ -10,7 +10,6 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ModelInput, ModelPart } from "@omnitech/ai-engine";
 import type {
   AgentAttachment,
   AgentCapabilities,
@@ -18,7 +17,9 @@ import type {
   AgentProfile,
   AgentRunRequest,
   AgentRuntimeAdapter,
-} from "@omnitech/ai-engine/providers/agents";
+  ModelInput,
+  ModelPart,
+} from "@omnitech/ai-engine";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   createSessionAgentPort,

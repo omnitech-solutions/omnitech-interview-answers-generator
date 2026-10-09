@@ -38,16 +38,15 @@ vi.mock("@omnitech/product-interview/backend", () => ({
 }));
 // The engine's own tables are another database; the trace is kept here.
 const traced: InteractionRecord[] = [];
-const connectEngineStore = vi.fn((_url: string) => ({
-  store: {
-    trace: {
-      write(record: InteractionRecord) {
-        traced.push(record);
-      },
-    },
+const keepTraceIn = vi.fn((_url: string) => ({
+  write(record: InteractionRecord) {
+    traced.push(record);
   },
 }));
-vi.mock("@omnitech/ai-engine/store/postgres", () => ({ connectEngineStore }));
+vi.mock("@omnitech/ai-engine", async (original) => ({
+  ...(await original<typeof import("@omnitech/ai-engine")>()),
+  keepTraceIn,
+}));
 
 const {
   createPlatformAiEngine,
@@ -119,7 +118,7 @@ afterAll(async () => {
 
 beforeEach(() => {
   traced.length = 0;
-  connectEngineStore.mockClear();
+  keepTraceIn.mockClear();
   for (const name of AI_ENVIRONMENT) vi.stubEnv(name, undefined);
 });
 afterEach(() => {
@@ -468,16 +467,14 @@ describe("the interaction record", () => {
 
   it("is kept nowhere until the engine's database is named", async () => {
     await say();
-    expect(connectEngineStore).not.toHaveBeenCalled();
+    expect(keepTraceIn).not.toHaveBeenCalled();
     expect(traced).toEqual([]);
   });
 
   it("is kept without content by default", async () => {
     vi.stubEnv("AI_ENGINE_DATABASE_URL", "postgresql://engine@db/ai");
     await say();
-    expect(connectEngineStore).toHaveBeenCalledWith(
-      "postgresql://engine@db/ai",
-    );
+    expect(keepTraceIn).toHaveBeenCalledWith("postgresql://engine@db/ai");
     expect(traced).toHaveLength(1);
     expect(traced[0]).toMatchObject({
       operation: "image",

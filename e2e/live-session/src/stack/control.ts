@@ -15,7 +15,7 @@ import type {
   AgentEvent,
   AgentRunRequest,
   AgentRuntimeAdapter,
-} from "@omnitech/ai-engine/providers/agents";
+} from "@omnitech/ai-engine";
 import {
   SCENARIO_NAMES,
   type Scenario,

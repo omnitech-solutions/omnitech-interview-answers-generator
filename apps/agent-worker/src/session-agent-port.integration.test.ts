@@ -7,8 +7,7 @@
 import { readdir } from "node:fs/promises";
 import { deflateSync } from "node:zlib";
 import type { ModelInput, ModelPart } from "@omnitech/ai-engine";
-import { createClaudeRuntimeAdapter } from "@omnitech/ai-engine/providers/agents/claude-sdk";
-import { createCodexRuntimeAdapter } from "@omnitech/ai-engine/providers/agents/codex-app-server";
+import { agentRuntime } from "@omnitech/ai-engine";
 import { resolveAgentProfiles } from "@omnitech/platform-runtime/ai-config";
 import { describe, expect, it } from "vitest";
 import {
@@ -90,8 +89,8 @@ function setup() {
   if (!agent) throw new Error("profile missing");
   const profileId = "integration";
   const adapters = {
-    codex: createCodexRuntimeAdapter(),
-    "claude-code": createClaudeRuntimeAdapter(),
+    codex: agentRuntime({ runtime: "codex" }),
+    "claude-code": agentRuntime({ runtime: "claude-code" }),
   };
   const port = createSessionAgentPort({
     runtimes: adapters,

@@ -1,6 +1,6 @@
 # Architecture overview
 
-<!-- arch-spine-hash: sha256:fd7fc59d637bc5c92d306935e009bb3d826834e40785dc434d329240912a76eb -->
+<!-- arch-spine-hash: sha256:819b01a11c585a6d07bdcd06cd1b37bb85302e47c2d42b43626705584dddcede -->
 
 _Derived from the spine; regenerated whenever the spine moves. Stands on its own; ADR references live in `decision-index.md` as footnotes._
 
@@ -11,7 +11,7 @@ _Stack pack: `node` (auto-detected)._
 - **Data model:** see `data-model.md`.
 - **Interface surface:** see `api-surface.md`.
 - **Module structure:** see `module-graph.md`.
-- **Decisions:** 18 Accepted, non-archived decisions (see `decision-index.md`).
+- **Decisions:** 22 Accepted, non-archived decisions (see `decision-index.md`).
 
 ## How to read this
 

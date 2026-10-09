@@ -2,13 +2,15 @@
 
 _Static route scan (Express/Fastify verb calls + NestJS decorators, labeling GraphQL resolvers as a residual rather than reading them); the app is not executed._
 
-## Routes (81)
+## Routes (86)
 
 | method | path | handler |
 |---|---|---|
 | ALL | `/api/assistant/*` | — |
 | ALL | `/api/interview/*` | — |
 | DELETE | `/api/v1/answers/:id` | — |
+| DELETE | `/api/v1/coach-notes` | — |
+| DELETE | `/api/v1/coach-transcript` | — |
 | DELETE | `/api/v1/explanations/:id` | — |
 | DELETE | `/api/v1/library/items/:id` | — |
 | DELETE | `/api/v1/playground-control` | — |
@@ -29,6 +31,8 @@ _Static route scan (Express/Fastify verb calls + NestJS decorators, labeling Gra
 | GET | `/api/teapot` | — |
 | GET | `/api/v1/answers` | — |
 | GET | `/api/v1/answers/:id` | — |
+| GET | `/api/v1/coach-notes` | — |
+| GET | `/api/v1/coach-transcript` | — |
 | GET | `/api/v1/explanations` | — |
 | GET | `/api/v1/explanations/:id` | — |
 | GET | `/api/v1/health` | — |
@@ -42,7 +46,6 @@ _Static route scan (Express/Fastify verb calls + NestJS decorators, labeling Gra
 | GET | `/platform/v1/agent-jobs/:id` | — |
 | GET | `/platform/v1/agent-jobs/:id/events` | — |
 | GET | `/platform/v1/agent-profiles` | — |
-| GET | `/presentation/v1/ai-targets` | — |
 | GET | `/presentation/v1/documents` | — |
 | GET | `/presentation/v1/documents/:id` | — |
 | GET | `/presentation/v1/documents/:id/recordings` | — |
@@ -57,6 +60,8 @@ _Static route scan (Express/Fastify verb calls + NestJS decorators, labeling Gra
 | POST | `/api/auth/callback/local` | — |
 | POST | `/api/fake/v1/chat/completions` | — |
 | POST | `/api/v1/answers` | — |
+| POST | `/api/v1/coach-notes` | — |
+| POST | `/api/v1/coach-transcript` | — |
 | POST | `/api/v1/explain` | — |
 | POST | `/api/v1/explanations` | — |
 | POST | `/api/v1/generate` | — |

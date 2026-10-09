@@ -57,6 +57,8 @@ export type SessionRoutesOptions = {
   repository?: ActiveSessionRepository;
   // Test overrides of the frozen ingest limits.
   ingestLimits?: IngestOptions["limits"];
+  // Told each transcript line a permitted-remote session stored (the coach).
+  onHeard?: IngestOptions["onHeard"];
 };
 
 // A start or control body is a few fields; this bounds it before parsing.
@@ -309,6 +311,7 @@ export function createSessionRoutes(options: SessionRoutesOptions) {
         onRetryAfter: (seconds) => {
           retryAfter = seconds;
         },
+        ...(options.onHeard ? { onHeard: options.onHeard } : {}),
       },
     );
     if (ack.status === "refused") {

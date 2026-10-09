@@ -1,6 +1,6 @@
 # Decision index
 
-_Accepted, non-archived decisions (18), projected from `adrs/index.md`. ADR references are footnotes, never inline._
+_Accepted, non-archived decisions (22), projected from `adrs/index.md`. ADR references are footnotes, never inline._
 
 | # | decision | date | ref |
 |---|---|---|---|
@@ -22,6 +22,10 @@ _Accepted, non-archived decisions (18), projected from `adrs/index.md`. ADR refe
 | 16 | Capture on demand with masks and owner-requested companion captures | 2026-10-04 | [^d16] |
 | 17 | Host the overlay in a native shell through one host adapter | 2026-10-04 | [^d17] |
 | 18 | Use the query builder by default and check the database role on every tenant-scoped path | 2026-10-05 | [^d18] |
+| 19 | Consolidate every AI interaction behind one SDK in a standalone omnitech-ai-engine repository | 2026-10-08 | [^d19] |
+| 20 | Prepare raw information into attributable context, then resolve it deterministically, inside the AI engine | 2026-10-08 | [^d20] |
+| 21 | A live coach reads the conversation and writes the coach's notes as it happens | 2026-10-08 | [^d21] |
+| 22 | The AI engine is imported at its one entry point | 2026-10-08 | [^d22] |
 
 [^d1]: ADR-0000
 [^d2]: ADR-0001
@@ -41,3 +45,7 @@ _Accepted, non-archived decisions (18), projected from `adrs/index.md`. ADR refe
 [^d16]: ADR-0018
 [^d17]: ADR-0019
 [^d18]: ADR-0023
+[^d19]: ADR-0037
+[^d20]: ADR-0038
+[^d21]: ADR-0039
+[^d22]: ADR-0040

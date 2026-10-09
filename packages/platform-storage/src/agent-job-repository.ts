@@ -1,4 +1,5 @@
 import type {
+  AgentEvent,
   AgentJob,
   AgentJobRepository,
   CancellationOutcome,
@@ -7,8 +8,7 @@ import type {
   JobActor,
   PersistedAgentEvent,
   ResumeJobOptions,
-} from "@omnitech/ai-engine/jobs";
-import type { AgentEvent } from "@omnitech/ai-engine/providers/agents";
+} from "@omnitech/ai-engine";
 import {
   type DatabaseClient,
   enterTenant,

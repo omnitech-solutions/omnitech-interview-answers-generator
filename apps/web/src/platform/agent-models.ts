@@ -1,17 +1,15 @@
+import type { Jobs } from "@omnitech/ai-engine";
 import {
+  type AgentProfile,
   failure,
   type ModelCatalog,
   type ModelInfo,
   type ModelInput,
   type ModelPart,
   type ModelPort,
-} from "@omnitech/ai-engine";
-import type { Jobs } from "@omnitech/ai-engine/jobs";
-import {
-  type AgentProfile,
   toFailure,
   toUsage,
-} from "@omnitech/ai-engine/providers/agents";
+} from "@omnitech/ai-engine";
 
 const RUNTIMES = {
   "claude-code": { name: "Claude Code" },

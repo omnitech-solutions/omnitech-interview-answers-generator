@@ -42,7 +42,7 @@ import {
   type AgentUsage,
   toUsage,
   validateAgentProfile,
-} from "@omnitech/ai-engine/providers/agents";
+} from "@omnitech/ai-engine";
 
 // Typed codes are the whole session-path error surface: the message is fixed
 // per code and never contains provider text, paths or attachment names.

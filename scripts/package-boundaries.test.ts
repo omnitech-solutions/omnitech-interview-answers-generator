@@ -53,10 +53,11 @@ const contracts = new Set([
   "@omnitech/interview-contracts",
   "@omnitech/active-session-contracts",
 ]);
-// The agent runtimes live in the AI engine (ADR-0037). Each is its own entry
-// point, so the rule is about which entry point a file names.
-const agentRuntimeEntry =
-  /^@omnitech\/ai-engine\/providers\/agents\/(claude-sdk|codex-app-server)$/;
+// The AI engine is an SDK with ONE entry point (ADR-0037): what implements a
+// provider or an agent runtime is private to it. A host names a runtime by
+// calling `agentRuntime`, so the rule is about who calls it.
+const engineSubpath = /^@omnitech\/ai-engine\/./;
+const startsAgentRuntime = /\bagentRuntime\s*\(/;
 
 // rule:neutral-core-imports (ADR-0011): the session core imports only its own
 // files and the contracts package, so interview policy cannot leak into it.
@@ -248,19 +249,30 @@ describe("package boundaries", () => {
     expect([...importers]).toEqual(["apps/agent-worker"]);
   });
 
-  it("lets only apps/agent-worker name an agent runtime's entry point", () => {
-    // Only the isolated worker launches Codex or Claude Code (ADR-0007). The
-    // engine keeps each runtime behind its own entry point for this reason.
+  it("imports the AI engine at its one entry point and nowhere inside it", () => {
+    // The engine's `exports` refuse a deeper path at run time; this says so
+    // at review time, before anything is built.
     const specifierPattern =
-      /(?:\bfrom\s*|\bimport\s*\(\s*|^\s*import\s+)["']([^"']+)["']/gm;
-    const importers = new Set<string>();
+      /(?:\bfrom\s*|\bimport\s*\(\s*|^\s*import\s+|\bmock\s*\(\s*)["']([^"']+)["']/gm;
+    const offenders: string[] = [];
     for (const pkg of packages)
       for (const file of sourceFiles(join(repoRoot, pkg.dir)))
         for (const match of readFileSync(file, "utf8").matchAll(
           specifierPattern,
         ))
-          if (agentRuntimeEntry.test(match[1] ?? "")) importers.add(pkg.dir);
-    expect([...importers]).toEqual(["apps/agent-worker"]);
+          if (engineSubpath.test(match[1] ?? ""))
+            offenders.push(`${file.slice(repoRoot.length + 1)}: ${match[1]}`);
+    expect(offenders).toEqual([]);
+  });
+
+  it("lets only apps/agent-worker start an agent runtime", () => {
+    // Only the isolated worker launches Codex or Claude Code (ADR-0007).
+    const starters = new Set<string>();
+    for (const pkg of packages)
+      for (const file of sourceFiles(join(repoRoot, pkg.dir)))
+        if (startsAgentRuntime.test(readFileSync(file, "utf8")))
+          starters.add(pkg.dir);
+    expect([...starters]).toEqual(["apps/agent-worker"]);
   });
 
   it("imports only in an allowed direction", () => {

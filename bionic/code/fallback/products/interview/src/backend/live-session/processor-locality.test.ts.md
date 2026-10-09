@@ -2,8 +2,8 @@
 
 _Source: `products/interview/src/backend/live-session/processor-locality.test.ts` (header-comment fallback)_
 
-Device-only locality through the real processor and the REAL gateway with
-spy provider adapters (rule:device-only-enforced-twice,
+Device-only locality through the real processor and the REAL engine with
+spy provider ports (rule:device-only-enforced-twice,
 rule:unlisted-stage-refused): a device-only session reaches only a profile
 the environment declared device-local; a remote or undeclared profile is
 refused with no call to any adapter and no fallback to the remote profile,

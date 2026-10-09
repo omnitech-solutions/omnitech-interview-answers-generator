@@ -7,4 +7,4 @@ revisions the live run reached (ADR-0011 restart safety): a stored action
 remembers the segments its revision rests on, so a handover never merges an
 answered question into the next one, never restarts a corrected task at
 revision 1, and never drops a question as a duplicate. Real processor over
-a disposable PostgreSQL, a fake gateway and a virtual clock.
+a disposable PostgreSQL, a fake engine and a virtual clock.

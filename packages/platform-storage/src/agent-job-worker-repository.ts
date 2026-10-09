@@ -1,12 +1,10 @@
 import type {
+  AgentEvent,
   AgentJob,
+  AgentJobStatus,
   AgentJobWorkerRepository,
   PersistedAgentEvent,
-} from "@omnitech/ai-engine/jobs";
-import type {
-  AgentEvent,
-  AgentJobStatus,
-} from "@omnitech/ai-engine/providers/agents";
+} from "@omnitech/ai-engine";
 import type { DatabaseClient, PlatformDatabase } from "@omnitech/database";
 import { type JobRow, mapJob } from "./agent-job-row";
 

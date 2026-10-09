@@ -2,4 +2,5 @@
 
 _Source: `apps/web/src/platform/ai.ts` (header-comment fallback)_
 
-[SAFETY] The job runs under the central agent profile of the same id.
+The engine's provider names. The configured language model keeps its own id
+(`openai`, `lm-studio`, or AI_PROVIDER_ID) so a record names it.

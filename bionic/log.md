@@ -2,6 +2,22 @@
 
 _Append-only. Newest first._
 
+## [2026-10-08] journal | decision: The live coach and the engine's single entry point recorded as ADR-0039 and ADR-0040
+
+Entry in `bionic/journal/2026-10.md` at 2026-10-08T23:55-06:00. Refs: [[adrs/ADR-0039-a-live-coach-reads-the-conversation-and-writes-the]] [[adrs/ADR-0040-the-ai-engine-is-imported-at-its-one-entry-point]] [[objectives]]
+
+## [2026-10-08] journal | decision: Every AI interaction goes through the engine; the nine AI packages are removed (4efa242)
+
+Entry in `bionic/journal/2026-10.md` at 2026-10-08T23:08-06:00. Refs: [[adrs/ADR-0037-consolidate-every-ai-interaction-behind-one-sdk-in]] [[adrs/ADR-0038-prepare-raw-information-into-attributable-context]]
+
+## [2026-10-08] adr | ADR-0040: accept (accepted)
+
+The AI engine is imported at its one entry point. Amends ADR-0037 on how hosts reach the engine. Proposed and accepted together by the owner's direction ("engine is suppose to be an sdk and you should only have entrypoint"); the decision was implemented first. File `bionic/adrs/ADR-0040-the-ai-engine-is-imported-at-its-one-entry-point.md`. Tags: ai, sdk, engine, packages, boundaries.
+
+## [2026-10-08] adr | ADR-0039: accept (accepted)
+
+A live coach reads the conversation and writes the coach's notes as it happens. Proposed and accepted together by the owner's direction; the decision was implemented first. File `bionic/adrs/ADR-0039-a-live-coach-reads-the-conversation-and-writes-the.md`. Tags: coach, live-session, agents, transcript, grounding.
+
 ## [2026-10-08] adr | ADR-0038: accept (accepted)
 
 Prepare raw information into attributable context, then resolve it deterministically, inside the AI engine. Accepted by the owner ("lets get started").

@@ -1,26 +1,22 @@
 import {
   type AiEngine,
   createAiEngine,
-  type ModelCatalog,
-  type ModelInfo,
-  type ModelPort,
-  type Profile,
-  type TraceConfig,
-} from "@omnitech/ai-engine";
-import { createJobs } from "@omnitech/ai-engine/jobs";
-import {
-  createAnthropicModelPort,
   createFakeImagePort,
   createImagePort,
-  createLmStudioModelPort,
+  createJobs,
   createLmStudioModels,
-  createOpenAIModelPort,
   createOpenRouterModels,
   fillWorkflowPrompt,
   type GeneratedImage,
   type ImagePortOptions,
-} from "@omnitech/ai-engine/providers";
-import { connectEngineStore } from "@omnitech/ai-engine/store/postgres";
+  keepTraceIn,
+  type ModelCatalog,
+  type ModelInfo,
+  type ModelPort,
+  modelProvider,
+  type Profile,
+  type TraceConfig,
+} from "@omnitech/ai-engine";
 import { getPlatformDatabase } from "@omnitech/database";
 import {
   declareLocality,
@@ -348,7 +344,7 @@ function traceConfig(): TraceConfig | undefined {
   const url = process.env["AI_ENGINE_DATABASE_URL"]?.trim();
   if (!url) return undefined;
   return {
-    sink: connectEngineStore(url).store.trace,
+    sink: keepTraceIn(url),
     capture: process.env["AI_ENGINE_CAPTURE"] === "full" ? "full" : "metadata",
   };
 }
@@ -375,10 +371,12 @@ export function createPlatformAiEngine(): AiEngine {
 
   if (anthropicKey) {
     const model = process.env["ANTHROPIC_MODEL"] ?? "claude-sonnet-5-5";
-    providers[ANTHROPIC] = createAnthropicModelPort(
-      { apiKey: anthropicKey, timeoutMs: 120_000 },
-      { resolveProfile: () => ({ modelId: model, maxOutputTokens: 4096 }) },
-    );
+    providers[ANTHROPIC] = modelProvider({
+      kind: "anthropic",
+      apiKey: anthropicKey,
+      timeoutMs: 120_000,
+      resolveProfile: () => ({ modelId: model, maxOutputTokens: 4096 }),
+    });
   }
   if (language) {
     // Output per profile: an assistant turn is sized to the context window
@@ -409,15 +407,15 @@ export function createPlatformAiEngine(): AiEngine {
     // [SAFETY] Without a key the endpoint must be this machine's: the
     // anonymous port refuses any address that is not loopback.
     providers[language.id] = language.apiKey
-      ? createOpenAIModelPort(
-          {
-            apiKey: language.apiKey,
-            baseUrl: language.baseUrl,
-            timeoutMs: language.timeoutMs,
-          },
-          options,
-        )
-      : createLmStudioModelPort({
+      ? modelProvider({
+          kind: "openai",
+          ...options,
+          apiKey: language.apiKey,
+          baseUrl: language.baseUrl,
+          timeoutMs: language.timeoutMs,
+        })
+      : modelProvider({
+          kind: "lm-studio",
           ...options,
           baseURL: language.baseUrl,
           timeoutMs: language.timeoutMs,

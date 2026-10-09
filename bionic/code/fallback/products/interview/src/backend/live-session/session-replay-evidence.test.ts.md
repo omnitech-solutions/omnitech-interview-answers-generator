@@ -4,7 +4,7 @@ _Source: `products/interview/src/backend/live-session/session-replay-evidence.te
 
 E-A2 and E-A3: the synthetic replay sets driven through the REAL processor on
 a disposable PostgreSQL (real ingest, replay, core, fenced writes, claim
-verification) with a scripted fake gateway. The model is never reached; its
+verification) with a scripted fake engine. The model is never reached; its
 replies are closed-schema answers keyed by the question text the prompt
 actually carries, so each grounding hazard gets the response a model would
 plausibly give. The pinned profile is the synthetic matrix; notice period and

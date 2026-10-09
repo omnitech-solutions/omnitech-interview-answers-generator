@@ -71,6 +71,10 @@ const config: NextConfig = {
   devIndicators: false,
   // Server-only packages Node loads as they ship, rather than bundled.
   serverExternalPackages: [
+    // The AI engine is a server SDK: it loads a provider's or a store's own
+    // packages when one is first used, so the server runs it from
+    // node_modules instead of bundling everything it could ever reach.
+    "@omnitech/ai-engine",
     "esbuild",
     "pg",
     "pg-boss",

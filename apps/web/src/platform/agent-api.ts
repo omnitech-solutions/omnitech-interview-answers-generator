@@ -1,8 +1,8 @@
-import { AgentJobService } from "@omnitech/ai-engine/jobs";
 import {
+  AgentJobService,
   type AgentProfile,
   validateAgentProfile,
-} from "@omnitech/ai-engine/providers/agents";
+} from "@omnitech/ai-engine";
 import { getPlatformDatabase } from "@omnitech/database";
 import { readBoundedJson } from "@omnitech/platform-contracts";
 import { resolveAgentProfiles } from "@omnitech/platform-runtime/ai-config";

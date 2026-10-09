@@ -4,5 +4,5 @@ _Source: `products/interview/src/backend/live-session/session-dispatch.test.ts` 
 
 The draft-answer dispatch streams: the draft's text so far is read out of
 the JSON the model is still writing (partialDraft) and recorded on the
-action (recordProgress) while the call runs; every other stage waits for
-execute(). In-memory world, no database.
+action (recordProgress) while the call runs; every other stage reads the
+same stream and waits for the whole result. In-memory world, no database.

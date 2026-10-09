@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import type { AgentProfile } from "@omnitech/ai-engine";
 import { declareLocality, type Locality } from "@omnitech/ai-engine";
-import type { AgentProfile } from "@omnitech/ai-engine/providers/agents";
 
 /**
  * One language-model endpoint as the environment describes it. Everything that

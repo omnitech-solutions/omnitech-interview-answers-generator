@@ -3,7 +3,7 @@
 _Source: `products/interview/src/backend/live-session/service.test.ts` (header-comment fallback)_
 
 The assistance service through the REAL processor on a disposable PostgreSQL
-with a scripted fake gateway (the model is never reached): a response whose
+with a scripted fake engine (the model is never reached): a response whose
 reference does not support its claim publishes nothing; a supported
 matrix-backed claim publishes with the pinned revision; logistics answers
 draw on candidate preferences only (and list what is missing when there are

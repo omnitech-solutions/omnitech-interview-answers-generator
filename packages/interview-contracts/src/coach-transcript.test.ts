@@ -1,0 +1,156 @@
+// The coach transcript contract: what may be added to the transcript a coach
+// reads, and what a reader is given back.
+import { describe, expect, it } from "vitest";
+import {
+  COACH_SPEAKERS,
+  coachTranscriptInputSchema,
+  coachTranscriptLineInputSchema,
+  coachTranscriptLineSchema,
+  coachTranscriptResponseSchema,
+  coachTranscriptSessionSchema,
+} from "./coach-transcript";
+
+const AT = "2026-10-08T17:40:00.000Z";
+const accepts = (lines: unknown) =>
+  coachTranscriptInputSchema.safeParse({ lines }).success;
+
+describe("a line added to the coach transcript", () => {
+  it("names its speaker from a fixed list, unknown when not given", () => {
+    expect(COACH_SPEAKERS).toEqual(["interviewer", "candidate", "unknown"]);
+    expect(coachTranscriptLineInputSchema.parse({ text: "Hello" })).toEqual({
+      speaker: "unknown",
+      text: "Hello",
+    });
+    for (const speaker of COACH_SPEAKERS)
+      expect(
+        coachTranscriptLineInputSchema.parse({ speaker, text: "Hello" }),
+      ).toMatchObject({ speaker });
+    expect(
+      coachTranscriptLineInputSchema.safeParse({
+        speaker: "Speaker 1",
+        text: "Hello",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("trims its text and refuses an empty or overlong one", () => {
+    expect(
+      coachTranscriptLineInputSchema.parse({ text: "  Tell me more.  " }).text,
+    ).toBe("Tell me more.");
+    expect(accepts([{ text: "   " }])).toBe(false);
+    expect(accepts([{ text: "a".repeat(4_000) }])).toBe(true);
+    expect(accepts([{ text: "a".repeat(4_001) }])).toBe(false);
+  });
+
+  it("takes the moment it was said as an ISO date-time only", () => {
+    expect(accepts([{ text: "Hello", at: AT }])).toBe(true);
+    expect(accepts([{ text: "Hello", at: "00:01:12" }])).toBe(false);
+    expect(accepts([{ text: "Hello", at: "2026-10-08" }])).toBe(false);
+  });
+
+  it("refuses a field it does not know", () => {
+    expect(accepts([{ text: "Hello", seq: 4 }])).toBe(false);
+    expect(
+      coachTranscriptInputSchema.safeParse({
+        lines: [{ text: "Hello" }],
+        epoch: "e",
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("a transcript posted to the coach", () => {
+  it("holds between 1 and 2,000 lines", () => {
+    const lines = (count: number) =>
+      Array.from({ length: count }, () => ({ text: "Hello" }));
+    expect(accepts([])).toBe(false);
+    expect(accepts(lines(1))).toBe(true);
+    expect(accepts(lines(2_000))).toBe(true);
+    expect(accepts(lines(2_001))).toBe(false);
+    expect(coachTranscriptInputSchema.safeParse({}).success).toBe(false);
+  });
+
+  it("reports the path of the line at fault", () => {
+    const refused = coachTranscriptInputSchema.safeParse({
+      lines: [{ text: "Hello" }, { text: "" }],
+    });
+    expect(refused.error?.issues.map((issue) => issue.path.join("."))).toEqual([
+      "lines.1.text",
+    ]);
+  });
+});
+
+describe("the coach transcript as it is read", () => {
+  const line = { seq: 1, speaker: "interviewer", text: "Hello", at: AT };
+
+  it("gives each line a positive whole seq, a speaker and a time", () => {
+    expect(coachTranscriptLineSchema.safeParse(line).success).toBe(true);
+    for (const wrong of [
+      { ...line, seq: 0 },
+      { ...line, seq: 1.5 },
+      { ...line, speaker: "Speaker 1" },
+      { ...line, at: undefined },
+      { ...line, label: "Speaker 1" },
+    ])
+      expect(coachTranscriptLineSchema.safeParse(wrong).success).toBe(false);
+  });
+
+  it("carries an epoch, a cursor that may be 0, and the lines", () => {
+    expect(
+      coachTranscriptResponseSchema.safeParse({
+        epoch: "e-1",
+        cursor: 0,
+        lines: [],
+      }).success,
+    ).toBe(true);
+    expect(
+      coachTranscriptResponseSchema.safeParse({
+        epoch: "e-1",
+        cursor: 1,
+        lines: [line],
+      }).success,
+    ).toBe(true);
+    for (const wrong of [
+      { cursor: 0, lines: [] },
+      { epoch: "e-1", cursor: -1, lines: [] },
+      { epoch: "e-1", cursor: 0 },
+      { epoch: "e-1", cursor: 0, lines: [], revision: 1 },
+    ])
+      expect(coachTranscriptResponseSchema.safeParse(wrong).success).toBe(
+        false,
+      );
+  });
+
+  it("may name the live session the lines were heard in, by its ids only", () => {
+    const session = {
+      tenantId: "00000000-0000-4000-8000-000000000001",
+      actorId: "00000000-0000-4000-8000-000000000002",
+      sessionId: "00000000-0000-4000-8000-000000000003",
+    };
+    expect(coachTranscriptSessionSchema.safeParse(session).success).toBe(true);
+    expect(
+      coachTranscriptResponseSchema.safeParse({
+        epoch: "e-1",
+        cursor: 1,
+        lines: [line],
+        session,
+      }).success,
+    ).toBe(true);
+    for (const wrong of [
+      { ...session, sessionId: "session-1" },
+      { ...session, tenantId: undefined },
+      { tenantId: session.tenantId, sessionId: session.sessionId },
+      { ...session, title: "Interview at an invented company" },
+    ]) {
+      expect(coachTranscriptSessionSchema.safeParse(wrong).success).toBe(false);
+      expect(
+        coachTranscriptResponseSchema.safeParse({
+          epoch: "e-1",
+          cursor: 0,
+          lines: [],
+          session: wrong,
+        }).success,
+      ).toBe(false);
+    }
+  });
+});

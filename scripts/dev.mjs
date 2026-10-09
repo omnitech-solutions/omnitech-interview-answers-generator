@@ -54,6 +54,9 @@ const localEnvironment = {
     configuredEnvironment.ACTIVE_SESSION_AGENT_PORT ?? "on",
   ACTIVE_SESSION_AGENT_PROFILE:
     configuredEnvironment.ACTIVE_SESSION_AGENT_PROFILE ?? "claude",
+  // The live coach listens to the session and writes the coach's notes, on
+  // Claude Code unless .env says "codex" or "off".
+  INTERVIEW_COACH: configuredEnvironment.INTERVIEW_COACH ?? "claude",
   // Every AI call is kept as a run with its steps, prompts and answers included,
   // in the AI engine's own development database (in the omnitech-ai-engine
   // repository, `pnpm dev` starts it on 127.0.0.1:54329). When that database

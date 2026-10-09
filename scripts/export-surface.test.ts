@@ -93,7 +93,10 @@ const surfaces: Record<string, SurfaceRow> = {
   // +8: the coach notes contract (coachNoteLinkSchema, coachNoteInputSchema,
   // coachNoteSchema, coachNotesResponseSchema and their four types), shared by
   // the notes route, its file store and the live window's coach panel.
-  "@omnitech/interview-contracts": { entrypoints: 1, names: 408 },
+  // +11: the coach transcript contract (COACH_SPEAKERS, the line input, input,
+  // line, session and response schemas and their five types), shared by the
+  // transcript route, its in-memory store and the live coach in the worker.
+  "@omnitech/interview-contracts": { entrypoints: 1, names: 419 },
   "@omnitech/interview-library": { entrypoints: 1, names: 5 },
   "@omnitech/interview-playground-control": { entrypoints: 1, names: 16 },
   "@omnitech/interview-storage": { entrypoints: 1, names: 8 },
@@ -107,7 +110,9 @@ const surfaces: Record<string, SurfaceRow> = {
   "@omnitech/platform-runtime": { entrypoints: 2, names: 13 },
   // +1: agentPayloadSecret, moved here when agent-job-service went into the AI engine.
   "@omnitech/platform-storage": { entrypoints: 3, names: 39 },
-  "@omnitech/product-interview": { entrypoints: 6, names: 83 },
+  // +6: the live coach the agent worker runs (createCoach, Coach, CoachPorts, CoachOptions, CoachCallError, COACH_PROMPT_VERSION).
+  // +3: the session context the coach grounds its notes in, built by the agent worker (createCoachContext, CoachContextPort, CoachFact).
+  "@omnitech/product-interview": { entrypoints: 6, names: 92 },
   "@omnitech/product-presentation": { entrypoints: 3, names: 11 },
 };
 
@@ -161,8 +166,9 @@ const exportStarReasons: ReadonlyArray<{
   },
   {
     file: "products/interview/src/backend/session-worker-entry.ts",
-    modules: ["./live-session/worker-entry"],
-    reason: "the worker entrypoint is the live-session worker module",
+    modules: ["./live-session/worker-entry", "./coach/index"],
+    reason:
+      "the worker entrypoint is the live-session worker module and the live coach",
   },
 ];
 

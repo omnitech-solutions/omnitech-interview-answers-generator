@@ -1,15 +1,14 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createAiEngine } from "@omnitech/ai-engine";
 import {
   type AgentProfile,
   type AgentRuntimeAdapter,
+  agentRuntime,
   createAgentModelPort,
-} from "@omnitech/ai-engine/providers/agents";
-import { createClaudeRuntimeAdapter } from "@omnitech/ai-engine/providers/agents/claude-sdk";
-import { createCodexRuntimeAdapter } from "@omnitech/ai-engine/providers/agents/codex-app-server";
-import { createMemoryTrace } from "@omnitech/ai-engine/trace";
+  createAiEngine,
+  createMemoryTrace,
+} from "@omnitech/ai-engine";
 import { generateDocumentValues } from "../products/interview/src/backend/documents/generate";
 
 if (process.env["BENCHMARK_LIVE"] !== "1")
@@ -22,14 +21,12 @@ if (!Number.isInteger(trials) || trials < 1 || trials > 10)
 const target = process.env["TARGET"] ?? "codex";
 if (target !== "codex" && target !== "claude-code")
   throw new Error("TARGET must be codex or claude-code.");
-const adapter: AgentRuntimeAdapter =
-  target === "codex"
-    ? createCodexRuntimeAdapter(
-        process.env["CODEX_PATH"]
-          ? { codexPathOverride: process.env["CODEX_PATH"] }
-          : {},
-      )
-    : createClaudeRuntimeAdapter();
+const adapter: AgentRuntimeAdapter = agentRuntime({
+  runtime: target,
+  ...(process.env["CODEX_PATH"]
+    ? { executable: process.env["CODEX_PATH"] }
+    : {}),
+});
 const directory = await mkdtemp(join(tmpdir(), "omnitech-document-benchmark-"));
 const model =
   target === "codex"

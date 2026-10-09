@@ -92,7 +92,11 @@ const rows: Array<[file: string, maxCount: number, reason: string]> = [
       ["packages/platform-storage/src/bootstrap.ts", 5],
       ["packages/platform-storage/src/document-artifact-repository.ts", 13],
       ["packages/platform-storage/src/platform-repository.ts", 7],
-      ["products/interview/src/backend/api.ts", 8],
+      // 2026-10-08: +1 for `context.req.query("after")` on the coach transcript
+      // route: like the other eight here it is a Hono query parameter the
+      // scanner counts, not a SQL statement.
+      // +1: `context.req.query("revision")` on the coach-notes read, the same.
+      ["products/interview/src/backend/api.ts", 10],
       ["products/interview/src/backend/assistant/adapter.ts", 1],
       ["products/interview/src/backend/assistant/workspace.ts", 31],
       ["products/interview/src/backend/briefing/repository.ts", 17],
