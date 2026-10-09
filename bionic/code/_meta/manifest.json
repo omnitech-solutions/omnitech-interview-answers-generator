@@ -40,7 +40,7 @@
       "doc_path": "fallback/apps/agent-worker/src/coach-replay.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "fb73684088482c3e58d294199962f4c771c4e2c4beb0d910f6b308dd25f592ea",
+      "sha256": "38486cc83b19e77c8e7ee62c746370bb657bb51a7a3fd0d685011552ff9726e1",
       "source_path": "apps/agent-worker/src/coach-replay.ts"
     },
     {

@@ -72,7 +72,7 @@
     "apps/agent-worker/src/coach-loop.test.ts": "73d680e5e4a5abbff02f77183038720768b8d046ab9dc84ceedfea3c7ee118dc",
     "apps/agent-worker/src/coach-loop.ts": "b40e7263137a48b0bcff1c4d9379db7d376209cca1066a8bd71f9159ddbd9f51",
     "apps/agent-worker/src/coach-replay.test.ts": "6dbfa39e09d9b15420664fcd0eec13cca25dc391c09256a5eb29169af564f687",
-    "apps/agent-worker/src/coach-replay.ts": "b278b1d13b9ac1ab9e44a2a726c68fc00dc04290e494d0ab355638385888409f",
+    "apps/agent-worker/src/coach-replay.ts": "9b4ee2ff58f209ea3cad9d27b8cbb759ff275483d0172639bc035bd33f471c8c",
     "apps/agent-worker/src/engine-trace.test.ts": "9b1e0231a77c98ee1396aa580d43382248fbe6eb2cbc44862536b879061d623f",
     "apps/agent-worker/src/engine-trace.ts": "a7d7e58812389387e6fea6224133fed19f35ae85807db53910a536fe1782fa4a",
     "apps/agent-worker/src/loops.test.ts": "cf997afb855461c9560c7db73c40ea0b097a4a76cbcf984caca2892ab680983e",

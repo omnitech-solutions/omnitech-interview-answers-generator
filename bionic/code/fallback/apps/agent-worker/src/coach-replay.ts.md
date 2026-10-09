@@ -18,6 +18,12 @@ Options
 --interviewer L   --me L   --leave-out L     a label's part; repeat, or a,b
 --unknown-is interviewer|me|leave-out        what unnamed labels are
 --plan FILE       the plan for the call, given to the coach with every stretch
+--trace           print everything: each prompt the model is given, its raw
+reply, and each revision of each note as it is posted
+--expect FILE     a benchmark: the questions the stretch holds and the words
+that complete each. The run is scored against them, the
+result is kept in .dev-local/benchmarks/ and compared with
+the last run of the same benchmark on the same runtime
 --hide-me         the coach does not hear the person being coached
 --from T --to T   the stretch to replay (HH:MM:SS of the file's clock)
 --timing          decisions only, no model

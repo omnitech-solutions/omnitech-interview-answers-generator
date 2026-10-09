@@ -1,0 +1,17 @@
+{
+  "about": "Two questions from a recorded screening call (107 seconds): a slow, two-part question, a 75-second answer, then a follow-up in three sentences. Each question names the words that complete it: an action taken before those words were said is premature.",
+  "interviewer": ["Speaker 1"],
+  "me": ["Speaker 2"],
+  "questions": [
+    {
+      "id": "service-or-monolith",
+      "completeWhenSaid": "stay in the existing",
+      "about": ["microservice", "monolith"]
+    },
+    {
+      "id": "data-ownership",
+      "completeWhenSaid": "How do you take data",
+      "about": ["boundary", "ownership", "data"]
+    }
+  ]
+}

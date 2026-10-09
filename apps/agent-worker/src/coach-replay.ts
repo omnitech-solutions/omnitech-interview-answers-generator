@@ -14,6 +14,12 @@
 //   --interviewer L   --me L   --leave-out L     a label's part; repeat, or a,b
 //   --unknown-is interviewer|me|leave-out        what unnamed labels are
 //   --plan FILE       the plan for the call, given to the coach with every stretch
+//   --trace           print everything: each prompt the model is given, its raw
+//                     reply, and each revision of each note as it is posted
+//   --expect FILE     a benchmark: the questions the stretch holds and the words
+//                     that complete each. The run is scored against them, the
+//                     result is kept in .dev-local/benchmarks/ and compared with
+//                     the last run of the same benchmark on the same runtime
 //   --hide-me         the coach does not hear the person being coached
 //   --from T --to T   the stretch to replay (HH:MM:SS of the file's clock)
 //   --timing          decisions only, no model
@@ -27,7 +33,8 @@
 // Nothing is kept: the transcript and the notes of a replay live in this
 // process, unless --studio is given. With no part named for any label and a
 // terminal to ask in, it asks.
-import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
 import {
   type AiEngine,
@@ -67,6 +74,7 @@ const VALUED = new Set([
   "--speed",
   "--latency",
   "--plan",
+  "--expect",
 ]);
 const all = (name: string): string[] =>
   args.flatMap((arg, at) =>
@@ -282,6 +290,24 @@ const notes = new Map<string, { atMs: number; note: CoachNoteInput }>();
 const firstLines: number[] = [];
 let silences = 0;
 let lastAct: { atMs: number; noted: boolean } | undefined;
+// Every act with what came of it, for a benchmark's score.
+type ActRecord = {
+  atMs: number;
+  reason: string;
+  key: string;
+  // The words of the turn acted on.
+  turn: string;
+  // When the last line of the stretch was said, on the file's clock.
+  endedMs: number;
+  // Real seconds from acting to the first line of its note, and to the last.
+  firstLineS?: number;
+  finalS?: number;
+  recalled?: boolean;
+  silent?: boolean;
+  failed?: boolean;
+};
+const records: ActRecord[] = [];
+const trace = has("--trace");
 const counts: Record<string, number> = {};
 const say = (atMs: number, text: string) =>
   console.log(`${clock(atMs)}  ${text}`);
@@ -306,12 +332,21 @@ function onEvent(event: CoachEvent) {
       endedMs: ended,
       reason: event.reason ?? "",
     });
+    records.push({
+      atMs: event.atMs,
+      reason: event.reason ?? "",
+      key: event.key,
+      turn: turn?.text ?? "",
+      endedMs: ended,
+    });
     say(
       event.atMs,
       `ACT    ${(event.reason ?? "").padEnd(17)} ${wait(event.atMs - ended)} after "${short(turn?.text ?? "", 110)}"`,
     );
   } else if (event.what === "recall") {
     counts["recall"] = (counts["recall"] ?? 0) + 1;
+    const recalled = records.at(-1);
+    if (recalled) recalled.recalled = true;
     say(
       event.atMs,
       "AGAIN  the interviewer went on: the call is made again with the whole turn",
@@ -320,15 +355,24 @@ function onEvent(event: CoachEvent) {
     const held = acted.get(event.key);
     if (held) held.silent = true;
     silences += 1;
+    const quiet = records.at(-1);
+    if (quiet) quiet.silent = true;
     if (!timingOnly) say(event.atMs, "       (nothing worth a note)");
   } else if (event.what === "failed") {
     say(event.atMs, "FAILED the call did not finish");
+    const broke = records.at(-1);
+    if (broke) broke.failed = true;
   } else if (event.what === "note") {
+    const written = records.at(-1);
+    if (written && event.final && lastAct)
+      written.finalS = (event.atMs - lastAct.atMs) / speed / 1000;
     // The first line of the note this act led to, in real seconds.
     if (lastAct && !lastAct.noted) {
       lastAct.noted = true;
       const delay = (event.atMs - lastAct.atMs) / speed;
       firstLines.push(delay);
+      const noted = records.at(-1);
+      if (noted) noted.firstLineS = delay / 1000;
       say(
         event.atMs,
         `NOTE   first line ${wait(delay)} after acting (real time)`,
@@ -346,8 +390,46 @@ if (one("--plan"))
     console.error(`That file could not be read: ${one("--plan")}`);
     process.exit(1);
   }
+// [DOMAIN] The full trace: what the model was given and what it wrote, call by
+// call. This is the conversation's content, printed only when asked for.
+let calls = 0;
+function traced(engine: Pick<AiEngine, "stream">): Pick<AiEngine, "stream"> {
+  if (!trace) return engine;
+  return {
+    async *stream(input, execution, options) {
+      calls += 1;
+      const call = calls;
+      const began = Date.now();
+      const prompt = input.messages
+        .filter((message) => message.role === "user")
+        .flatMap((message) =>
+          message.parts.map((part) => (part.type === "text" ? part.text : "")),
+        )
+        .join("\n");
+      console.log(`\n──── call ${call}: prompt ─────────────────────────────`);
+      console.log(prompt);
+      let reply = "";
+      let first: number | undefined;
+      for await (const part of engine.stream(input, execution, options)) {
+        if (part.type === "text") {
+          first ??= Date.now() - began;
+          reply += part.text;
+        }
+        if (part.type === "failed")
+          console.log(`──── call ${call}: failed (${part.failure.code}) ────`);
+        yield part;
+      }
+      console.log(
+        `──── call ${call}: reply (first text ${first === undefined ? "none" : `${(first / 1000).toFixed(1)}s`}, whole ${((Date.now() - began) / 1000).toFixed(1)}s) ────`,
+      );
+      console.log(reply.trim() || "(nothing)");
+      console.log("────────────────────────────────────────────────────────\n");
+    },
+  };
+}
+
 const coach = createCoach({
-  engine: timingOnly ? silent : modelEngine(),
+  engine: timingOnly ? silent : traced(modelEngine()),
   profileId: "coach",
   transcript: {
     since: async (after) => ({
@@ -358,6 +440,19 @@ const coach = createCoach({
   },
   notes: {
     post: async (note, signal) => {
+      if (trace)
+        console.log(
+          `     note ${note.key} revision ${note.revision}: ${(
+            note.sections ?? []
+          )
+            .flatMap((section) =>
+              section.lines.map(
+                (line) =>
+                  `[${section.kind}] ${line.segments.map((segment) => segment.text).join("")}`,
+              ),
+            )
+            .join(" | ")}`,
+        );
       notes.set(note.key ?? "", {
         atMs: notes.get(note.key ?? "")?.atMs ?? fileNow(),
         note,
@@ -455,5 +550,198 @@ if (!timingOnly) {
         : ` First line of a note: median ${(firstLine / 1000).toFixed(1)} s after acting.`
     }`,
   );
+}
+// ---- A benchmark's score ------------------------------------------------------
+
+if (one("--expect")) {
+  type Expected = {
+    questions: { id: string; completeWhenSaid: string; about?: string[] }[];
+  };
+  const expected = JSON.parse(
+    readFileSync(one("--expect") as string, "utf8"),
+  ) as Expected;
+  const said = (text: string, phrase: string) =>
+    text.toLowerCase().includes(phrase.toLowerCase());
+  const interviewerActs = records.filter(
+    (record) =>
+      record.reason !== "answer-check" && record.reason !== "screen-change",
+  );
+  const questions = expected.questions.map((question, at) => {
+    // The acts on this question: those whose turn is about it and that came
+    // before the next question was whole.
+    const whole = interviewerActs.find((record) =>
+      said(record.turn, question.completeWhenSaid),
+    );
+    const nextWhole = expected.questions[at + 1]
+      ? interviewerActs.find((record) =>
+          said(
+            record.turn,
+            (expected.questions[at + 1] as Expected["questions"][number])
+              .completeWhenSaid,
+          ),
+        )
+      : undefined;
+    const before = interviewerActs.filter(
+      (record) =>
+        (!whole || record.atMs < whole.atMs) &&
+        !said(record.turn, question.completeWhenSaid) &&
+        (question.about ?? []).some((word) => said(record.turn, word)),
+    );
+    const after = records.filter(
+      (record) =>
+        whole !== undefined &&
+        record.atMs > whole.atMs &&
+        (!nextWhole || record.atMs < nextWhole.atMs),
+    );
+    return {
+      id: question.id,
+      answeredWhole: whole !== undefined,
+      // Acts on part of the question, and how many of those put a note on screen.
+      prematureActs: before.length,
+      prematureNotesShown: before.filter(
+        (record) => record.firstLineS !== undefined,
+      ).length,
+      // From the question's last word to acting, on the file's clock.
+      toActS: whole ? (whole.atMs - whole.endedMs) / 1000 : null,
+      // Real seconds from acting to the first and the last line of the note.
+      firstLineS: whole?.firstLineS ?? null,
+      finalS: whole?.finalS ?? null,
+      // What the candidate waits, end of question to first line.
+      questionToFirstLineS:
+        whole?.firstLineS === undefined || !whole
+          ? null
+          : (whole.atMs - whole.endedMs) / 1000 + whole.firstLineS,
+      nudgesDuringAnswer: after.filter(
+        (record) =>
+          record.reason === "answer-check" && record.firstLineS !== undefined,
+      ).length,
+      looksDuringAnswer: after.filter(
+        (record) => record.reason === "answer-check",
+      ).length,
+      otherNotesBeforeNextQuestion: after.filter(
+        (record) =>
+          record.reason !== "answer-check" && record.firstLineS !== undefined,
+      ).length,
+    };
+  });
+  const runtimeName = timingOnly
+    ? "timing"
+    : one("--runtime") === "codex"
+      ? "codex"
+      : "claude";
+  const name = (one("--expect") as string)
+    .split("/")
+    .at(-1)
+    ?.replace(/\.expected\.json$/, "") as string;
+  const result = {
+    benchmark: name,
+    runtime: runtimeName,
+    at: new Date().toISOString(),
+    commit: (() => {
+      try {
+        return execFileSync("git", ["rev-parse", "--short", "HEAD"], {
+          encoding: "utf8",
+        }).trim();
+      } catch {
+        return "unknown";
+      }
+    })(),
+    wallSeconds: Math.round((Date.now() - wallStart) / 1000),
+    acts: actions,
+    callsMadeAgain: counts["recall"] ?? 0,
+    notes: notes.size,
+    silent: silences,
+    failed: records.filter((record) => record.failed).length,
+    questions,
+  };
+  const folder = new URL("../../../.dev-local/benchmarks/", import.meta.url);
+  mkdirSync(folder, { recursive: true });
+  const earlier = readdirSync(folder)
+    .filter((file) => file.startsWith(`${name}-${runtimeName}-`))
+    .sort()
+    .at(-1);
+  const previous = earlier
+    ? (JSON.parse(
+        readFileSync(new URL(earlier, folder), "utf8"),
+      ) as typeof result)
+    : undefined;
+  writeFileSync(
+    new URL(
+      `${name}-${runtimeName}-${result.at.replace(/[:.]/g, "-")}.json`,
+      folder,
+    ),
+    `${JSON.stringify(result, null, 2)}\n`,
+  );
+
+  const show = (value: number | null | boolean) =>
+    value === null
+      ? "—"
+      : typeof value === "number"
+        ? String(Math.round(value * 10) / 10)
+        : value
+          ? "yes"
+          : "NO";
+  const row = (
+    label: string,
+    now: number | null | boolean,
+    was?: number | null | boolean,
+  ) =>
+    console.log(
+      `  ${label.padEnd(44)} ${show(now).padStart(6)}${was === undefined ? "" : `   (last run: ${show(was)})`}`,
+    );
+  console.log(
+    `\nBENCHMARK ${name} on ${runtimeName} at ${result.commit}${previous ? `, against ${previous.commit} (${previous.at.slice(0, 16)})` : " (first run: nothing to compare with)"}`,
+  );
+  row("acts", result.acts, previous?.acts);
+  row(
+    "calls made again (interviewer went on)",
+    result.callsMadeAgain,
+    previous?.callsMadeAgain,
+  );
+  row("notes on screen at the end", result.notes, previous?.notes);
+  row("calls that said nothing", result.silent, previous?.silent);
+  row("calls that failed", result.failed, previous?.failed);
+  for (const [at, question] of result.questions.entries()) {
+    const was = previous?.questions[at];
+    console.log(`  ${question.id}`);
+    row(
+      "  answered as a whole question",
+      question.answeredWhole,
+      was?.answeredWhole,
+    );
+    row("  acts on part of it", question.prematureActs, was?.prematureActs);
+    row(
+      "  notes shown for part of it",
+      question.prematureNotesShown,
+      was?.prematureNotesShown,
+    );
+    row("  question end → acting (s)", question.toActS, was?.toActS);
+    row(
+      "  acting → first line (s, real)",
+      question.firstLineS,
+      was?.firstLineS,
+    );
+    row(
+      "  question end → first line (s)",
+      question.questionToFirstLineS,
+      was?.questionToFirstLineS,
+    );
+    row("  acting → whole note (s, real)", question.finalS, was?.finalS);
+    row(
+      "  looks during the answer",
+      question.looksDuringAnswer,
+      was?.looksDuringAnswer,
+    );
+    row(
+      "  nudges during the answer",
+      question.nudgesDuringAnswer,
+      was?.nudgesDuringAnswer,
+    );
+    row(
+      "  other notes before the next question",
+      question.otherNotesBeforeNextQuestion,
+      was?.otherNotesBeforeNextQuestion,
+    );
+  }
 }
 process.exit(0);
