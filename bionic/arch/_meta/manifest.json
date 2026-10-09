@@ -246,6 +246,9 @@
     "bionic/adrs/archive/ADR-0035-record-every-ai-interaction-with-its-content-in-dev.md": "e5bd1c5a30c18b9ea31634763025adf10abb56ea1b7713084546d0b7b68f9b19",
     "bionic/adrs/archive/ADR-0036-project-facts-and-scenario-context-through-one-sta.md": "34b45acfcb17d989def377a93fdef4401884181e67a66dfd77e9545578b12c1c",
     "bionic/adrs/index.md": "8cc4c8a4209aa7037bd9e5ef97d9141d2bb717271a0f81fc4c0d0955b46b0605",
+    "coverage/block-navigation.js": "cd8db34b1fbeb973354a93f8b4133c7c7eab34cdda9429a0434be91384783b7e",
+    "coverage/prettify.js": "fa1b1e1b906ddcfa08b46f161c0f924f506e1a31b4f3e09b8caaa2463ef52c18",
+    "coverage/sorter.js": "f8cc5d157379d844fd695ad567b6c29b3c1f0812964ddf6f95c26327e434bab5",
     "docker/app/forward.mjs": "bd9029c8b7b4eff70bada5dc78c9a10c57b9e3dccbdd4a4c1bc93096cf5988b5",
     "e2e/live-session/playwright.config.ts": "0d268c3d284677a5cd88412edbdca6f7c57d26eca81db43943caa743759a50ec",
     "e2e/live-session/scripts/run.mjs": "3902c82b30537f45b5748b96e497576a4cf1fa3cea1e2f9ffa9356b882c9e86a",
@@ -1317,7 +1320,7 @@
     "vitest.config.ts": "2ca2f3661746987a5401eeefb31ef11a7457cc590dccb68eaa8aa9c94974d99d",
     "vitest.package.config.ts": "5e221d148c035fd3e9783c4caf998b48d539b28169083746c80ab47809a7b69e"
   },
-  "spine_hash": "sha256:bc502748baa93b72b1c9c1b9d4d26c056e3a37684d2b85edc60f29fe1e81ebf8",
+  "spine_hash": "sha256:7b9ab3a1a95465bc9431d8829d90a806aaf4b5cf81d3a56b878464de78ef71dd",
   "tool_pins": {
     "engine": "arch-derive/1",
     "parser:tree_sitter": "0.26.0",

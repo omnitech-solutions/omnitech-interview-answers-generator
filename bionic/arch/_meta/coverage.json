@@ -152,6 +152,9 @@
         "apps/web/src/platform/web-app-manifest.ts",
         "apps/web/vitest.config.ts",
         "apps/web/vitest.setup.ts",
+        "coverage/block-navigation.js",
+        "coverage/prettify.js",
+        "coverage/sorter.js",
         "docker/app/forward.mjs",
         "e2e/live-session/playwright.config.ts",
         "e2e/live-session/scripts/run.mjs",
@@ -1221,7 +1224,7 @@
         "vitest.package.config.ts"
       ],
       "n_entities": 86,
-      "n_sources": 1203,
+      "n_sources": 1206,
       "verdict": "populated"
     },
     {
@@ -1364,6 +1367,9 @@
         "apps/web/src/platform/web-app-manifest.ts",
         "apps/web/vitest.config.ts",
         "apps/web/vitest.setup.ts",
+        "coverage/block-navigation.js",
+        "coverage/prettify.js",
+        "coverage/sorter.js",
         "docker/app/forward.mjs",
         "e2e/live-session/playwright.config.ts",
         "e2e/live-session/scripts/run.mjs",
@@ -2434,7 +2440,7 @@
         "vitest.package.config.ts"
       ],
       "n_entities": 3223,
-      "n_sources": 1204,
+      "n_sources": 1207,
       "verdict": "populated"
     },
     {
