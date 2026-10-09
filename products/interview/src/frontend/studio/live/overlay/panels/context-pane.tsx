@@ -11,9 +11,16 @@
 import {
   ActionMenu,
   Button,
+  Collapse,
+  Descriptions,
+  Divider,
+  Empty,
+  Flex,
   Panel,
+  Space,
   Tag,
   Textarea,
+  Typography,
 } from "@oc-tech/omni-ui-components";
 import { createBriefingClient } from "@omnitech/interview-api-client";
 import {
@@ -24,7 +31,6 @@ import {
   contextViewResponseSchema,
 } from "@omnitech/interview-contracts";
 import {
-  type CSSProperties,
   type ReactNode,
   useCallback,
   useEffect,
@@ -39,7 +45,6 @@ import { documentJson } from "../../../documents/documents-client";
 import { Icon } from "../../../icon";
 import { studioFetch } from "../../../studio-fetch";
 import { tenantFromLocation } from "../../session-registry";
-import { COACH_COLOUR } from "./coach-note-view";
 import { briefSections } from "./interview-context-modal";
 import {
   draftOf,
@@ -54,69 +59,13 @@ import {
 } from "./matrix-projections";
 import type { PanelSession } from "./panel-views";
 
-const LINE = "#2c2c2f";
-const DIM = "#8e8e93";
-const FAINT = "#6e6e73";
+// Everything drawn here is a part of the UI library: no styles and no layout
+// elements of this file's own (context-pane.test.tsx holds it to that).
+
 // The roles drawn before "Show all": what the model is most likely to be given.
 const TOP_ROLES = 5;
 // The revisions offered in the menu, newest first.
 const REVISIONS_LISTED = 20;
-
-const STYLE = {
-  scroll: {
-    padding: "4px 4px 10px",
-    display: "flex",
-    flexDirection: "column",
-    gap: 22,
-    color: COACH_COLOUR.read,
-  },
-  artifact: { display: "flex", flexDirection: "column", gap: 8 },
-  head: { display: "flex", alignItems: "center", gap: 8, minWidth: 0 },
-  caps: {
-    fontSize: 11,
-    fontWeight: 700,
-    letterSpacing: "0.09em",
-    textTransform: "uppercase",
-    color: DIM,
-  },
-  meta: { fontSize: 12, color: FAINT },
-  how: {
-    margin: 0,
-    padding: "7px 10px",
-    borderRadius: 8,
-    background: "#151517",
-    border: `1px solid ${LINE}`,
-    fontSize: 12.5,
-    lineHeight: 1.45,
-    color: DIM,
-  },
-  role: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 4,
-    padding: "8px 10px",
-    borderRadius: 9,
-    border: `1px solid ${LINE}`,
-  },
-  roleHead: { display: "flex", alignItems: "center", gap: 8, minWidth: 0 },
-  title: { fontSize: 12.5, color: DIM, paddingLeft: 8 },
-  fact: { margin: 0, fontSize: 13, lineHeight: 1.45, color: "#c7c7cc" },
-  factLabel: {
-    fontSize: 10.5,
-    fontWeight: 700,
-    letterSpacing: "0.08em",
-    textTransform: "uppercase",
-    color: FAINT,
-  },
-  pointer: {
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-    fontSize: 10.5,
-    color: FAINT,
-  },
-  row: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 },
-  empty: { margin: 0, fontSize: 13, color: DIM },
-  note: { margin: 0, fontSize: 12, lineHeight: 1.45, color: DIM },
-} satisfies Record<string, CSSProperties>;
 
 // ---- Loading ------------------------------------------------------------------
 
@@ -231,6 +180,21 @@ function useMatrix(pinned: { id: string; revision: number } | null) {
 
 // ---- Pieces -------------------------------------------------------------------
 
+// Lines of text one under another, each with a key of its own even when two
+// lines read the same.
+function Lines({ items }: { items: readonly string[] }) {
+  const seen = new Map<string, number>();
+  return (
+    <Flex vertical>
+      {items.map((item) => {
+        const nth = seen.get(item) ?? 0;
+        seen.set(item, nth + 1);
+        return <Typography.Text key={`${item}#${nth}`}>{item}</Typography.Text>;
+      })}
+    </Flex>
+  );
+}
+
 function Artifact({
   title,
   meta,
@@ -246,21 +210,19 @@ function Artifact({
   children: ReactNode;
 }) {
   return (
-    <section style={STYLE.artifact} data-testid="pn-context-artifact">
-      <div style={STYLE.head}>
-        <span style={STYLE.caps}>{title}</span>
-        <span style={{ flex: "1 1 auto" }} aria-hidden="true" />
+    <Flex vertical gap={8} data-testid="pn-context-artifact">
+      <Divider>{title}</Divider>
+      <Flex align="center" justify="space-between" gap={8} wrap="wrap">
+        <Typography.Text type="secondary">{meta}</Typography.Text>
         {actions}
-      </div>
-      <span style={STYLE.meta}>{meta}</span>
-      <p style={STYLE.how}>
-        <span style={{ ...STYLE.factLabel, marginRight: 6 }}>
-          How the AI uses it
-        </span>
-        {how}
-      </p>
+      </Flex>
+      <Descriptions
+        columns={1}
+        size="small"
+        items={[{ label: "How the AI uses it", children: how }]}
+      />
       {children}
-    </section>
+    </Flex>
   );
 }
 
@@ -283,105 +245,80 @@ function RoleCard({
 }) {
   const { id, role, match } = ranked;
   const index = Number(id.split("/")[2]);
-  const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<RoleDraft | null>(null);
   const [saving, setSaving] = useState(false);
   const facts = roleFacts(role, index);
-  return (
-    <div
-      style={{
-        ...STYLE.role,
-        ...(used
-          ? {
-              borderColor: COACH_COLOUR.evidence,
-              background: "rgba(124, 180, 255, 0.07)",
-            }
-          : {}),
-      }}
-      data-role-id={id}
-      data-used={used ? "" : undefined}
-      data-testid="pn-context-role"
-    >
-      <div style={STYLE.roleHead}>
-        <Button
-          buttonSize="sm"
-          variant="ghost"
-          icon={<Icon name={open ? "expand_more" : "chevron_right"} />}
-          aria-expanded={open}
-          labelMaxWidth="200px"
-          title={`${role.company} · ${role.title}`}
-          onClick={() => setOpen(!open)}
-        >
-          {role.company}
-        </Button>
-        <span style={{ flex: "1 1 auto" }} aria-hidden="true" />
-        {used && <Tag>In this note</Tag>}
-        <span style={STYLE.meta}>
-          {projection === "facts" ? `${facts.length} facts` : `${match}%`}
-        </span>
-      </div>
-      <span style={STYLE.title}>
-        {[role.title, role.period].filter(Boolean).join(" · ")}
-      </span>
-      {open && projection === "facts" && (
-        <div style={{ ...STYLE.artifact, padding: "4px 8px 2px" }}>
-          {facts.map((fact) => (
-            <p key={fact.pointer} style={STYLE.fact} data-testid="pn-fact">
-              <span style={STYLE.pointer}>{`${fact.pointer}  `}</span>
-              {fact.text}
-            </p>
-          ))}
-        </div>
-      )}
-      {open && projection === "ranked" && draft === null && (
-        <div style={{ ...STYLE.artifact, padding: "4px 8px 2px" }}>
-          {(role.metrics ?? []).length > 0 && (
-            <div style={STYLE.artifact}>
-              <span style={STYLE.factLabel}>Figures</span>
-              {(role.metrics ?? []).map((metric) => (
-                <p key={metric.label} style={STYLE.fact}>
-                  {`${metric.label}: ${metric.value}`}
-                </p>
-              ))}
-            </div>
-          )}
-          {EDITABLE_FIELDS.map(({ key, label }) => {
-            const items = role[key] ?? [];
-            if (items.length === 0) return null;
-            return (
-              <div key={key} style={STYLE.artifact}>
-                <span style={STYLE.factLabel}>{label}</span>
-                {key === "technologies" ? (
-                  <p style={STYLE.fact}>{items.join(" · ")}</p>
+  const body =
+    projection === "facts" ? (
+      <Flex vertical gap={4}>
+        {facts.map((fact) => (
+          <Typography.Text key={fact.pointer} data-testid="pn-fact">
+            <Tag mono variant="filled">
+              {fact.pointer}
+            </Tag>
+            {`  ${fact.text}`}
+          </Typography.Text>
+        ))}
+      </Flex>
+    ) : draft === null ? (
+      <Flex vertical gap={10}>
+        <Descriptions
+          columns={1}
+          size="small"
+          bordered={false}
+          items={[
+            ...((role.metrics ?? []).length > 0
+              ? [
+                  {
+                    key: "metrics",
+                    label: "Figures",
+                    children: (
+                      <Lines
+                        items={(role.metrics ?? []).map(
+                          (metric) => `${metric.label}: ${metric.value}`,
+                        )}
+                      />
+                    ),
+                  },
+                ]
+              : []),
+            ...EDITABLE_FIELDS.filter(
+              ({ key }) => (role[key] ?? []).length > 0,
+            ).map(({ key, label }) => ({
+              key,
+              label,
+              children:
+                key === "technologies" ? (
+                  (role[key] ?? []).join(" · ")
                 ) : (
-                  items.map((item) => (
-                    <p key={item} style={STYLE.fact}>
-                      {item}
-                    </p>
-                  ))
-                )}
-              </div>
-            );
-          })}
-          {editable && (
-            <div>
-              <Button
-                buttonSize="sm"
-                variant="outline"
-                onClick={() => setDraft(draftOf(role))}
-                data-testid="pn-context-edit-role"
-              >
-                Edit
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
-      {open && projection === "ranked" && draft !== null && (
-        <div style={{ ...STYLE.artifact, padding: "4px 8px 2px" }}>
-          {EDITABLE_FIELDS.map(({ key, label }) => (
-            <div key={key} style={STYLE.artifact}>
-              <span style={STYLE.factLabel}>{`${label} · one per line`}</span>
+                  <Lines items={role[key] ?? []} />
+                ),
+            })),
+          ]}
+        />
+        {editable && (
+          <Space>
+            <Button
+              buttonSize="sm"
+              variant="outline"
+              onClick={() => setDraft(draftOf(role))}
+              data-testid="pn-context-edit-role"
+            >
+              Edit
+            </Button>
+          </Space>
+        )}
+      </Flex>
+    ) : (
+      <Flex vertical gap={10}>
+        <Descriptions
+          columns={1}
+          size="small"
+          bordered={false}
+          items={EDITABLE_FIELDS.map(({ key, label }) => ({
+            key,
+            label: `${label} · one per line`,
+            children: (
               <Textarea
                 aria-label={`${label} for ${role.company}`}
                 rows={key === "technologies" ? 4 : 6}
@@ -389,35 +326,62 @@ function RoleCard({
                 disabled={saving}
                 onChange={(next) => setDraft({ ...draft, [key]: next })}
               />
-            </div>
-          ))}
-          <div style={STYLE.row}>
-            <Button
-              buttonSize="sm"
-              variant="default"
-              disabled={saving}
-              onClick={async () => {
-                setSaving(true);
-                const saved = await onSave(draft);
-                setSaving(false);
-                if (saved) setDraft(null);
-              }}
-              data-testid="pn-context-save-role"
-            >
-              {saving ? "Saving…" : "Save as a new revision"}
-            </Button>
-            <Button
-              buttonSize="sm"
-              variant="ghost"
-              disabled={saving}
-              onClick={() => setDraft(null)}
-            >
-              Cancel
-            </Button>
-          </div>
-        </div>
-      )}
-    </div>
+            ),
+          }))}
+        />
+        <Space wrap>
+          <Button
+            buttonSize="sm"
+            variant="default"
+            disabled={saving}
+            onClick={async () => {
+              setSaving(true);
+              const saved = await onSave(draft);
+              setSaving(false);
+              if (saved) setDraft(null);
+            }}
+            data-testid="pn-context-save-role"
+          >
+            {saving ? "Saving…" : "Save as a new revision"}
+          </Button>
+          <Button
+            buttonSize="sm"
+            variant="ghost"
+            disabled={saving}
+            onClick={() => setDraft(null)}
+          >
+            Cancel
+          </Button>
+        </Space>
+      </Flex>
+    );
+  return (
+    <Collapse
+      size="small"
+      tone={used ? "accent" : "default"}
+      data-role-id={id}
+      data-used={used ? "" : undefined}
+      data-testid="pn-context-role"
+      items={[
+        {
+          key: id,
+          label: role.company,
+          description: [role.title, role.period].filter(Boolean).join(" · "),
+          extra: (
+            <>
+              {used && <Tag>In this note</Tag>}
+              <Typography.Text
+                type="secondary"
+                data-testid="pn-context-role-meta"
+              >
+                {projection === "facts" ? `${facts.length} facts` : `${match}%`}
+              </Typography.Text>
+            </>
+          ),
+          children: body,
+        },
+      ]}
+    />
   );
 }
 
@@ -427,16 +391,19 @@ function Mapping({
   rows: readonly { key: string; values: readonly string[] }[];
 }) {
   if (rows.length === 0)
-    return <p style={STYLE.empty}>The matrix has none of these yet.</p>;
+    return (
+      <Empty variant="tile" description="The matrix has none of these yet." />
+    );
   return (
-    <>
-      {rows.map((row) => (
-        <div key={row.key} style={STYLE.role}>
-          <span style={{ fontSize: 13.5, fontWeight: 600 }}>{row.key}</span>
-          <p style={STYLE.fact}>{row.values.join(" · ") || "no roles named"}</p>
-        </div>
-      ))}
-    </>
+    <Descriptions
+      columns={1}
+      size="small"
+      items={rows.map((row) => ({
+        key: row.key,
+        label: row.key,
+        children: row.values.join(" · ") || "no roles named",
+      }))}
+    />
   );
 }
 
@@ -517,17 +484,21 @@ function SelectedView({
 }) {
   if (!hasSession)
     return (
-      <p style={STYLE.empty}>
-        Start a session to see what is selected for each question.
-      </p>
+      <Empty
+        variant="tile"
+        description="Start a session to see what is selected for each question."
+      />
     );
   if (failed)
     return (
-      <p style={{ ...STYLE.note, color: COACH_COLOUR.caution }} role="status">
+      <Typography.Text type="warning" role="status">
         The selection could not be read for this session.
-      </p>
+      </Typography.Text>
     );
-  if (!view) return <p style={STYLE.empty}>Reading the selection…</p>;
+  if (!view)
+    return (
+      <Typography.Text type="secondary">Reading the selection…</Typography.Text>
+    );
   // The slots in the order the model is given them, each with its facts.
   const slots = [...new Set(view.selected.map((fact) => fact.slot))];
   const left = new Map<string, number>();
@@ -535,34 +506,53 @@ function SelectedView({
     left.set(reason, (left.get(reason) ?? 0) + 1);
   return (
     <>
-      <p style={STYLE.note} data-testid="pn-context-selected-for">
+      <Typography.Text type="secondary" data-testid="pn-context-selected-for">
         {question
           ? `For: “${question}”`
           : "No question on show: chosen by importance alone."}
         {view.terms ? ` Matched on: ${view.terms}.` : ""}
-      </p>
+      </Typography.Text>
       {slots.map((slot) => (
-        <div key={slot} style={STYLE.role} data-testid="pn-context-slot">
-          <span style={STYLE.factLabel}>{SLOT_LABEL[slot] ?? slot}</span>
-          {view.selected
-            .filter((fact) => fact.slot === slot)
-            .map((fact) => (
-              <div key={`${slot}:${fact.id}`} style={STYLE.row}>
-                <p style={{ ...STYLE.fact, flex: "1 1 240px" }}>{fact.text}</p>
-                <Tag variant="outline">{ABOUT_LABEL[fact.about]}</Tag>
-                {fact.pointer.startsWith("/") && (
-                  <span style={STYLE.pointer}>{fact.pointer}</span>
-                )}
-              </div>
-            ))}
-        </div>
+        <Descriptions
+          key={slot}
+          columns={1}
+          size="small"
+          data-testid="pn-context-slot"
+          items={[
+            {
+              label: SLOT_LABEL[slot] ?? slot,
+              children: (
+                <Flex vertical gap={4}>
+                  {view.selected
+                    .filter((fact) => fact.slot === slot)
+                    .map((fact) => (
+                      <Flex
+                        key={`${slot}:${fact.id}`}
+                        align="center"
+                        gap={6}
+                        wrap="wrap"
+                      >
+                        <Typography.Text>{fact.text}</Typography.Text>
+                        <Tag variant="outline">{ABOUT_LABEL[fact.about]}</Tag>
+                        {fact.pointer.startsWith("/") && (
+                          <Tag mono variant="filled">
+                            {fact.pointer}
+                          </Tag>
+                        )}
+                      </Flex>
+                    ))}
+                </Flex>
+              ),
+            },
+          ]}
+        />
       ))}
       {view.selected.every((fact) => fact.exact) && (
-        <p style={STYLE.empty}>
+        <Typography.Text type="secondary">
           Nothing in your material is about this question.
-        </p>
+        </Typography.Text>
       )}
-      <p style={STYLE.note} data-testid="pn-context-left-out">
+      <Typography.Text type="secondary" data-testid="pn-context-left-out">
         {`${view.selected.length} of ${view.records} facts given.`}
         {left.size > 0
           ? ` Left out: ${[...left]
@@ -572,7 +562,7 @@ function SelectedView({
               )
               .join(", ")}.`
           : ""}
-      </p>
+      </Typography.Text>
     </>
   );
 }
@@ -671,7 +661,7 @@ export function ContextPane({
       bodyPadding="sm"
       scroll={{ fade: true, thinScrollbar: true }}
     >
-      <div style={STYLE.scroll} data-text-surface="">
+      <Flex vertical gap={20} data-text-surface="">
         <Artifact
           title="Interview brief"
           meta={
@@ -681,22 +671,23 @@ export function ContextPane({
           }
           how="Leads every answer. The lines that share words with the question go first, up to 24 lines and about half of what the model reads."
         >
-          {sections.length === 0 && (
-            <p style={STYLE.empty}>
-              No brief yet. Add the interview from the footer, and its brief is
-              written from the job posting.
-            </p>
+          {sections.length === 0 ? (
+            <Empty
+              variant="tile"
+              description="No brief yet. Add the interview from the footer, and its brief is written from the job posting."
+            />
+          ) : (
+            <Descriptions
+              columns={1}
+              size="small"
+              bordered={false}
+              items={sections.map((section) => ({
+                key: section.heading,
+                label: section.heading,
+                children: <Lines items={section.items} />,
+              }))}
+            />
           )}
-          {sections.map((section) => (
-            <div key={section.heading} style={STYLE.artifact}>
-              <span style={STYLE.factLabel}>{section.heading}</span>
-              {section.items.map((item) => (
-                <p key={item} style={STYLE.fact}>
-                  {item}
-                </p>
-              ))}
-            </div>
-          ))}
         </Artifact>
 
         <Artifact
@@ -739,7 +730,7 @@ export function ContextPane({
             )
           }
         >
-          <div style={STYLE.row}>
+          <Space wrap>
             <ActionMenu
               label="How the matrix is read"
               title="Read as"
@@ -774,17 +765,15 @@ export function ContextPane({
                 Restore as the newest
               </Button>
             )}
-          </div>
+          </Space>
           {/* [DOMAIN] A session answers from the revision it started with. */}
           {pinned && latest !== null && pinned.revision !== latest && (
-            <p style={STYLE.note} role="status">
+            <Typography.Text type="secondary" role="status">
               {`This session answers from revision ${pinned.revision}. Revision ${latest} is used from the next session.`}
-            </p>
+            </Typography.Text>
           )}
           {matrix.failure && (
-            <p style={{ ...STYLE.note, color: COACH_COLOUR.caution }}>
-              {matrix.failure}
-            </p>
+            <Typography.Text type="warning">{matrix.failure}</Typography.Text>
           )}
           {projection === "selected" && (
             <SelectedView
@@ -815,7 +804,7 @@ export function ContextPane({
                 />
               ))}
               {(ranked.length > roles.length || allRoles) && (
-                <div>
+                <Space>
                   <Button
                     buttonSize="sm"
                     variant="ghost"
@@ -824,7 +813,7 @@ export function ContextPane({
                   >
                     {allRoles ? "Show fewer" : `Show all ${ranked.length}`}
                   </Button>
-                </div>
+                </Space>
               )}
             </>
           )}
@@ -883,7 +872,7 @@ export function ContextPane({
                 disabled={notesSaving}
                 onChange={setNotesDraft}
               />
-              <div style={STYLE.row}>
+              <Space wrap>
                 <Button
                   buttonSize="sm"
                   variant="default"
@@ -901,22 +890,26 @@ export function ContextPane({
                 >
                   Cancel
                 </Button>
-              </div>
-              <p style={STYLE.note}>
+              </Space>
+              <Typography.Text type="secondary">
                 Saved in place: notes do not keep revisions yet.
-              </p>
+              </Typography.Text>
             </>
           ) : candidacy?.notes ? (
-            <p style={{ ...STYLE.fact, whiteSpace: "pre-wrap" }}>
-              {candidacy.notes.length > 900
+            // Each line of the notes is a line here; a blank line is not drawn.
+            <Lines
+              items={(candidacy.notes.length > 900
                 ? `${candidacy.notes.slice(0, 900).trimEnd()}…`
-                : candidacy.notes}
-            </p>
+                : candidacy.notes
+              )
+                .split("\n")
+                .filter((line) => line.trim() !== "")}
+            />
           ) : (
-            <p style={STYLE.empty}>No notes for this interview.</p>
+            <Empty variant="tile" description="No notes for this interview." />
           )}
         </Artifact>
-      </div>
+      </Flex>
     </Panel>
   );
 }

@@ -3,6 +3,7 @@
 // each of its projections, edited as a new revision and restored from an older
 // one; the notes edited in place. The brief and the matrix come from stand-ins
 // for the two clients; nothing here reaches the network.
+
 import type {
   CandidacyContext,
   CandidateMatrix,
@@ -195,7 +196,8 @@ afterEach(() => {
 const artifacts = () => screen.getAllByTestId("pn-context-artifact");
 const artifact = (title: string) => {
   const found = artifacts().find((each) =>
-    each.firstElementChild?.firstElementChild?.textContent?.startsWith(title),
+    // An artifact opens with the library Divider that names it.
+    each.firstElementChild?.textContent?.startsWith(title),
   );
   if (!found) throw new Error(`no artifact titled ${title}`);
   return found;
@@ -241,9 +243,7 @@ describe("ContextPane", () => {
       "What the answers are built from",
     );
     expect(
-      artifacts().map(
-        (each) => each.firstElementChild?.firstElementChild?.textContent,
-      ),
+      artifacts().map((each) => each.firstElementChild?.textContent),
     ).toEqual([
       "Interview brief",
       "Experience matrix",
@@ -441,12 +441,17 @@ describe("ContextPane", () => {
         "/roles/0",
       ]);
       expect(
-        roles().map((each) => each.textContent?.match(/\d+%/)?.[0]),
+        roles().map(
+          (each) =>
+            within(each).getByTestId("pn-context-role-meta").textContent,
+        ),
       ).toEqual(["100%", "75%", "50%", "25%", "0%"]);
       expect(roleOf("/roles/1")).toHaveTextContent("Relay Platform");
       expect(roleOf("/roles/1")).toHaveTextContent("Developer · 2021 to 2024");
       // A role with no period says its title alone.
-      expect(roleOf("/roles/4")).toHaveTextContent(/Developer$/);
+      expect(
+        roleOf("/roles/4").querySelector('[data-slot="collapse-description"]'),
+      ).toHaveTextContent(/^Developer$/);
     });
 
     it("Show all draws every role in rank, and Show fewer goes back to five", async () => {
@@ -487,10 +492,11 @@ describe("ContextPane", () => {
       ]);
       for (const each of used) {
         expect(each).toHaveTextContent("In this note");
-        expect(each.style.background).toContain("124, 180, 255");
+        // The library Collapse's accent tone: its border and tint.
+        expect(each).toHaveAttribute("data-tone", "accent");
       }
       expect(roleOf("/roles/4")).not.toHaveTextContent("In this note");
-      expect(roleOf("/roles/4").style.background).toBe("");
+      expect(roleOf("/roles/4")).toHaveAttribute("data-tone", "default");
     });
 
     it("a role the notes lean on is on show whatever its rank, in its rank's place", async () => {
@@ -524,9 +530,9 @@ describe("ContextPane", () => {
       await show();
       const relay = () => roleOf("/roles/1");
       expect(opener("/roles/1")).toHaveAttribute("aria-expanded", "false");
-      expect(opener("/roles/1")).toHaveAttribute(
-        "title",
-        "Relay Platform · Developer",
+      // The header is one button that names the employer and the role whole.
+      expect(opener("/roles/1")).toHaveTextContent(
+        "Relay PlatformDeveloper · 2021 to 2024",
       );
       expect(relay()).not.toHaveTextContent("Moved billing to the outbox");
       fireEvent.click(opener("/roles/1"));

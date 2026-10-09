@@ -858,6 +858,7 @@
         "products/interview/src/frontend/studio/live/overlay/panels/code-panel.test.tsx",
         "products/interview/src/frontend/studio/live/overlay/panels/commands.test.ts",
         "products/interview/src/frontend/studio/live/overlay/panels/commands.ts",
+        "products/interview/src/frontend/studio/live/overlay/panels/context-pane.source.test.ts",
         "products/interview/src/frontend/studio/live/overlay/panels/context-pane.test.tsx",
         "products/interview/src/frontend/studio/live/overlay/panels/context-pane.tsx",
         "products/interview/src/frontend/studio/live/overlay/panels/conversation-model.test.ts",
@@ -1240,7 +1241,7 @@
         "vitest.package.config.ts"
       ],
       "n_entities": 88,
-      "n_sources": 1222,
+      "n_sources": 1223,
       "verdict": "populated"
     },
     {
@@ -2089,6 +2090,7 @@
         "products/interview/src/frontend/studio/live/overlay/panels/code-panel.test.tsx",
         "products/interview/src/frontend/studio/live/overlay/panels/commands.test.ts",
         "products/interview/src/frontend/studio/live/overlay/panels/commands.ts",
+        "products/interview/src/frontend/studio/live/overlay/panels/context-pane.source.test.ts",
         "products/interview/src/frontend/studio/live/overlay/panels/context-pane.test.tsx",
         "products/interview/src/frontend/studio/live/overlay/panels/context-pane.tsx",
         "products/interview/src/frontend/studio/live/overlay/panels/conversation-model.test.ts",
@@ -2471,8 +2473,8 @@
         "vitest.config.ts",
         "vitest.package.config.ts"
       ],
-      "n_entities": 3256,
-      "n_sources": 1223,
+      "n_entities": 3255,
+      "n_sources": 1224,
       "verdict": "populated"
     },
     {

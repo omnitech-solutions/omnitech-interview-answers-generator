@@ -2,7 +2,7 @@
 
 _The project's derived architecture. No date — provenance is the spine hash + git._
 
-**spine hash:** `sha256:afb36a37dcefa72652942289ebff3bef6b8fd33d682ac4a19a37cba8a87d1b5b`
+**spine hash:** `sha256:eee2c41ecbfb35048f4c39dd6a730117bbf1680f7684902f1d6e73f799622561`
 
 ## Files
 

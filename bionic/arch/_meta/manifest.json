@@ -953,8 +953,9 @@
     "products/interview/src/frontend/studio/live/overlay/panels/code-panel.test.tsx": "83c767f02029511972b8d89dad4ce5fe32bd831e4d8926910a95a3dfb96de57c",
     "products/interview/src/frontend/studio/live/overlay/panels/commands.test.ts": "e77ba12cfd75f9446d9a806d2ca5f9e9794c2eea8b9c6bd871c664d7ba89129a",
     "products/interview/src/frontend/studio/live/overlay/panels/commands.ts": "b765926f2fb02a825999ff5b381b904c446689d4b0e516496571d5adb3649ceb",
-    "products/interview/src/frontend/studio/live/overlay/panels/context-pane.test.tsx": "dc28cb6d25544a9034021860bd29f9a219b4964cb0dc455376785826498fa8bd",
-    "products/interview/src/frontend/studio/live/overlay/panels/context-pane.tsx": "33a15bb4fc95f4a52011d99b5559ac158b900c5123c7a36d4bfef1b6b97ebdd6",
+    "products/interview/src/frontend/studio/live/overlay/panels/context-pane.source.test.ts": "24cb85bbbf5793fb2790dbf03254926a9dda3a6734deeac216972b4927259587",
+    "products/interview/src/frontend/studio/live/overlay/panels/context-pane.test.tsx": "92e33e8419eae5fa55153c6aa3b1a9281df9bdffcdd35975d4f1d77e629460df",
+    "products/interview/src/frontend/studio/live/overlay/panels/context-pane.tsx": "4192472ae217f9754f173def48c6924bb0f6cc51c5d3cd12aab26d4aa62bf4d6",
     "products/interview/src/frontend/studio/live/overlay/panels/conversation-model.test.ts": "50481f6f44bfb24436ab4768685c8e8cc008e536bac48a0d478e915ae8139b2d",
     "products/interview/src/frontend/studio/live/overlay/panels/conversation-model.ts": "b1aa9137d97720228e11ff874127d9fcd68c5124b4b246ec2d042628f170749b",
     "products/interview/src/frontend/studio/live/overlay/panels/display-picker-model.test.ts": "0b6b69660151e670666979809a4d72a98183482faee71853e358a41ba604d15b",
@@ -1336,7 +1337,7 @@
     "vitest.config.ts": "2ca2f3661746987a5401eeefb31ef11a7457cc590dccb68eaa8aa9c94974d99d",
     "vitest.package.config.ts": "5e221d148c035fd3e9783c4caf998b48d539b28169083746c80ab47809a7b69e"
   },
-  "spine_hash": "sha256:afb36a37dcefa72652942289ebff3bef6b8fd33d682ac4a19a37cba8a87d1b5b",
+  "spine_hash": "sha256:eee2c41ecbfb35048f4c39dd6a730117bbf1680f7684902f1d6e73f799622561",
   "tool_pins": {
     "engine": "arch-derive/1",
     "parser:tree_sitter": "0.26.0",

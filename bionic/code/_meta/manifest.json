@@ -5238,6 +5238,13 @@
       "source_path": "products/interview/src/frontend/studio/live/overlay/panels/commands.ts"
     },
     {
+      "doc_path": "fallback/products/interview/src/frontend/studio/live/overlay/panels/context-pane.source.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "c4af9926b6600e9fcc2699f8535cfdfd1bccf0c8af601b7c5f68176daf856dd6",
+      "source_path": "products/interview/src/frontend/studio/live/overlay/panels/context-pane.source.test.ts"
+    },
+    {
       "doc_path": "fallback/products/interview/src/frontend/studio/live/overlay/panels/context-pane.test.tsx.md",
       "extractor_version": "1",
       "owner": "typescript",
