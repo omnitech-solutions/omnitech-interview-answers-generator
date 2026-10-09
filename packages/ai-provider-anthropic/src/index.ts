@@ -119,8 +119,10 @@ export function createAnthropicModelAdapter(
     capabilities: {
       streaming: true,
       structuredOutput: true,
-      tools: true,
-      vision: true,
+      // This adapter sends text messages only: it declares no capability it
+      // does not implement.
+      tools: false,
+      vision: false,
       search: false,
     },
     async execute(request): Promise<AiExecution> {
