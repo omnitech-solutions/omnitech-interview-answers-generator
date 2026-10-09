@@ -192,6 +192,10 @@ test("@native native red dot Quit: asks first and records quit only after Quit i
 }) => {
   const { id } = await startSessionViaApi();
   const { page, host } = await openPanel(native, id);
+  // The toolbar is as wide as its controls and the page asks the shell for a
+  // window that wide; this browser window is not the shell's, so it is given
+  // the room, or the red dot sits off its left edge.
+  await page.setViewportSize({ width: 1320, height: 520 });
   const red = page.getByRole("button", { name: "Quit Interview Studio" });
   const confirm = page.getByRole("alertdialog", {
     name: "Quit Interview Studio?",

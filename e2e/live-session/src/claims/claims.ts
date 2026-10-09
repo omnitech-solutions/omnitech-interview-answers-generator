@@ -1098,6 +1098,15 @@ export const NATIVE_CLAIMS: Claim[] = make("native", [
     "stop the native engine while Auto is on",
   ],
   [
+    "native.tool.view",
+    "toolbar",
+    "button",
+    /^View:/,
+    "Opens the list of window layouts (three coach layouts, Original, Transcript only)",
+    "dom",
+    "choosing a layout changes the button's label and the columns drawn under the toolbar, and is remembered after a reload",
+  ],
+  [
     "native.tool.style",
     "toolbar",
     "button",

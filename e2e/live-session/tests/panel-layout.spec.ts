@@ -1,12 +1,16 @@
 // The pane row (requirement M10), measured in a real browser: jsdom lays nothing out, and a wrapper that
 // shrank the Code panel to its content passed every unit test. The transcript is 330 px (never under 300),
-// the other visible panels share the rest equally and fill the row's height, and the row fills the window.
+// the answer and the code share the rest, the answer 1.7 times the code's width (it is what is read from while
+// speaking); every panel fills the row's height, and the row fills the window.
 import { expect, test } from "../src/fixtures/panel-test";
+
+// The answer pane's share of the width beside the code (single-panel.tsx).
+const ANSWER_SHARE = 1.7;
 
 type Box = { x: number; y: number; width: number; height: number };
 
 for (const width of [900, 1180, 1320] as const)
-  test(`@native native pane row at ${width} px: transcript 330, the others equal, every panel fills the row`, async ({
+  test(`@native native pane row at ${width} px: transcript 330, the answer 1.7 times the code, every panel fills the row`, async ({
     openPanel,
   }) => {
     const { page } = await openPanel({ viewport: { width, height: 820 } });
@@ -34,7 +38,9 @@ for (const width of [900, 1180, 1320] as const)
     const answer = all["Answer"] as Box;
     const code = all["Code"] as Box;
     expect(chat.width).toBeCloseTo(330, 0);
-    expect(Math.abs(answer.width - code.width)).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs(answer.width - ANSWER_SHARE * code.width),
+    ).toBeLessThanOrEqual(2);
     for (const box of [chat, answer, code]) {
       expect(Math.abs(box.height - row.height)).toBeLessThanOrEqual(2);
       expect(Math.abs(box.y - row.y)).toBeLessThanOrEqual(1);
@@ -44,7 +50,7 @@ for (const width of [900, 1180, 1320] as const)
       Math.abs(code.x + code.width - (row.x + row.width)),
     ).toBeLessThanOrEqual(2);
 
-    // Chat hidden: Answer and Code share the whole row equally.
+    // Chat hidden: Answer and Code share the whole row in the same proportion.
     await page.getByTestId("pn-panes").getByRole("button").first().click();
     await expect(
       page.locator('[data-slot="panel-title"]', {
@@ -54,7 +60,7 @@ for (const width of [900, 1180, 1320] as const)
     const two = await panels();
     const a = two["Answer"] as Box;
     const c = two["Code"] as Box;
-    expect(Math.abs(a.width - c.width)).toBeLessThanOrEqual(1);
+    expect(Math.abs(a.width - ANSWER_SHARE * c.width)).toBeLessThanOrEqual(2);
     expect(Math.abs(c.x + c.width - (row.x + row.width))).toBeLessThanOrEqual(
       2,
     );

@@ -274,7 +274,17 @@ async function signIn(webUrl: string, file: string): Promise<void> {
         secure: false,
         sameSite: "Lax",
       })),
-      origins: [],
+      // The specs drive the base layout (transcript, answer, code and the
+      // docked coach panel): a window with no remembered choice opens in the
+      // call-first coach layout, so the choice is remembered as "Original".
+      origins: [
+        {
+          origin: new URL(webUrl).origin,
+          localStorage: [
+            { name: "omnitech.interview.view", value: "original" },
+          ],
+        },
+      ],
     }),
   );
 }
@@ -344,6 +354,10 @@ export async function startStack(
       AI_API_KEY: "e2e-not-a-key",
       AI_LOCALITY: "device",
       AGENT_WORKER_POLL_MS: "50",
+      // The stack's own, empty data directory: without it the web app reads
+      // and writes the developer's apps/web/.data (their coach notes, library
+      // and profile), which then show in the pages under test.
+      INTERVIEW_DATA_DIR: join(runDir, "data"),
     };
     const childEnv = { ...process.env, ...stackEnv };
 
