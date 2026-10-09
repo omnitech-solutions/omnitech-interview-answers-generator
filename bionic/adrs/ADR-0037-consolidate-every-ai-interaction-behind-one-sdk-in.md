@@ -21,7 +21,7 @@ governs: []
 
 ## Context
 
-> **Body budget:** 157 lines — the published surface of the SDK is the decision, so it carries worked scenarios.
+> **Body budget:** 182 lines — the published surface of the SDK is the decision, so it carries worked scenarios.
 
 Interview Studio has good parts and no whole. Providers, runtimes, contracts, a gateway and a job
 service exist as eleven packages that a consumer must assemble. A comparison on 2026-10-08 counted
@@ -58,6 +58,8 @@ This record replaces ADR-0035, which decided the interaction record for Studio a
   | `jobs.events` | That job's real lifecycle and output, in order |
   | `jobs.cancel` | A request; the terminal event states the outcome |
   | `jobs.resume` | Continues supported state or starts a new attempt, and says which |
+  | `code.verify` | A report of syntax, tests and type checking for submitted code, each with its own state |
+  | `code.run` | The output of running submitted code, or a typed failure |
 
 - Agent runtimes (Claude Code, Codex) are first-class and move with their proven behaviour
   intact: leases, fenced writes, ordered events, private jobs, and the rule that they run only in a
@@ -89,9 +91,21 @@ This record replaces ADR-0035, which decided the interaction record for Studio a
   |---|---|---|
   | Providers, the inference contract, schema validation, agent runtimes, jobs, the interaction record, context mechanics (ADR-0038) | The React experience, conversations and branches, reviewed edits and their receipts | Sign-in, membership, permissions, business data, domain schemas, prompts, product tools, credentials, retention |
 
-- Running user code is not an AI concern. It becomes `omnitech-code-runner`, a separate package
-  with product-neutral contracts, in the same repository. Code generation starts as a named
-  operation of the engine and earns a package only if reuse demands one.
+- Running and checking code is reached through the engine, as `code`, so generation and
+  verification are configured in one place and every consumer gets the same report. The work
+  itself is done by `omnitech-code-runner`, a separate package with product-neutral contracts in
+  the same repository, installed only where code is run. The existing container runner is its
+  first implementation; a managed sandbox is an adapter added when a deployment needs one, chosen
+  by running the same cases against both.
+- An execution **profile** is small, versioned data: the runtime and dependency versions, how the
+  submitted source and tests are put together, the fixed commands, the limits, and how the test
+  report is read. The generator is told the same profile, so what a model may import is what the
+  runner provides.
+- A verification report keeps its states apart. That the check ran is one fact; that a test
+  failed is another; that no runner was available is a third and is never shown as a failed
+  test. A check that was not performed says so: a syntax check is not reported as a type check.
+- Code generation starts as a named operation of the engine and earns a package only if reuse
+  demands one.
 - No AI framework is the base. The engine is a thin layer over the providers' own SDKs.
 - The contract ships with the cases that prove an implementation conforms, under one version, with
   a written rule for what counts as a breaking change. Products consume a versioned release from a
@@ -126,6 +140,17 @@ This record replaces ADR-0035, which decided the interaction record for Studio a
 | A new platform | The engine's migrations at deployment | The engine's schema, with only the tables for the capabilities enabled |
 | Interview Studio | The same command | Existing AI tables adopted in place and brought to the current version; no data lost; Studio's own migration history untouched |
 | Either, at start-up | Nothing is changed | The engine refuses to run if the schema is behind |
+
+**4. Checking a generated solution.** The live assistant has written a solution and its tests.
+
+| Step | What happens |
+|---|---|
+| Host | Names the runner and its profiles once, in the engine's configuration; the web server, the session worker and the assistant all use that one construction |
+| Worker | Calls `code.verify` with the profile, the code and the tests |
+| Engine | Assembles them as the profile says, runs the fixed commands under its limits, reads the test report |
+| Report | Syntax: passed. Tests: one passed, one failed with "expected true, received false". Type check: not run |
+| Runner not reachable | The report says verification is unavailable; the answer is shown without a verdict and no test is marked failed |
+| Repair | The failed test's name and message go back to the model as the thing to fix |
 
 ## Alternatives Considered
 
@@ -183,6 +208,9 @@ This record replaces ADR-0035, which decided the interaction record for Studio a
 - [[adrs/ADR-0007-route-ai-work-through-aiexecutiongateway-profiles]]
 - [[adrs/ADR-0035-record-every-ai-interaction-with-its-content-in-dev]] (replaced by this record)
 - [[adrs/ADR-0038-prepare-raw-information-into-attributable-context]]
+- Today the web server and the session worker each construct their own runner from different
+  settings (`products/interview/src/backend/services.ts`, `apps/agent-worker/src/main.ts`), so
+  configuring one does not configure the other.
 - Research of 2026-10-08: a comparison of four AI stacks by concern with a call-site census; a
   system audit of a neighbouring multi-repository ecosystem; a survey of AI SDK organisation,
   libraries that install their own tables, durable jobs and code sandboxes.
