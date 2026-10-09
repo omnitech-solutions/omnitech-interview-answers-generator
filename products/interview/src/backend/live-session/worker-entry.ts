@@ -1,19 +1,19 @@
 // The backend-only public entrypoint of the Active Session worker side
 // (`@omnitech/product-interview/session-worker`). The worker app composes the
-// gateway and its profiles itself and hands the gateway in; this entrypoint
+// engine and its profiles itself and hands the engine in; this entrypoint
 // composes everything else - the cross-tenant claim, the owner-checked
 // repository and fenced writes, the purge, the baseline interview policy and
 // the processor - over the real PlatformDatabase. The claim lives in the
 // product (session-claim.ts owns app.session_worker), so the worker app needs
 // nothing from the cross-tenant worker storage entrypoint for sessions.
 //
-// It imports no Next.js and no frontend code, and never builds a gateway: the
+// It imports no Next.js and no frontend code, and never builds an engine: the
 // host builds one from the same profile and model configuration source as the
 // web host and passes it in (rule:model-calls-gateway-routed).
-import { type AiExecutionGateway, refusedStream } from "@omnitech/ai-contracts";
 import type { PlatformDatabase } from "@omnitech/database";
 import { createLogger } from "@omnitech/logging";
 import type { Clock } from "./core/index";
+import type { SessionEngine } from "./engine-call";
 import type { AgentEscalationPort } from "./escalation";
 import {
   createInterviewSessionPolicy,
@@ -37,11 +37,8 @@ export {
   INTERVIEW_SESSION_DEVICE_PROFILE,
   INTERVIEW_SESSION_FAST_PROFILE,
 } from "../../assistant-profile";
+export type { AnsweredBy, SessionEngine } from "./engine-call";
 export type { AgentEscalationPort } from "./escalation";
-export {
-  SESSION_GATEWAY_CONTEXT,
-  sessionGatewayContext,
-} from "./gateway-context";
 export {
   isOwnerInputProvenanceId,
   isSnapshotProvenanceId,
@@ -66,7 +63,9 @@ export {
 export type SessionWorkerOptions = Omit<SessionProcessorOptions, "workerId"> &
   Pick<DatabasePortOptions, "leaseMs" | "jobs" | "drafts"> & {
     database: PlatformDatabase;
-    gateway: AiExecutionGateway;
+    engine: SessionEngine;
+    // Which runtime and model a profile is, for display with an answer.
+    answeredBy?: SessionProcessorPorts["answeredBy"];
     workerId: string;
     // Where id-only trace lines go; defaults to a no-op logger-free sink.
     trace?: TraceSink;
@@ -83,7 +82,7 @@ export type SessionWorkerOptions = Omit<SessionProcessorOptions, "workerId"> &
     // The typed agent profiles and prompt store for escalation jobs. Absent:
     // an escalation request creates no job.
     agentEscalation?: AgentEscalationPort;
-    // The gateway profile that serves a task carrying screenshots (an agent
+    // The profile that serves a task carrying screenshots (an agent
     // profile whose runtime takes image input). Absent: such a task is refused.
     visionProfileId?: string;
     // Removes content the host staged outside the database after a purge.
@@ -99,7 +98,8 @@ export function createSessionWorker(
 ): SessionWorker {
   const {
     database,
-    gateway,
+    engine,
+    answeredBy,
     workerId,
     policy,
     clock,
@@ -137,7 +137,8 @@ export function createSessionWorker(
     {
       claim: createDatabaseClaimPort(database, portOptions),
       store: createDatabaseStorePort(database, portOptions),
-      gateway,
+      engine,
+      ...(answeredBy ? { answeredBy } : {}),
       policy: policy ?? createInterviewSessionPolicy(),
       clock: clock ?? systemClock,
       trace: sink,
@@ -171,23 +172,17 @@ export function createSessionWorker(
   );
 }
 
-// A gateway that refuses everything: the sweep-only worker never calls a model.
-const refusingGateway: AiExecutionGateway = {
-  async execute() {
-    throw new Error("No model is configured.");
-  },
-  streamStructured() {
-    return refusedStream("No model is configured.");
-  },
-  stream() {
-    return refusedStream("No model is configured.");
-  },
-  async cancel() {},
-  resume() {
-    return refusedStream("No model is configured.");
-  },
-  async listAvailableTargets() {
-    return [];
+// An engine that answers nothing: the sweep-only worker never calls a model.
+const noModel: SessionEngine = {
+  async *stream() {
+    yield {
+      type: "failed",
+      failure: {
+        code: "unavailable",
+        reason: "No model is configured.",
+        retryable: false,
+      },
+    };
   },
 };
 
@@ -195,11 +190,11 @@ const refusingGateway: AiExecutionGateway = {
 // sessions still delete their observations (owner inputs included), artifacts
 // and staged content. It claims no session and never calls a model.
 export function createSessionSweeper(
-  options: Omit<SessionWorkerOptions, "gateway" | "sweepOnly">,
+  options: Omit<SessionWorkerOptions, "engine" | "sweepOnly">,
 ): SessionWorker {
   return createSessionWorker({
     ...options,
-    gateway: refusingGateway,
+    engine: noModel,
     sweepOnly: true,
     sweepEveryMs: options.sweepEveryMs ?? 30_000,
   });

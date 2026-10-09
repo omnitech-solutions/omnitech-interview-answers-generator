@@ -4,64 +4,44 @@ import { WorkspaceError, type WorkspaceScope } from "./assistant/workspace";
 // One-shot structured generation for the product's JSON replies (briefs,
 // behavioural briefings).
 export type StructuredGenerate = (
-  // `schema` is the reply's JSON Schema: an agent runtime (Claude Code)
-  // needs it to return an object; a direct model reads it from `system`.
-  input: { system: string; prompt: string; schema?: Record<string, unknown> },
+  // `schema` is the reply's JSON Schema. The AI engine asks the provider for
+  // that shape, checks the answer and repairs it once (ADR-0037).
+  input: { system: string; prompt: string; schema: Record<string, unknown> },
   scope: WorkspaceScope,
 ) => Promise<unknown>;
 
-// [STRATEGY] The reply's shape is stated in the instructions rather than
-// enforced by strict JSON-schema decoding, which local models are slow at
-// (over 180 s against about 35 s). The reply is validated here; a reply that
-// misses the shape gets one correction turn listing exactly what failed.
+// [STRATEGY] The reply's shape is the engine's to enforce: it sends the schema
+// in the provider's own structured format, validates the answer, and makes one
+// repair turn when it misses. What is checked here is the product's own
+// contract (the zod schema, with its refinements and defaults), once, on the
+// value the engine returned.
 export async function generateChecked<T>(
   generate: StructuredGenerate,
   request: { system: string; prompt: string },
   schema: z.ZodType<T>,
   scope: WorkspaceScope,
 ): Promise<T> {
-  // The runtime's own schema check cannot resolve zod's "$schema" draft
+  // An agent runtime's own schema check cannot resolve zod's "$schema" draft
   // reference, so the schema travels without it.
   const { $schema: _draft, ...jsonSchema } = schema.toJSONSchema({
     unrepresentable: "any",
   }) as Record<string, unknown>;
-  const shape = JSON.stringify(jsonSchema);
-  const system = `${request.system}\nReply with one JSON object that matches this JSON Schema: ${shape}`;
-  const first = await ask({ system, prompt: request.prompt });
-  const firstCheck = schema.safeParse(first);
-  if (firstCheck.success) return firstCheck.data;
-
-  const second = await ask({
-    system,
-    prompt: [
-      request.prompt,
-      "",
-      "Your previous reply was:",
-      JSON.stringify(first),
-      "",
-      "It does not match the required format:",
-      ...issues(firstCheck.error).map((issue) => `- ${issue}`),
-      "Return the complete corrected JSON object only.",
-    ].join("\n"),
-  });
-  const secondCheck = schema.safeParse(second);
-  if (secondCheck.success) return secondCheck.data;
+  let reply: unknown;
+  try {
+    reply = await generate({ ...request, schema: jsonSchema }, scope);
+  } catch {
+    throw new WorkspaceError(
+      "generation-failed",
+      "The model could not be reached, did not reply in time, or did not reply in the required format.",
+    );
+  }
+  const checked = schema.safeParse(reply);
+  if (checked.success) return checked.data;
   // [SAFETY] The hint names fields and expectations only, never content.
   throw new WorkspaceError(
     "generation-failed",
-    `The model's reply did not match the required format, even after one correction: ${issues(secondCheck.error).join("; ")}`,
+    `The model's reply did not match the required format: ${issues(checked.error).join("; ")}`,
   );
-
-  async function ask(input: { system: string; prompt: string }) {
-    try {
-      return await generate({ ...input, schema: jsonSchema }, scope);
-    } catch {
-      throw new WorkspaceError(
-        "generation-failed",
-        "The model could not be reached or did not reply in time.",
-      );
-    }
-  }
 }
 
 function issues(error: z.ZodError): string[] {

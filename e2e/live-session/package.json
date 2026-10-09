@@ -10,7 +10,7 @@
     "lint": "biome lint src tests scripts"
   },
   "dependencies": {
-    "@omnitech/agent-runtime-contracts": "workspace:*",
+    "@omnitech/ai-engine": "0.1.0",
     "@omnitech/database": "workspace:*",
     "@omnitech/interview-contracts": "workspace:*"
   },

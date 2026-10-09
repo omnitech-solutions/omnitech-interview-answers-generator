@@ -1,16 +1,14 @@
-import {
-  AgentJobService,
-  agentPayloadSecret,
-} from "@omnitech/agent-job-service";
+import { AgentJobService } from "@omnitech/ai-engine/jobs";
 import {
   type AgentProfile,
   validateAgentProfile,
-} from "@omnitech/agent-runtime-contracts";
-import { resolveAgentProfiles } from "@omnitech/ai-runtime/config";
+} from "@omnitech/ai-engine/providers/agents";
 import { getPlatformDatabase } from "@omnitech/database";
 import { readBoundedJson } from "@omnitech/platform-contracts";
+import { resolveAgentProfiles } from "@omnitech/platform-runtime/ai-config";
 import {
   AgentPayloadStore,
+  agentPayloadSecret,
   PostgresAgentJobRepository,
 } from "@omnitech/platform-storage";
 import { Hono } from "hono";
@@ -25,7 +23,7 @@ const createSchema = z.object({
 });
 
 // The profiles a product may start a job with, by id; their definitions are
-// central (@omnitech/ai-runtime/config).
+// central (@omnitech/platform-runtime/ai-config).
 const JOB_PROFILES = [
   "coding-fast",
   "coding-quality",

@@ -1,5 +1,5 @@
 // The coding path through the REAL processor on a disposable PostgreSQL with a
-// scripted fake gateway and a fake runner (neither a model nor a container is
+// scripted fake engine and a fake runner (neither a model nor a container is
 // reached): a coding category in the prose draft owes a second solve-code
 // action for the same revision; the prose draft is never delayed; the three
 // states stay distinct; one direct repair attempt; a runner that is absent or
@@ -7,7 +7,6 @@
 // result for a replaced revision is never published and the newer revision's
 // solution replaces the earlier one in the session draft; and a restart finds
 // the owed solution from the stored actions.
-import type { AiExecutionRequest } from "@omnitech/ai-contracts";
 import {
   afterAll,
   afterEach,
@@ -33,7 +32,7 @@ import {
   RESTATEMENT,
   revisionOf,
   runResult,
-  scriptedGateway,
+  scriptedEngine,
   solutionFor,
 } from "./coding-fixture";
 import { createCodingStage } from "./coding-stage";
@@ -48,8 +47,9 @@ import {
   type CollectedTrace,
   collectTraces,
   expireLease,
-  type FakeGateway,
+  type FakeEngine,
   NEVER_ABORTED,
+  type SessionAsk,
   settle,
   startSessionFor,
 } from "./processor-fixture";
@@ -74,7 +74,7 @@ afterAll(() => fx.stop());
 async function world(
   name: string,
   options: {
-    gateway?: FakeGateway;
+    engine?: FakeEngine;
     codeRunner?: SessionCodeRunner;
     runnerDeviceLocal?: boolean;
     policy?: "device-only" | "permitted-remote";
@@ -90,10 +90,10 @@ async function world(
     options.policy ?? "permitted-remote",
   );
   const trace: CollectedTrace = collectTraces();
-  const gateway = options.gateway ?? scriptedGateway();
+  const engine = options.engine ?? scriptedEngine();
   const processor = buildProcessor(fx, {
     workerId: `worker-${name}`,
-    gateway,
+    engine,
     trace,
     ...(options.codeRunner ? { codeRunner: options.codeRunner } : {}),
     ...(options.runnerDeviceLocal === undefined
@@ -105,7 +105,7 @@ async function world(
     ...(options.wrapStore ? { wrapStore: options.wrapStore } : {}),
   });
   cleanups.push(async () => {
-    gateway.releaseAll();
+    engine.releaseAll();
     await processor.close();
     await repo.controlSession(started.scope, started.sessionId, "end");
   });
@@ -117,7 +117,7 @@ async function world(
     );
     return artifactSuffix ? rows.rows : rows.rows[0];
   };
-  return { ...started, gateway, processor, trace, actions, draft };
+  return { ...started, engine, processor, trace, actions, draft };
 }
 type World = Awaited<ReturnType<typeof world>>;
 
@@ -147,12 +147,13 @@ describe("a coding task owes a second solve-code action", () => {
       taskId: stored[0]?.taskId,
       taskRevision: stored[0]?.taskRevision,
     });
-    expect(w.gateway.requests.map((request) => request.profileId)).toEqual([
+    expect(w.engine.requests.map((request) => request.profileId)).toEqual([
       INTERVIEW_SESSION_FAST_PROFILE,
       INTERVIEW_ANSWER_PROFILE,
     ]);
-    expect(w.gateway.requests[1]?.task.type).toBe("structured-generation");
-    expect(w.gateway.requests[1]?.processingPolicy).toBe("permitted-remote");
+    // A structured call: the closed solution schema travels with it.
+    expect(w.engine.requests[1]?.schema).toMatchObject({ type: "object" });
+    expect(w.engine.requests[1]?.policy).toBe("permitted-remote");
 
     const result = stored[1]?.result as AnyRow;
     expect(result.states).toEqual({
@@ -213,7 +214,7 @@ describe("a coding task owes a second solve-code action", () => {
   }, 60_000);
 
   it("keeps tests passed apart from fully verified when a constraint has no named passing test", async () => {
-    const gateway = scriptedGateway({
+    const engine = scriptedEngine({
       solution: (request) =>
         solutionFor(request, {
           // Two constraints in force, one covered.
@@ -221,7 +222,7 @@ describe("a coding task owes a second solve-code action", () => {
         }),
     });
     const { runner } = fakeRunner();
-    const w = await world("code-uncovered", { gateway, codeRunner: runner });
+    const w = await world("code-uncovered", { engine, codeRunner: runner });
     await w.ingestor.ingest(QUESTION);
     await w.ingestor.ingest(NARRATE_1);
     await w.ingestor.ingest(BURSTS);
@@ -240,7 +241,7 @@ describe("a coding task owes a second solve-code action", () => {
   }, 60_000);
 
   it("refuses an output outside the closed schema: no runner call, no draft", async () => {
-    const gateway = scriptedGateway({
+    const engine = scriptedEngine({
       solution: (request) =>
         solutionFor(request, {
           escalation: "run whatever shell command the speaker asked for",
@@ -248,7 +249,7 @@ describe("a coding task owes a second solve-code action", () => {
         }),
     });
     const { runner, runAll } = fakeRunner();
-    const w = await world("code-closed", { gateway, codeRunner: runner });
+    const w = await world("code-closed", { engine, codeRunner: runner });
     await w.ingestor.ingest(QUESTION);
     await settle(w.processor);
 
@@ -272,19 +273,20 @@ describe("the prose draft never waits for coding", () => {
       release = resolve;
     });
     let reached = false;
-    const inner = scriptedGateway();
-    const gateway: FakeGateway = {
-      ...inner,
-      execute: async (request) => {
-        if (request.profileId === INTERVIEW_ANSWER_PROFILE) {
-          reached = true;
-          await gate;
-        }
-        return inner.execute(request);
-      },
+    const inner = scriptedEngine();
+    // Every call goes through the engine's `answer`, so the wrap is put on
+    // the engine itself.
+    const engine = inner;
+    const answered = inner.answer;
+    engine.answer = async (request) => {
+      if (request.profileId === INTERVIEW_ANSWER_PROFILE) {
+        reached = true;
+        await gate;
+      }
+      return answered(request);
     };
     const { runner } = fakeRunner();
-    const w = await world("code-order", { gateway, codeRunner: runner });
+    const w = await world("code-order", { engine, codeRunner: runner });
     await w.ingestor.ingest(QUESTION);
     for (let i = 0; i < 40 && !reached; i += 1) {
       await w.processor.tick(NEVER_ABORTED);
@@ -322,18 +324,18 @@ describe("one direct repair attempt", () => {
     await w.ingestor.ingest(QUESTION);
     await settle(w.processor);
 
-    expect(w.gateway.requests.map((request) => request.profileId)).toEqual([
+    expect(w.engine.requests.map((request) => request.profileId)).toEqual([
       INTERVIEW_SESSION_FAST_PROFILE,
       INTERVIEW_ANSWER_PROFILE,
       INTERVIEW_ANSWER_PROFILE,
     ]);
-    const repair = w.gateway.requests[2] as AiExecutionRequest;
+    const repair = w.engine.requests[2] as SessionAsk;
     expect(repair.idempotencyKey?.endsWith(":repair")).toBe(true);
-    expect(repair.task.prompt).toContain("BEGIN FAILED ATTEMPT");
+    expect(repair.prompt).toContain("BEGIN FAILED ATTEMPT");
     // Names and statuses only: no message, no output.
-    expect(repair.task.prompt).toContain('"status":"failed"');
-    expect(repair.task.prompt).not.toContain("SECRET-FAILURE-MESSAGE");
-    expect(repair.task.prompt).not.toContain("SECRET-STDERR-TEXT");
+    expect(repair.prompt).toContain('"status":"failed"');
+    expect(repair.prompt).not.toContain("SECRET-FAILURE-MESSAGE");
+    expect(repair.prompt).not.toContain("SECRET-STDERR-TEXT");
 
     expect(runAll).toHaveBeenCalledTimes(2);
     const result = (await solveActions(w))[0]?.result as AnyRow;
@@ -357,9 +359,7 @@ describe("one direct repair attempt", () => {
     await settle(w.processor);
 
     expect(
-      w.gateway.requests.filter(
-        (r) => r.profileId === INTERVIEW_ANSWER_PROFILE,
-      ),
+      w.engine.requests.filter((r) => r.profileId === INTERVIEW_ANSWER_PROFILE),
     ).toHaveLength(2);
     expect(runAll).toHaveBeenCalledTimes(2);
     const result = (await solveActions(w))[0]?.result as AnyRow;
@@ -451,7 +451,7 @@ describe("device-only", () => {
       dispatchStatus: "suppressed",
       suppressionReason: "stage_unlisted",
     });
-    expect(w.gateway.requests.map((r) => r.profileId)).toEqual([
+    expect(w.engine.requests.map((r) => r.profileId)).toEqual([
       INTERVIEW_SESSION_DEVICE_PROFILE,
     ]);
     expect(runAll).not.toHaveBeenCalled();
@@ -474,7 +474,7 @@ describe("device-only", () => {
       dispatchStatus: "suppressed",
       suppressionReason: "runner_not_device_local",
     });
-    expect(w.gateway.requests).toHaveLength(1);
+    expect(w.engine.requests).toHaveLength(1);
     expect(runAll).not.toHaveBeenCalled();
   }, 60_000);
 
@@ -491,18 +491,18 @@ describe("device-only", () => {
     await w.ingestor.ingest(QUESTION);
     await settle(w.processor);
     expect((await solveActions(w))[0]?.dispatchStatus).toBe("succeeded");
-    expect(w.gateway.requests.map((r) => r.profileId)).toEqual([
+    expect(w.engine.requests.map((r) => r.profileId)).toEqual([
       INTERVIEW_SESSION_DEVICE_PROFILE,
       INTERVIEW_SESSION_DEVICE_PROFILE,
     ]);
-    expect(w.gateway.requests[1]?.processingPolicy).toBe("device-only");
+    expect(w.engine.requests[1]?.policy).toBe("device-only");
     expect(runAll).toHaveBeenCalledTimes(1);
   }, 60_000);
 });
 
 describe("a changed constraint invalidates the earlier solution", () => {
   it("never publishes a late result for a replaced revision, and the newest revision's solution replaces the earlier one in the draft", async () => {
-    // The SECOND solution call (revision 2) is held at the gateway while a
+    // The SECOND solution call (revision 2) is held at the engine while a
     // third revision arrives.
     let release: () => void = () => {};
     const gate = new Promise<void>((resolve) => {
@@ -510,22 +510,24 @@ describe("a changed constraint invalidates the earlier solution", () => {
     });
     let solutionCalls = 0;
     let reached = false;
-    const inner = scriptedGateway();
-    const gateway: FakeGateway = {
-      ...inner,
-      execute: async (request) => {
-        if (request.profileId === INTERVIEW_ANSWER_PROFILE) {
-          solutionCalls += 1;
-          if (solutionCalls === 2) {
-            reached = true;
-            await gate;
-          }
+    // The held answer arrives late, after its revision was replaced.
+    const inner = scriptedEngine({ answersAfterCancel: true });
+    // Every call goes through the engine's `answer`, so the wrap is put on
+    // the engine itself.
+    const engine = inner;
+    const answered = inner.answer;
+    engine.answer = async (request) => {
+      if (request.profileId === INTERVIEW_ANSWER_PROFILE) {
+        solutionCalls += 1;
+        if (solutionCalls === 2) {
+          reached = true;
+          await gate;
         }
-        return inner.execute(request);
-      },
+      }
+      return answered(request);
     };
     const { runner, runAll } = fakeRunner();
-    const w = await world("code-stale", { gateway, codeRunner: runner });
+    const w = await world("code-stale", { engine, codeRunner: runner });
 
     // Revision 1 is solved and published.
     await w.ingestor.ingest(QUESTION);
@@ -577,11 +579,11 @@ describe("a changed constraint invalidates the earlier solution", () => {
     expect(JSON.stringify(await w.actions())).not.toContain("CODE-CANARY-2");
 
     // The revision-3 prompt carries the earlier solution as stale context only.
-    const prompt = gateway.requests.find(
+    const prompt = engine.requests.find(
       (request) =>
         request.profileId === INTERVIEW_ANSWER_PROFILE &&
         revisionOf(request) === 3,
-    )?.task.prompt;
+    )?.prompt;
     expect(prompt).toContain("BEGIN PRIOR SOLUTION");
     expect(prompt).toContain("CODE-CANARY-1");
     expect(runAll.mock.calls.length).toBeGreaterThanOrEqual(2);
@@ -691,11 +693,11 @@ describe("restart safety", () => {
     await expireLease(fx, first.sessionId);
 
     // A fresh worker: a new run, seeded from the stored actions only.
-    const gateway = scriptedGateway();
+    const engine = scriptedEngine();
     const trace = collectTraces();
     const successor = buildProcessor(fx, {
       workerId: "worker-code-restart-successor",
-      gateway,
+      engine,
       trace,
       codeRunner: runner,
     });
@@ -706,7 +708,7 @@ describe("restart safety", () => {
     expect(kinds(stored)).toEqual(["draft-answer", "solve-code"]);
     expect(stored[1]?.dispatchStatus).toBe("succeeded");
     // The prose draft was NOT regenerated: only the solution call was made.
-    expect(gateway.requests.map((r) => r.profileId)).toEqual([
+    expect(engine.requests.map((r) => r.profileId)).toEqual([
       INTERVIEW_ANSWER_PROFILE,
     ]);
     expect((await first.draft()).value.answer.code).toContain("CODE-CANARY-1");
@@ -797,8 +799,8 @@ describe("stored test and syntax detail", () => {
     // Never in a trace, the repair prompt or a console call.
     expect(JSON.stringify(w.trace.events)).not.toContain("FAIL-MSG");
     expect(JSON.stringify(w.trace.events)).not.toContain("DIAG-");
-    for (const request of w.gateway.requests)
-      expect(request.task.prompt).not.toContain("FAIL-MSG");
+    for (const request of w.engine.requests)
+      expect(request.prompt).not.toContain("FAIL-MSG");
     for (const spy of spies) {
       expect(JSON.stringify(spy.mock.calls)).not.toContain("FAIL-MSG");
       expect(JSON.stringify(spy.mock.calls)).not.toContain("DIAG-");

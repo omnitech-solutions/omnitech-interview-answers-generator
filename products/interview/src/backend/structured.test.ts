@@ -11,7 +11,7 @@ const schema = z.strictObject({
 const request = { system: "Write a brief.", prompt: "Topic: caching" };
 
 describe("generateChecked", () => {
-  it("states the shape in the instructions and returns a matching reply", async () => {
+  it("makes one call carrying the request and the reply's JSON Schema, and returns a matching reply", async () => {
     const generate = vi.fn(async () => ({
       title: "Caching",
       points: ["a", "b", "c"],
@@ -23,62 +23,44 @@ describe("generateChecked", () => {
       points: ["a", "b", "c"],
     });
     expect(generate).toHaveBeenCalledTimes(1);
-    const [input] = generate.mock.calls[0]! as unknown as [
-      { system: string; prompt: string },
-    ];
-    expect(input.system).toContain("Write a brief.");
-    expect(input.system).toContain('"points"');
-    expect(input.prompt).toBe("Topic: caching");
-  });
-
-  it("hands the generator the reply's JSON Schema without zod's draft reference, on every turn", async () => {
-    const generate = vi
-      .fn()
-      .mockResolvedValueOnce({ title: "Caching", points: ["a"] })
-      .mockResolvedValueOnce({ title: "Caching", points: ["a", "b", "c"] });
-    await generateChecked(generate, request, schema, scope);
-    expect(generate).toHaveBeenCalledTimes(2);
-    for (const [input, calledScope] of generate.mock.calls as [
-      { system: string; schema: Record<string, unknown> },
+    const [input, calledScope] = generate.mock.calls[0]! as unknown as [
+      { system: string; prompt: string; schema: Record<string, unknown> },
       typeof scope,
-    ][]) {
-      expect(calledScope).toBe(scope);
-      expect(input.schema).toMatchObject({
-        type: "object",
-        properties: {
-          title: { type: "string" },
-          points: { type: "array", items: { type: "string" } },
-        },
-        required: ["title", "points"],
-        additionalProperties: false,
-      });
-      expect(input.schema).not.toHaveProperty("$schema");
-    }
-    // The shape a direct model reads in its instructions is the same schema.
-    const first = generate.mock.calls[0]![0] as {
-      system: string;
-      schema: Record<string, unknown>;
-    };
-    expect(first.system).toContain(JSON.stringify(first.schema));
-    expect(first.system).not.toContain("$schema");
-  });
-
-  it("gives one correction turn listing what failed", async () => {
-    const generate = vi
-      .fn()
-      .mockResolvedValueOnce({ title: "Caching", points: ["a"] })
-      .mockResolvedValueOnce({ title: "Caching", points: ["a", "b", "c"] });
-    await expect(
-      generateChecked(generate, request, schema, scope),
-    ).resolves.toMatchObject({
-      title: "Caching",
+    ];
+    expect(calledScope).toBe(scope);
+    // The instructions and the prompt travel as written: the shape is the
+    // engine's to state, in the provider's own structured format.
+    expect(input.system).toBe("Write a brief.");
+    expect(input.prompt).toBe("Topic: caching");
+    expect(input.schema).toMatchObject({
+      type: "object",
+      properties: {
+        title: { type: "string" },
+        points: { type: "array", items: { type: "string" } },
+      },
+      required: ["title", "points"],
+      additionalProperties: false,
     });
-    const correction = generate.mock.calls[1]![0].prompt as string;
-    expect(correction).toContain('{"title":"Caching","points":["a"]}');
-    expect(correction).toMatch(/- points: /);
+    // An agent runtime's schema check cannot resolve zod's draft reference.
+    expect(input.schema).not.toHaveProperty("$schema");
   });
 
-  it("fails with the field paths only when the correction still misses", async () => {
+  it("returns the value as the product's own contract reads it", async () => {
+    const withDefault = z.object({
+      title: z.string().trim(),
+      tags: z.array(z.string()).default([]),
+    });
+    await expect(
+      generateChecked(
+        async () => ({ title: "  Caching " }),
+        request,
+        withDefault,
+        scope,
+      ),
+    ).resolves.toEqual({ title: "Caching", tags: [] });
+  });
+
+  it("fails once, with the field paths only, when the value misses the product's contract", async () => {
     const generate = vi.fn(async () => ({ title: 1, secret: "model text" }));
     const failure = await generateChecked(
       generate,
@@ -89,13 +71,14 @@ describe("generateChecked", () => {
     expect(failure).toBeInstanceOf(WorkspaceError);
     expect(failure.code).toBe("generation-failed");
     expect(failure.hint).toMatch(
-      /even after one correction: title: .*; points: /,
+      /^The model's reply did not match the required format: title: .*; points: /,
     );
     expect(failure.hint).not.toContain("model text");
-    expect(generate).toHaveBeenCalledTimes(2);
+    // No correction turn of the product's own: the engine repairs once.
+    expect(generate).toHaveBeenCalledTimes(1);
   });
 
-  it("reports an unreachable model without its error", async () => {
+  it("reports a failed call as generation-failed, without its error", async () => {
     const generate = vi.fn(async () => {
       throw new Error("ECONNREFUSED secret-host:1234");
     });
@@ -105,8 +88,12 @@ describe("generateChecked", () => {
       schema,
       scope,
     ).catch((error) => error);
+    expect(failure).toBeInstanceOf(WorkspaceError);
+    expect(failure.code).toBe("generation-failed");
     expect(failure.hint).toBe(
-      "The model could not be reached or did not reply in time.",
+      "The model could not be reached, did not reply in time, or did not reply in the required format.",
     );
+    expect(failure.hint).not.toContain("secret-host");
+    expect(generate).toHaveBeenCalledTimes(1);
   });
 });

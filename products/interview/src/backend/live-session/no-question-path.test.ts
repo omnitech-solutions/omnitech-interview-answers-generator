@@ -9,7 +9,7 @@ import { type Fixture, pngOf, startFixture } from "./live-session-fixture";
 import {
   buildProcessor,
   collectTraces,
-  createFakeGateway,
+  createFakeEngine,
   settle,
 } from "./processor-fixture";
 import { ActiveSessionRepository } from "./repository";
@@ -45,24 +45,24 @@ async function world(name: string) {
   });
   const sessionId = started.session.id;
   // The first call sees an editor; every later call finds a question.
-  const gateway = createFakeGateway({
+  const engine = createFakeEngine({
     result: () =>
-      gateway.requests.length <= 1
+      engine.requests.length <= 1
         ? reply(
             "no-question",
             "The screen shows a code editor with no question.",
           )
         : reply("technical-concept", "A short spoken outline."),
-    generatedBy: { runtime: "claude-code", model: "claude-sonnet-5-5" },
   });
   const processor = buildProcessor(fx, {
     workerId: `worker-${name}`,
-    gateway,
+    engine,
+    answeredBy: () => ({ runtime: "claude-code", model: "claude-sonnet-5-5" }),
     trace: collectTraces(),
     visionProfileId: "vision-profile",
   });
   cleanups.push(async () => {
-    gateway.releaseAll();
+    engine.releaseAll();
     await processor.close();
     await repo.controlSession(scope, sessionId, "end");
   });
@@ -70,7 +70,7 @@ async function world(name: string) {
     (await repo.listActionChanges(scope, sessionId)).actions.sort(
       (a, b) => a.taskRevision - b.taskRevision,
     );
-  return { scope, sessionId, gateway, processor, feed };
+  return { scope, sessionId, engine, processor, feed };
 }
 
 describe("a no-question capture is a published observation, not a task", () => {
@@ -97,7 +97,7 @@ describe("a no-question capture is a published observation, not a task", () => {
       codingBrief: null,
     });
     // One model call only: no coding or escalation dispatch followed.
-    expect(w.gateway.requests).toHaveLength(1);
+    expect(w.engine.requests).toHaveLength(1);
   }, 60_000);
 
   it("lets a typed follow-up make a real revision, whose action clears the flag", async () => {

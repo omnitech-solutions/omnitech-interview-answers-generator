@@ -7,33 +7,6 @@
       "path": "packages/active-session-contracts"
     },
     {
-      "path": "packages/agent-job-service"
-    },
-    {
-      "path": "packages/agent-runtime-claude"
-    },
-    {
-      "path": "packages/agent-runtime-codex"
-    },
-    {
-      "path": "packages/agent-runtime-contracts"
-    },
-    {
-      "path": "packages/ai-contracts"
-    },
-    {
-      "path": "packages/ai-provider-anthropic"
-    },
-    {
-      "path": "packages/ai-provider-images"
-    },
-    {
-      "path": "packages/ai-provider-openai"
-    },
-    {
-      "path": "packages/ai-runtime"
-    },
-    {
       "path": "packages/code-runner"
     },
     {

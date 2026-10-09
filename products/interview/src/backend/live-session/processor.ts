@@ -76,10 +76,11 @@ export function createSessionProcessor(
   ports: SessionProcessorPorts,
   options: SessionProcessorOptions,
 ): SessionProcessor {
-  const { claim, store, gateway, policy, clock, trace } = ports;
+  const { claim, store, engine, policy, clock, trace } = ports;
   const deps: DispatchDeps = {
     store,
-    gateway,
+    engine,
+    ...(ports.answeredBy ? { answeredBy: ports.answeredBy } : {}),
     policy,
     clock,
     ...(ports.codeRunner ? { codeRunner: ports.codeRunner } : {}),

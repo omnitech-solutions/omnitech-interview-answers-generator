@@ -1,11 +1,11 @@
-// The standing re-check just before a dispatch's first gateway call (S2): a
+// The standing re-check just before a dispatch's first engine call (S2): a
 // session paused between the action being recorded and the call is never sent
 // to a model, and its action is suppressed as session_paused.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type Fixture, startFixture } from "./live-session-fixture";
 import {
   buildProcessor,
-  createFakeGateway,
+  createFakeEngine,
   NEVER_ABORTED,
   startSessionFor,
 } from "./processor-fixture";
@@ -20,7 +20,7 @@ beforeAll(async () => {
 afterAll(() => fx.stop());
 
 describe("pause between recording and calling", () => {
-  it("makes no gateway call and suppresses the action", async () => {
+  it("makes no engine call and suppresses the action", async () => {
     const started = await startSessionFor(
       fx,
       repo,
@@ -28,10 +28,10 @@ describe("pause between recording and calling", () => {
       "recheck-pause",
     );
     let now = 7_000_000;
-    const gateway = createFakeGateway();
+    const engine = createFakeEngine();
     const processor = buildProcessor(fx, {
       workerId: "worker-recheck-pause",
-      gateway,
+      engine,
       clock: { nowMs: () => now },
       options: { settleMs: 1_500 },
       wrapStore: (store) => ({
@@ -60,7 +60,7 @@ describe("pause between recording and calling", () => {
       (a) => [a.dispatchStatus, a.suppressionReason],
     );
     await processor.close();
-    expect(gateway.requests).toHaveLength(0);
+    expect(engine.requests).toHaveLength(0);
     expect(rows).toEqual([["suppressed", "session_paused"]]);
   });
 });

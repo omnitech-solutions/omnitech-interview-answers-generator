@@ -16,6 +16,7 @@ import {
   DocumentRetryConflict,
   DocumentRevisionConflict,
   InterviewDocumentRepository,
+  storedUsage,
 } from "./repository";
 
 let pg: DisposablePostgres;
@@ -99,19 +100,24 @@ it("keeps validated batch checkpoints bound to owner and source snapshot", async
     bindingHash: "a".repeat(64),
     sourceDigest: "b".repeat(64),
   };
+  const usage = {
+    status: "partial",
+    totalTokens: 12,
+    cost: { status: "actual", amount: 0.002, currency: "USD" },
+  } as const;
   await repository.reserveGeneration(scope(), identity);
   expect(await repository.getGenerationBatches(scope(), identity)).toEqual({});
   await repository.saveGenerationBatch(scope(), identity, {
     id: "batch-1",
     fieldsHash: "c".repeat(64),
     values: { summary: "Evidence" },
-    usage: { totalTokens: 12, costUsd: 0.002 },
+    usage,
   });
   expect(await repository.getGenerationBatches(scope(), identity)).toEqual({
     "batch-1": {
       fieldsHash: "c".repeat(64),
       values: { summary: "Evidence" },
-      usage: { totalTokens: 12, costUsd: 0.002 },
+      usage,
     },
   });
   await expect(
@@ -490,4 +496,20 @@ it("hides listed document metadata when its profile or candidacy binding is revo
     );
   }
   expect(await listed()).toBe(true);
+});
+
+it("reads the usage of a batch kept before the engine as the counts it holds", () => {
+  expect(storedUsage({ totalTokens: 12, costUsd: 0.002, turns: 2 })).toEqual({
+    status: "partial",
+    totalTokens: 12,
+    cost: { status: "actual", amount: 0.002, currency: "USD" },
+  });
+  expect(storedUsage({ inputTokens: 2, outputTokens: 90 })).toMatchObject({
+    status: "partial",
+    inputTokens: 2,
+    outputTokens: 90,
+    cost: { status: "unavailable" },
+  });
+  expect(storedUsage(null)).toBeNull();
+  expect(storedUsage({ turns: 1 })).toBeNull();
 });

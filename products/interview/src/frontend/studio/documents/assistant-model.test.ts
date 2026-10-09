@@ -1,15 +1,15 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { assistantModelId, documentTarget } from "./assistant-model";
 
-// The prefered target is found by its family (an attribute the platform lists),
+// The prefered target is found by its kind (an attribute the platform lists),
 // never by an id: these ids carry no provider name on purpose.
 const targets = [
-  { id: "document-fast", label: "Fast", family: "direct-model" as const },
-  { id: "agent/first", label: "First agent", family: "agent-runtime" as const },
+  { id: "document-fast", label: "Fast", kind: "model" as const },
+  { id: "agent/first", label: "First agent", kind: "agent" as const },
   {
     id: "agent/second",
     label: "Second agent",
-    family: "agent-runtime" as const,
+    kind: "agent" as const,
   },
 ];
 
@@ -38,14 +38,14 @@ describe("documentTarget", () => {
     });
   });
 
-  it("prefers the first agent-runtime target when the assistant's model cannot write documents", () => {
+  it("prefers the first agent target when the assistant's model cannot write documents", () => {
     expect(documentTarget(targets, "lm-studio/qwen3-coder-30b")).toEqual({
       target: targets[1],
       skipped: "lm-studio/qwen3-coder-30b",
     });
   });
 
-  it("prefers the first agent-runtime target when the assistant has no stored choice", () => {
+  it("prefers the first agent target when the assistant has no stored choice", () => {
     expect(documentTarget(targets, null).target).toBe(targets[1]);
   });
 
@@ -54,7 +54,7 @@ describe("documentTarget", () => {
     expect(documentTarget([], null).target).toBeUndefined();
   });
 
-  it("falls back to the first target when none is an agent runtime, and for targets with no family", () => {
+  it("falls back to the first target when none is an agent, and for targets with no kind", () => {
     const plain = [
       { id: "a", label: "A" },
       { id: "agent/claude-code", label: "B" },

@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./ai-config": {
+      "types": "./dist/ai-config.d.ts",
+      "import": "./dist/ai-config.js"
     }
   },
   "scripts": {
@@ -18,9 +22,11 @@
     "test": "vitest run --config ../../vitest.package.config.ts"
   },
   "dependencies": {
+    "@omnitech/ai-engine": "0.1.0",
     "@omnitech/platform-contracts": "workspace:*"
   },
   "devDependencies": {
+    "@types/node": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

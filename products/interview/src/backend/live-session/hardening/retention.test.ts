@@ -9,11 +9,11 @@
 // but a content-free tombstone.
 import * as fixture from "@omnitech/capture-companion/fixture";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { fakeRunner, QUESTION, scriptedGateway } from "../coding-fixture";
+import { fakeRunner, QUESTION, scriptedEngine } from "../coding-fixture";
 import { PNG_BYTES } from "../live-session-fixture";
 import {
   buildProcessor,
-  createFakeGateway,
+  createFakeEngine,
   NEVER_ABORTED,
   settle,
 } from "../processor-fixture";
@@ -63,10 +63,10 @@ async function build(
   // The real processor: a prose draft, then a tested solution, published into
   // the session-owned Workspace draft.
   const { runner } = fakeRunner();
-  const gateway = scriptedGateway();
+  const engine = scriptedEngine();
   const processor = buildProcessor(fx, {
     workerId: `worker-retention-${name}`,
-    gateway,
+    engine,
     codeRunner: runner,
   });
   await settle(processor);
@@ -196,10 +196,10 @@ async function sessionIdRows(id: string): Promise<string[]> {
 
 // One run of the worker's retention sweep, as the real processor does it.
 async function sweep(): Promise<void> {
-  const gateway = createFakeGateway();
+  const engine = createFakeEngine();
   const processor = buildProcessor(world.fx, {
     workerId: `worker-sweep-${Math.random().toString(36).slice(2, 8)}`,
-    gateway,
+    engine,
     sweeps: true,
   });
   await processor.tick(NEVER_ABORTED);

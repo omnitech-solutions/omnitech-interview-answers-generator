@@ -2,12 +2,13 @@
 // live run did: statements the live run ignored are not judged again against
 // task state they never saw, and a revision retried after a handover still
 // carries the whole question. Real processor over a disposable PostgreSQL, a
-// fake gateway and a virtual clock.
+// fake engine and a virtual clock.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type Fixture, startFixture } from "./live-session-fixture";
 import {
   buildProcessor,
-  createFakeGateway,
+  createFakeEngine,
+  failed,
   NEVER_ABORTED,
   type StartedFor,
   startSessionFor,
@@ -25,11 +26,11 @@ afterAll(() => fx.stop());
 
 function rig() {
   let now = 1_000_000;
-  const worker = (id: string, gateway = createFakeGateway()) => ({
-    gateway,
+  const worker = (id: string, engine = createFakeEngine()) => ({
+    engine,
     processor: buildProcessor(fx, {
       workerId: id,
-      gateway,
+      engine,
       clock: { nowMs: () => now },
       options: { settleMs: 1_500 },
     }),
@@ -84,7 +85,7 @@ describe("a rebuilt run does not re-judge what the live run ignored", () => {
     await settle(two.processor);
     await settle(two.processor);
     await two.processor.close();
-    expect(two.gateway.requests).toHaveLength(0);
+    expect(two.engine.requests).toHaveLength(0);
     expect(await ledger(session)).toEqual(before);
   });
 
@@ -115,7 +116,7 @@ describe("a rebuilt run does not re-judge what the live run ignored", () => {
     await settle(two.processor);
     await settle(two.processor);
     await two.processor.close();
-    expect(two.gateway.requests).toHaveLength(0);
+    expect(two.engine.requests).toHaveLength(0);
     expect(await ledger(session)).toEqual(before);
   });
 
@@ -153,7 +154,7 @@ describe("a rebuilt run does not re-judge what the live run ignored", () => {
     await settle(two.processor);
     await settle(two.processor);
     await two.processor.close();
-    expect(two.gateway.requests).toHaveLength(0);
+    expect(two.engine.requests).toHaveLength(0);
     expect(await ledger(session)).toEqual(before);
   });
 
@@ -175,7 +176,7 @@ describe("a rebuilt run does not re-judge what the live run ignored", () => {
     const two = worker("rs-hold-2");
     await settle(two.processor);
     await two.processor.close();
-    expect(two.gateway.requests.map(capturedText).join(" ")).toContain(
+    expect(two.engine.requests.map(capturedText).join(" ")).toContain(
       "rate limiter",
     );
   });
@@ -188,10 +189,10 @@ describe("a retried revision keeps the whole question", () => {
     let calls = 0;
     const one = worker(
       "rs-p4-1",
-      createFakeGateway({
+      createFakeEngine({
         fail: () => {
           calls += 1;
-          return calls === 1 ? new Error("boom") : undefined;
+          return calls === 1 ? failed("unavailable") : undefined;
         },
       }),
     );
@@ -219,7 +220,7 @@ describe("a retried revision keeps the whole question", () => {
     const two = worker("rs-p4-2");
     await settle(two.processor);
     await two.processor.close();
-    const asked = two.gateway.requests.map(capturedText).join(" | ");
+    const asked = two.engine.requests.map(capturedText).join(" | ");
     expect(asked).toContain("rate limiter");
     expect(asked).toContain("distributed");
   });
@@ -256,11 +257,11 @@ describe("a rebuilt run is seeded from the newest actions", () => {
     });
 
     // Seeded from only the two newest actions: the oldest are not needed.
-    const gateway = createFakeGateway();
+    const engine = createFakeEngine();
     let now = 5_000_000;
     const two = buildProcessor(fx, {
       workerId: "rs-cap-2",
-      gateway,
+      engine,
       clock: { nowMs: () => now },
       options: { settleMs: 1_500 },
       actionLimit: 2,
@@ -271,7 +272,7 @@ describe("a rebuilt run is seeded from the newest actions", () => {
       await two.idle();
     }
     await two.close();
-    const asked = gateway.requests.map(capturedText).join(" | ");
+    const asked = engine.requests.map(capturedText).join(" | ");
     expect(asked).toContain("rate limiter");
     expect(asked).toContain("distributed");
     expect(

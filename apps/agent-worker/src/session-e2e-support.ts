@@ -1,27 +1,25 @@
 // Test support for the Active Session end-to-end suites: the REAL processor,
-// the REAL AiExecutionGateway and the REAL session agent port, with a FAKE
+// the REAL AI engine and the REAL session agent port, with a FAKE
 // AgentRuntimeAdapter (claude-shaped or codex-shaped) and a FAKE direct-model
-// adapter, over the product's in-memory session world. No database, no
+// provider, over the product's in-memory session world. No database, no
 // provider, no network. Contents are synthetic and carry canaries so a suite
 // can prove nothing leaks into traces or errors.
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import {
+  createAiEngine,
+  type ModelPort,
+  type Profile,
+} from "@omnitech/ai-engine";
 import type {
   AgentCapabilities,
   AgentEvent,
   AgentProfile,
   AgentRunRequest,
   AgentRuntimeAdapter,
-} from "@omnitech/agent-runtime-contracts";
-import type {
-  AiExecution,
-  AiExecutionRequest,
-  ModelProviderAdapter,
-} from "@omnitech/ai-contracts";
-import { type AiProfile, createAiExecutionGateway } from "@omnitech/ai-runtime";
-import { withDeclaredLocality } from "@omnitech/ai-runtime/config";
+} from "@omnitech/ai-engine/providers/agents";
 import {
   createInterviewSessionPolicy,
   createMemorySessionWorld,
@@ -209,54 +207,61 @@ export function fakeAgentRuntime(
   return { runtime, seen, cancelled };
 }
 
-// A fake direct-model adapter for the text-only stages (the fast assistance
-// profile and the coding solution profile). It records whether any request
-// carried attachments: none may.
+// One call as a scripted stage answer sees it, whichever provider served it:
+// the profile asked for, the prompt, and the call's signal (a direct-model
+// call only; the agent runtime is cancelled by run id).
+export type StageRequest = {
+  profileId: string;
+  system: string;
+  prompt: string;
+  signal?: AbortSignal;
+};
+
+// A fake direct-model provider for the text-only stages (the fast assistance
+// profile and the coding solution profile). It records every call it served;
+// none may carry an attachment, and one that does is refused.
 export function fakeModel(
   options: {
-    answer?: (request: AiExecutionRequest) => unknown;
-    solve?: (request: AiExecutionRequest) => unknown | Promise<unknown>;
+    answer?: (request: StageRequest) => unknown;
+    solve?: (request: StageRequest) => unknown | Promise<unknown>;
   } = {},
 ) {
-  const requests: AiExecutionRequest[] = [];
-  const adapter: ModelProviderAdapter = {
-    providerId: "model",
-    capabilities: {
-      streaming: false,
-      structuredOutput: true,
-      tools: false,
-      vision: false,
-      search: false,
-    },
-    async execute(request): Promise<AiExecution> {
+  const requests: StageRequest[] = [];
+  const port: ModelPort = {
+    kind: "model",
+    // Every stage reads the engine's stream (session-dispatch.ts): the answer
+    // is written as text in two parts, exactly as a model writes the
+    // structured-output JSON, and the engine reads the value from it.
+    async *stream(_scope, input, signal) {
+      const parts = (role: "system" | "user") =>
+        input.messages
+          .filter((message) => message.role === role)
+          .flatMap((message) => message.parts);
+      if (parts("user").some((part) => part.type !== "text"))
+        throw new Error("The direct model takes text only.");
+      const text = (role: "system" | "user") =>
+        parts(role)
+          .map((part) => (part.type === "text" ? part.text : ""))
+          .join("");
+      const request: StageRequest = {
+        profileId: input.profileId,
+        system: text("system"),
+        prompt: text("user"),
+        signal,
+      };
       requests.push(request);
-      const prompt = request.task.prompt;
-      const result = isSolve(prompt)
-        ? await (options.solve ?? ((r) => solution(revisionOf(r.task.prompt))))(
+      const result = isSolve(request.prompt)
+        ? await (options.solve ?? ((r) => solution(revisionOf(r.prompt))))(
             request,
           )
         : (options.answer ?? (() => plainAssist()))(request);
-      return {
-        executionId: randomUUID(),
-        family: "direct-model",
-        targetId: "model",
-        result,
-      };
-    },
-    // The draft-answer stage streams (session-dispatch.ts): the answer is
-    // written as text in two deltas, then completed, exactly as a runtime
-    // writes the structured-output JSON. It goes through execute, so
-    // `requests` still counts every call.
-    async *stream(request) {
-      const execution = await adapter.execute(request);
-      const text = JSON.stringify(execution.result) ?? "";
-      const half = Math.ceil(text.length / 2);
-      yield { type: "text-delta", text: text.slice(0, half) };
-      yield { type: "text-delta", text: text.slice(half) };
-      yield { type: "completed", result: execution.result };
+      const written = JSON.stringify(result) ?? "";
+      const half = Math.ceil(written.length / 2);
+      yield { type: "text", text: written.slice(0, half) };
+      yield { type: "text", text: written.slice(half) };
     },
   };
-  return { adapter, requests };
+  return { port, requests };
 }
 
 export type Harness = Awaited<ReturnType<typeof createHarness>>;
@@ -268,8 +273,8 @@ export async function createHarness(
     processingPolicy?: "device-only" | "permitted-remote";
     agentAnswer?: (request: AgentRunRequest) => unknown | Promise<unknown>;
     holdAgent?: { released: Promise<void> };
-    modelAnswer?: (request: AiExecutionRequest) => unknown;
-    modelSolve?: (request: AiExecutionRequest) => unknown | Promise<unknown>;
+    modelAnswer?: (request: StageRequest) => unknown;
+    modelSolve?: (request: StageRequest) => unknown | Promise<unknown>;
     // No vision profile configured on the processor.
     noVisionProfile?: boolean;
     // No attachment loader configured on the port.
@@ -294,14 +299,14 @@ export async function createHarness(
   // one pinned profile), so the scripted stage answers (`modelAnswer`,
   // `modelSolve`) apply to whichever profile the processor routes a stage to.
   // A screenshot task is classified as a coding problem unless scripted.
-  const asRequest = (request: AgentRunRequest) =>
-    ({
-      context: {},
-      task: { type: "structured-generation", prompt: request.prompt },
-    }) as unknown as AiExecutionRequest;
+  const asRequest = (request: AgentRunRequest): StageRequest => ({
+    profileId: AGENT_PROFILE_ID,
+    system: request.systemPrompt ?? "",
+    prompt: request.prompt,
+  });
   const stageAnswer = (request: AgentRunRequest): unknown | Promise<unknown> =>
     isSolve(request.prompt)
-      ? (options.modelSolve ?? ((r) => solution(revisionOf(r.task.prompt))))(
+      ? (options.modelSolve ?? ((r) => solution(revisionOf(r.prompt))))(
           asRequest(request),
         )
       : options.modelAnswer
@@ -340,8 +345,8 @@ export async function createHarness(
     ...(options.noLoader
       ? {}
       : {
-          attachmentSource: (context, attachment, signal) =>
-            loadVerifiedScreenshot(read, context, attachment, signal),
+          attachmentSource: (owner, attachment, signal) =>
+            loadVerifiedScreenshot(read, owner, attachment, signal),
         }),
     // After any capacity wait the session must still be active and remote.
     stillPermitted: (): StandingVerdict =>
@@ -351,35 +356,27 @@ export async function createHarness(
         : world.state.policy === "permitted-remote"),
   });
 
-  const direct = (id: string): AiProfile => ({
+  const direct = (id: string, locality?: Profile["locality"]): Profile => ({
     id,
     label: id,
-    family: "direct-model",
-    targetId: "model",
-    taskTypes: ["structured-generation"],
-    enabled: true,
+    provider: "model",
+    kind: "model",
+    ...(locality ? { locality } : {}),
   });
-  const profiles: AiProfile[] = [
+  const profiles: Profile[] = [
     direct(FAST_PROFILE_ID),
     direct(ANSWERS_PROFILE_ID),
     // Only a device-declared model may serve a device-only session.
-    withDeclaredLocality(direct(DEVICE_PROFILE_ID), "device"),
-    {
-      id: AGENT_PROFILE_ID,
-      label: "agent",
-      family: "agent-runtime",
-      targetId: runtimeId,
-      taskTypes: ["structured-generation"],
-      enabled: true,
-    },
+    direct(DEVICE_PROFILE_ID, "device"),
+    { id: AGENT_PROFILE_ID, label: "agent", provider: "agent", kind: "agent" },
   ];
-  const gateway = createAiExecutionGateway({
+  const engine = createAiEngine({
     profiles,
-    models: [model.adapter],
-    images: [],
-    agents: port,
-    authorize: async (context) =>
-      context.permissions.includes("interview.read"),
+    providers: { model: model.port, agent: port },
+    authorize: (execution) =>
+      execution.permissions?.includes("interview.read")
+        ? true
+        : "The caller may not use interview profiles.",
   });
 
   const events: SessionTraceEvent[] = [];
@@ -424,7 +421,12 @@ export async function createHarness(
       {
         claim: world.claimFor(workerId),
         store: world.store,
-        gateway,
+        engine,
+        // Display metadata for an agent profile, as the worker's engine gives it.
+        answeredBy: (profileId) =>
+          profileId === AGENT_PROFILE_ID
+            ? { runtime: runtimeId, model: agentProfile(runtimeId).model }
+            : undefined,
         policy: createInterviewSessionPolicy(),
         clock: { nowMs: () => Date.now() },
         trace: { emit: (event) => void events.push(event) },
@@ -453,7 +455,7 @@ export async function createHarness(
     world,
     agent,
     model,
-    gateway,
+    engine,
     port,
     events,
     codeRunner,

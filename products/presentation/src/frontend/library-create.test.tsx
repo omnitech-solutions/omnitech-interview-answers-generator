@@ -39,24 +39,25 @@ const aiTargets = [
   {
     id: "fast",
     label: "Fast",
-    modelId: "m-fast",
-    family: "direct-model",
-    kind: "language",
+    model: "m-fast",
+    provider: "p",
+    locality: "remote",
+    kind: "model",
     capabilities: [],
   },
   {
     id: "pic",
     label: "Picture",
-    family: "direct-model",
+    provider: "p",
+    locality: "remote",
     kind: "image",
-    capabilities: [],
   },
   {
     id: "agent",
     label: "Agent",
-    family: "agent",
-    kind: "language",
-    capabilities: [],
+    provider: "p",
+    locality: "remote",
+    kind: "agent",
   },
 ];
 

@@ -119,7 +119,7 @@ const rows: Array<[file: string, maxCount: number, reason: string]> = [
       ["products/interview/src/backend/plan/repository.ts", 8],
       ["products/interview/src/backend/rehearsal/api.ts", 6],
       ["products/interview/src/backend/studio/host.ts", 1],
-      ["products/presentation/src/backend/api.ts", 25],
+      ["products/presentation/src/backend/api.ts", 24],
       ["products/presentation/src/repositories/index.ts", 44],
     ] as const
   ).map(([file, count]): [string, number, string] => [file, count, legacy]),

@@ -56,7 +56,7 @@ const SESSION_WORKSPACE_PREFIX = "active-session:";
 type StructuredInput = {
   system: string;
   prompt: string;
-  schema?: Record<string, unknown>;
+  schema: Record<string, unknown>;
 };
 
 export type InterviewStudioOptions = {

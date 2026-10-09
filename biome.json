@@ -87,6 +87,8 @@
             "allowedEnvVars": [
               "ACTIVE_SESSION_AGENT_INTEGRATION",
               "AGENT_SERVICE_TOKEN",
+              "AI_ENGINE_CAPTURE",
+              "AI_ENGINE_DATABASE_URL",
               "ANTHROPIC_API_KEY",
               "ANTHROPIC_MODEL",
               "ASSISTANT_CONTEXT_TOKENS",

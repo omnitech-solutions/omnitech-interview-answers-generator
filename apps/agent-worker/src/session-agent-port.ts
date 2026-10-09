@@ -1,7 +1,6 @@
-// The worker's implementation of the gateway's existing AgentExecutionPort for
-// Active Session actions (ADR-0016 Decision 1-3). It wraps an
-// AgentRuntimeAdapter and nothing else: no coordinator, queue or conversation
-// store. Every attempt is tool-less, runs with fresh context and no persisted
+// The AI engine's provider for Active Session actions on an agent runtime
+// (ADR-0016 Decision 1-3, ADR-0037). It wraps an AgentRuntimeAdapter and
+// nothing else: no coordinator, queue or conversation store. Every attempt is tool-less, runs with fresh context and no persisted
 // history (Codex in its own per-attempt home), stages screenshots in a private directory that is
 // removed when the attempt settles, and reports only typed error codes.
 //
@@ -22,25 +21,28 @@ import {
 } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { basename, join } from "node:path";
+import type {
+  CallInfo,
+  Failure,
+  ModelInput,
+  ModelPart,
+  ModelPort,
+  Scope,
+  Usage,
+} from "@omnitech/ai-engine";
 import {
   AGENT_IMAGE_MAX_BYTES,
+  type AgentAttachment,
   type AgentEvent,
+  type AgentFailure,
+  type AgentFailureReason,
   type AgentProfile,
   type AgentRunRequest,
   type AgentRuntimeAdapter,
+  type AgentUsage,
+  toUsage,
   validateAgentProfile,
-} from "@omnitech/agent-runtime-contracts";
-import type {
-  AgentAttachment,
-  AiAccessContext,
-  AiEvent,
-  AiExecution,
-  AiExecutionRequest,
-  AiFailure,
-  AiFailureReason,
-  AiUsage,
-} from "@omnitech/ai-contracts";
-import type { AgentExecutionPort, AiProfile } from "@omnitech/ai-runtime";
+} from "@omnitech/ai-engine/providers/agents";
 
 // Typed codes are the whole session-path error surface: the message is fixed
 // per code and never contains provider text, paths or attachment names.
@@ -63,34 +65,36 @@ export type SessionAgentErrorCode =
   | "read-failed"
   | "provider";
 
+// Each session code as the engine's failure: its code, a fixed reason, and
+// whether another try is worth it.
 const FAILURES: Readonly<
   Record<
     SessionAgentErrorCode,
-    { code: AiFailure["code"]; message: string; retryable: boolean }
+    { code: Failure["code"]; message: string; retryable: boolean }
   >
 > = {
   "vision-unsupported": {
-    code: "policy-refused",
+    code: "refused",
     message: "The profile's runtime cannot take image input.",
     retryable: false,
   },
   "toolless-unsupported": {
-    code: "policy-refused",
+    code: "refused",
     message: "The profile cannot prove tool-less operation.",
     retryable: false,
   },
   "attachment-refused": {
-    code: "policy-refused",
+    code: "refused",
     message: "An attachment was refused.",
     retryable: false,
   },
   "tool-refused": {
-    code: "policy-refused",
+    code: "refused",
     message: "A tool-less request attempted to use a tool.",
     retryable: false,
   },
   "policy-refused": {
-    code: "policy-refused",
+    code: "refused",
     message: "The session no longer permits this request.",
     retryable: false,
   },
@@ -101,7 +105,7 @@ const FAILURES: Readonly<
     retryable: true,
   },
   "rate-limit": {
-    code: "rate-limit",
+    code: "rate-limited",
     message: "The provider is rate limited.",
     retryable: true,
   },
@@ -111,22 +115,22 @@ const FAILURES: Readonly<
     retryable: false,
   },
   "profile-unavailable": {
-    code: "configuration",
+    code: "invalid-request",
     message: "The agent profile is unavailable.",
     retryable: false,
   },
   "session-not-active": {
-    code: "infrastructure",
+    code: "unavailable",
     message: "The session is not active.",
     retryable: true,
   },
   "read-failed": {
-    code: "infrastructure",
+    code: "unavailable",
     message: "The session state could not be read.",
     retryable: true,
   },
   provider: {
-    code: "provider",
+    code: "unavailable",
     message: "The provider failed.",
     retryable: false,
   },
@@ -134,27 +138,28 @@ const FAILURES: Readonly<
 
 export class SessionAgentError extends Error {
   readonly retryable: boolean;
-  // The failure as the gateway reports it, carrying the typed session code so
-  // a stream's failed event (which forwards this object, not the error) still
-  // tells the dispatcher a pause or a failed read from a real denial.
-  readonly failure: AiFailure & { sessionCode: SessionAgentErrorCode };
-  // A closed-vocabulary reason (AiFailureReason: an SDK result subtype or an
-  // adapter's typed cause), never provider text. It travels as a typed field on
-  // the failure, and nothing reads it back out of the message.
+  // The failure as the engine ends the call with. Its `detail` is the typed
+  // session code, then the runtime's own closed-vocabulary reason when it gave
+  // one ("session-not-active", "provider:error_max_turns"): that is how the
+  // dispatcher tells a pause or a failed read from a real denial. Never
+  // provider text.
+  readonly failure: Failure;
   constructor(
     readonly sessionCode: SessionAgentErrorCode,
-    readonly reason?: AiFailureReason,
+    readonly reason?: AgentFailureReason,
   ) {
-    super(FAILURES[sessionCode].message);
+    const known = FAILURES[sessionCode];
+    super(known.message);
     this.name = "SessionAgentError";
     this.failure = {
-      ...FAILURES[sessionCode],
-      sessionCode,
-      ...(reason === undefined ? {} : { reason }),
+      code: known.code,
+      reason: known.message,
+      retryable: known.retryable,
+      detail: reason === undefined ? sessionCode : `${sessionCode}:${reason}`,
     };
-    this.retryable = this.failure.retryable;
+    this.retryable = known.retryable;
   }
-  get code(): AiFailure["code"] {
+  get code(): Failure["code"] {
     return this.failure.code;
   }
 }
@@ -163,14 +168,27 @@ export class SessionAgentError extends Error {
 // loader owns the owner-session join, media re-detection and digest check) to
 // the frozen bytes. The port never reads a path the caller supplied.
 export type AttachmentSource = (
-  context: AiAccessContext,
-  attachment: AgentAttachment,
+  owner: { tenantId: string; actorId: string },
+  attachment: Pick<AgentAttachment, "id" | "kind" | "reference">,
   signal: AbortSignal | undefined,
 ) => Promise<Uint8Array>;
 
+// One attempt as this port sees it: whose it is, what is asked, and the key
+// the session's standing is re-read by.
+export type SessionAttempt = {
+  owner: { tenantId: string; actorId: string };
+  profileId: string;
+  prompt: string;
+  system?: string;
+  schema?: Readonly<Record<string, unknown>>;
+  attachments: readonly AgentAttachment[];
+  idempotencyKey?: string;
+  signal: AbortSignal;
+};
+
 export interface SessionAgentPortOptions {
   runtimes: Readonly<Record<string, AgentRuntimeAdapter>>;
-  // Gateway profile id -> the typed, versioned, bounded agent profile it runs.
+  // Engine profile id -> the typed, versioned, bounded agent profile it runs.
   profiles: ReadonlyMap<string, AgentProfile>;
   attachmentSource?: AttachmentSource;
   // The signed-in Codex credentials file copied (0600) into each Codex
@@ -187,20 +205,22 @@ export interface SessionAgentPortOptions {
   // bounds agent JOBS; the two do not share a count.
   maxSessionAttempts?: number;
   maxLiveStreak?: number;
-  isBackground?: (request: AiExecutionRequest, profile: AiProfile) => boolean;
+  isBackground?: (attempt: SessionAttempt) => boolean;
   // Re-checks session standing and locality after any capacity wait. `true`
   // permits; `false` is a real policy denial (final); "not-active" and
   // "read-failed" are retryable and refuse the attempt before a provider is
   // touched.
-  stillPermitted?: (
-    request: AiExecutionRequest,
-    profile: AiProfile,
-  ) => StandingVerdict | Promise<StandingVerdict>;
+  stillPermitted?: (attempt: {
+    tenantId: string;
+    actorId: string;
+    idempotencyKey?: string | undefined;
+  }) => StandingVerdict | Promise<StandingVerdict>;
 }
 
 export type StandingVerdict = boolean | "not-active" | "read-failed";
 
-export interface SessionAgentPort extends AgentExecutionPort {
+export interface SessionAgentPort extends ModelPort {
+  readonly kind: "agent";
   // Startup sweep: removes every staging directory left by a previous process.
   sweep(): Promise<void>;
   // Purge hook: cancels in-flight attempts and removes all staged content now.
@@ -411,11 +431,11 @@ export function createSessionAgentPort(
   }
 
   // [GUARD] Refusals that need no capacity: profile, tool-less proof, vision.
-  function resolveRuntime(
-    request: AiExecutionRequest,
-    profile: AiProfile,
-  ): { agent: AgentProfile; runtime: AgentRuntimeAdapter } {
-    const agent = options.profiles.get(profile.id);
+  function resolveRuntime(request: SessionAttempt): {
+    agent: AgentProfile;
+    runtime: AgentRuntimeAdapter;
+  } {
+    const agent = options.profiles.get(request.profileId);
     const runtime = agent && options.runtimes[agent.runtime];
     if (!agent || !runtime) throw new SessionAgentError("profile-unavailable");
     try {
@@ -434,7 +454,7 @@ export function createSessionAgentPort(
     )
       throw new SessionAgentError("toolless-unsupported");
     // [SAFETY] Screenshots fail closed: never answered text-only.
-    const attachments = request.task.attachments ?? [];
+    const attachments = request.attachments;
     if (attachments.length > 0) {
       if (!runtime.capabilities.imageInput)
         throw new SessionAgentError("vision-unsupported");
@@ -447,11 +467,11 @@ export function createSessionAgentPort(
   // Writes each frozen image into the private directory (exclusive create,
   // never through a link) and returns attachments that name only staged files.
   async function stage(
-    request: AiExecutionRequest,
+    request: SessionAttempt,
     directory: string,
   ): Promise<AgentAttachment[]> {
     const staged: AgentAttachment[] = [];
-    const attachments = request.task.attachments ?? [];
+    const attachments = request.attachments;
     for (const [index, attachment] of attachments.entries()) {
       const extension = IMAGE_EXTENSIONS[attachment.mimeType ?? ""];
       if (attachment.kind !== "image" || extension === undefined)
@@ -459,7 +479,7 @@ export function createSessionAgentPort(
       let bytes: Uint8Array;
       try {
         bytes = await (options.attachmentSource as AttachmentSource)(
-          request.context,
+          request.owner,
           attachment,
           request.signal,
         );
@@ -493,36 +513,39 @@ export function createSessionAgentPort(
     return staged;
   }
 
-  // What one attempt yields: the gateway's events, except that a failure keeps
-  // the typed SessionAgentError it came from, so execute() rethrows the same
-  // error and stream() reports its failure with no message round trip.
+  // What one attempt yields: what the runtime wrote, what it cost, and how it
+  // ended. A failure keeps the typed SessionAgentError it came from.
   type AttemptEvent =
-    | Exclude<AiEvent, { type: "failed" }>
+    | { type: "text-delta"; text: string }
+    | { type: "usage"; usage: AgentUsage }
+    | { type: "completed"; result: unknown }
     | { type: "failed"; error: SessionAgentError };
 
   async function* attempt(
-    request: AiExecutionRequest,
-    profile: AiProfile,
+    request: SessionAttempt,
     executionId: string,
   ): AsyncIterable<AttemptEvent> {
     const controller = new AbortController();
     const forward = () => controller.abort();
-    request.signal?.addEventListener("abort", forward, { once: true });
-    if (request.signal?.aborted) controller.abort();
-    active.set(executionId, { tenantId: request.context.tenantId, controller });
+    request.signal.addEventListener("abort", forward, { once: true });
+    if (request.signal.aborted) controller.abort();
+    active.set(executionId, { tenantId: request.owner.tenantId, controller });
     let release: (() => void) | undefined;
     let directory: string | undefined;
     try {
-      const { agent, runtime } = resolveRuntime(request, profile);
+      const { agent, runtime } = resolveRuntime(request);
       if (controller.signal.aborted) throw new SessionAgentError("cancelled");
       release = await admission.acquire(
-        options.isBackground?.(request, profile) ?? false,
+        options.isBackground?.(request) ?? false,
         controller.signal,
       );
       // [SAFETY] After any capacity wait the session may have tightened or
       // ended: re-check before staging or touching a provider.
-      const standing = await (options.stillPermitted?.(request, profile) ??
-        true);
+      const standing = await (options.stillPermitted?.({
+        tenantId: request.owner.tenantId,
+        actorId: request.owner.actorId,
+        idempotencyKey: request.idempotencyKey,
+      }) ?? true);
       if (standing === "not-active")
         throw new SessionAgentError("session-not-active");
       if (standing === "read-failed")
@@ -547,7 +570,7 @@ export function createSessionAgentPort(
       // A timeout or cancel ends the attempt even if the runtime is slow to
       // answer its own cancel: the pull below races this promise.
       let stop: SessionAgentErrorCode | undefined;
-      let stopReason: AiFailureReason | undefined;
+      let stopReason: AgentFailureReason | undefined;
       let halt: () => void = () => undefined;
       const halted = new Promise<"halted">((resolve) => {
         halt = () => resolve("halted");
@@ -562,11 +585,11 @@ export function createSessionAgentPort(
       controller.signal.addEventListener("abort", onCancel, { once: true });
       let iterator: AsyncIterator<AgentEvent> | undefined;
       try {
-        const outputSchema = request.task.schema ?? agent.outputSchema;
+        const outputSchema = request.schema ?? agent.outputSchema;
         const run: AgentRunRequest = {
           runId: executionId,
           profile: agent,
-          prompt: request.task.prompt,
+          prompt: request.prompt,
           workingDirectory: work,
           additionalDirectories: [],
           attachments,
@@ -574,12 +597,11 @@ export function createSessionAgentPort(
           toolless: true,
           ...(environment === undefined ? {} : { environment }),
           timeoutMs: agent.timeoutMs,
-          ...(request.task.system === undefined
+          ...(request.system === undefined
             ? {}
-            : { systemPrompt: request.task.system }),
+            : { systemPrompt: request.system }),
           ...(outputSchema === undefined ? {} : { outputSchema }),
         };
-        yield { type: "started", executionId };
         let outputBytes = 0;
         iterator = runtime.run(run)[Symbol.asyncIterator]();
         while (true) {
@@ -635,7 +657,7 @@ export function createSessionAgentPort(
             : new SessionAgentError("provider"),
       };
     } finally {
-      request.signal?.removeEventListener("abort", forward);
+      request.signal.removeEventListener("abort", forward);
       active.delete(executionId);
       release?.();
       // [SAFETY] Staged screenshots and the provider home go on every exit:
@@ -647,7 +669,7 @@ export function createSessionAgentPort(
     }
   }
 
-  function codeFor(error: AiFailure): SessionAgentErrorCode {
+  function codeFor(error: AgentFailure): SessionAgentErrorCode {
     if (error.code === "cancelled") return "cancelled";
     if (error.code === "timeout") return "timeout";
     if (error.code === "rate-limit") return "rate-limit";
@@ -669,58 +691,82 @@ export function createSessionAgentPort(
       for (const { controller } of active.values()) controller.abort();
       await clearBase();
     },
-    async execute(request, profile): Promise<AiExecution> {
-      const executionId = crypto.randomUUID();
-      let usage: AiUsage | undefined;
-      const agent = options.profiles.get(profile.id);
-      for await (const event of attempt(request, profile, executionId)) {
-        if (event.type === "usage") usage = event.usage;
-        if (event.type === "completed")
-          return {
-            executionId,
-            family: "agent-runtime",
-            targetId: profile.targetId,
-            result: event.result,
-            ...(usage === undefined ? {} : { usage }),
-            // Display metadata from the profile this attempt ran under.
-            ...(agent === undefined
-              ? {}
-              : {
-                  generatedBy: { runtime: agent.runtime, model: agent.model },
-                }),
-          };
-        if (event.type === "failed") throw event.error;
+    kind: "agent",
+    model: (profileId) => options.profiles.get(profileId)?.model,
+    // [STRATEGY] One engine call is one attempt. The text the runtime writes
+    // is passed on as it comes, for a draft a person reads while it grows; the
+    // runtime's structured result is then stated as the answer, so the text
+    // that streamed is never mistaken for it. A failure is thrown carrying its
+    // typed failure, which the engine ends the call with.
+    async *stream(
+      scope: Scope,
+      input: ModelInput,
+      signal: AbortSignal,
+      call?: CallInfo,
+    ): AsyncGenerator<ModelPart> {
+      const text = (role: "system" | "user") =>
+        input.messages
+          .filter((message) => message.role === role)
+          .flatMap((message) =>
+            message.parts.map((part) =>
+              part.type === "text" ? part.text : "",
+            ),
+          )
+          .join("");
+      const system = text("system");
+      const request: SessionAttempt = {
+        owner: { tenantId: scope.tenantId, actorId: scope.actorId },
+        profileId: input.profileId,
+        prompt: text("user"),
+        ...(system ? { system } : {}),
+        ...(input.schema !== undefined && typeof input.schema === "object"
+          ? { schema: input.schema as Readonly<Record<string, unknown>> }
+          : {}),
+        attachments: input.messages.flatMap((message) =>
+          message.parts.flatMap((part) =>
+            part.type === "attachment"
+              ? [
+                  {
+                    id: part.id,
+                    kind: part.kind,
+                    name: part.name,
+                    reference: part.reference,
+                    ...(part.mediaType ? { mimeType: part.mediaType } : {}),
+                  },
+                ]
+              : [],
+          ),
+        ),
+        ...(call?.idempotencyKey
+          ? { idempotencyKey: call.idempotencyKey }
+          : {}),
+        signal,
+      };
+      let usage: Usage | undefined;
+      let spoke = false;
+      for await (const event of attempt(request, crypto.randomUUID())) {
+        if (event.type === "text-delta") {
+          if (!event.text) continue;
+          spoke = true;
+          yield { type: "text", text: event.text };
+        } else if (event.type === "usage") usage = toUsage(event.usage);
+        else if (event.type === "completed") {
+          const result = event.result;
+          if (!spoke && result !== undefined && result !== null)
+            yield {
+              type: "text",
+              text:
+                typeof result === "string"
+                  ? result
+                  : (JSON.stringify(result) ?? ""),
+            };
+          if (result !== null && typeof result === "object")
+            yield { type: "value", value: result as never };
+          if (usage) yield { type: "usage", usage };
+          return;
+        } else if (event.type === "failed") throw event.error;
       }
       throw new SessionAgentError("provider");
-    },
-    async *stream(request, profile) {
-      const agent = options.profiles.get(profile.id);
-      for await (const event of attempt(request, profile, crypto.randomUUID()))
-        if (event.type === "failed")
-          yield { type: "failed", error: event.error.failure };
-        else if (event.type === "completed")
-          // The same display metadata execute() attaches.
-          yield {
-            ...event,
-            ...(agent === undefined
-              ? {}
-              : {
-                  generatedBy: { runtime: agent.runtime, model: agent.model },
-                }),
-          };
-        else yield event;
-    },
-    async cancel(context: AiAccessContext, executionId: string) {
-      // [SAFETY] An execution id never reaches across tenants.
-      const entry = active.get(executionId);
-      if (entry?.tenantId === context.tenantId) entry.controller.abort();
-    },
-    // Session actions are single-turn; there is nothing to resume.
-    async *resume() {
-      yield {
-        type: "failed",
-        error: { ...FAILURES["profile-unavailable"] },
-      };
     },
   };
 }

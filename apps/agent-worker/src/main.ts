@@ -1,11 +1,10 @@
 import { accessSync, constants } from "node:fs";
 import { delimiter, join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { agentPayloadSecret } from "@omnitech/agent-job-service";
-import { createClaudeRuntimeAdapter } from "@omnitech/agent-runtime-claude";
-import { createCodexRuntimeAdapter } from "@omnitech/agent-runtime-codex";
-import type { AgentRuntimeAdapter } from "@omnitech/agent-runtime-contracts";
-import { resolveAgentProfiles } from "@omnitech/ai-runtime/config";
+import { runAgentWorker } from "@omnitech/ai-engine/jobs";
+import type { AgentRuntimeAdapter } from "@omnitech/ai-engine/providers/agents";
+import { createClaudeRuntimeAdapter } from "@omnitech/ai-engine/providers/agents/claude-sdk";
+import { createCodexRuntimeAdapter } from "@omnitech/ai-engine/providers/agents/codex-app-server";
 import { DockerCodeRunner } from "@omnitech/code-runner";
 import {
   createPlatformDatabase,
@@ -13,7 +12,11 @@ import {
   verifyDatabaseRole,
   verifyMigrations,
 } from "@omnitech/database";
-import { AgentPayloadStore } from "@omnitech/platform-storage";
+import { resolveAgentProfiles } from "@omnitech/platform-runtime/ai-config";
+import {
+  AgentPayloadStore,
+  agentPayloadSecret,
+} from "@omnitech/platform-storage";
 import { PostgresAgentJobWorkerRepository } from "@omnitech/platform-storage/worker";
 import {
   type AgentEscalationPort,
@@ -23,9 +26,9 @@ import {
   createSessionWorker,
   type SessionCodeRunner,
 } from "@omnitech/product-interview/session-worker";
-import { runAgentWorker } from "./index";
+import { engineTrace } from "./engine-trace";
 import { defaultStagingBase, sweepStagingBase } from "./session-agent-port";
-import { createSessionGateway, SESSION_AGENT_FLAG } from "./session-gateway";
+import { createSessionEngine, SESSION_AGENT_FLAG } from "./session-engine";
 import { runSessionLoop, sessionWorkerId } from "./session-loop";
 
 type Environment = Readonly<Record<string, string | undefined>>;
@@ -187,21 +190,29 @@ function agentJobLoop(
   const payloads = new AgentPayloadStore(database, payloadSecret);
   return {
     name: "agent-job",
-    run: (signal) =>
-      runAgentWorker(
-        {
-          workerId: `${env["AGENT_WORKER_ID"] ?? "worker"}:${crypto.randomUUID()}`,
-          // Interactive turns (the assistant) wait on this; an idle claim is one
-          // cheap indexed query.
-          ...workerSettings(env),
-          repository: new PostgresAgentJobWorkerRepository(database),
-          loadPrompt: (reference) => payloads.load(reference),
-          storeResult: (tenantId, result) =>
-            payloads.save(tenantId, JSON.stringify(result)),
-          runtimes,
-        },
-        signal,
-      ),
+    run: async (signal) => {
+      // Each job's run is kept like any other AI interaction (ADR-0037).
+      const kept = engineTrace(env);
+      try {
+        await runAgentWorker(
+          {
+            workerId: `${env["AGENT_WORKER_ID"] ?? "worker"}:${crypto.randomUUID()}`,
+            // Interactive turns (the assistant) wait on this; an idle claim is
+            // one cheap indexed query.
+            ...workerSettings(env),
+            repository: new PostgresAgentJobWorkerRepository(database),
+            loadPrompt: (reference) => payloads.load(reference),
+            storeResult: (tenantId, result) =>
+              payloads.save(tenantId, JSON.stringify(result)),
+            runtimes,
+            trace: kept.trace,
+          },
+          signal,
+        );
+      } finally {
+        await kept.close();
+      }
+    },
   };
 }
 
@@ -243,7 +254,7 @@ export function sessionAgentEscalation(
   };
 }
 
-// The Active Session loop (ADR-0011) with its own gateway; null (loop not
+// The Active Session loop (ADR-0011) with its own AI engine; null (loop not
 // started, job loop unaffected) when no language model is configured.
 export function sessionLoop(
   env: Environment,
@@ -251,12 +262,12 @@ export function sessionLoop(
   log: (line: string) => void,
   runtimes?: Readonly<Record<string, AgentRuntimeAdapter>>,
 ): WorkerLoop | null {
-  let session: ReturnType<typeof createSessionGateway>;
+  let session: ReturnType<typeof createSessionEngine>;
   try {
     // The agent port is off unless the explicit flag is set (ADR-0016).
-    session = createSessionGateway(
-      env,
-      env[SESSION_AGENT_FLAG] === "on"
+    session = createSessionEngine(env, {
+      log,
+      ...(env[SESSION_AGENT_FLAG] === "on"
         ? {
             runtimes: runtimes ?? agentRuntimes(env),
             // Screenshots reach a runtime only through the product's loader:
@@ -265,8 +276,8 @@ export function sessionLoop(
             // After any capacity wait the port re-reads the session row.
             stillPermitted: createSessionStillPermitted(database),
           }
-        : {},
-    );
+        : {}),
+    });
   } catch {
     // A misconfigured model must not take the job loop down with it.
     log("session loop disabled: language model unusable");
@@ -283,23 +294,29 @@ export function sessionLoop(
       // Staged screenshots left by a previous process are removed first.
       if (session.agentStaging)
         await sweepStagingAtStartup(session.agentStaging.sweep, log);
-      await runSessionLoop({
-        processor: createSessionWorker({
-          database,
-          gateway: session.gateway,
-          workerId: sessionWorkerId(env),
+      try {
+        await runSessionLoop({
+          processor: createSessionWorker({
+            database,
+            engine: session.engine,
+            answeredBy: session.answeredBy,
+            workerId: sessionWorkerId(env),
+            log,
+            ...sessionRunnerOptions(env),
+            ...(escalation ? { agentEscalation: escalation } : {}),
+            ...(session.visionProfileId
+              ? { visionProfileId: session.visionProfileId }
+              : {}),
+            // Content staged outside the database goes with every purge.
+            afterPurge: async () => session?.agentStaging?.sweepIdle(),
+          }),
+          signal,
           log,
-          ...sessionRunnerOptions(env),
-          ...(escalation ? { agentEscalation: escalation } : {}),
-          ...(session.visionProfileId
-            ? { visionProfileId: session.visionProfileId }
-            : {}),
-          // Content staged outside the database goes with every purge.
-          afterPurge: async () => session?.agentStaging?.sweepIdle(),
-        }),
-        signal,
-        log,
-      });
+        });
+      } finally {
+        // What the engine kept is written before its connection is closed.
+        await session?.close();
+      }
     },
   };
 }

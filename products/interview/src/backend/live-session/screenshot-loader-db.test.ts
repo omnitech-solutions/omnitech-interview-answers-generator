@@ -45,11 +45,9 @@ function png(width: number, height: number): Uint8Array {
   );
 }
 
-const context = (tenantId: string, person: Person) => ({
+const owner = (tenantId: string, person: Person) => ({
   tenantId,
-  userId: person.id,
-  productId: "omnitech.interview",
-  permissions: ["interview.read"],
+  actorId: person.id,
 });
 const codeOf = async (promise: Promise<unknown>) =>
   promise.then(
@@ -93,7 +91,7 @@ describe("the database snapshot read", () => {
     const world = await seeded("loader-owner");
     const load = createSessionScreenshotLoader(fx.member);
     const bytes = await load(
-      context(fx.tenantA, world.person),
+      owner(fx.tenantA, world.person),
       world.attachment,
       undefined,
     );
@@ -102,7 +100,7 @@ describe("the database snapshot read", () => {
     await repo.controlSession(world.scope, world.sessionId, "pause");
     expect(
       await codeOf(
-        load(context(fx.tenantA, world.person), world.attachment, undefined),
+        load(owner(fx.tenantA, world.person), world.attachment, undefined),
       ),
     ).toBe("session_closed");
   });
@@ -113,13 +111,11 @@ describe("the database snapshot read", () => {
     const stranger = await fx.provision(fx.tenantB, "loader-stranger");
     const load = createSessionScreenshotLoader(fx.member);
     expect(
-      await codeOf(
-        load(context(fx.tenantA, other), world.attachment, undefined),
-      ),
+      await codeOf(load(owner(fx.tenantA, other), world.attachment, undefined)),
     ).toBe("not_found");
     expect(
       await codeOf(
-        load(context(fx.tenantB, stranger), world.attachment, undefined),
+        load(owner(fx.tenantB, stranger), world.attachment, undefined),
       ),
     ).toBe("not_found");
   });

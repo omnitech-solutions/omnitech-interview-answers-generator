@@ -50,15 +50,13 @@ type WorkspaceImport = {
 
 const contracts = new Set([
   "@omnitech/platform-contracts",
-  "@omnitech/ai-contracts",
   "@omnitech/interview-contracts",
-  "@omnitech/agent-runtime-contracts",
   "@omnitech/active-session-contracts",
 ]);
-const agentRuntimes = new Set([
-  "@omnitech/agent-runtime-claude",
-  "@omnitech/agent-runtime-codex",
-]);
+// The agent runtimes live in the AI engine (ADR-0037). Each is its own entry
+// point, so the rule is about which entry point a file names.
+const agentRuntimeEntry =
+  /^@omnitech\/ai-engine\/providers\/agents\/(claude-sdk|codex-app-server)$/;
 
 // rule:neutral-core-imports (ADR-0011): the session core imports only its own
 // files and the contracts package, so interview policy cannot leak into it.
@@ -68,9 +66,6 @@ const neutralCoreRule = "rule:neutral-core-imports, ADR-0011";
 const isApp = (pkg: WorkspacePackage) => pkg.dir.startsWith("apps/");
 const isProduct = (pkg: WorkspacePackage) => pkg.dir.startsWith("products/");
 const isLibrary = (pkg: WorkspacePackage) => pkg.dir.startsWith("packages/");
-const isAdapter = (pkg: WorkspacePackage) =>
-  /^@omnitech\/(ai-provider-|agent-runtime-)/.test(pkg.name) &&
-  !contracts.has(pkg.name);
 
 // The capture companion (ADR-0011, ADR-0012) consumes only the versioned wire
 // contract. Its fixture subpath is the one thing a product's TESTS may import,
@@ -126,12 +121,6 @@ const directionRules: Array<{
     forbids: (from, to) => isProduct(from) && isProduct(to),
   },
   {
-    // Only the isolated worker launches Codex or Claude Code (ADR-0007).
-    rule: "only apps/agent-worker depends on an agent runtime",
-    forbids: (from, to) =>
-      agentRuntimes.has(to.name) && from.dir !== "apps/agent-worker",
-  },
-  {
     // Contracts are the stable framework-neutral bottom layer (ADR-0003).
     rule: "contract packages depend only on contract packages",
     forbids: (from, to) => contracts.has(from.name) && !contracts.has(to.name),
@@ -140,11 +129,6 @@ const directionRules: Array<{
     // database owns connectivity; domain packages own schemas (ADR-0003).
     rule: "database depends on no workspace package",
     forbids: (from) => from.name === "@omnitech/database",
-  },
-  {
-    // Adapters translate one provider SDK to a contract, nothing more (ADR-0007).
-    rule: "provider and runtime adapters depend only on contract packages",
-    forbids: (from, to) => isAdapter(from) && !contracts.has(to.name),
   },
 ];
 
@@ -261,6 +245,21 @@ describe("package boundaries", () => {
         )
         .map((pkg) => pkg.dir),
     );
+    expect([...importers]).toEqual(["apps/agent-worker"]);
+  });
+
+  it("lets only apps/agent-worker name an agent runtime's entry point", () => {
+    // Only the isolated worker launches Codex or Claude Code (ADR-0007). The
+    // engine keeps each runtime behind its own entry point for this reason.
+    const specifierPattern =
+      /(?:\bfrom\s*|\bimport\s*\(\s*|^\s*import\s+)["']([^"']+)["']/gm;
+    const importers = new Set<string>();
+    for (const pkg of packages)
+      for (const file of sourceFiles(join(repoRoot, pkg.dir)))
+        for (const match of readFileSync(file, "utf8").matchAll(
+          specifierPattern,
+        ))
+          if (agentRuntimeEntry.test(match[1] ?? "")) importers.add(pkg.dir);
     expect([...importers]).toEqual(["apps/agent-worker"]);
   });
 

@@ -1,7 +1,8 @@
-import type { AiExecutionGateway } from "@omnitech/ai-contracts";
+import type { AiEngine, JsonSchema } from "@omnitech/ai-engine";
 import type { PlatformDatabase } from "@omnitech/database";
 import type { PlatformContext } from "@omnitech/platform-contracts";
 import {
+  type ModelInfo,
   type ModelRelay,
   productOperationFailure,
   type Scope,
@@ -17,6 +18,7 @@ import {
   INTERVIEW_ASSISTANT_PROFILE,
 } from "../assistant-profile";
 import { manifest } from "../manifest";
+import { promptMessages } from "./ai-messages";
 import { createApi } from "./api";
 import { createAssistantModels } from "./assistant-models";
 import { BriefingRepository } from "./briefing/repository";
@@ -33,7 +35,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** The platform services Interview Studio's backend runs on. */
 export interface InterviewBackendServices {
-  ai: AiExecutionGateway;
+  engine: AiEngine;
   database: PlatformDatabase;
   // The run queue's own connection (pg-boss opens it).
   runQueueConnectionString: string;
@@ -47,8 +49,11 @@ export interface InterviewBackendServices {
   contextCharacters: number;
   // Offer the on-device (browser) model in the assistant's picker.
   onDeviceModel: boolean;
-  // Preferred assistant picker model; unavailable targets use the product default.
+  // Preferred assistant picker model; an unavailable one falls back to the product default.
   assistantDefaultModel?: string;
+  // How the picker presents the assistant's own profile. Absent: the profile
+  // is not offered (the host has no language model behind it).
+  assistantListing?: Omit<ModelInfo, "id">;
   // Local development: briefing packs start from the bundled profile.
   localDefaultProfile: boolean;
 }
@@ -98,36 +103,36 @@ function scopeResolver(services: InterviewBackendServices) {
   };
 }
 
-// The product's one-shot JSON replies, on the given profile, as the member
-// the request resolved to.
-function generator(ai: AiExecutionGateway, profileId: string) {
-  // An agent runtime needs the reply's schema to return an object; a direct
-  // model reads the shape from the instructions (strict schema decoding is
-  // slow on local models), so the schema goes to agents only.
-  const agent = profileId.startsWith("agent/");
+// The product's one-shot structured replies, on the given profile, as the
+// member the request resolved to. The reply's schema goes to the engine, which
+// asks the provider for that shape, checks the answer against it and makes one
+// repair turn when it misses (ADR-0037).
+function generator(engine: AiEngine, profileId: string) {
   return async (
     {
       schema,
-      ...input
-    }: { system: string; prompt: string; schema?: Record<string, unknown> },
+      system,
+      prompt,
+    }: { system: string; prompt: string; schema: Record<string, unknown> },
     scope: Scope,
-  ) =>
-    (
-      await ai.execute({
-        context: {
-          tenantId: scope.tenantId,
-          userId: scope.actorId,
-          productId: scope.productId,
-          permissions: [...manifest.permissions],
-        },
+  ) => {
+    const generated = await engine.generate(
+      {
         profileId,
-        task: {
-          type: "structured-generation",
-          ...input,
-          ...(agent && schema ? { schema } : {}),
-        },
-      })
-    ).result;
+        messages: promptMessages(system, prompt),
+        schema: schema as JsonSchema,
+      },
+      {
+        scope,
+        permissions: [...manifest.permissions],
+        signal: new AbortController().signal,
+      },
+    );
+    // The failure's code only: its detail can carry provider text.
+    if (!generated.ok)
+      throw new Error(`Generation failed: ${generated.failure.code}`);
+    return generated.value;
+  };
 }
 
 function workspaceDatabase(platform: PlatformDatabase) {
@@ -157,9 +162,10 @@ async function build(
   const database = workspaceDatabase(platform);
   const relay: ModelRelay = new PostgresModelRelay(database);
   const assistantModels = createAssistantModels(
-    services.ai,
+    services.engine,
     relay,
     services.onDeviceModel,
+    services.assistantListing,
     services.assistantDefaultModel,
   );
   return createInterviewStudio({
@@ -193,10 +199,10 @@ async function build(
     modelVersion: services.modelVersion,
     // [DOMAIN] The pack's one-shot generation (drafted answers, the prepared
     // briefing, condensing the setup) runs where the assistant runs: on the
-    // agent (Claude Code) when that is the default model, never on the local
-    // draft stand-in, which cannot answer.
+    // agent (Claude Code) when that is the default model, otherwise on the
+    // assistant's own profile.
     generate: generator(
-      services.ai,
+      services.engine,
       services.assistantDefaultModel?.startsWith("agent/")
         ? services.assistantDefaultModel
         : INTERVIEW_ASSISTANT_PROFILE,
@@ -255,7 +261,7 @@ export function createInterviewBackend(services: InterviewBackendServices) {
       resolveContext: services.resolveContext,
     }),
   );
-  // Interview answers and explanations, generated on the gateway for the
+  // Interview answers and explanations, generated on the engine for the
   // member of the tenant the request names.
   app.route(
     "/",
@@ -272,7 +278,7 @@ export function createInterviewBackend(services: InterviewBackendServices) {
         return slug !== "" && (await services.resolveContext(slug)) !== null;
       },
       ...(services.answersConfigured
-        ? { generate: generator(services.ai, INTERVIEW_ANSWER_PROFILE) }
+        ? { generate: generator(services.engine, INTERVIEW_ANSWER_PROFILE) }
         : {}),
     }),
   );
@@ -283,7 +289,7 @@ export function createInterviewBackend(services: InterviewBackendServices) {
     "/",
     createDocumentsApi({
       database: services.database,
-      ai: services.ai,
+      engine: services.engine,
       config: documentsConfig,
       localTemplates: async (scope) =>
         (await isLocalMember(services, scope)) ? loadLocalTemplates() : null,

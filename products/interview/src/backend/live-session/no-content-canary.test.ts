@@ -3,7 +3,7 @@
 // generated content or credentials). One unique string is planted in a final
 // transcript, in screenshot metadata, in a credential and in error paths, and
 // is carried through ingest over the routes, dispatch by the real processor on
-// a fake gateway, a failing dispatch, and the purge. The test then proves the
+// a fake engine, a failing dispatch, and the purge. The test then proves the
 // string is absent from every console line, every trace event, every error or
 // control response and the purge's tombstone - while the owner's own stream
 // still holds it, so the plant is known to have reached storage.
@@ -19,7 +19,8 @@ import {
 import {
   buildProcessor,
   collectTraces,
-  createFakeGateway,
+  createFakeEngine,
+  failed,
   seedMatrixProfile,
   settle,
   startSessionForPerson,
@@ -210,17 +211,17 @@ describe("the canary never leaves the owner's own reads", () => {
       await ingest(JSON.stringify(`${CANARY}${"x".repeat(40 * 1024)}`)),
     );
 
-    // Dispatch: the real processor on a fake gateway. The gateway request
+    // Dispatch: the real processor on a fake engine. The engine request
     // holds the question (its job), the processor's traces must not.
-    const gateway = createFakeGateway();
+    const engine = createFakeEngine();
     const processor = buildProcessor(fx, {
       workerId: "worker-canary",
-      gateway,
+      engine,
       trace: traces,
     });
     await settle(processor);
-    expect(gateway.requests.length).toBeGreaterThan(0);
-    expect(JSON.stringify(gateway.requests)).toContain(CANARY);
+    expect(engine.requests.length).toBeGreaterThan(0);
+    expect(JSON.stringify(engine.requests)).toContain(CANARY);
     await processor.close();
 
     // The plant reached storage: the owner's own stream holds it.
@@ -228,7 +229,7 @@ describe("the canary never leaves the owner's own reads", () => {
     const stream = await app.request(`${base()}/${sessionId}/stream`);
     expect(await stream.text()).toContain(CANARY);
 
-    // Failure: a gateway that throws the canary, on a second session.
+    // Failure: a engine that throws the canary, on a second session.
     const second = await fx.provision(fx.tenantA, "canary-failure");
     const secondStart = await repo.startSession(
       { tenantId: fx.tenantA, actorId: second.id },
@@ -237,12 +238,17 @@ describe("the canary never leaves the owner's own reads", () => {
         captureSources: ["microphone", "application-audio"],
       },
     );
-    const failing = createFakeGateway({
-      fail: () => new Error(`gateway failed on ${CANARY}`),
+    const failing = createFakeEngine({
+      // Provider text in the reason and the detail: neither may be traced.
+      fail: () =>
+        failed("unavailable", {
+          reason: `engine failed on ${CANARY}`,
+          detail: `engine failed on ${CANARY}`,
+        }),
     });
     const failingProcessor = buildProcessor(fx, {
       workerId: "worker-canary-failure",
-      gateway: failing,
+      engine: failing,
       trace: traces,
       options: { maxAttempts: 2 },
     });
@@ -293,7 +299,7 @@ describe("the canary never leaves the owner's own reads", () => {
           secondStart.session.id,
         ),
       ),
-    ).not.toContain("gateway failed");
+    ).not.toContain("engine failed");
 
     // Control, renewal and the owner's delete, then the purge.
     acting = person;
@@ -364,12 +370,12 @@ describe("the canary never leaves the owner's own reads", () => {
     // The first revision is rejected (a fabricated quote carrying the canary,
     // inside a claim whose text carries it too); the second is published (a
     // general-knowledge claim whose text carries it).
-    const gateway = createFakeGateway({
+    const engine = createFakeEngine({
       // Revision 1 is rejected, revision 2 (the "part two") is published. The
       // processor may hold other sessions of this suite too: it keys off the
       // revision in the prompt, not the call count.
       result: (request) =>
-        request.task.prompt.includes("REVISION: 1")
+        request.prompt.includes("REVISION: 1")
           ? {
               category: "experience-story",
               draft: "Outline.",
@@ -409,7 +415,7 @@ describe("the canary never leaves the owner's own reads", () => {
     const traces = collectTraces();
     const processor = buildProcessor(fx, {
       workerId: "worker-canary-claims",
-      gateway,
+      engine,
       trace: traces,
     });
     for (const phase of RECRUITER_SCREEN.slice(0, 2)) {

@@ -27,15 +27,6 @@ const stillEmitsTests =
 const emitsTests: readonly string[] = [
   "apps/capture-companion",
   "packages/active-session-contracts",
-  "packages/agent-job-service",
-  "packages/agent-runtime-claude",
-  "packages/agent-runtime-codex",
-  "packages/agent-runtime-contracts",
-  "packages/ai-contracts",
-  "packages/ai-provider-anthropic",
-  "packages/ai-provider-images",
-  "packages/ai-provider-openai",
-  "packages/ai-runtime",
   "packages/code-runner",
   "packages/database",
   "packages/interview-api-client",
@@ -184,7 +175,8 @@ const all = packages();
 
 it("finds the packages it scans", () => {
   expect(all.map((pkg) => pkg.dir)).toContain("products/interview");
-  expect(all.filter((pkg) => pkg.buildsWithTsc).length).toBeGreaterThan(20);
+  // Nine fewer since the AI packages went into the AI engine (ADR-0037).
+  expect(all.filter((pkg) => pkg.buildsWithTsc).length).toBeGreaterThan(10);
   // The import walk really follows the product's graph.
   expect(
     reachable("products/interview/src/backend/index.ts").size,

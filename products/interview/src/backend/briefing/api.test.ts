@@ -1473,7 +1473,7 @@ it("prepares the briefing as grounded cards the person can tick off", async () =
   expect(tickedPrepared.ask[0].items[0].asked).toBe(true);
   expect(tickedPrepared.evidenceRefs).toHaveLength(2);
 
-  // A reply that misses the card shape gets one correction, then fails.
+  // A reply that misses the card shape fails, naming the fields.
   generated = { ...cards, call: {}, citations: [], gaps: [] };
   const invalid = await request(
     "/api/interview/briefing/artifacts/prepared/prepare",
@@ -1482,7 +1482,7 @@ it("prepares the briefing as grounded cards the person can tick off", async () =
   );
   expect(invalid.status).toBe(503);
   expect((await invalid.json()).error.message).toMatch(
-    /did not match the required format, even after one correction: call\.summary/,
+    /did not match the required format: call\.summary/,
   );
 });
 

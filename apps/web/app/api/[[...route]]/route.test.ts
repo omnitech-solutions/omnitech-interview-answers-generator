@@ -191,18 +191,37 @@ describe("the platform API", () => {
     expect(cli.status).toBe(200);
   });
 
-  it("lists the AI targets the member may use", async () => {
+  // What the route lists follows from the environment the engine is built in
+  // (createPlatformAiEngine): a catalogue's models are left to the picker.
+  const targetsOf = async (response: Response) =>
+    (await response.json()).map(
+      ({ id, kind }: { id: string; kind: string }) => [id, kind],
+    );
+
+  it("lists only the image profile when no language model is configured", async () => {
     const response = await call("/api/platform/v1/ai-targets?tenant=local");
     expect(response.status).toBe(200);
-    const ids = (await response.json()).map(({ id }: { id: string }) => id);
-    expect(ids).toEqual(
-      expect.arrayContaining([
-        "document-fast",
-        "interview-assistant",
-        "image-balanced",
-        "agent/claude-code",
-      ]),
+    expect(await targetsOf(response)).toEqual([["image-balanced", "image"]]);
+  });
+
+  it("lists the language profiles of the configured model beside the image profile", async () => {
+    vi.stubEnv("AI_BASE_URL", "https://models.example.com/v1");
+    vi.stubEnv("AI_MODEL", "vendor/large-model");
+    vi.stubEnv("AI_API_KEY", "test-key");
+    // The route builds its engine once, on its first request; the same
+    // application under this environment is built here.
+    const { createApplicationApi } = await import("@/src/platform/api");
+    const response = await createApplicationApi().fetch(
+      new Request("http://studio.test/api/platform/v1/ai-targets?tenant=local"),
     );
+    expect(response.status).toBe(200);
+    expect(await targetsOf(response)).toEqual([
+      ["document-fast", "model"],
+      ["document-quality", "model"],
+      ["interview-assistant", "model"],
+      ["interview-answers", "model"],
+      ["image-balanced", "image"],
+    ]);
   });
 });
 
@@ -524,7 +543,7 @@ describe("registered product routers", () => {
   });
 
   it("serves Presentations to a member of the tenant", async () => {
-    const response = await call("/api/presentation/v1/ai-targets?tenant=local");
+    const response = await call("/api/presentation/v1/documents?tenant=local");
     expect(response.status).toBe(200);
   });
 });

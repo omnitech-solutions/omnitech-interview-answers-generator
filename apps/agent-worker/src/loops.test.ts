@@ -172,6 +172,11 @@ describe("session loop registration", () => {
     ]);
   });
 
+  // DEFECT in apps/agent-worker/src/session-engine.ts (createSessionEngine):
+  // a remote endpoint with no API key is given the placeholder key
+  // "not-needed" and no longer throws, so sessionLoop in main.ts starts the
+  // loop. The deleted ai-provider-openai adapter refused a keyless endpoint
+  // that was not loopback, which main.ts turned into this disabled line.
   it("is not started when the configured model is unusable", () => {
     const lines: string[] = [];
     const env = {

@@ -15,7 +15,7 @@ import {
   WorkspaceError,
   type WorkspaceScope,
 } from "../assistant/workspace";
-import { generateChecked } from "../structured";
+import { generateChecked, type StructuredGenerate } from "../structured";
 
 const prefix = "/api/interview/briefs";
 const scoped = "tenant_id=$1 AND actor_id=$2 AND product_id=$3";
@@ -60,12 +60,9 @@ function summary(row: Record<string, unknown>): BriefSummary {
 export function createBriefsApi(options: {
   database: WorkspaceDatabasePort;
   resolveScope: (request: Request) => Promise<WorkspaceScope | null>;
-  // The model's JSON reply; the brief's shape is validated here, not by the
-  // model server (strict grammar decoding was too slow on local models).
-  generate: (
-    input: { system: string; prompt: string },
-    scope: WorkspaceScope,
-  ) => Promise<unknown>;
+  // The model's structured reply. Its shape is the AI engine's to enforce; the
+  // brief's own contract is checked on what comes back.
+  generate: StructuredGenerate;
   allowedOrigins?: readonly string[];
 }) {
   const app = new Hono<{ Variables: { briefScope: WorkspaceScope } }>();

@@ -37,7 +37,8 @@ describe("standingVerdictOf", () => {
 
 describe("createSessionStillPermitted", () => {
   const request = (key: string | undefined) => ({
-    context: { tenantId: "t", userId: "u", productId: "p", permissions: [] },
+    tenantId: "t",
+    actorId: "u",
     ...(key === undefined ? {} : { idempotencyKey: key }),
   });
 

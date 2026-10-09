@@ -1,6 +1,6 @@
 "use client";
 
-import type { AiTargetSummary } from "@omnitech/ai-contracts";
+import type { ProfileSummary } from "@omnitech/ai-engine";
 import type { ProductPageProps } from "@omnitech/platform-contracts";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { slideAppearance } from "../domain/appearance";
@@ -288,7 +288,7 @@ export function PresentationLibrary({
   const [slideCount, setSlideCount] = useState(10);
   const [layout, setLayout] = useState("dynamic");
   const [language, setLanguage] = useState("English");
-  const [targets, setTargets] = useState<AiTargetSummary[]>([]);
+  const [targets, setTargets] = useState<ProfileSummary[]>([]);
   const [targetId, setTargetId] = useState("");
   useEffect(
     () =>
@@ -304,15 +304,10 @@ export function PresentationLibrary({
   );
   useEffect(
     () =>
-      load<AiTargetSummary[]>(
+      load<ProfileSummary[]>(
         `/api/platform/v1/ai-targets?tenant=${encodeURIComponent(tenantSlug)}`,
         (available) => {
-          setTargets(
-            available.filter(
-              (target) =>
-                target.family === "direct-model" && target.kind === "language",
-            ),
-          );
+          setTargets(available.filter((target) => target.kind === "model"));
           const persisted = localStore.get(AI_PROFILE_KEY);
           setTargetId(
             (current) => current || persisted || available[0]?.id || "",
@@ -416,7 +411,7 @@ export function PresentationLibrary({
                 ) : (
                   targets.map((target) => (
                     <option key={target.id} value={target.id}>
-                      {target.label} · {target.modelId ?? target.id}
+                      {target.label} · {target.model ?? target.id}
                     </option>
                   ))
                 )}
@@ -568,7 +563,7 @@ export function PresentationCreate({ tenantSlug, products }: ProductPageProps) {
   const [slideCount, setSlideCount] = useState(10);
   const [layout, setLayout] = useState("dynamic");
   const [language, setLanguage] = useState("English");
-  const [targets, setTargets] = useState<AiTargetSummary[]>([]);
+  const [targets, setTargets] = useState<ProfileSummary[]>([]);
   const [targetId, setTargetId] = useState("");
   useEffect(() => {
     const raw = sessionStore.get(CREATE_SETTINGS_KEY);
@@ -597,12 +592,11 @@ export function PresentationCreate({ tenantSlug, products }: ProductPageProps) {
   }, []);
   useEffect(
     () =>
-      load<AiTargetSummary[]>(
+      load<ProfileSummary[]>(
         `/api/platform/v1/ai-targets?tenant=${encodeURIComponent(tenantSlug)}`,
         (available) => {
           const languageTargets = available.filter(
-            (target) =>
-              target.family === "direct-model" && target.kind === "language",
+            (target) => target.kind === "model",
           );
           setTargets(languageTargets);
           const persisted = localStore.get(AI_PROFILE_KEY);
@@ -737,7 +731,7 @@ export function PresentationCreate({ tenantSlug, products }: ProductPageProps) {
               ) : (
                 targets.map((target) => (
                   <option key={target.id} value={target.id}>
-                    {target.label} · {target.modelId ?? target.id}
+                    {target.label} · {target.model ?? target.id}
                   </option>
                 ))
               )}

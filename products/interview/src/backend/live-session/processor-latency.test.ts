@@ -2,7 +2,7 @@
 // that has questions (recruiter screen, the grounding-hazard sets, the
 // engineering-manager set and the live-coding first draft), at real pacing (1x)
 // and at 4x (E-A2). The processor runs for real (ingest, replay, core, fenced
-// writes on a disposable PostgreSQL) against a fake gateway; time is a virtual
+// writes on a disposable PostgreSQL) against a fake engine; time is a virtual
 // clock so each set's own pacing and the settle window are exact without
 // waiting minutes. Two figures per question, p50 and p95 over every question
 // of a set and over every question of a speed, are recorded:
@@ -33,7 +33,7 @@ import {
 import { type Fixture, startFixture } from "./live-session-fixture";
 import {
   buildProcessor,
-  createFakeGateway,
+  createFakeEngine,
   NEVER_ABORTED,
   startSessionFor,
 } from "./processor-fixture";
@@ -109,7 +109,7 @@ async function replayAt(
   speed: number,
   name: string,
   phases: readonly ReplayPhase[],
-  gateway = createFakeGateway(),
+  engine = createFakeEngine(),
   codeRunner?: ReturnType<typeof fakeRunner>["runner"],
 ) {
   const started = await startSessionFor(
@@ -121,7 +121,7 @@ async function replayAt(
   let virtualNow = Date.now();
   const processor = buildProcessor(fx, {
     workerId: `worker-latency-${name}-${speed}`,
-    gateway,
+    engine,
     ...(codeRunner ? { codeRunner } : {}),
     clock: { nowMs: () => virtualNow },
     options: { settleMs: SETTLE_MS },
@@ -151,8 +151,8 @@ async function replayAt(
     await processor.tick(NEVER_ABORTED);
     await processor.idle();
     const wallDone = Date.now();
-    while (calls.length < gateway.requests.length) {
-      const request = gateway.requests[calls.length];
+    while (calls.length < engine.requests.length) {
+      const request = engine.requests[calls.length];
       if (!request) break;
       const segment = trigger(request);
       calls.push({
@@ -289,7 +289,7 @@ describe("question end to a published solution (live coding)", () => {
   it.each([1, 4])(
     "records the time to solve-code at %ix and shows the prose draft first",
     async (speed) => {
-      const gateway = createFakeGateway({
+      const engine = createFakeEngine({
         result: (request) =>
           isSolutionRequest(request)
             ? solutionFor(request)
@@ -314,7 +314,7 @@ describe("question end to a published solution (live coding)", () => {
         speed,
         "live-coding-solve",
         ALL_REPLAY_SETS["live-coding"]?.phases ?? [],
-        gateway,
+        engine,
         runner,
       );
       const prose = calls.filter(

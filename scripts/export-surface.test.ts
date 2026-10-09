@@ -27,8 +27,8 @@ interface SurfaceRow {
 const extraEntrypointReasons: Record<string, string> = {
   "@omnitech/capture-companion./fixture":
     "test-only: lets product conformance tests drive a real companion against the real backend; package-boundaries.test.ts confines importers to product tests",
-  "@omnitech/ai-runtime./config":
-    "env-driven model and agent-profile resolution kept apart from the gateway so a host reads configuration without constructing a provider",
+  "@omnitech/platform-runtime./ai-config":
+    "env-driven model and agent-profile resolution for the hosts that build an AI engine (the web host and the agent worker); the engine itself reads no environment (ADR-0037)",
   "@omnitech/database./test-support":
     "test-only: the disposable PostgreSQL fixture and its schema helpers; production code never imports it",
   "@omnitech/database./migrate":
@@ -49,15 +49,6 @@ const surfaces: Record<string, SurfaceRow> = {
   "@omnitech/capture-companion": { entrypoints: 2, names: 75 },
   // +2: heartbeatDiagnosticsSchema and HeartbeatDiagnostics, the companion's state as codes on a heartbeat.
   "@omnitech/active-session-contracts": { entrypoints: 1, names: 81 },
-  "@omnitech/agent-job-service": { entrypoints: 1, names: 12 },
-  "@omnitech/agent-runtime-claude": { entrypoints: 1, names: 2 },
-  "@omnitech/agent-runtime-codex": { entrypoints: 1, names: 2 },
-  "@omnitech/agent-runtime-contracts": { entrypoints: 1, names: 17 },
-  "@omnitech/ai-contracts": { entrypoints: 1, names: 35 },
-  "@omnitech/ai-provider-anthropic": { entrypoints: 1, names: 2 },
-  "@omnitech/ai-provider-images": { entrypoints: 1, names: 11 },
-  "@omnitech/ai-provider-openai": { entrypoints: 1, names: 4 },
-  "@omnitech/ai-runtime": { entrypoints: 2, names: 13 },
   // +3: the host runner service and its client (RemoteCodeRunner,
   // RemoteCodeRunnerOptions, createRunnerHandler), for a containerised web app.
   "@omnitech/code-runner": { entrypoints: 1, names: 6 },
@@ -111,8 +102,11 @@ const surfaces: Record<string, SurfaceRow> = {
   "@omnitech/platform-api": { entrypoints: 1, names: 2 },
   "@omnitech/platform-contracts": { entrypoints: 1, names: 23 },
   "@omnitech/platform-integrations": { entrypoints: 1, names: 12 },
-  "@omnitech/platform-runtime": { entrypoints: 1, names: 7 },
-  "@omnitech/platform-storage": { entrypoints: 3, names: 38 },
+  // +1 entrypoint and +6 names: ./ai-config, the hosts' env-driven model and
+  // agent-profile resolution, moved here when ai-runtime went into the AI engine.
+  "@omnitech/platform-runtime": { entrypoints: 2, names: 13 },
+  // +1: agentPayloadSecret, moved here when agent-job-service went into the AI engine.
+  "@omnitech/platform-storage": { entrypoints: 3, names: 39 },
   "@omnitech/product-interview": { entrypoints: 6, names: 83 },
   "@omnitech/product-presentation": { entrypoints: 3, names: 11 },
 };

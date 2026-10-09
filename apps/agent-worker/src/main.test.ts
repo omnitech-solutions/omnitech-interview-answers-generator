@@ -4,12 +4,12 @@ import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import type { AgentJob } from "@omnitech/agent-job-service";
+import type { AgentJob } from "@omnitech/ai-engine/jobs";
 import type {
   AgentEvent,
   AgentProfile,
   AgentRuntimeAdapter,
-} from "@omnitech/agent-runtime-contracts";
+} from "@omnitech/ai-engine/providers/agents";
 import {
   createPlatformDatabase,
   type PlatformDatabase,

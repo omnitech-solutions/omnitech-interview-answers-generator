@@ -1,0 +1,63 @@
+// Where this worker's AI runs are kept (ADR-0037). One decision for both
+// loops: the session loop's model calls and the job loop's agent runs are kept
+// the same way, in the same place, or not at all.
+import {
+  type ConnectedEngineStore,
+  connectEngineStore,
+} from "@omnitech/ai-engine/store/postgres";
+import {
+  combineTraces,
+  createOtelTrace,
+  type TraceConfig,
+} from "@omnitech/ai-engine/trace";
+
+type Environment = Readonly<Record<string, string | undefined>>;
+
+// A Postgres with the engine's tables (`ai-engine db setup`). Absent: runs are
+// timed, logged and exported as telemetry spans, and none is kept.
+export const ENGINE_DATABASE_ENV = "AI_ENGINE_DATABASE_URL";
+// "full" keeps prompts and answers with each step, for development. Any other
+// value keeps ids, timing and usage, and no content (AGENTS.md rule 8).
+export const ENGINE_CAPTURE_ENV = "AI_ENGINE_CAPTURE";
+// The engine's own log lines (ids and numbers, never content). Absent: none.
+export const ENGINE_LOG_ENV = "AI_ENGINE_LOG_LEVEL";
+
+export type EngineTrace = {
+  trace: TraceConfig;
+  // Ends the connection the runs are kept through.
+  close(): Promise<void>;
+};
+
+export function engineTrace(
+  env: Environment,
+  log?: (line: string) => void,
+): EngineTrace {
+  const url = env[ENGINE_DATABASE_ENV]?.trim();
+  let connected: ConnectedEngineStore | undefined;
+  if (url) {
+    connected = connectEngineStore(url);
+    // Said once, so a store that does not answer is seen and not guessed at.
+    void connected
+      .ready()
+      .then((ready) =>
+        log?.(
+          ready
+            ? "ai engine: runs are kept in the engine's database"
+            : "ai engine: the engine's database did not answer; runs are not kept",
+        ),
+      );
+  }
+  return {
+    trace: {
+      // A telemetry span for every step; it does nothing until the host
+      // registers an OpenTelemetry SDK.
+      sink: connected
+        ? combineTraces(connected.store.trace, createOtelTrace())
+        : createOtelTrace(),
+      capture: env[ENGINE_CAPTURE_ENV] === "full" ? "full" : "metadata",
+    },
+    close: async () => {
+      await connected?.close().catch(() => undefined);
+    },
+  };
+}

@@ -8,7 +8,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { type Fixture, startFixture } from "./live-session-fixture";
 import {
   buildProcessor,
-  createFakeGateway,
+  createFakeEngine,
   NEVER_ABORTED,
   startSessionFor,
 } from "./processor-fixture";
@@ -35,18 +35,18 @@ const QUESTIONS = [
 
 async function world(name: string) {
   const started = await startSessionFor(fx, repo, fx.tenantA, name);
-  const gateway = createFakeGateway();
+  const engine = createFakeEngine();
   let now = 1_000_000;
   const build = (workerId: string) =>
     buildProcessor(fx, {
       workerId,
-      gateway,
+      engine,
       clock: { nowMs: () => now },
       options: { settleMs: 1_500 },
     });
   const processor = build(`w-${name}`);
   cleanups.push(async () => {
-    gateway.releaseAll();
+    engine.releaseAll();
     await processor.close();
     await repo
       .controlSession(started.scope, started.sessionId, "end")
@@ -60,7 +60,7 @@ async function world(name: string) {
       endMs: index * 20_000 + 2_000,
       text: QUESTIONS[index] as string,
     });
-  // `drain` waits for started dispatches; a held gateway never drains.
+  // `drain` waits for started dispatches; a held engine never drains.
   const tick = async (proc = processor, times = 3, drain = true) => {
     for (let i = 0; i < times; i += 1) {
       now += 2_000;
@@ -69,7 +69,7 @@ async function world(name: string) {
     }
   };
   const stored = () => repo.listActions(started.scope, started.sessionId);
-  return { ...started, gateway, processor, build, ask, tick, stored };
+  return { ...started, engine, processor, build, ask, tick, stored };
 }
 
 describe("owner stop work", () => {
@@ -77,12 +77,12 @@ describe("owner stop work", () => {
     const w = await world("stop-work-main");
     await w.ask(0);
     await w.ask(1);
-    const hold = w.gateway.hold();
-    // Question 0 is in the air (held in the gateway); question 1 waits for the
+    const hold = w.engine.hold();
+    // Question 0 is in the air (held in the engine); question 1 waits for the
     // assist slot.
     await w.tick(w.processor, 2, false);
-    await w.gateway.called(1);
-    expect(w.gateway.requests).toHaveLength(1);
+    await w.engine.called(1);
+    expect(w.engine.requests).toHaveLength(1);
 
     const view = await repo.stopWork(w.scope, w.sessionId);
     expect(view.status).toBe("active");
@@ -91,7 +91,7 @@ describe("owner stop work", () => {
     hold.release();
     await w.tick(w.processor, 4);
 
-    expect(w.gateway.requests).toHaveLength(1);
+    expect(w.engine.requests).toHaveLength(1);
     const rows = await w.stored();
     expect(rows.some((row) => row.dispatchStatus === "succeeded")).toBe(false);
     expect(rows.some((row) => row.dispatchStatus === "in_flight")).toBe(false);
@@ -104,7 +104,7 @@ describe("owner stop work", () => {
     // A later heard question is new work and dispatches normally.
     await w.ask(2);
     await w.tick(w.processor, 4);
-    expect(w.gateway.requests).toHaveLength(2);
+    expect(w.engine.requests).toHaveLength(2);
     const later = await w.stored();
     expect(
       later.filter((row) => row.dispatchStatus === "succeeded"),
@@ -114,9 +114,9 @@ describe("owner stop work", () => {
   it("does not re-dispatch abandoned revisions in a rebuilt run, and a new revision still dispatches", async () => {
     const w = await world("stop-work-rebuild");
     await w.ask(0);
-    const hold = w.gateway.hold();
+    const hold = w.engine.hold();
     await w.tick(w.processor, 2, false);
-    await w.gateway.called(1);
+    await w.engine.called(1);
     await repo.stopWork(w.scope, w.sessionId);
     await w.tick(w.processor, 1, false);
     hold.release();
@@ -127,12 +127,12 @@ describe("owner stop work", () => {
     const rebuilt = w.build("w-stop-work-rebuild-2");
     cleanups.push(() => rebuilt.close());
     await w.tick(rebuilt, 5);
-    expect(w.gateway.requests).toHaveLength(1);
+    expect(w.engine.requests).toHaveLength(1);
 
     // A newer question after the stop is its own task and answers.
     await w.ask(1);
     await w.tick(rebuilt, 4);
-    expect(w.gateway.requests).toHaveLength(2);
+    expect(w.engine.requests).toHaveLength(2);
   }, 60_000);
 
   it("refuses a paused or ended session and another owner's session without a side effect", async () => {

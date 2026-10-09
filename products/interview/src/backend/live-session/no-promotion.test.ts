@@ -15,7 +15,7 @@ import { INTERVIEW_ANSWER_PROFILE } from "../../assistant-profile";
 import { type Fixture, startFixture } from "./live-session-fixture";
 import {
   buildProcessor,
-  createFakeGateway,
+  createFakeEngine,
   seedMatrixProfile,
   settle,
   startSessionForPerson,
@@ -173,9 +173,9 @@ describe("no promotion: a full coding and answer run", () => {
 
     // A coding task (solution and session draft) and an experience question
     // whose draft carries a claim the approved matrix does not support.
-    const gateway = createFakeGateway({
+    const engine = createFakeEngine({
       result: (request) => {
-        const prompt = request.task.prompt;
+        const prompt = request.prompt;
         if (prompt.startsWith("TASK: solve_code"))
           return {
             language: "typescript",
@@ -219,7 +219,7 @@ describe("no promotion: a full coding and answer run", () => {
     });
     const processor = buildProcessor(fx, {
       workerId: "worker-no-promotion",
-      gateway,
+      engine,
       codeRunner: {
         runAll: async () => ({
           stdout: "",
@@ -261,7 +261,7 @@ describe("no promotion: a full coding and answer run", () => {
       ]),
     );
     expect(
-      gateway.requests.some((r) => r.profileId === INTERVIEW_ANSWER_PROFILE),
+      engine.requests.some((r) => r.profileId === INTERVIEW_ANSWER_PROFILE),
     ).toBe(true);
     // The session wrote its own draft - and nothing else outside its tables.
     const drafts = await fx.owner.query(

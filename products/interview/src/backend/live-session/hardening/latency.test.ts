@@ -8,7 +8,7 @@
 //   processing  real wall-clock time the processor spent from that
 //               utterance's delivery (companion -> route -> store) to the
 //               dispatch finishing; excludes the simulated model.
-// What this does NOT measure: the real model's latency. The gateway is a fake
+// What this does NOT measure: the real model's latency. The engine is a fake
 // that answers instantly and a constant stands in for the model, so the real
 // question-to-first-draft latency stays UNOBSERVED here; it would be settled
 // by one agreed rehearsal against a real provider with the packaged companion.
@@ -17,7 +17,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { INTERVIEW_SESSION_FAST_PROFILE } from "../../../assistant-profile";
 import {
   buildProcessor,
-  createFakeGateway,
+  createFakeEngine,
   NEVER_ABORTED,
 } from "../processor-fixture";
 import { capturedLines } from "../replay-evidence-fixture";
@@ -83,10 +83,10 @@ async function replayAt(
   const run = world.companion(owner);
   const { clock } = run;
   await run.open();
-  const gateway = createFakeGateway();
+  const engine = createFakeEngine();
   const processor = buildProcessor(world.fx, {
     workerId: `worker-latency-${name}-${speed}`,
-    gateway,
+    engine,
     clock: { nowMs: () => clock.now() },
     options: { settleMs: SETTLE_MS },
   });
@@ -115,8 +115,8 @@ async function replayAt(
     await processor.tick(NEVER_ABORTED);
     await processor.idle();
     const wallDone = Date.now();
-    while (calls.length < gateway.requests.length) {
-      const request = gateway.requests[calls.length];
+    while (calls.length < engine.requests.length) {
+      const request = engine.requests[calls.length];
       if (!request) break;
       const segment = trigger(request);
       calls.push({

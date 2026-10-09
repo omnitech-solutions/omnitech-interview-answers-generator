@@ -14,7 +14,7 @@ import {
 
 const SESSION = "11111111-1111-4111-8111-111111111111";
 const REF = `snap/${SESSION}/screen/shot-1`;
-const owner = { tenantId: "t", userId: "u" };
+const owner = { tenantId: "t", actorId: "u" };
 
 function png(width: number, height: number): Buffer {
   const chunk = (type: string, data: Buffer) => {

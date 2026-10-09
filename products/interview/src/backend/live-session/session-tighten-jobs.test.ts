@@ -8,7 +8,7 @@ import { afterAll, beforeAll, expect, it } from "vitest";
 import {
   QUESTION,
   runResult,
-  scriptedGateway,
+  scriptedEngine,
   solutionFor,
 } from "./coding-fixture";
 import type { AgentEscalationPort } from "./escalation";
@@ -16,7 +16,7 @@ import { type Fixture, startFixture } from "./live-session-fixture";
 import {
   buildProcessor,
   collectTraces,
-  createFakeGateway,
+  createFakeEngine,
   insertSessionJob,
   NEVER_ABORTED,
   settle,
@@ -45,7 +45,7 @@ it("cancels a queued agent job when the session tightens to device-only", async 
     runAll: async () =>
       runResult({ exitCode: 1, tests: [{ name: "t0", status: "failed" }] }),
   };
-  const gateway = scriptedGateway({
+  const engine = scriptedEngine({
     solution: (req) =>
       solutionFor(req, { escalation: "repository-navigation" }),
   });
@@ -71,7 +71,7 @@ it("cancels a queued agent job when the session tightens to device-only", async 
   };
   const processor = buildProcessor(fx, {
     workerId: "w-tighten-queued",
-    gateway,
+    engine,
     trace: collectTraces(),
     codeRunner: runner,
     agentEscalation: port,
@@ -85,7 +85,7 @@ it("cancels a queued agent job when the session tightens to device-only", async 
       [started.sessionId],
     );
   for (let i = 0; i < 100; i += 1) {
-    gateway.releaseAll?.();
+    engine.releaseAll?.();
     await processor.tick(NEVER_ABORTED);
     if ((await jobsOf()).rows.length > 0) break;
     await new Promise((resolve) => setTimeout(resolve, 20));
@@ -99,7 +99,7 @@ it("cancels a queued agent job when the session tightens to device-only", async 
     started.sessionId,
     "device-only",
   );
-  gateway.releaseAll?.();
+  engine.releaseAll?.();
   await settle(processor, 20);
 
   const ids = before.map((row) => row.id);
@@ -144,7 +144,7 @@ it("retries a failed cancellation of a queued job on later ticks once the policy
   };
   const processor = buildProcessor(fx, {
     workerId: "w-tighten-retry",
-    gateway: createFakeGateway(),
+    engine: createFakeEngine(),
     jobs: flaky,
   });
   const status = async () =>

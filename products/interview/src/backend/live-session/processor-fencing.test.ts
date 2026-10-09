@@ -9,7 +9,7 @@ import { type Fixture, startFixture } from "./live-session-fixture";
 import {
   buildProcessor,
   collectTraces,
-  createFakeGateway,
+  createFakeEngine,
   expireLease,
   insertSessionJob,
   NEVER_ABORTED,
@@ -53,16 +53,16 @@ async function start(name: string) {
 }
 function processorFor(
   workerId: string,
-  gateway = createFakeGateway(),
+  engine = createFakeEngine(),
   extra = {},
 ) {
   const trace = collectTraces();
-  const processor = buildProcessor(fx, { workerId, gateway, trace, ...extra });
+  const processor = buildProcessor(fx, { workerId, engine, trace, ...extra });
   cleanups.unshift(async () => {
-    gateway.releaseAll();
+    engine.releaseAll();
     await processor.close();
   });
-  return { processor, gateway, trace };
+  return { processor, engine, trace };
 }
 const actionsOf = (w: {
   scope: { tenantId: string; actorId: string };
@@ -97,9 +97,9 @@ describe("lease and fence", () => {
     const w = await start("fence-successor");
     for (const segment of opening()) await w.ingestor.ingest(segment);
     const older = processorFor("worker-older");
-    const hold = older.gateway.hold();
+    const hold = older.engine.hold();
     await older.processor.tick(NEVER_ABORTED);
-    await older.gateway.called(1);
+    await older.engine.called(1);
     expect(older.processor.snapshot(w.sessionId)?.fence).toBe(1);
 
     // The older lease expires; a successor claims at a higher fence.
@@ -128,17 +128,17 @@ describe("lease and fence", () => {
     await older.processor.tick(NEVER_ABORTED);
     expect(older.processor.snapshot(w.sessionId)).toBeUndefined();
     expect(await actionsOf(w)).toEqual(afterSuccessor);
-    expect(newer.gateway.requests).toHaveLength(1);
-    expect(older.gateway.requests).toHaveLength(1);
+    expect(newer.engine.requests).toHaveLength(1);
+    expect(older.engine.requests).toHaveLength(1);
   });
 
   it("makes a restarted worker outrank its earlier self under the same id", async () => {
     const w = await start("fence-restart");
     for (const segment of opening()) await w.ingestor.ingest(segment);
     const earlier = processorFor("worker-same");
-    const hold = earlier.gateway.hold();
+    const hold = earlier.engine.hold();
     await earlier.processor.tick(NEVER_ABORTED);
-    await earlier.gateway.called(1);
+    await earlier.engine.called(1);
 
     // A restarted process reuses the id and re-acquires its own live lease.
     const restarted = processorFor("worker-same");
@@ -162,9 +162,9 @@ describe("pause and end suppression", () => {
     for (const segment of opening()) await w.ingestor.ingest(segment);
     const jobId = await insertSessionJob(fx, w, fx.tenantA);
     const p = processorFor("worker-pause");
-    const hold = p.gateway.hold();
+    const hold = p.engine.hold();
     await p.processor.tick(NEVER_ABORTED);
-    await p.gateway.called(1);
+    await p.engine.called(1);
 
     await repo.controlSession(w.scope, w.sessionId, "pause");
     hold.release();
@@ -188,16 +188,16 @@ describe("pause and end suppression", () => {
     // The processor sees the pause, refuses new dispatch and lets the run go.
     await p.processor.tick(NEVER_ABORTED);
     expect(p.processor.snapshot(w.sessionId)).toBeUndefined();
-    expect(p.gateway.requests).toHaveLength(1);
+    expect(p.engine.requests).toHaveLength(1);
   });
 
   it("never publishes a result dispatched before a pause, even after a resume, and answers the resumed session", async () => {
     const w = await start("pause-resume-inflight");
     for (const segment of opening()) await w.ingestor.ingest(segment);
     const p = processorFor("worker-resume");
-    const hold = p.gateway.hold();
+    const hold = p.engine.hold();
     await p.processor.tick(NEVER_ABORTED);
-    await p.gateway.called(1);
+    await p.engine.called(1);
 
     // Pause and resume land while the model call is still in flight.
     await repo.controlSession(w.scope, w.sessionId, "pause");
@@ -225,7 +225,7 @@ describe("pause and end suppression", () => {
     const w = await start("pause-suppressed-retry");
     for (const segment of opening()) await w.ingestor.ingest(segment);
     let paused = false;
-    const p = processorFor("worker-retry", createFakeGateway(), {
+    const p = processorFor("worker-retry", createFakeEngine(), {
       wrapStore: (store: SessionStorePort): SessionStorePort => ({
         ...store,
         recordAction: async (input) => {
@@ -239,21 +239,21 @@ describe("pause and end suppression", () => {
     });
     await p.processor.tick(NEVER_ABORTED);
     await p.processor.idle();
-    expect(p.gateway.requests).toHaveLength(0);
+    expect(p.engine.requests).toHaveLength(0);
     await p.processor.tick(NEVER_ABORTED);
     expect(p.processor.snapshot(w.sessionId)).toBeUndefined();
 
     await repo.controlSession(w.scope, w.sessionId, "resume");
     await settle(p.processor);
     await settle(p.processor);
-    expect(p.gateway.requests).toHaveLength(1);
+    expect(p.engine.requests).toHaveLength(1);
     const rows = await actionsOf(w);
     expect(rows.filter((a) => a.dispatchStatus === "succeeded")).toHaveLength(
       1,
     );
     // Dedup intact: more ticks do not answer it again.
     await settle(p.processor);
-    expect(p.gateway.requests).toHaveLength(1);
+    expect(p.engine.requests).toHaveLength(1);
   });
 
   it("pauses a session whose credential expired, cancelling its jobs, and publishes nothing late", async () => {
@@ -261,9 +261,9 @@ describe("pause and end suppression", () => {
     for (const segment of opening()) await w.ingestor.ingest(segment);
     const jobId = await insertSessionJob(fx, w, fx.tenantA);
     const p = processorFor("worker-expiry");
-    const hold = p.gateway.hold();
+    const hold = p.engine.hold();
     await p.processor.tick(NEVER_ABORTED);
-    await p.gateway.called(1);
+    await p.engine.called(1);
 
     await fx.owner.query(
       "UPDATE interview.active_sessions SET credential_expires_at = now() - interval '1 second' WHERE id=$1",
@@ -292,13 +292,13 @@ describe("pause and end suppression", () => {
   it("does not publish a result that returns after the session ended, then purges it", async () => {
     const w = await start("end-inflight");
     for (const segment of opening()) await w.ingestor.ingest(segment);
-    const p = processorFor("worker-end", createFakeGateway(), {
+    const p = processorFor("worker-end", createFakeEngine(), {
       sweeps: true,
       options: { sweepEveryMs: 0 },
     });
-    const hold = p.gateway.hold();
+    const hold = p.engine.hold();
     await p.processor.tick(NEVER_ABORTED);
-    await p.gateway.called(1);
+    await p.engine.called(1);
 
     await repo.controlSession(w.scope, w.sessionId, "end");
     hold.release();
@@ -339,7 +339,7 @@ describe("pause and end suppression", () => {
     const w = await start("pause-before-dispatch");
     for (const segment of opening()) await w.ingestor.ingest(segment);
     let paused = false;
-    const p = processorFor("worker-prepause", createFakeGateway(), {
+    const p = processorFor("worker-prepause", createFakeEngine(), {
       wrapStore: (store: SessionStorePort): SessionStorePort => ({
         ...store,
         recordAction: async (input) => {
@@ -354,7 +354,7 @@ describe("pause and end suppression", () => {
     await p.processor.tick(NEVER_ABORTED);
     await p.processor.idle();
 
-    expect(p.gateway.requests).toHaveLength(0);
+    expect(p.engine.requests).toHaveLength(0);
     expect(await actionsOf(w)).toMatchObject([
       { dispatchStatus: "suppressed", suppressionReason: "session_paused" },
     ]);
@@ -367,7 +367,7 @@ describe("isolation", () => {
     const good = await start("iso-good");
     for (const w of [bad, good])
       for (const segment of opening()) await w.ingestor.ingest(segment);
-    const p = processorFor("worker-iso", createFakeGateway(), {
+    const p = processorFor("worker-iso", createFakeEngine(), {
       wrapStore: (store: SessionStorePort): SessionStorePort => ({
         ...store,
         reconcile: async (scope, sessionId) => {
@@ -395,7 +395,7 @@ describe("isolation", () => {
   it("never lets a throwing trace sink stop the loop", async () => {
     const w = await start("iso-sink");
     for (const segment of opening()) await w.ingestor.ingest(segment);
-    const p = processorFor("worker-sink", createFakeGateway(), {
+    const p = processorFor("worker-sink", createFakeEngine(), {
       trace: {
         emit: () => {
           throw new Error("sink down");
@@ -417,7 +417,7 @@ describe("cross-user (same tenant)", () => {
     await b.ingestor.ingest(base, "Tell me about CANARY-OWNER-B-TOPIC please?");
 
     const seen: Array<[string, string]> = [];
-    const p = processorFor("worker-cross", createFakeGateway(), {
+    const p = processorFor("worker-cross", createFakeEngine(), {
       wrapStore: (store: SessionStorePort): SessionStorePort => ({
         ...store,
         observationsAfter: (scope, sessionId, ...rest) => {
@@ -434,13 +434,13 @@ describe("cross-user (same tenant)", () => {
       const owner = [a, b].find((w) => w.person.id === actor);
       expect(owner?.sessionId).toBe(session);
     }
-    expect(p.gateway.requests).toHaveLength(2);
-    for (const request of p.gateway.requests) {
-      const mine = request.context.userId === a.person.id ? "A" : "B";
+    expect(p.engine.requests).toHaveLength(2);
+    for (const request of p.engine.requests) {
+      const mine = request.scope.actorId === a.person.id ? "A" : "B";
       const theirs = mine === "A" ? "B" : "A";
-      expect(request.task.prompt).toContain(`CANARY-OWNER-${mine}-TOPIC`);
-      expect(request.task.prompt).not.toContain(`CANARY-OWNER-${theirs}-TOPIC`);
-      expect(request.context.tenantId).toBe(fx.tenantA);
+      expect(request.prompt).toContain(`CANARY-OWNER-${mine}-TOPIC`);
+      expect(request.prompt).not.toContain(`CANARY-OWNER-${theirs}-TOPIC`);
+      expect(request.scope.tenantId).toBe(fx.tenantA);
     }
   });
 
@@ -448,7 +448,7 @@ describe("cross-user (same tenant)", () => {
     const a = await start("claim-a");
     const b = await start("claim-b");
     for (const segment of opening()) await b.ingestor.ingest(segment);
-    const p = processorFor("worker-forged", createFakeGateway(), {
+    const p = processorFor("worker-forged", createFakeEngine(), {
       // A forged claim: owner A's identity on owner B's session id.
       wrapClaim: (claim: SessionClaimPort) => ({
         ...claim,
@@ -465,7 +465,7 @@ describe("cross-user (same tenant)", () => {
     await p.processor.tick(NEVER_ABORTED);
     await p.processor.idle();
 
-    expect(p.gateway.requests).toHaveLength(0);
+    expect(p.engine.requests).toHaveLength(0);
     expect(await actionsOf(b)).toHaveLength(0);
     expect(
       p.trace.events.find((e) => e.event === "session.error"),

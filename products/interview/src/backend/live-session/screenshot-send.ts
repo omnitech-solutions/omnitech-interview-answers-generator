@@ -5,8 +5,9 @@
 // evidence the gate weighs (they were validated and bounded on the way in).
 // Everything returned is ids, names, ordinals and closed words, plus the
 // machine-read texts the prompt already carries; nothing here is logged.
-import type { AgentAttachment } from "@omnitech/ai-contracts";
+
 import type { LiveScreenshotSend } from "@omnitech/interview-contracts";
+import type { SessionAttachment } from "./engine-call";
 import { imageGate, type ScreenshotSent } from "./image-gate";
 import type { ScreenshotText } from "./screenshot-text";
 import { type SessionRun, screenshotTextFor } from "./session-run";
@@ -15,7 +16,7 @@ export type ScreenshotOutcome = { ordinal: number; sent: ScreenshotSent };
 
 export type ScreenshotPlan = {
   // The images that travel with the call, named screenshot-1..K in order.
-  images: AgentAttachment[];
+  images: SessionAttachment[];
   // The on-screen texts the prompt carries (image: null when withheld).
   texts: ScreenshotText[];
   // Screenshots whose image was withheld and that have no text to give.
@@ -26,7 +27,7 @@ export type ScreenshotPlan = {
 
 export function planScreenshots(
   run: SessionRun,
-  attachments: readonly AgentAttachment[],
+  attachments: readonly SessionAttachment[],
   setting: LiveScreenshotSend,
   kind: "permitted-remote" | "device-only",
 ): ScreenshotPlan {
@@ -45,7 +46,7 @@ export function planScreenshots(
       sent = setting === "never" ? "none" : "image";
     return { attachment, known, label, sent };
   });
-  const images: AgentAttachment[] = [];
+  const images: SessionAttachment[] = [];
   const names = new Map<string, string>();
   for (const entry of decided) {
     if (entry.sent !== "image") continue;

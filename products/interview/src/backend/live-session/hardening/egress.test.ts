@@ -1,17 +1,16 @@
 // Hardening case 6 (PB-0002 slice 3): remote egress is blocked in device-only
 // across the WHOLE question -> draft path, two ways at once:
-//   - spy provider adapters behind the REAL gateway (a remote adapter that is
+//   - spy provider ports behind the REAL engine (a remote adapter that is
 //     ever called fails the assertion), and
 //   - a network-level guard (global fetch, http(s), TCP connect) that records
 //     and refuses any destination other than loopback and the test database.
 // The path is the real one: fixture companion -> real routes -> real
-// processor -> real gateway -> stored draft -> the owner's own reads.
-import type { ModelProviderAdapter } from "@omnitech/ai-contracts";
+// processor -> real engine -> stored draft -> the owner's own reads.
 import {
-  type AgentExecutionPort,
-  type AiProfile,
-  createAiExecutionGateway,
-} from "@omnitech/ai-runtime";
+  createAiEngine,
+  type ModelPort,
+  type Profile,
+} from "@omnitech/ai-engine";
 import * as fixture from "@omnitech/capture-companion/fixture";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
@@ -38,66 +37,33 @@ afterEach(async () => {
 });
 afterAll(() => world?.stop());
 
-const noAgents = {} as AgentExecutionPort;
 const opening = RECRUITER_SCREEN[0]?.segments ?? [];
 
-// One spy per target, recording each call that reaches it by target id.
-function spyModel(targetId: string, calls: string[]): ModelProviderAdapter {
+// One spy port per provider: the calls that reach it, by provider name. The
+// canned draft is written as text, as a model API writes structured output;
+// the engine checks it against the schema and ends the call done.
+function spyModel(provider: string, calls: string[]): ModelPort {
   return {
-    providerId: targetId,
-    modelId: targetId,
-    capabilities: {
-      streaming: false,
-      structuredOutput: true,
-      tools: false,
-      vision: false,
-      search: false,
-    },
-    async listModels() {
-      return [];
-    },
-    async execute() {
-      calls.push(targetId);
-      return {
-        executionId: `spy-${targetId}`,
-        family: "direct-model",
-        targetId,
-        result: CANNED_DRAFT,
-      };
-    },
-    // The draft-answer stage streams (session-dispatch.ts): the canned draft
-    // is written as text, then completed; the spy records the stream and the
-    // execute it goes through.
-    async *stream(request) {
-      calls.push(`${targetId}.stream`);
-      const execution = await this.execute(request);
-      yield { type: "text-delta", text: JSON.stringify(execution.result) };
-      yield { type: "completed", result: execution.result };
-    },
-    async *streamStructured() {
-      yield* [];
-      calls.push(`${targetId}.streamStructured`);
+    async *stream() {
+      calls.push(provider);
+      yield { type: "text", text: JSON.stringify(CANNED_DRAFT) };
     },
   };
 }
 const profile = (
   id: string,
-  targetId: string,
-  locality: AiProfile["locality"],
-): AiProfile => ({
+  provider: string,
+  locality: Profile["locality"],
+): Profile => ({
   id,
-  label: id,
-  family: "direct-model",
-  targetId,
-  taskTypes: ["structured-generation"],
-  enabled: true,
+  provider,
   ...(locality === undefined ? {} : { locality }),
 });
 
 async function runPath(
   name: string,
   policy: "device-only" | "permitted-remote",
-  deviceLocality: AiProfile["locality"],
+  deviceLocality: Profile["locality"],
   // Runs after the first segment is stored and before the worker looks at the
   // session: where a mid-session tightening lands.
   between: (
@@ -105,15 +71,16 @@ async function runPath(
   ) => Promise<void> = async () => {},
 ) {
   const calls: string[] = [];
-  const gateway = createAiExecutionGateway({
+  const engine = createAiEngine({
     profiles: [
       profile(INTERVIEW_SESSION_FAST_PROFILE, "remote-model", "remote"),
       profile(INTERVIEW_SESSION_DEVICE_PROFILE, "device-model", deviceLocality),
     ],
-    models: [spyModel("remote-model", calls), spyModel("device-model", calls)],
-    images: [],
-    agents: noAgents,
-    authorize: async () => true,
+    providers: {
+      "remote-model": spyModel("remote-model", calls),
+      "device-model": spyModel("device-model", calls),
+    },
+    authorize: () => true,
   });
   const owner = await world.begin(name, {
     processingPolicy: policy,
@@ -144,7 +111,7 @@ async function runPath(
   const trace = collectTraces();
   const processor = buildProcessor(world.fx, {
     workerId: `worker-egress-${name}`,
-    gateway,
+    engine,
     trace,
   });
   cleanups.push(async () => {
@@ -168,7 +135,7 @@ async function runPath(
 describe("device-only: no remote call anywhere on the question -> draft path", () => {
   it("drafts through the device adapter alone, with nothing leaving the machine", async () => {
     const result = await runPath("egress-device", "device-only", "device");
-    expect(result.calls).toEqual(["device-model.stream", "device-model"]);
+    expect(result.calls).toEqual(["device-model"]);
     expect(
       result.actions.some((action) => action.dispatchStatus === "succeeded"),
     ).toBe(true);
@@ -215,7 +182,7 @@ describe("device-only: no remote call anywhere on the question -> draft path", (
         expect(tightened.status).toBe(200);
       },
     );
-    expect(result.calls).toEqual(["device-model.stream", "device-model"]);
+    expect(result.calls).toEqual(["device-model"]);
     expect(result.guard.blocked).toEqual([]);
   }, 60_000);
 });
@@ -227,7 +194,7 @@ describe("controls: the checks can fail", () => {
       "permitted-remote",
       "device",
     );
-    expect(result.calls).toEqual(["remote-model.stream", "remote-model"]);
+    expect(result.calls).toEqual(["remote-model"]);
   }, 60_000);
 
   it("records and refuses a real egress attempt (fetch, http and TCP)", async () => {

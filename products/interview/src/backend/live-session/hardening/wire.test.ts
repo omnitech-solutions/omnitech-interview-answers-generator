@@ -12,11 +12,7 @@
 import type { FetchLike } from "@omnitech/capture-companion/fixture";
 import * as fixture from "@omnitech/capture-companion/fixture";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import {
-  buildProcessor,
-  createFakeGateway,
-  settle,
-} from "../processor-fixture";
+import { buildProcessor, createFakeEngine, settle } from "../processor-fixture";
 import { ActiveSessionRepository } from "../repository";
 import { RECRUITER_SCREEN } from "../session-replay-fixtures";
 import { startWorld, type World } from "./world";
@@ -168,13 +164,13 @@ describe("reconnection with resend through the real routes (case 1)", () => {
 
     // Zero duplicate actions: the interrupted session is answered exactly as
     // the uninterrupted one, with no extra dispatch.
-    const gateway = createFakeGateway();
+    const engine = createFakeEngine();
     const processor = buildProcessor(world.fx, {
       workerId: "worker-reconnect",
-      gateway,
+      engine,
     });
     cleanups.push(async () => {
-      gateway.releaseAll();
+      engine.releaseAll();
       await processor.close();
     });
     await settle(processor);
@@ -191,7 +187,7 @@ describe("reconnection with resend through the real routes (case 1)", () => {
         `${action.taskId}/${action.taskRevision}/${action.actionKind}`,
     );
     expect(new Set(keys).size).toBe(keys.length);
-    expect(gateway.requests).toHaveLength(
+    expect(engine.requests).toHaveLength(
       flakyActions.length + steadyActions.length,
     );
   }, 90_000);
@@ -278,17 +274,17 @@ describe("conflicting observations (case 3)", () => {
     expect(all.rows[0].n).toBe(1);
 
     // The processor sees only the original words.
-    const gateway = createFakeGateway();
+    const engine = createFakeEngine();
     const processor = buildProcessor(world.fx, {
       workerId: "worker-conflict",
-      gateway,
+      engine,
     });
     cleanups.push(async () => {
-      gateway.releaseAll();
+      engine.releaseAll();
       await processor.close();
     });
     await settle(processor);
-    const prompts = JSON.stringify(gateway.requests);
+    const prompts = JSON.stringify(engine.requests);
     expect(prompts).not.toContain("secret word");
   }, 60_000);
 });

@@ -5,7 +5,7 @@ import { afterAll, beforeAll, expect, it } from "vitest";
 import { type Fixture, startFixture } from "./live-session-fixture";
 import {
   buildProcessor,
-  createFakeGateway,
+  createFakeEngine,
   NEVER_ABORTED,
   startSessionFor,
 } from "./processor-fixture";
@@ -26,7 +26,7 @@ it("does not fail a finished action when the next dispatch throws before recordi
   let failureCalls = 0;
   const processor = buildProcessor(fx, {
     workerId: "w-open-action",
-    gateway: createFakeGateway(),
+    engine: createFakeEngine(),
     clock: { nowMs: () => now },
     options: { settleMs: 1_500 },
     wrapStore: (store) => ({

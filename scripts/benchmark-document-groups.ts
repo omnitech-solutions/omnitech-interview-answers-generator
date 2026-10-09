@@ -1,14 +1,15 @@
-import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type {
-  AgentProfile,
-  AgentRuntimeAdapter,
-} from "@omnitech/agent-runtime-contracts";
-import type { AiExecutionGateway } from "@omnitech/ai-contracts";
-import { createClaudeRuntimeAdapter } from "../packages/agent-runtime-claude/src/index";
-import { createCodexRuntimeAdapter } from "../packages/agent-runtime-codex/src/index";
+import { createAiEngine } from "@omnitech/ai-engine";
+import {
+  type AgentProfile,
+  type AgentRuntimeAdapter,
+  createAgentModelPort,
+} from "@omnitech/ai-engine/providers/agents";
+import { createClaudeRuntimeAdapter } from "@omnitech/ai-engine/providers/agents/claude-sdk";
+import { createCodexRuntimeAdapter } from "@omnitech/ai-engine/providers/agents/codex-app-server";
+import { createMemoryTrace } from "@omnitech/ai-engine/trace";
 import { generateDocumentValues } from "../products/interview/src/backend/documents/generate";
 
 if (process.env["BENCHMARK_LIVE"] !== "1")
@@ -23,9 +24,11 @@ if (target !== "codex" && target !== "claude-code")
   throw new Error("TARGET must be codex or claude-code.");
 const adapter: AgentRuntimeAdapter =
   target === "codex"
-    ? createCodexRuntimeAdapter({
-        codexPathOverride: process.env["CODEX_PATH"],
-      })
+    ? createCodexRuntimeAdapter(
+        process.env["CODEX_PATH"]
+          ? { codexPathOverride: process.env["CODEX_PATH"] }
+          : {},
+      )
     : createClaudeRuntimeAdapter();
 const directory = await mkdtemp(join(tmpdir(), "omnitech-document-benchmark-"));
 const model =
@@ -85,43 +88,22 @@ const candidateProfile = {
   ],
   skills: ["TypeScript", "PostgreSQL", "React", "Vitest"],
 };
-let calls = 0;
-let tokens = 0;
-let costUsd = 0;
-let costKnown = true;
-const gateway: Pick<AiExecutionGateway, "execute"> = {
-  async execute(request) {
-    calls++;
-    const run = {
-      runId: randomUUID(),
-      profile,
-      prompt: request.task.prompt,
-      systemPrompt: request.task.system,
-      workingDirectory: directory,
-      additionalDirectories: [],
-      attachments: [],
-      outputSchema: request.task.schema,
-      timeoutMs: 120_000,
-    };
-    for await (const event of adapter.run(run)) {
-      if (event.type === "usage") {
-        tokens += event.usage.totalTokens ?? 0;
-        if (event.usage.costUsd === undefined) costKnown = false;
-        else costUsd += event.usage.costUsd;
-      }
-      if (event.type === "failed") throw new Error(event.error.message);
-      if (event.type === "completed")
-        return {
-          executionId: run.runId,
-          family: "agent",
-          targetId: target,
-          result: event.result.output,
-          usage: {},
-        };
-    }
-    throw new Error("Provider ended without a result.");
+// The runtime under test, as the engine's one profile. Every call the engine
+// makes (a repair turn included) leaves a record without content, which is
+// where the call, token and cost counts are read from.
+const trace = createMemoryTrace();
+const engine = createAiEngine({
+  profiles: [{ id: "benchmark", provider: "agent", kind: "agent" }],
+  providers: {
+    agent: createAgentModelPort({
+      runtime: adapter,
+      profiles: { benchmark: profile },
+      toolless: true,
+      workspace: async () => ({ path: directory, release: async () => {} }),
+    }),
   },
-};
+  trace: { sink: trace, capture: "metadata" },
+});
 try {
   const groups = [4, 1, 3, 5];
   for (let trial = 1; trial <= trials; trial++) {
@@ -129,21 +111,17 @@ try {
       ...groups.slice((trial - 1) % groups.length),
       ...groups.slice(0, (trial - 1) % groups.length),
     ]) {
-      calls = 0;
-      tokens = 0;
-      costUsd = 0;
-      costKnown = true;
+      const recordedBefore = trace.records.length;
       const start = performance.now();
       let firstModelFieldMs: number | null = null;
       let failure: string | null = null;
       try {
         await generateDocumentValues(
-          gateway,
+          engine,
           {
             tenantId: "benchmark",
             actorId: "benchmark",
             profileId: "benchmark",
-            targetId: target,
             templateId: "synthetic-resume",
             templateRevision: 1,
             candidateProfileRevisionId: "synthetic-profile-1",
@@ -168,6 +146,17 @@ try {
         );
       } catch (error) {
         failure = error instanceof Error ? error.message : "unknown";
+      }
+      await engine.traceSettled();
+      const records = trace.records.slice(recordedBefore);
+      const calls = records.length;
+      let tokens = 0;
+      let costUsd = 0;
+      let costKnown = true;
+      for (const { usage } of records) {
+        if (usage.status !== "unavailable") tokens += usage.totalTokens ?? 0;
+        if (usage.cost.status === "actual") costUsd += usage.cost.amount;
+        else costKnown = false;
       }
       // The benchmark log contains metrics only, never profile or model text.
       console.log(

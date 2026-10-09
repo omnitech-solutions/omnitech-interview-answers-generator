@@ -523,11 +523,11 @@ describe("New document dialog", () => {
 
   it("says so when the assistant's model cannot write documents", async () => {
     context.targets = [
-      { id: "target-1", label: "Primary model", family: "direct-model" },
+      { id: "target-1", label: "Primary model", kind: "model" },
       {
         id: "agent/claude-code",
         label: "Claude Code",
-        family: "agent-runtime",
+        kind: "agent",
       },
     ];
     localStorage.setItem(

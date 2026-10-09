@@ -1,6 +1,6 @@
 // The session processor over the synthetic recruiter-screen script, with the
 // real ingest path, the real repository and fenced writes on a disposable
-// PostgreSQL, and a fake gateway returning canned closed-schema output:
+// PostgreSQL, and a fake engine returning canned closed-schema output:
 // no task from backchannel or monologue, one logical task per question,
 // revisions that make the earlier answer stale, a deferred topic kept, an ASR
 // correction that supersedes an earlier segment, nothing published for stale
@@ -10,7 +10,8 @@ import { ingestObservation } from "./ingest";
 import { type Fixture, startFixture } from "./live-session-fixture";
 import {
   buildProcessor,
-  createFakeGateway,
+  createFakeEngine,
+  failed,
   NEVER_ABORTED,
   settle,
   startSessionFor,
@@ -31,16 +32,20 @@ afterEach(async () => {
 });
 afterAll(() => fx.stop());
 
-async function world(name: string, options = {}) {
+async function world(
+  name: string,
+  options = {},
+  behaviour: Parameters<typeof createFakeEngine>[0] = {},
+) {
   const started = await startSessionFor(fx, repo, fx.tenantA, name);
-  const gateway = createFakeGateway();
+  const engine = createFakeEngine(behaviour);
   const workerId = `worker-${name}`;
-  const processor = buildProcessor(fx, { workerId, gateway, ...options });
+  const processor = buildProcessor(fx, { workerId, engine, ...options });
   cleanups.push(async () => {
     await processor.close();
     await repo.controlSession(started.scope, started.sessionId, "end");
   });
-  return { ...started, gateway, processor };
+  return { ...started, engine, processor };
 }
 
 const actions = (w: {
@@ -66,7 +71,7 @@ describe("recruiter-screen replay through the real processor", () => {
     expect(snapshot?.tasks.map((t) => [t.taskId, t.revision])).toEqual([
       [Q1, 1],
     ]);
-    expect(w.gateway.requests).toHaveLength(1);
+    expect(w.engine.requests).toHaveLength(1);
 
     // 2. A filler, a long answer, then "part two": revision 2, the earlier
     // answer is stale (outdated), and a second answer is produced.
@@ -103,7 +108,7 @@ describe("recruiter-screen replay through the real processor", () => {
 
     // Four questions-worth of work: Q1 r1, Q1 r2, Q2 r1, Q2 r2 - and nothing
     // for the greeting, backchannels, filler, monologue or the deferred topic.
-    expect(w.gateway.requests).toHaveLength(4);
+    expect(w.engine.requests).toHaveLength(4);
     const stored = await actions(w);
     expect(
       stored.map((a) => [a.taskId, a.taskRevision, a.dispatchStatus]),
@@ -129,10 +134,12 @@ describe("recruiter-screen replay through the real processor", () => {
   it("records the executor's runtime and model on the published action", async () => {
     const generatedBy = { runtime: "claude-code", model: "claude-sonnet-5-5" };
     const started = await startSessionFor(fx, repo, fx.tenantA, "replay-by");
-    const gateway = createFakeGateway({ generatedBy });
+    const engine = createFakeEngine();
     const processor = buildProcessor(fx, {
       workerId: "worker-replay-by",
-      gateway,
+      engine,
+      // The host says which runtime and model a profile is.
+      answeredBy: () => generatedBy,
     });
     cleanups.push(async () => {
       await processor.close();
@@ -155,26 +162,29 @@ describe("recruiter-screen replay through the real processor", () => {
     for (const segment of RECRUITER_SCREEN[0]?.segments ?? [])
       await w.ingestor.ingest(segment);
     await settle(w.processor);
-    const request = w.gateway.requests[0];
-    expect(request?.task.type).toBe("structured-generation");
-    expect(request?.task.system).not.toContain("migration");
-    expect(request?.task.prompt).toContain("BEGIN CAPTURED DATA");
-    expect(request?.task.prompt).toContain("migration");
+    const request = w.engine.requests[0];
+    // A structured call: a schema travels with it (asserted closed below).
+    expect(request?.schema).toBeDefined();
+    expect(request?.system).not.toContain("migration");
+    expect(request?.prompt).toContain("BEGIN CAPTURED DATA");
+    expect(request?.prompt).toContain("migration");
     // The fast path has no tools and its output schema is closed.
     expect(request).not.toHaveProperty("tools");
-    expect(request?.task.schema).toMatchObject({ additionalProperties: false });
+    expect(request?.schema).toMatchObject({ additionalProperties: false });
     expect(request?.profileId).toBe("interview-session-fast");
-    expect(request?.processingPolicy).toBe("permitted-remote");
+    expect(request?.policy).toBe("permitted-remote");
   });
 
   it("publishes nothing for a revision that went stale while it was generating", async () => {
-    const w = await world("replay-stale");
+    // The answer was already on its way when the newer revision cancelled the
+    // call: it arrives late and must be refused at the fenced write.
+    const w = await world("replay-stale", {}, { answersAfterCancel: true });
     const [opening, followUp] = RECRUITER_SCREEN;
     for (const segment of opening?.segments ?? [])
       await w.ingestor.ingest(segment);
-    const hold = w.gateway.hold();
+    const hold = w.engine.hold();
     await w.processor.tick(NEVER_ABORTED);
-    await w.gateway.called(1);
+    await w.engine.called(1);
 
     // While revision 1 is being generated the follow-up arrives: revision 2.
     for (const segment of followUp?.segments ?? [])
@@ -239,16 +249,16 @@ describe("dispatch deduplication", () => {
 
     await settle(w.processor);
     await settle(w.processor);
-    expect(w.gateway.requests).toHaveLength(1);
+    expect(w.engine.requests).toHaveLength(1);
     expect(await actions(w)).toHaveLength(1);
   });
 
   it("dispatches a (task, revision, kind) once however many ticks run, including while in flight", async () => {
     const w = await world("dedup-ticks");
     for (const segment of firstQuestion()) await w.ingestor.ingest(segment);
-    const hold = w.gateway.hold();
+    const hold = w.engine.hold();
     await w.processor.tick(NEVER_ABORTED);
-    await w.gateway.called(1);
+    await w.engine.called(1);
     // Ticks while the first call is in flight start nothing.
     await w.processor.tick(NEVER_ABORTED);
     await w.processor.tick(NEVER_ABORTED);
@@ -256,19 +266,19 @@ describe("dispatch deduplication", () => {
     await w.processor.idle();
     for (let i = 0; i < 3; i += 1) await settle(w.processor);
 
-    expect(w.gateway.requests).toHaveLength(1);
+    expect(w.engine.requests).toHaveLength(1);
     expect(await actions(w)).toHaveLength(1);
   });
 
   it("retries a failed dispatch, deduplicated only against succeeded or in-flight work", async () => {
     let calls = 0;
     const w = await world("dedup-retry");
-    const failing = createFakeGateway({
-      fail: () => (++calls === 1 ? new Error("model unavailable") : undefined),
+    const failing = createFakeEngine({
+      fail: () => (++calls === 1 ? failed("unavailable") : undefined),
     });
     const processor = buildProcessor(fx, {
       workerId: "worker-dedup-retry-2",
-      gateway: failing,
+      engine: failing,
     });
     cleanups.push(() => processor.close());
     // Only the retrying processor may hold this session.
@@ -290,10 +300,10 @@ describe("dispatch deduplication", () => {
 
   it("stops retrying after the bound on failed dispatches", async () => {
     const w = await world("dedup-bound");
-    const failing = createFakeGateway({ fail: () => new Error("down") });
+    const failing = createFakeEngine({ fail: () => failed("unavailable") });
     const processor = buildProcessor(fx, {
       workerId: "worker-dedup-bound-2",
-      gateway: failing,
+      engine: failing,
       options: { maxAttempts: 3 },
     });
     cleanups.push(() => processor.close());

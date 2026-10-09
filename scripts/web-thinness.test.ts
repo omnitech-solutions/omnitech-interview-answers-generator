@@ -36,13 +36,13 @@ const sizeExemptions: readonly Ceiling[] = [
     file: "apps/web/src/platform/ai.ts",
     max: 640,
     reason:
-      "composes the AiExecutionGateway: model profiles, usage budgets and the image-provider adapters that still live in the shell; the audit schedules moving them behind ai-provider-images",
+      "composes the web host's AiEngine from the environment: profiles, providers, catalogues, agent jobs, the trace, and the four image providers' request shapes handed to the engine's image port",
   },
   {
     file: "apps/web/src/platform/agent-api.ts",
     max: 290,
     reason:
-      "the platform agent-job HTTP routes (profiles, create, events, cancel, resume); they resolve the tenant member and delegate to agent-job-service",
+      "the platform agent-job HTTP routes (profiles, create, events, cancel, resume); they resolve the tenant member and delegate to the engine's agent job service",
   },
   {
     file: "apps/web/src/platform/native-handoff.ts",
@@ -52,9 +52,9 @@ const sizeExemptions: readonly Ceiling[] = [
   },
   {
     file: "apps/web/src/platform/agent-models.ts",
-    max: 250,
+    max: 220,
     reason:
-      "maps the assistant's model parts to agent job requests; the one adapter between @omnitech-assistant/contracts and the agent job service",
+      "Claude Code and Codex as one catalogue of the engine and the port that runs a call as an agent job; the web host submits and follows jobs and never starts a runtime",
   },
 ];
 
@@ -63,7 +63,7 @@ const fetchCeilings: readonly Ceiling[] = [
     file: "apps/web/src/platform/ai.ts",
     max: 6,
     reason:
-      "FAL, Together and ComfyUI image generation calls awaiting a move into packages/ai-provider-images; no new provider call may be added to the shell",
+      "the FAL, ComfyUI, Together and OpenAI Images requests the engine's image port is built from; no other provider call may be added to the shell",
   },
   {
     file: "apps/web/src/platform/platform-shell.tsx",

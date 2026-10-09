@@ -1,6 +1,10 @@
-import type { AiExecutionGateway, AiUsage } from "@omnitech/ai-contracts";
+import {
+  createAiEngine,
+  type ModelInput,
+  type Usage,
+} from "@omnitech/ai-engine";
 import type { DocumentField } from "@omnitech/interview-contracts";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { generateDocumentValues, outputWeight, planBatches } from "./generate";
 
 const fields: DocumentField[] = [
@@ -27,11 +31,79 @@ const fields: DocumentField[] = [
   },
 ];
 
+// What the product asked the model: the profile, the schema of the fields it
+// wants, and the JSON it sent as the user's message.
+type Asked = {
+  profileId: string;
+  schema: { properties: Record<string, unknown> };
+  prompt: string;
+  signal: AbortSignal;
+};
+const totalTokens = (count: number): Usage => ({
+  status: "partial",
+  totalTokens: count,
+  cost: { status: "unavailable", reason: "not-reported" },
+});
+// A real engine over a scripted model. `reply` answers each call with the
+// value the model returns as JSON, or throws as a provider that failed would.
+function scripted(
+  reply: (asked: Asked) => unknown | Promise<unknown>,
+  usage?: Usage,
+) {
+  const calls: Asked[] = [];
+  const engine = createAiEngine({
+    profiles: [{ id: "document-profile", provider: "scripted" }],
+    providers: {
+      scripted: {
+        async *stream(_scope, model: ModelInput, signal) {
+          const asked: Asked = {
+            profileId: model.profileId,
+            schema: model.schema as Asked["schema"],
+            prompt: model.messages
+              .filter((message) => message.role === "user")
+              .flatMap((message) =>
+                message.parts.map((part) =>
+                  part.type === "text" ? part.text : "",
+                ),
+              )
+              .join(""),
+            signal,
+          };
+          // A repair turn is the engine's own second call, not the product's.
+          if (
+            !model.messages.some(
+              (message) =>
+                message.role === "user" &&
+                message.parts.some(
+                  (part) =>
+                    part.type === "text" &&
+                    part.text.startsWith("That output was not accepted"),
+                ),
+            )
+          )
+            calls.push(asked);
+          yield { type: "text", text: JSON.stringify(await reply(asked)) };
+          if (usage) yield { type: "usage", usage };
+        },
+      },
+    },
+  });
+  return { engine, calls };
+}
+// Each call answers with the next value; the last one repeats.
+const answers = (...values: unknown[]) => {
+  let next = 0;
+  return scripted(() => values[Math.min(next++, values.length - 1)]);
+};
+const echo = (asked: Asked) =>
+  Object.fromEntries(
+    Object.keys(asked.schema.properties).map((key) => [key, `v ${key}`]),
+  );
+
 const input = {
   tenantId: "tenant",
   actorId: "member",
   profileId: "document-profile",
-  targetId: "selected-model",
   templateId: "template-id",
   templateRevision: 1,
   candidateProfileRevisionId: "profile-revision",
@@ -44,16 +116,14 @@ const input = {
 };
 
 describe("document generation", () => {
-  it("makes one gateway call and keeps server-owned and missing profile values authoritative", async () => {
-    const execute = vi.fn().mockResolvedValue({
-      result: { summary: "too long to fit" },
-      usage: { totalTokens: 12 },
-    });
-    const generated = await generateDocumentValues(
-      { execute } as Pick<AiExecutionGateway, "execute">,
-      input,
+  it("makes one model call and keeps server-owned and missing profile values authoritative", async () => {
+    const { engine, calls } = scripted(
+      () => ({ summary: "too long to fit" }),
+      totalTokens(12),
     );
-    expect(execute).toHaveBeenCalledTimes(1);
+    const generated = await generateDocumentValues(engine, input);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.profileId).toBe("document-profile");
     expect(generated.values).toEqual({
       company_name: "Real Company",
       phone: "",
@@ -63,30 +133,24 @@ describe("document generation", () => {
       { key: "phone", code: "missing" },
       { key: "summary", code: "too-long" },
     ]);
-    expect(generated.usage).toEqual({ totalTokens: 12 });
+    expect(generated.usage).toEqual(totalTokens(12));
   });
 
-  it("does not retry invalid structured output", async () => {
-    const execute = vi.fn().mockResolvedValue({ result: { unknown: "x" } });
-    await expect(
-      generateDocumentValues(
-        { execute } as Pick<AiExecutionGateway, "execute">,
-        input,
-      ),
-    ).rejects.toThrow("Invalid structured document field");
-    expect(execute).toHaveBeenCalledTimes(1);
+  it("fails on output the engine could not repair, without asking again itself", async () => {
+    const { engine, calls } = answers({ unknown: "x" });
+    await expect(generateDocumentValues(engine, input)).rejects.toThrow(
+      "Document generation failed: invalid-output",
+    );
+    expect(calls).toHaveLength(1);
   });
 
   it("rejects an omitted model field or a value for a server-owned field", async () => {
     for (const result of [{}, { summary: "valid", phone: "fabricated" }]) {
-      const execute = vi.fn().mockResolvedValue({ result });
-      await expect(
-        generateDocumentValues(
-          { execute } as Pick<AiExecutionGateway, "execute">,
-          input,
-        ),
-      ).rejects.toThrow("Invalid structured document field");
-      expect(execute).toHaveBeenCalledTimes(1);
+      const { engine, calls } = answers(result);
+      await expect(generateDocumentValues(engine, input)).rejects.toThrow(
+        "Document generation failed: invalid-output",
+      );
+      expect(calls).toHaveLength(1);
     }
   });
 
@@ -98,93 +162,77 @@ describe("document generation", () => {
       required: false,
       maxLength: null,
     });
-    const execute = vi.fn().mockResolvedValue({
-      result: {
-        summary: "Led the ledger migration.",
-      },
+    const { engine, calls } = answers({ summary: "Led the ledger migration." });
+    const generated = await generateDocumentValues(engine, {
+      ...input,
+      fields: [
+        ...fields,
+        ...["full_name", "city", "portfolio_url"].map(profileField),
+      ],
+      candidateProfile: { candidate: { name: "Ada" }, roles: [] },
+      profileValues: { full_name: "Ada", city: "Calgary" },
+      missingProfileKeys: ["phone", "portfolio_url"],
     });
-    const generated = await generateDocumentValues(
-      { execute } as Pick<AiExecutionGateway, "execute">,
-      {
-        ...input,
-        fields: [
-          ...fields,
-          ...["full_name", "city", "portfolio_url"].map(profileField),
-        ],
-        candidateProfile: { candidate: { name: "Ada" }, roles: [] },
-        profileValues: { full_name: "Ada", city: "Calgary" },
-        missingProfileKeys: ["phone", "portfolio_url"],
-      },
-    );
     expect(generated.values).toMatchObject({
       full_name: "Ada",
       city: "Calgary",
       portfolio_url: "",
       summary: "Led the ledger migration.",
     });
-    const request = execute.mock.calls[0]?.[0];
-    expect(Object.keys(request.task.schema.properties)).toEqual(["summary"]);
-    expect(request.task.prompt).toContain("Real Company");
+    expect(Object.keys(calls[0]?.schema.properties ?? {})).toEqual(["summary"]);
+    expect(calls[0]?.prompt).toContain("Real Company");
   });
 
   it("decodes HTML entities a model puts in plain-text values", async () => {
-    const execute = vi.fn().mockResolvedValue({
-      result: {
-        architecture_skills:
-          "R&amp;D, CI/CD &lt;fast&gt; &quot;safe&quot; &#39;ok&#39;",
-      },
+    const { engine } = answers({
+      architecture_skills:
+        "R&amp;D, CI/CD &lt;fast&gt; &quot;safe&quot; &#39;ok&#39;",
     });
-    const generated = await generateDocumentValues(
-      { execute } as Pick<AiExecutionGateway, "execute">,
-      {
-        ...input,
-        fields: [
-          {
-            key: "architecture_skills",
-            label: "Architecture skills",
-            source: "candidate-profile",
-            required: true,
-            maxLength: null,
-          },
-        ],
-        candidateProfile: { candidate: { name: "Ada" }, roles: [] },
-      },
-    );
+    const generated = await generateDocumentValues(engine, {
+      ...input,
+      fields: [
+        {
+          key: "architecture_skills",
+          label: "Architecture skills",
+          source: "candidate-profile",
+          required: true,
+          maxLength: null,
+        },
+      ],
+      candidateProfile: { candidate: { name: "Ada" }, roles: [] },
+    });
     expect(generated.values["architecture_skills"]).toBe(
       "R&D, CI/CD <fast> \"safe\" 'ok'",
     );
   });
 
   it("asks the model for every other profile field, however the template names it", async () => {
-    const execute = vi.fn().mockResolvedValue({
-      result: { architecture_skills: "Event-driven services, outbox pattern" },
+    const { engine, calls } = answers({
+      architecture_skills: "Event-driven services, outbox pattern",
     });
-    const generated = await generateDocumentValues(
-      { execute } as Pick<AiExecutionGateway, "execute">,
-      {
-        ...input,
-        fields: [
-          {
-            key: "architecture_skills",
-            label: "Architecture skills",
-            source: "candidate-profile",
-            required: true,
-            maxLength: null,
-          },
-        ],
-        candidateProfile: { candidate: { name: "Ada" }, roles: [] },
-      },
-    );
+    const generated = await generateDocumentValues(engine, {
+      ...input,
+      fields: [
+        {
+          key: "architecture_skills",
+          label: "Architecture skills",
+          source: "candidate-profile",
+          required: true,
+          maxLength: null,
+        },
+      ],
+      candidateProfile: { candidate: { name: "Ada" }, roles: [] },
+    });
     expect(generated.values).toEqual({
       architecture_skills: "Event-driven services, outbox pattern",
     });
     expect(generated.errors).toEqual([]);
-    expect(
-      Object.keys(execute.mock.calls[0]?.[0].task.schema.properties),
-    ).toEqual(["architecture_skills"]);
+    expect(Object.keys(calls[0]?.schema.properties ?? {})).toEqual([
+      "architecture_skills",
+    ]);
   });
 
-  it("includes evidence-backed interview prep fields in the one gateway call", async () => {
+  it("includes evidence-backed interview prep fields in the one model call", async () => {
     const keys = [
       "opening_summary",
       "role_motivation",
@@ -196,41 +244,34 @@ describe("document generation", () => {
       "question_for_interviewer_2",
       "closing_note",
     ];
-    const execute = vi.fn().mockResolvedValue({
-      result: Object.fromEntries(
-        keys.map((key) => [key, `Evidence for ${key}`]),
-      ),
-    });
-    const generated = await generateDocumentValues(
-      { execute } as Pick<AiExecutionGateway, "execute">,
-      {
-        ...input,
-        fields: keys.map((key) => ({
-          key,
-          label: key,
-          source: "candidate-profile" as const,
-          required: true,
-          maxLength: null,
-        })),
-        candidateProfile: {
-          candidate: { name: "Ada", headline: "Built payment systems" },
-          roles: [
-            {
-              company: "Acme",
-              title: "Engineer",
-              proof_points: ["Reduced latency", "Improved uptime"],
-              technologies: ["TypeScript", "PostgreSQL"],
-            },
-          ],
-        },
-        candidacyValues: { company_name: "Real Company", role_title: "Lead" },
-        interviewValues: { interview_stage: "Hiring Manager" },
-      },
+    const { engine, calls } = answers(
+      Object.fromEntries(keys.map((key) => [key, `Evidence for ${key}`])),
     );
-    expect(execute).toHaveBeenCalledTimes(1);
-    expect(
-      Object.keys(execute.mock.calls[0]?.[0].task.schema.properties),
-    ).toEqual(keys);
+    const generated = await generateDocumentValues(engine, {
+      ...input,
+      fields: keys.map((key) => ({
+        key,
+        label: key,
+        source: "candidate-profile" as const,
+        required: true,
+        maxLength: null,
+      })),
+      candidateProfile: {
+        candidate: { name: "Ada", headline: "Built payment systems" },
+        roles: [
+          {
+            company: "Acme",
+            title: "Engineer",
+            proof_points: ["Reduced latency", "Improved uptime"],
+            technologies: ["TypeScript", "PostgreSQL"],
+          },
+        ],
+      },
+      candidacyValues: { company_name: "Real Company", role_title: "Lead" },
+      interviewValues: { interview_stage: "Hiring Manager" },
+    });
+    expect(calls).toHaveLength(1);
+    expect(Object.keys(calls[0]?.schema.properties ?? {})).toEqual(keys);
     expect(generated.values).toEqual(
       Object.fromEntries(keys.map((key) => [key, `Evidence for ${key}`])),
     );
@@ -315,13 +356,8 @@ describe("parallel section generation", () => {
     missingProfileKeys: [],
     candidateProfile: { candidate: { name: "Ada" }, roles: [] },
   };
-  const answer = (task: { schema?: { properties: Record<string, unknown> } }) =>
-    Object.fromEntries(
-      Object.keys(task.schema?.properties ?? {}).map((key) => [
-        key,
-        `v ${key}`,
-      ]),
-    );
+  const section = (asked: Asked) =>
+    (JSON.parse(asked.prompt) as { section: string }).section;
 
   it("reuses only exact validated batches after a failed attempt", async () => {
     const fields = sectioned([
@@ -334,18 +370,22 @@ describe("parallel section generation", () => {
       {
         fieldsHash: string;
         values: Record<string, string>;
-        usage?: AiUsage | null;
+        usage?: Usage | null;
       }
     > = {};
-    let calls = 0;
-    const execute = vi.fn(async (request: { task: never }) => {
-      calls++;
-      if (calls === 2) throw new Error("provider unavailable");
-      return { result: answer(request.task), usage: { totalTokens: 10 } };
-    });
+    let attempts = 0;
+    // The second section fails after its siblings have been kept; a failure
+    // stops the calls still in flight.
+    const failing = scripted(async (asked) => {
+      if (++attempts === 2) {
+        await new Promise((resolve) => setTimeout(resolve, 30));
+        throw new Error("provider unavailable");
+      }
+      return echo(asked);
+    }, totalTokens(10));
     await expect(
       generateDocumentValues(
-        { execute } as unknown as Pick<AiExecutionGateway, "execute">,
+        failing.engine,
         {
           ...base,
           fields,
@@ -361,27 +401,18 @@ describe("parallel section generation", () => {
           },
         },
       ),
-    ).rejects.toThrow("provider unavailable");
+    ).rejects.toThrow("Document generation failed: unavailable");
     const saved = Object.keys(completedBatches).length;
     expect(saved).toBeGreaterThan(0);
-    const retryExecute = vi.fn(async (request: { task: never }) => ({
-      result: answer(request.task),
-      usage: { totalTokens: 10 },
-    }));
-    const result = await generateDocumentValues(
-      { execute: retryExecute } as unknown as Pick<
-        AiExecutionGateway,
-        "execute"
-      >,
-      {
-        ...base,
-        fields,
-        generation: { maxCalls: 3, fieldsPerCall: 24, attempts: 1 },
-        completedBatches,
-      },
-    );
-    expect(retryExecute).toHaveBeenCalledTimes(3 - saved);
-    expect(result.usage?.totalTokens).toBe(30);
+    const retry = scripted(echo, totalTokens(10));
+    const result = await generateDocumentValues(retry.engine, {
+      ...base,
+      fields,
+      generation: { maxCalls: 3, fieldsPerCall: 24, attempts: 1 },
+      completedBatches,
+    });
+    expect(retry.calls).toHaveLength(3 - saved);
+    expect(result.usage).toEqual(totalTokens(30));
     expect(Object.keys(result.values)).toEqual(
       fields.map((field) => field.key),
     );
@@ -393,38 +424,32 @@ describe("parallel section generation", () => {
       },
     };
     await expect(
-      generateDocumentValues(
-        { execute: retryExecute } as unknown as Pick<
-          AiExecutionGateway,
-          "execute"
-        >,
-        {
-          ...base,
-          fields,
-          generation: { maxCalls: 3, fieldsPerCall: 24, attempts: 1 },
-          completedBatches: wrong,
-        },
-      ),
+      generateDocumentValues(retry.engine, {
+        ...base,
+        fields,
+        generation: { maxCalls: 3, fieldsPerCall: 24, attempts: 1 },
+        completedBatches: wrong,
+      }),
     ).rejects.toThrow("Stored document batch does not match plan");
   });
 
   it("writes sections side by side, never more than four at once, and merges them in template order", async () => {
     let running = 0;
     let peak = 0;
-    const execute = vi.fn(async (request: { task: never }) => {
+    const { engine, calls } = scripted(async (asked) => {
       running++;
       peak = Math.max(peak, running);
       await new Promise((resolve) => setTimeout(resolve, 15));
       running--;
-      return { result: answer(request.task), usage: { totalTokens: 10 } };
-    });
+      return echo(asked);
+    }, totalTokens(10));
     const fields = sectioned(
       Array.from({ length: 7 }, (_, index) => [`Part ${index + 1}`, 20]),
     );
     const plan: unknown[] = [];
     const done: string[] = [];
     const generated = await generateDocumentValues(
-      { execute } as unknown as Pick<AiExecutionGateway, "execute">,
+      engine,
       { ...base, fields },
       {
         onPlan: (value) => plan.push(value),
@@ -433,18 +458,16 @@ describe("parallel section generation", () => {
         },
       },
     );
-    expect(execute).toHaveBeenCalledTimes(4);
+    expect(calls).toHaveLength(4);
     expect(peak).toBeGreaterThan(1);
     expect(peak).toBeLessThanOrEqual(4);
     expect(Object.keys(generated.values)).toEqual(fields.map((f) => f.key));
     expect(generated.values["part_3_5"]).toBe("v part_3_5");
-    expect(generated.usage).toEqual({ totalTokens: 40 });
+    expect(generated.usage).toEqual(totalTokens(40));
     expect(plan).toHaveLength(1);
     expect(done).toHaveLength(4);
     // Each call is asked only for its own section, and told what else exists.
-    const first = JSON.parse(
-      (execute.mock.calls[0]![0].task as unknown as { prompt: string }).prompt,
-    );
+    const first = JSON.parse(calls[0]?.prompt ?? "{}");
     expect(first.fields.length).toBeGreaterThanOrEqual(30);
     expect(first.fields.length).toBeLessThanOrEqual(45);
     expect(first.otherSections).toHaveLength(3);
@@ -452,12 +475,12 @@ describe("parallel section generation", () => {
 
   it("reports the plan before any call, with what the model does not write", async () => {
     const order: string[] = [];
-    const execute = vi.fn(async (request: { task: never }) => {
+    const { engine } = scripted((asked) => {
       order.push("call");
-      return { result: answer(request.task) };
+      return echo(asked);
     });
     await generateDocumentValues(
-      { execute } as unknown as Pick<AiExecutionGateway, "execute">,
+      engine,
       {
         ...base,
         fields: [
@@ -478,55 +501,69 @@ describe("parallel section generation", () => {
     expect(order).toEqual(["plan Real Company", "call"]);
   });
 
-  it("retries a call that failed once, but not malformed output", async () => {
-    let calls = 0;
-    const flaky = vi.fn(async (request: { task: never }) => {
-      if (++calls === 1) throw new Error("socket hang up");
-      return { result: answer(request.task) };
+  it("tries a call again when the provider failed, but not malformed output", async () => {
+    let attempts = 0;
+    const flaky = scripted((asked) => {
+      if (++attempts === 1) throw new Error("socket hang up");
+      return echo(asked);
     });
-    const ok = await generateDocumentValues(
-      { execute: flaky } as unknown as Pick<AiExecutionGateway, "execute">,
-      { ...base, fields: sectioned([["One", 3]]) },
-    );
-    expect(flaky).toHaveBeenCalledTimes(2);
+    const ok = await generateDocumentValues(flaky.engine, {
+      ...base,
+      fields: sectioned([["One", 3]]),
+    });
+    expect(flaky.calls).toHaveLength(2);
     expect(ok.values["one_1"]).toBe("v one_1");
-    const bad = vi.fn().mockResolvedValue({ result: "not an object" });
+    const bad = answers("not an object");
     await expect(
-      generateDocumentValues(
-        { execute: bad } as unknown as Pick<AiExecutionGateway, "execute">,
-        { ...base, fields: sectioned([["One", 3]]) },
-      ),
-    ).rejects.toThrow("Invalid structured document output");
-    expect(bad).toHaveBeenCalledTimes(1);
+      generateDocumentValues(bad.engine, {
+        ...base,
+        fields: sectioned([["One", 3]]),
+      }),
+    ).rejects.toThrow("Document generation failed: invalid-output");
+    expect(bad.calls).toHaveLength(1);
+  });
+
+  it("does not try again a call the engine refused", async () => {
+    const { calls } = scripted(echo);
+    const refusing = createAiEngine({
+      profiles: [{ id: "document-profile", provider: "scripted" }],
+      providers: {
+        scripted: {
+          async *stream() {
+            calls.push({} as Asked);
+            yield { type: "text" as const, text: "{}" };
+          },
+        },
+      },
+      authorize: () => "not this member",
+    });
+    await expect(
+      generateDocumentValues(refusing, {
+        ...base,
+        fields: sectioned([["One", 3]]),
+      }),
+    ).rejects.toThrow("Document generation failed: refused");
+    expect(calls).toHaveLength(0);
   });
 
   it("stops the other sections when one fails for good", async () => {
-    const seen: AbortSignal[] = [];
-    const execute = vi.fn(
-      async (request: { task: never; signal?: AbortSignal }) => {
-        if (request.signal) seen.push(request.signal);
-        const section = JSON.parse((request.task as { prompt: string }).prompt)
-          .section as string;
-        if (section.startsWith("Part 3")) throw new Error("model unavailable");
-        await new Promise((resolve) => setTimeout(resolve, 40));
-        return { result: answer(request.task) };
-      },
-    );
+    const { engine, calls } = scripted(async (asked) => {
+      if (section(asked).startsWith("Part 3"))
+        throw new Error("model unavailable");
+      await new Promise((resolve) => setTimeout(resolve, 40));
+      return echo(asked);
+    });
     await expect(
-      generateDocumentValues(
-        { execute } as unknown as Pick<AiExecutionGateway, "execute">,
-        {
-          ...base,
-          fields: sectioned(
-            Array.from({ length: 9 }, (_, index) => [`Part ${index + 1}`, 20]),
-          ),
-        },
-      ),
-    ).rejects.toThrow("model unavailable");
-    expect(seen.some((signal) => signal.aborted)).toBe(true);
-    // The queued sections never started.
+      generateDocumentValues(engine, {
+        ...base,
+        fields: sectioned(
+          Array.from({ length: 9 }, (_, index) => [`Part ${index + 1}`, 20]),
+        ),
+      }),
+    ).rejects.toThrow("Document generation failed: unavailable");
+    expect(calls.some(({ signal }) => signal.aborted)).toBe(true);
     // Four calls, one of them tried twice; nothing beyond that started.
-    expect(execute.mock.calls.length).toBeLessThanOrEqual(5);
+    expect(calls.length).toBeLessThanOrEqual(5);
   });
 
   it("waits for an in-flight checkpoint before a failed attempt can be retried", async () => {
@@ -539,23 +576,22 @@ describe("parallel section generation", () => {
       releaseCheckpoint = resolve;
     });
     const events: string[] = [];
-    const execute = vi.fn(async (request: { task: never }) => {
-      const section = JSON.parse((request.task as { prompt: string }).prompt)
-        .section as string;
-      if (section === "One") {
+    const { engine } = scripted(async (asked) => {
+      if (section(asked) === "One") {
         await started;
         throw new Error("first batch failed");
       }
-      return { result: answer(request.task) };
+      return echo(asked);
     });
     const generation = generateDocumentValues(
-      { execute } as unknown as Pick<AiExecutionGateway, "execute">,
+      engine,
       {
         ...base,
         fields: sectioned([
           ["One", 24],
           ["Two", 24],
         ]),
+        generation: { maxCalls: 4, fieldsPerCall: 24, attempts: 1 },
       },
       {
         onBatch: async ({ id }) => {
@@ -576,7 +612,7 @@ describe("parallel section generation", () => {
     expect(events).toEqual([
       "checkpoint started batch-2",
       "checkpoint committed batch-2",
-      "failed first batch failed",
+      "failed Document generation failed: unavailable",
     ]);
   });
 });
@@ -595,25 +631,18 @@ describe("regenerating one field", () => {
     candidacyValues: {},
     missingProfileKeys: [],
   };
-  const gateway = (...answers: string[]) => {
-    const execute = vi.fn();
-    for (const answer of answers)
-      execute.mockResolvedValueOnce({ result: { strength_1: answer } });
-    return { execute } as unknown as Pick<AiExecutionGateway, "execute">;
-  };
-  const prompt = (call: unknown) =>
-    JSON.parse(
-      (call as [{ task: { prompt: string } }])[0].task.prompt,
-    ) as Record<string, unknown>;
+  const writing = (...values: string[]) =>
+    answers(...values.map((value) => ({ strength_1: value })));
+  const prompt = (asked: Asked | undefined) =>
+    JSON.parse(asked?.prompt ?? "{}") as Record<string, unknown>;
 
   it("tells the model what it is replacing and how long the new text may be", async () => {
-    const g = gateway("Payments modernization");
-    await generateDocumentValues(g, {
+    const { engine, calls } = writing("Payments modernization");
+    await generateDocumentValues(engine, {
       ...base,
       replacing: { strength_1: "Payments platform modernization" },
     });
-    const sent = prompt((g.execute as ReturnType<typeof vi.fn>).mock.calls[0]);
-    expect(sent["fields"]).toEqual([
+    expect(prompt(calls[0])["fields"]).toEqual([
       expect.objectContaining({
         key: "strength_1",
         currentValue: "Payments platform modernization",
@@ -624,20 +653,17 @@ describe("regenerating one field", () => {
   });
 
   it("asks once more when the answer is far longer than the field it replaces", async () => {
-    const g = gateway(
+    const { engine, calls } = writing(
       "Automated 95%+ reconciliation across 1,500+ daily accounts at a large financial firm.",
       "Reconciliation automation",
     );
-    const result = await generateDocumentValues(g, {
+    const result = await generateDocumentValues(engine, {
       ...base,
       replacing: { strength_1: "Payments platform modernization" },
     });
-    expect(g.execute).toHaveBeenCalledTimes(2);
+    expect(calls).toHaveLength(2);
     expect(result.values["strength_1"]).toBe("Reconciliation automation");
-    const second = prompt(
-      (g.execute as ReturnType<typeof vi.fn>).mock.calls[1],
-    );
-    expect(second["corrections"]).toEqual([
+    expect(prompt(calls[1])["corrections"]).toEqual([
       expect.objectContaining({
         key: "strength_1",
         problem: "too-long",
@@ -647,38 +673,38 @@ describe("regenerating one field", () => {
   });
 
   it("asks once more when the answer is the text already there", async () => {
-    const g = gateway(
+    const { engine, calls } = writing(
       "Payments platform modernization",
       "Payments modernization lead",
     );
-    const result = await generateDocumentValues(g, {
+    const result = await generateDocumentValues(engine, {
       ...base,
       replacing: { strength_1: "Payments platform modernization" },
     });
-    expect(g.execute).toHaveBeenCalledTimes(2);
+    expect(calls).toHaveLength(2);
     expect(result.values["strength_1"]).toBe("Payments modernization lead");
   });
 
   it("keeps what was there when the second answer is still too long", async () => {
     const long = "word ".repeat(30).trim();
-    const g = gateway(long, long);
-    const result = await generateDocumentValues(g, {
+    const { engine, calls } = writing(long, long);
+    const result = await generateDocumentValues(engine, {
       ...base,
       replacing: { strength_1: "Payments platform modernization" },
     });
-    expect(g.execute).toHaveBeenCalledTimes(2);
+    expect(calls).toHaveLength(2);
     expect(result.values["strength_1"]).toBe("Payments platform modernization");
   });
 
   it("never retries a first-time generation, and an empty field has no cap", async () => {
-    const g = gateway("anything at all, however long it runs on for");
-    await generateDocumentValues(g, base);
-    expect(g.execute).toHaveBeenCalledTimes(1);
-    const empty = gateway("A first value for an empty field here");
-    await generateDocumentValues(empty, {
+    const first = writing("anything at all, however long it runs on for");
+    await generateDocumentValues(first.engine, base);
+    expect(first.calls).toHaveLength(1);
+    const empty = writing("A first value for an empty field here");
+    await generateDocumentValues(empty.engine, {
       ...base,
       replacing: { strength_1: "" },
     });
-    expect(empty.execute).toHaveBeenCalledTimes(1);
+    expect(empty.calls).toHaveLength(1);
   });
 });

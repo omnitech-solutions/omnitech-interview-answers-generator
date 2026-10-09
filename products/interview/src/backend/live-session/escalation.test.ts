@@ -15,7 +15,7 @@ import {
   NARRATE_1,
   QUESTION,
   runResult,
-  scriptedGateway,
+  scriptedEngine,
   solutionFor,
 } from "./coding-fixture";
 import { createCodingStage } from "./coding-stage";
@@ -30,7 +30,7 @@ import {
 import {
   buildProcessor,
   collectTraces,
-  type FakeGateway,
+  type FakeEngine,
   settle,
   startSessionFor,
 } from "./processor-fixture";
@@ -152,7 +152,7 @@ function escalationPort() {
 async function world(
   name: string,
   options: {
-    gateway: FakeGateway;
+    engine: FakeEngine;
     codeRunner?: SessionCodeRunner;
     port?: AgentEscalationPort;
     policy?: "device-only" | "permitted-remote";
@@ -171,7 +171,7 @@ async function world(
   const trace = collectTraces();
   const processor = buildProcessor(fx, {
     workerId: `worker-${name}`,
-    gateway: options.gateway,
+    engine: options.engine,
     trace,
     ...(options.codeRunner ? { codeRunner: options.codeRunner } : {}),
     ...(options.port ? { agentEscalation: options.port } : {}),
@@ -184,7 +184,7 @@ async function world(
     ...(options.wrapStore ? { wrapStore: options.wrapStore } : {}),
   });
   cleanups.push(async () => {
-    options.gateway.releaseAll();
+    options.engine.releaseAll();
     await processor.close();
     // A queued job nobody runs: settle it so the purge never waits.
     await fx.owner.query(
@@ -220,7 +220,7 @@ describe("a job from a validated repository-navigation field", () => {
     // committed and the job does not exist yet (rule:action-before-job).
     let beforeJob: { actionNamesId: boolean; jobExists: boolean } | undefined;
     const w = await world("esc-nav", {
-      gateway: scriptedGateway({
+      engine: scriptedEngine({
         solution: (request) =>
           solutionFor(request, { escalation: "repository-navigation" }),
       }),
@@ -305,7 +305,7 @@ describe("a job from a validated repository-navigation field", () => {
   it("is cancelled by pause (the existing session-wide cancellation finds it through its action)", async () => {
     const { port } = escalationPort();
     const w = await world("esc-pause", {
-      gateway: scriptedGateway({
+      engine: scriptedEngine({
         solution: (request) =>
           solutionFor(request, { escalation: "repository-navigation" }),
       }),
@@ -323,7 +323,7 @@ describe("a job from a validated repository-navigation field", () => {
 
   it("still publishes the solution, naming why, when the host configured no agent escalation", async () => {
     const w = await world("esc-unconfigured", {
-      gateway: scriptedGateway({
+      engine: scriptedEngine({
         solution: (request) =>
           solutionFor(request, { escalation: "repository-navigation" }),
       }),
@@ -343,7 +343,7 @@ describe("a job from a validated repository-navigation field", () => {
   it("records a refused job as no job: the action is abandoned, the solution still publishes, and the stored prompt payload is discarded", async () => {
     const { port, saved, discarded } = escalationPort();
     const w = await world("esc-refused", {
-      gateway: scriptedGateway({
+      engine: scriptedEngine({
         solution: (request) =>
           solutionFor(request, { escalation: "repository-navigation" }),
       }),
@@ -386,7 +386,7 @@ describe("iterative-repair", () => {
       runResult({ exitCode: 1, tests: [{ name: "t0", status: "failed" }] }),
     );
     const w = await world("esc-iter-failed", {
-      gateway: scriptedGateway({ solution: iterative }),
+      engine: scriptedEngine({ solution: iterative }),
       codeRunner: runner,
       port,
     });
@@ -423,7 +423,7 @@ describe("iterative-repair", () => {
     ] as const) {
       const { port } = escalationPort();
       const w = await world(name, {
-        gateway: scriptedGateway({ solution: iterative }),
+        engine: scriptedEngine({ solution: iterative }),
         codeRunner: fakeRunner(script).runner,
         port,
       });
@@ -440,7 +440,7 @@ describe("iterative-repair", () => {
   it("creates no job without a runner (no repair could have run)", async () => {
     const { port } = escalationPort();
     const w = await world("esc-iter-no-runner", {
-      gateway: scriptedGateway({ solution: iterative }),
+      engine: scriptedEngine({ solution: iterative }),
       port,
     });
     await w.ingestor.ingest(QUESTION);
@@ -454,7 +454,7 @@ describe("no job", () => {
   it("creates none when the field is none, even if the tests fail", async () => {
     const { port } = escalationPort();
     const w = await world("esc-none", {
-      gateway: scriptedGateway(),
+      engine: scriptedEngine(),
       codeRunner: fakeRunner(() =>
         runResult({ exitCode: 1, tests: [{ name: "t0", status: "failed" }] }),
       ).runner,
@@ -473,7 +473,7 @@ describe("no job", () => {
     // Free text in a free-text field, with the enum at none.
     const { port, saved } = escalationPort();
     const free = await world("esc-free-text", {
-      gateway: scriptedGateway({
+      engine: scriptedEngine({
         solution: (request) =>
           solutionFor(request, {
             notes:
@@ -490,7 +490,7 @@ describe("no job", () => {
 
     // A value outside the enum, and unknown keys: an invalid output.
     const outside = await world("esc-outside-schema", {
-      gateway: scriptedGateway({
+      engine: scriptedEngine({
         solution: (request) =>
           solutionFor(request, {
             escalation: "agent",
@@ -519,7 +519,7 @@ describe("no job", () => {
     const { port, saved } = escalationPort();
     const w = await world("esc-device", {
       policy: "device-only",
-      gateway: scriptedGateway({
+      engine: scriptedEngine({
         solution: (request) =>
           solutionFor(request, { escalation: "repository-navigation" }),
       }),
@@ -544,7 +544,7 @@ describe("no job", () => {
   it("creates a job only for the revision that is actually solved", async () => {
     const { port } = escalationPort();
     const w = await world("esc-stale", {
-      gateway: scriptedGateway({
+      engine: scriptedEngine({
         solution: (request) =>
           solutionFor(request, { escalation: "repository-navigation" }),
       }),

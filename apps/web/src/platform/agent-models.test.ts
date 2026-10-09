@@ -1,15 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { structuredOutput } from "./agent-models";
+import { unfenced } from "./agent-models";
 
-describe("structuredOutput", () => {
-  it("parses plain and fenced JSON", () => {
-    expect(structuredOutput('{"a":"b"}')).toEqual({ a: "b" });
-    expect(structuredOutput('```json\n{"a":"b"}\n```')).toEqual({ a: "b" });
+describe("unfenced", () => {
+  it("returns JSON as it is, plain or fenced as Markdown", () => {
+    expect(unfenced('{"a":"b"}')).toBe('{"a":"b"}');
+    expect(unfenced('```json\n{"a":"b"}\n```')).toBe('{"a":"b"}');
+    expect(unfenced('```\n{"a":"b"}\n```')).toBe('{"a":"b"}');
   });
 
-  it("rejects prose instead of guessing", () => {
-    expect(() => structuredOutput("Sure! Here you go.")).toThrow(
-      "did not return structured JSON",
-    );
+  it("leaves prose for the engine to reject instead of guessing", () => {
+    expect(unfenced("Sure! Here you go.")).toBe("Sure! Here you go.");
   });
 });

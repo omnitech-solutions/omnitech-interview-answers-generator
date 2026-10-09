@@ -1,12 +1,13 @@
 // Test support for the replay-evidence and prompt-injection suites: reading the
 // labelled blocks of a session prompt, building a verbatim reference to an
-// entry the prompt really carries, scripting the fake gateway from what a
+// entry the prompt really carries, scripting the fake engine from what a
 // prompt carries, and reading back the facts a hostile input must not change
 // (the matrix and catalogue tables, the session row's privacy columns).
 // Synthetic and content-free by construction. Tests, not production code,
 // import this.
-import type { AiExecutionRequest } from "@omnitech/ai-contracts";
+
 import type { Fixture } from "./live-session-fixture";
+import type { SessionAsk } from "./processor-fixture";
 
 export type PromptEntry = {
   sourceId: string;
@@ -40,23 +41,23 @@ export function outsideBlocks(prompt: string): string {
   return kept.join("\n");
 }
 
-export const capturedLines = (request: AiExecutionRequest) =>
+export const capturedLines = (request: SessionAsk) =>
   blockJson<{ speaker: string; text: string }[]>(
-    request.task.prompt,
+    request.prompt,
     "CAPTURED DATA",
   );
-export const capturedText = (request: AiExecutionRequest) =>
+export const capturedText = (request: SessionAsk) =>
   capturedLines(request)
     .map((line) => line.text)
     .join(" ");
 
 // A verbatim reference to an entry the prompt really carries.
 export function refFor(
-  request: AiExecutionRequest,
+  request: SessionAsk,
   label: "APPROVED EXPERIENCE" | "CANDIDATE PREFERENCES",
   pointer: string,
 ) {
-  const entry = blockJson(request.task.prompt, label).find(
+  const entry = blockJson(request.prompt, label).find(
     (item) => item.pointer === pointer,
   );
   if (!entry) throw new Error(`prompt carries no entry at ${pointer}`);

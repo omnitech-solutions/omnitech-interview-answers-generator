@@ -1,7 +1,7 @@
 import { createPlatformApi } from "@omnitech/platform-api";
 import { Hono } from "hono";
 import { createAgentApi } from "./agent-api";
-import { createPlatformAiGateway } from "./ai";
+import { createPlatformAiEngine } from "./ai";
 import { apiErrorHandler, originGuard } from "./api-safety";
 import { resolvePlatformContext } from "./context";
 import { createProductBackends } from "./products";
@@ -11,7 +11,7 @@ export function createApplicationApi() {
   // Sub-apps with their own onError keep it; every other route gets this one.
   api.use("/api/*", originGuard);
   api.onError(apiErrorHandler);
-  const ai = createPlatformAiGateway();
+  const engine = createPlatformAiEngine();
   api.route(
     "/",
     createPlatformApi({
@@ -34,17 +34,23 @@ export function createApplicationApi() {
       request.req.query("tenant") ?? "",
     );
     if (!context) return request.json({ error: "Context not found." }, 404);
-    return request.json(
-      await ai.listAvailableTargets({
+    // The member's permissions travel with the listing: the engine hands
+    // this object to the host's authorisation as it is.
+    const asking = {
+      scope: {
         tenantId: context.tenant.id,
-        userId: context.user.id,
+        actorId: context.user.id,
         productId: "omnitech.platform",
-        permissions: context.permissions,
-      }),
+      },
+      permissions: context.permissions,
+    };
+    // A catalogue's models are for a picker that asks for them, not here.
+    return request.json(
+      (await engine.profiles(asking)).filter((profile) => !profile.listing),
     );
   });
   // Each registered product's router, with the platform services it needs.
-  for (const backend of createProductBackends(ai))
+  for (const backend of createProductBackends(engine))
     api.route(backend.mountPath, backend.app as Hono);
   api.route("/api", createAgentApi());
   return api;

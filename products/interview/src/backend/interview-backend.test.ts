@@ -1,10 +1,12 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type {
-  AiExecutionGateway,
-  AiExecutionRequest,
-} from "@omnitech/ai-contracts";
+import {
+  type AiEngine,
+  createAiEngine,
+  type Execution,
+  type ModelPort,
+} from "@omnitech/ai-engine";
 import {
   createPlatformDatabase,
   type PlatformDatabase,
@@ -27,42 +29,63 @@ import {
 } from "vitest";
 import { createInterviewBackend } from "./interview-backend";
 
-// The AI gateway is the provider boundary: it records what the product asks
-// for and answers with a listing of one model.
-const executed: AiExecutionRequest[] = [];
-const ai: AiExecutionGateway = {
-  async execute(request) {
-    executed.push(request);
-    return {
-      executionId: "e",
-      family: "direct-model",
-      targetId: "fake",
-      result: { not: "an answer" },
-    } as never;
-  },
-  async *stream() {},
-  async *streamStructured() {},
-  async cancel() {},
-  async *resume() {},
-  async listAvailableTargets() {
-    return [
-      {
-        id: "interview-assistant",
-        label: "Interview assistant",
-        family: "direct-model",
-        kind: "language",
-        capabilities: ["structured-chat"],
-        listing: {
-          id: "interview-assistant",
-          name: "Test model",
-          tags: [],
-          vision: false,
-          reasoning: false,
-        },
-      },
-    ] as never;
+// The model is the provider boundary: it records what the product asks for
+// and replies with an object that is no answer. A repair turn is the
+// engine's own second call and is not counted as the product's.
+type Asked = {
+  profileId: string;
+  scope: Execution["scope"];
+  schema?: Record<string, unknown>;
+};
+const executed: Asked[] = [];
+const model: ModelPort = {
+  async *stream(scope, input) {
+    const repairing = input.messages.some(
+      (message) =>
+        message.role === "user" &&
+        message.parts.some(
+          (part) =>
+            part.type === "text" &&
+            part.text.startsWith("That output was not accepted"),
+        ),
+    );
+    if (!repairing)
+      executed.push({
+        profileId: input.profileId,
+        scope,
+        ...(input.schema === undefined
+          ? {}
+          : { schema: input.schema as Record<string, unknown> }),
+      });
+    yield { type: "text", text: JSON.stringify({ not: "an answer" }) };
   },
 };
+const authorize = vi.fn((_execution: Execution) => true as const);
+const engine: AiEngine = createAiEngine({
+  profiles: [
+    { id: "interview-assistant", provider: "model" },
+    { id: "interview-answers", provider: "model" },
+    { id: "agent", provider: "agents", catalog: true },
+  ],
+  providers: { model, agents: { ...model, kind: "agent" } },
+  catalogs: {
+    agents: {
+      list: async () => ({
+        models: [
+          {
+            id: "agent/claude-code",
+            name: "Claude Code",
+            tags: [],
+            vision: false,
+            reasoning: false,
+            local: false,
+          },
+        ],
+      }),
+    },
+  },
+  authorize,
+});
 
 let pg: DisposablePostgres;
 let database: PlatformDatabase;
@@ -141,7 +164,7 @@ function backend(
   } = {},
 ) {
   return createInterviewBackend({
-    ai,
+    engine,
     database,
     runQueueConnectionString: pg.memberUrl,
     resolveContext,
@@ -149,6 +172,13 @@ function backend(
     modelVersion: "test",
     contextCharacters: 10_000,
     onDeviceModel: true,
+    assistantListing: {
+      name: "Test model",
+      tags: [],
+      vision: false,
+      reasoning: false,
+      local: false,
+    },
     localDefaultProfile: true,
     ...(overrides.assistantDefaultModel
       ? { assistantDefaultModel: overrides.assistantDefaultModel }
@@ -162,27 +192,36 @@ const json = (body: unknown, tenant = "local") => ({
 });
 
 describe("Interview Studio's backend as the platform mounts it", () => {
-  it("generates answers on the gateway as the member of the named tenant", async () => {
+  it("generates answers on the engine as the member of the named tenant", async () => {
     const response = await backend().app.request(
       "http://studio.test/api/v1/generate",
       json({ question: "Reverse a linked list", language: "typescript" }),
     );
     // The fake model's reply is not an answer; the product says so.
     expect(response.status).toBe(502);
-    expect(executed[0]).toMatchObject({
-      profileId: "interview-answers",
-      context: {
-        tenantId: member.tenantId,
-        userId: member.userId,
-        productId: "omnitech.interview",
+    // One call, carrying the answer's schema for the engine to enforce.
+    expect(executed).toEqual([
+      {
+        profileId: "interview-answers",
+        scope: {
+          tenantId: member.tenantId,
+          actorId: member.userId,
+          productId: "omnitech.interview",
+        },
+        schema: expect.objectContaining({ type: "object" }),
+      },
+    ]);
+    // The member's permissions travel on the execution the host authorises.
+    expect(authorize).toHaveBeenCalledWith(
+      expect.objectContaining({
         permissions: [
           "interview.read",
           "interview.write",
           "interview.documents.write",
         ],
-      },
-      task: { type: "structured-generation" },
-    });
+      }),
+      expect.objectContaining({ id: "interview-answers" }),
+    );
   });
 
   // HO-SEC-02: the /api/v1 gate accepts a browser only as a verified member of
@@ -248,7 +287,7 @@ describe("Interview Studio's backend as the platform mounts it", () => {
     expect(write.status).toBe(401);
   });
 
-  it("offers the gateway's models and the on-device model in the assistant", async () => {
+  it("offers the engine's models and the on-device model in the assistant", async () => {
     const response = await backend().app.request(
       "http://studio.test/api/assistant/v1/models",
       { headers: { "x-omnitech-tenant": "local" } },
@@ -263,6 +302,7 @@ describe("Interview Studio's backend as the platform mounts it", () => {
       ]),
     ).toEqual([
       ["interview-assistant", ["default"]],
+      ["agent/claude-code", []],
       ["on-device", ["on-device"]],
     ]);
   });
@@ -359,7 +399,7 @@ describe("Interview Studio's backend as the platform mounts it", () => {
 
   // The studio is built once per process, so each default model below gets a
   // studio of its own; the last one built is the plain one other tests expect.
-  it("runs a pack's one-shot generation on the agent when that is the default model, with the reply's schema", async () => {
+  it("runs a pack's one-shot generation on the default model, agent or not, in one call with the reply's schema", async () => {
     const path = join(matrices, "default-experience-matrix.json");
     writeFileSync(
       path,
@@ -371,7 +411,7 @@ describe("Interview Studio's backend as the platform mounts it", () => {
     vi.stubEnv("INTERVIEW_DEFAULT_MATRIX_PATH", path);
     const headers = { "x-omnitech-tenant": "local" };
     const base = "http://studio.test/api/interview/briefing";
-    // What a pack's generation asked the gateway for, under a default model.
+    // What a pack's generation asked the engine for, under a default model.
     async function condensedOn(
       artifactId: string,
       assistantDefaultModel?: string,
@@ -409,52 +449,36 @@ describe("Interview Studio's backend as the platform mounts it", () => {
           expectedRevision: (await created.json()).origin.artifactRevision,
         }),
       );
-      // The fake model's reply is not the two fields: one correction, then
-      // the product reports the generation failed.
+      // The fake model's reply is not the two fields: the product reports
+      // the generation failed.
       expect(condensed.status).toBe(503);
-      expect(executed).toHaveLength(2);
-      return executed.map(({ profileId, task }) => ({
-        profileId,
-        type: task.type,
-        schema: (task as { schema?: Record<string, unknown> }).schema,
-      }));
+      return executed.map(({ profileId, schema }) => ({ profileId, schema }));
     }
 
-    const onAgent = await condensedOn("on-agent", "agent/claude-code");
-    for (const request of onAgent) {
-      expect(request).toMatchObject({
-        profileId: "agent/claude-code",
-        type: "structured-generation",
-        schema: {
-          type: "object",
-          properties: {
-            jobDescription: { type: "string" },
-            research: { type: "string" },
-          },
-          required: ["jobDescription", "research"],
-        },
-      });
-      // The runtime's own check cannot resolve zod's draft reference.
-      expect(request.schema).not.toHaveProperty("$schema");
-    }
-
-    // A direct model reads the shape from the instructions: no schema travels,
-    // whether the default is another model or none is named.
-    for (const [artifactId, model] of [
-      ["on-model", "lm-studio/some-model"],
-      ["on-default", undefined],
-    ] as const)
-      expect(await condensedOn(artifactId, model)).toEqual([
+    // The engine checks the reply against the schema and asks once more
+    // itself, so the product asked once: on an agent, on another model, and
+    // when no default is named.
+    for (const [artifactId, model, profileId] of [
+      ["on-agent", "agent/claude-code", "agent/claude-code"],
+      ["on-model", "lm-studio/some-model", "interview-assistant"],
+      ["on-default", undefined, "interview-assistant"],
+    ] as const) {
+      const asked = await condensedOn(artifactId, model);
+      expect(asked).toEqual([
         {
-          profileId: "interview-assistant",
-          type: "structured-generation",
-          schema: undefined,
-        },
-        {
-          profileId: "interview-assistant",
-          type: "structured-generation",
-          schema: undefined,
+          profileId,
+          schema: expect.objectContaining({
+            type: "object",
+            properties: {
+              jobDescription: expect.objectContaining({ type: "string" }),
+              research: expect.objectContaining({ type: "string" }),
+            },
+            required: ["jobDescription", "research"],
+          }),
         },
       ]);
+      // An agent runtime's own check cannot resolve zod's draft reference.
+      expect(asked[0]!.schema).not.toHaveProperty("$schema");
+    }
   }, 30_000);
 });

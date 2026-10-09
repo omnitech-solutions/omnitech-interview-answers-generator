@@ -1,6 +1,6 @@
 "use client";
 
-import type { AiTargetSummary } from "@omnitech/ai-contracts";
+import type { ProfileSummary } from "@omnitech/ai-engine";
 import type {
   PlatformContext,
   ProductFrame,
@@ -63,11 +63,8 @@ export function PlatformShell({
       signal: controller.signal,
     })
       .then((response) => (response.ok ? response.json() : []))
-      .then((targets: AiTargetSummary[]) => {
-        const selected = targets.find(
-          (target) =>
-            target.kind === "language" && target.family === "direct-model",
-        )?.id;
+      .then((targets: ProfileSummary[]) => {
+        const selected = targets.find((target) => target.kind === "model")?.id;
         if (selected) localStore.set(AI_PROFILE_KEY, selected);
       })
       .catch(() => undefined);

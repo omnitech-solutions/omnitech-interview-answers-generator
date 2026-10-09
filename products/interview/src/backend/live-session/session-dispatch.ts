@@ -19,18 +19,17 @@
 // and there is NEVER a fallback to another profile: a refusal is final, an
 // unavailable device is a retryable outcome that tries the same profile again.
 
-import {
-  type AgentAttachment,
-  type AiExecutionGateway,
-  type AiExecutionRequest,
-  type AiGeneratedBy,
-  AiPolicyRefusedError,
-} from "@omnitech/ai-contracts";
+import type { Failure } from "@omnitech/ai-engine";
 import { ASSIST_ACTION_KIND } from "./assist-stage";
 import type { Clock, ProcessingPolicy, Task } from "./core/index";
+import {
+  type AnsweredBy,
+  askEngine,
+  type SessionAttachment,
+  type SessionEngine,
+} from "./engine-call";
 import type { AgentEscalationPort } from "./escalation";
 import type { PublishEffect } from "./fenced-writes";
-import { sessionGatewayContext } from "./gateway-context";
 import type { InterviewSessionPolicy } from "./interview-policy";
 import type { SessionStorePort } from "./processor-ports";
 import {
@@ -93,7 +92,10 @@ export function partialDraft(json: string): string {
 
 export type DispatchDeps = {
   store: SessionStorePort;
-  gateway: AiExecutionGateway;
+  engine: SessionEngine;
+  // Which runtime and model a profile is, for display with a published
+  // answer. From the host's own configuration; absent, nothing is shown.
+  answeredBy?: (profileId: string) => AnsweredBy | undefined;
   policy: InterviewSessionPolicy;
   clock: Clock;
   // The host's test runner, when it configured one; its absence is an outcome
@@ -118,11 +120,19 @@ export type DispatchDeps = {
 // nothing more (rule:fenced-current-publish).
 const HOLDER_LOST = new Set(["fence_superseded", "lease_expired"]);
 
-const isPolicyRefusal = (error: unknown): boolean =>
-  error instanceof AiPolicyRefusedError ||
-  (typeof error === "object" &&
-    error !== null &&
-    (error as { code?: unknown }).code === "policy-refused");
+// A refusal by policy: the engine's own (the profile does not run where the
+// session requires), or the runtime's (it cannot see an image, an attachment
+// was refused, a tool was asked for). A caller the engine does not authorise
+// is not this; that is a failure to reach a model at all.
+const isPolicyRefusal = (failure: Failure | undefined): boolean =>
+  failure?.code === "refused" && failure.refusal !== "authorization";
+
+// [SAFETY] Only a typed code is ever traced as a cause. Provider text, which
+// a failure's detail may also hold, is never copied into the trace.
+const typedCause = (failure: Failure | undefined): string =>
+  failure?.detail !== undefined && /^[a-z0-9_:-]{1,80}$/.test(failure.detail)
+    ? failure.detail
+    : "untyped";
 
 // What the skeleton needs of a stage: its action kind and its profiles.
 export type DispatchStage = {
@@ -139,12 +149,12 @@ type DispatchPrompt = {
   // Frozen images that travel with the prompt, named by provenance id only.
   // The dispatch must have begun with the same images, so its profile is the
   // vision profile; the runtime and the loader do the rest.
-  attachments?: readonly AgentAttachment[];
+  attachments?: readonly SessionAttachment[];
 };
 
 // What a dispatch needs beyond its stage: the images its answer rests on.
 export type DispatchOptions = {
-  attachments?: readonly AgentAttachment[];
+  attachments?: readonly SessionAttachment[];
 };
 
 // What the dispatch will really send of those screenshots (D35): decided from
@@ -216,7 +226,7 @@ export async function beginDispatch(
   stage: DispatchStage,
   options: DispatchOptions = {},
 ): Promise<Dispatch | null> {
-  const { store, gateway, clock } = deps;
+  const { store, engine, clock } = deps;
   const imageAttachments = options.attachments ?? [];
   const sessionId = run.claim.sessionId;
   const revision = task.revision;
@@ -226,7 +236,7 @@ export async function beginDispatch(
   let profileId: string | undefined;
   let bytesIn = 0;
   let bytesOut = 0;
-  let generatedBy: AiGeneratedBy | undefined;
+  let generatedBy: AnsweredBy | undefined;
 
   // The words of the draft about to be published, for the story line only.
   let publishedText: string | undefined;
@@ -467,19 +477,15 @@ export async function beginDispatch(
     return true;
   };
 
-  // Runs a structured request through the gateway's stream, recording the
-  // draft's text so far on the action as it grows, and resolves like
-  // execute() once the result arrives. A refusal or failure throws the same
-  // way execute() does (the policy error is the gateway's own).
-  async function streamed(
-    request: AiExecutionRequest,
-  ): Promise<{ result: unknown; generatedBy?: AiGeneratedBy }> {
-    let text = "";
+  // Records the answer draft's text so far on the action as it grows, about
+  // twice a second, so the person reads it while it is written.
+  const draftWriter = () => {
     let lastWrite = 0;
     let lastDraft = "";
-    const write = async (force: boolean) => {
+    return async (text: string) => {
+      if (stopped()) return;
       const now = Date.now();
-      if (!force && now - lastWrite < PROGRESS_INTERVAL_MS) return;
+      if (now - lastWrite < PROGRESS_INTERVAL_MS) return;
       const draft = partialDraft(text);
       if (draft === lastDraft || draft === "") return;
       lastWrite = now;
@@ -494,27 +500,7 @@ export async function beginDispatch(
         })
         .catch(() => undefined);
     };
-    for await (const event of gateway.stream(request)) {
-      if (stopped()) break;
-      if (event.type === "text-delta") {
-        text += event.text;
-        await write(false);
-      } else if (event.type === "completed") {
-        // The executor's display metadata rides the completed event (the
-        // agent port and a model adapter set it); it is kept for the publish
-        // exactly as execute() keeps it.
-        return {
-          result: event.result,
-          ...(event.generatedBy ? { generatedBy: event.generatedBy } : {}),
-        };
-      } else if (event.type === "failed") {
-        throw Object.assign(new Error(event.error.message), {
-          ...event.error,
-        });
-      }
-    }
-    throw new Error("The stream ended without a result.");
-  }
+  };
   return {
     run,
     task,
@@ -552,102 +538,89 @@ export async function beginDispatch(
         finish("dispatch.refused", "vision-unavailable");
         return { ok: false };
       }
-      const request: AiExecutionRequest = {
-        context: sessionGatewayContext(run.scope),
-        profileId: chosenProfile,
-        task: {
-          type: "structured-generation",
+      // The answer draft is streamed so the person reads it as it is written;
+      // other stages wait for the whole result.
+      const answer = await askEngine(
+        engine,
+        {
+          scope: run.scope,
+          profileId: chosenProfile,
           system: prompt.system,
           prompt: prompt.prompt,
           schema: prompt.schema,
           ...(sent.length > 0 ? { attachments: sent } : {}),
+          policy: standing.processingPolicy,
+          idempotencyKey: `${sessionId}:${task.taskId}:${revision}:${stage.actionKind}:${attempt}${tag}`,
+          answer: { sessionId, taskId: task.taskId, revision },
+          signal,
         },
-        processingPolicy: standing.processingPolicy,
-        idempotencyKey: `${sessionId}:${task.taskId}:${revision}:${stage.actionKind}:${attempt}${tag}`,
-        signal,
-      };
-      try {
-        // The answer draft is streamed so the person reads it as it is written
-        // (recordProgress, about twice a second); other stages wait for the
-        // whole result.
-        const execution =
-          stage.actionKind === ASSIST_ACTION_KIND
-            ? await streamed(request)
-            : await gateway.execute(request);
-        const result: unknown = execution.result;
+        stage.actionKind === ASSIST_ACTION_KIND ? draftWriter() : undefined,
+      );
+      if (answer.ok) {
+        const result = answer.result;
         bytesOut += Buffer.byteLength(
           typeof result === "string" ? result : (JSON.stringify(result) ?? ""),
         );
         if (stopped()) return { ok: false };
         // Display metadata only: remembered for the publish, never branched on.
-        generatedBy = execution.generatedBy;
+        generatedBy = deps.answeredBy?.(chosenProfile);
         return { ok: true, result };
-      } catch (error) {
-        if (stopped()) return { ok: false };
-        if (isPolicyRefusal(error)) {
-          // The refusal may be the session flipping to device-only before the
-          // processor's tighten-abort fired: re-read the standing, and if the
-          // policy changed this is retryable under the device profile, never a
-          // final refusal of the task.
-          const now = await store
-            .readDispatchStanding({
-              scope: run.scope,
-              sessionId,
-              holder: run.holder,
-            })
-            .catch(() => null);
-          if (now === null) {
-            await failRetryably("unavailable");
-            return { ok: false };
-          }
-          if (now.outcome === "refused") {
-            lost(now.reason);
-            return { ok: false };
-          }
-          if (now.processingPolicy !== standing.processingPolicy) {
-            locality = now.processingPolicy;
-            await settle("policy_changed");
-            finish("dispatch.suppressed", "policy_changed");
-            return { ok: false };
-          }
-          // A real denial on an unchanged session: non-retryable.
-          run.settled.add(key);
-          // A refusal of a request that carried images (the runtime cannot
-          // see them, or an attachment was refused) says so.
-          await settle(sent.length > 0 ? "vision_refused" : "policy_refused");
-          finish(
-            "dispatch.refused",
-            sent.length > 0 ? "vision-refused" : "policy-refused",
-          );
+      }
+      if (stopped()) return { ok: false };
+      const failed = answer.failure;
+      if (isPolicyRefusal(failed)) {
+        // The refusal may be the session flipping to device-only before the
+        // processor's tighten-abort fired: re-read the standing, and if the
+        // policy changed this is retryable under the device profile, never a
+        // final refusal of the task.
+        const now = await store
+          .readDispatchStanding({
+            scope: run.scope,
+            sessionId,
+            holder: run.holder,
+          })
+          .catch(() => null);
+        if (now === null) {
+          await failRetryably("unavailable");
           return { ok: false };
         }
-        // The agent port's retryable "session not active" (a pause or end
-        // seen after a capacity wait or a screenshot read): suppressed like a
-        // pause, unsettled, so it is answered once the session is active.
-        if (
-          (error as { sessionCode?: unknown } | null)?.sessionCode ===
-          "session-not-active"
-        ) {
-          await settle("session_not_active");
-          finish("dispatch.suppressed", "session_not_active");
+        if (now.outcome === "refused") {
+          lost(now.reason);
           return { ok: false };
         }
-        // Unavailable (a failed standing or screenshot read, or cancelled):
-        // retried against the same profile, with no fallback to another.
-        const typed = error as {
-          sessionCode?: unknown;
-          reason?: unknown;
-        } | null;
-        const code =
-          typeof typed?.sessionCode === "string"
-            ? typed.sessionCode
-            : "untyped";
-        await failRetryably(
-          signal.aborted ? "cancelled" : "unavailable",
-          typeof typed?.reason === "string" ? `${code}:${typed.reason}` : code,
+        if (now.processingPolicy !== standing.processingPolicy) {
+          locality = now.processingPolicy;
+          await settle("policy_changed");
+          finish("dispatch.suppressed", "policy_changed");
+          return { ok: false };
+        }
+        // A real denial on an unchanged session: non-retryable.
+        run.settled.add(key);
+        // A refusal of a request that carried images (the runtime cannot
+        // see them, or an attachment was refused) says so.
+        await settle(sent.length > 0 ? "vision_refused" : "policy_refused");
+        finish(
+          "dispatch.refused",
+          sent.length > 0 ? "vision-refused" : "policy-refused",
         );
         return { ok: false };
       }
+      const cause = typedCause(failed);
+      // The runtime's retryable "session not active" (a pause or end seen
+      // after a capacity wait or a screenshot read): suppressed like a pause,
+      // unsettled, so it is answered once the session is active.
+      if (cause.split(":")[0] === "session-not-active") {
+        await settle("session_not_active");
+        finish("dispatch.suppressed", "session_not_active");
+        return { ok: false };
+      }
+      // Unavailable (a failed standing or screenshot read, or cancelled):
+      // retried against the same profile, with no fallback to another.
+      await failRetryably(
+        signal.aborted || failed === undefined ? "cancelled" : "unavailable",
+        cause,
+      );
+      return { ok: false };
     },
     async publish(result, options = {}) {
       const draft =

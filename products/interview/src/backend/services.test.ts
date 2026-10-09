@@ -96,9 +96,10 @@ describe("generateInterviewAnswer", () => {
     expect(generate).toHaveBeenCalledOnce();
     expect(generate).toHaveBeenCalledWith(
       {
-        system: expect.stringContaining("matches this JSON Schema"),
+        // The shape is the engine's to state: the instructions do not.
+        system: expect.not.stringContaining("JSON Schema"),
         prompt: expect.stringContaining("Build an accessible React counter."),
-        // The answer's JSON Schema, for a host that runs on an agent runtime.
+        // The answer's JSON Schema, which the engine asks the provider for.
         schema: expect.objectContaining({ type: "object" }),
       },
       scope,
@@ -196,7 +197,7 @@ describe("generateInterviewAnswer", () => {
     ).rejects.toThrow("required code example");
   });
 
-  it("gives the model one correction turn, then reports the failing fields", async () => {
+  it("reports the failing fields of a reply that misses the contract, after one call", async () => {
     generate.mockResolvedValue({ title: "Queues" });
     await expect(
       generateExplanation({ topic: "Queues" }, generate, scope),
@@ -204,7 +205,7 @@ describe("generateInterviewAnswer", () => {
       code: "generation-failed",
       hint: expect.stringContaining("markdown"),
     });
-    expect(generate).toHaveBeenCalledTimes(2);
+    expect(generate).toHaveBeenCalledTimes(1);
   });
 });
 

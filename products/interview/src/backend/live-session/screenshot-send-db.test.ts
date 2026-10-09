@@ -1,7 +1,7 @@
 // The per-session "Screenshots to the model" setting (D35), on a disposable
 // PostgreSQL as the member role (requires Docker, like the other session
 // suites): the real processor and assist stage run over a scripted fake
-// gateway. Asserts counts, ids, names, wire shapes and marker wording only;
+// engine. Asserts counts, ids, names, wire shapes and marker wording only;
 // the on-screen text is a unique marker that must never reach a trace or log.
 import {
   type LiveOcrBlock,
@@ -22,7 +22,8 @@ import { type Fixture, pngOf, startFixture } from "./live-session-fixture";
 import {
   buildProcessor,
   collectTraces,
-  createFakeGateway,
+  createFakeEngine,
+  type SessionAsk,
   settle,
 } from "./processor-fixture";
 import { ActiveSessionRepository } from "./repository";
@@ -91,21 +92,21 @@ async function world(
       ? { screenshotSend: options.screenshotSend }
       : {}),
   });
-  const gateway = createFakeGateway();
+  const engine = createFakeEngine();
   const trace = collectTraces();
   const processor = buildProcessor(fx, {
     workerId: `worker-${name}`,
-    gateway,
+    engine,
     trace,
     visionProfileId: "vision-profile",
   });
   const sessionId = started.session.id;
   cleanups.push(async () => {
-    gateway.releaseAll();
+    engine.releaseAll();
     await processor.close();
     await repo.controlSession(scope, sessionId, "end");
   });
-  return { person, scope, sessionId, gateway, processor, trace, started };
+  return { person, scope, sessionId, engine, processor, trace, started };
 }
 type World = Awaited<ReturnType<typeof world>>;
 
@@ -123,11 +124,13 @@ const capture = (
 const A = pngOf(640, 480, 0);
 const B = pngOf(640, 480, 1);
 const C = pngOf(640, 480, 2);
-const attachmentsOf = (request: { task: unknown }) =>
-  ((request.task as { attachments?: Array<{ name: string }> }).attachments ??
-    []) as Array<{ name: string }>;
-const promptOf = (request: { task: unknown }) =>
-  (request.task as { prompt: string }).prompt;
+const sent = (request: SessionAsk | undefined) => {
+  if (!request) throw new Error("no such call reached the engine");
+  return request;
+};
+const attachmentsOf = (request: SessionAsk | undefined) =>
+  sent(request).attachments;
+const promptOf = (request: SessionAsk | undefined) => sent(request).prompt;
 const draftActions = async (w: World) =>
   (await repo.listActions(w.scope, w.sessionId)).filter(
     (action) => action.actionKind === "draft-answer",
@@ -169,15 +172,15 @@ async function oneCall(
   requestId: string,
   ocr: Array<LiveOcrBlock | null>,
 ) {
-  const before = w.gateway.requests.length;
+  const before = w.engine.requests.length;
   await capture(
     w,
     { requestId, ocr },
     ocr.map((_, i) => [A, B, C][i] as Uint8Array),
   );
   await settle(w.processor);
-  expect(w.gateway.requests.length).toBe(before + 1);
-  return w.gateway.requests[before] as never;
+  expect(w.engine.requests.length).toBe(before + 1);
+  return w.engine.requests[before];
 }
 
 describe("always (the default)", () => {
@@ -296,7 +299,7 @@ describe("never", () => {
   it("is read at dispatch from the stored setting: changing it applies to the next call, and a regeneration follows it", async () => {
     const w = await world("send-change");
     await oneCall(w, "c-1", [read(PROSE)]);
-    expect(attachmentsOf(w.gateway.requests[0] as never)).toHaveLength(1);
+    expect(attachmentsOf(w.engine.requests[0])).toHaveLength(1);
     const changed = await post(w, "/screenshot-send", {
       screenshotSend: "never",
     });
@@ -309,7 +312,7 @@ describe("never", () => {
       snapshots: [],
     });
     await settle(w.processor);
-    expect(attachmentsOf(w.gateway.requests[1] as never)).toHaveLength(0);
+    expect(attachmentsOf(w.engine.requests[1])).toHaveLength(0);
     // Both revisions record what really left, in the browser's feed too.
     const feed = JSON.parse(await get(w, "/stream")) as { actions: unknown[] };
     const sent = feed.actions
@@ -334,7 +337,7 @@ describe("device-only is unchanged and takes precedence", () => {
       });
       await capture(w, { requestId: "d-1", ocr: [read(PROSE)] }, [A]);
       await settle(w.processor);
-      expect(w.gateway.requests).toHaveLength(0);
+      expect(w.engine.requests).toHaveLength(0);
       expect(
         w.trace.events.some(
           (e) =>

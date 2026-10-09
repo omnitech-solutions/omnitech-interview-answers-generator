@@ -76,7 +76,7 @@ export type DocumentContext = {
   targets: Array<{
     id: string;
     label: string;
-    family?: "direct-model" | "agent-runtime";
+    kind?: "model" | "agent" | "image";
   }>;
 };
 export type DocumentExport = {

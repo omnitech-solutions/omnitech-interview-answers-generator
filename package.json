@@ -44,7 +44,8 @@
     "app:down": "scripts/docker-host-services.sh stop; docker compose --profile app down",
     "knip": "knip --no-exit-code",
     "docs:arch": "node scripts/docs-arch.mjs",
-    "docs:arch:check": "node scripts/docs-arch.mjs --dry-run"
+    "docs:arch:check": "node scripts/docs-arch.mjs --dry-run",
+    "engine:sync": "pnpm --dir ../omnitech-ai-engine --filter @omnitech/ai-engine build && pnpm --dir ../omnitech-ai-engine/packages/ai-engine pack --pack-destination \"$PWD/vendor/omnitech-ai-engine\" && pnpm install"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.5",
@@ -66,7 +67,8 @@
       "@oc-tech/omni-ui-components": "file:vendor/omni-ui-components/oc-tech-omni-ui-components-0.1.0.tgz",
       "@omnitech-assistant/provider-on-device": "file:vendor/omnitech-assistant/omnitech-assistant-provider-on-device-0.1.0.tgz",
       "@omnitech/local-assistant": "file:vendor/omnitech-on-device-llm/omnitech-local-assistant-0.1.0.tgz",
-      "@omnitech/local-inference": "file:vendor/omnitech-on-device-llm/omnitech-local-inference-0.1.0.tgz"
+      "@omnitech/local-inference": "file:vendor/omnitech-on-device-llm/omnitech-local-inference-0.1.0.tgz",
+      "@omnitech/ai-engine": "file:vendor/omnitech-ai-engine/omnitech-ai-engine-0.1.0.tgz"
     }
   }
 }

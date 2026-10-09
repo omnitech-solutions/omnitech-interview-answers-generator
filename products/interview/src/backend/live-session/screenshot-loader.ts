@@ -20,11 +20,11 @@ import {
   detectScreenshotMediaType,
   type ScreenshotMediaType,
 } from "@omnitech/active-session-contracts";
-import type { AgentAttachment, AiAccessContext } from "@omnitech/ai-contracts";
 import type { PlatformDatabase } from "@omnitech/database";
 import { sql } from "drizzle-orm";
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
 import { SESSION_SCREENSHOT_ARTIFACT_TYPE } from "../db/live-session";
+import type { SessionAttachment } from "./engine-call";
 import { isUuid } from "./errors";
 import { parseSnapshotProvenanceId } from "./owner-input";
 import { firstRow, inOwnerScope } from "./scope";
@@ -179,8 +179,8 @@ export type SnapshotRead = (
 // The verification, apart from storage so it is testable without a database.
 export async function loadVerifiedScreenshot(
   read: SnapshotRead,
-  context: Pick<AiAccessContext, "tenantId" | "userId">,
-  attachment: Pick<AgentAttachment, "kind" | "id" | "reference">,
+  owner: { tenantId: string; actorId: string },
+  attachment: Pick<SessionAttachment, "kind" | "id" | "reference">,
   signal: AbortSignal | undefined,
   limits: ScreenshotLoadLimits = SCREENSHOT_LOAD_LIMITS,
 ): Promise<Uint8Array> {
@@ -197,9 +197,7 @@ export async function loadVerifiedScreenshot(
   // [SAFETY] A thrown read is a typed, retryable failure; the store's error
   // (which may name rows or SQL) is never carried.
   const found = await Promise.resolve()
-    .then(() =>
-      read({ tenantId: context.tenantId, actorId: context.userId }, ref),
-    )
+    .then(() => read(owner, ref))
     .catch(() => {
       throw new ScreenshotLoadError(
         signal?.aborted ? "aborted" : "read_failed",
@@ -291,9 +289,9 @@ export function createSessionScreenshotLoader(
 ) {
   const read = createSnapshotRead(database);
   return (
-    context: AiAccessContext,
-    attachment: AgentAttachment,
+    owner: { tenantId: string; actorId: string },
+    attachment: Pick<SessionAttachment, "kind" | "id" | "reference">,
     signal: AbortSignal | undefined,
   ): Promise<Uint8Array> =>
-    loadVerifiedScreenshot(read, context, attachment, signal, limits);
+    loadVerifiedScreenshot(read, owner, attachment, signal, limits);
 }

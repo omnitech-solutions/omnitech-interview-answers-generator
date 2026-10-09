@@ -7,7 +7,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   buildProcessor,
   collectTraces,
-  createFakeGateway,
+  createFakeEngine,
   expireLease,
   NEVER_ABORTED,
   settle,
@@ -39,14 +39,14 @@ const inputOf = (segment: ReturnType<typeof phase>[number]) => ({
   endMs: segment.endMs,
 });
 
-function processorFor(workerId: string, gateway = createFakeGateway()) {
+function processorFor(workerId: string, engine = createFakeEngine()) {
   const trace = collectTraces();
-  const processor = buildProcessor(world.fx, { workerId, gateway, trace });
+  const processor = buildProcessor(world.fx, { workerId, engine, trace });
   cleanups.unshift(async () => {
-    gateway.releaseAll();
+    engine.releaseAll();
     await processor.close();
   });
-  return { processor, gateway, trace };
+  return { processor, engine, trace };
 }
 
 const fenceRows = async (sessionId: string) =>
@@ -68,9 +68,9 @@ describe("a worker lost mid-action while the companion keeps speaking (case 2)",
 
     // Worker A takes the question and is stuck inside the model call.
     const a = processorFor("worker-a");
-    const hold = a.gateway.hold();
+    const hold = a.engine.hold();
     await a.processor.tick(NEVER_ABORTED);
-    await a.gateway.called(1);
+    await a.engine.called(1);
     expect(a.processor.snapshot(owner.id)?.fence).toBe(1);
 
     // The call goes on: the companion sends the follow-up while nobody can
@@ -157,7 +157,7 @@ describe("a worker lost mid-action while the companion keeps speaking (case 2)",
       ),
     );
     expect(keys.length).toBeGreaterThan(beforeKeys.size);
-    const bRequests = b.gateway.requests.length;
+    const bRequests = b.engine.requests.length;
     expect(bRequests).toBe(keys.length - beforeKeys.size);
   }, 60_000);
 });

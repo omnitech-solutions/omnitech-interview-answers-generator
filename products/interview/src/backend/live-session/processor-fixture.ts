@@ -1,18 +1,19 @@
-// Test support for the session processor suites: a fake gateway that returns
+// Test support for the session processor suites: a fake engine that returns
 // canned closed-schema output (and can be held mid-call), a trace collector, a
 // replay helper that ingests the synthetic fixtures through the real ingest
 // path, and a world that composes the real processor over the database
 // fixture. Tests, not production code, import this.
 import { randomUUID } from "node:crypto";
 import type {
-  AiEvent,
-  AiExecution,
-  AiExecutionGateway,
-  AiExecutionRequest,
-} from "@omnitech/ai-contracts";
+  Execution,
+  Failure,
+  ModelInput,
+  StreamPart,
+} from "@omnitech/ai-engine";
 import type { CandidateMatrix } from "@omnitech/interview-contracts";
 import { expect } from "vitest";
 import { matrixSha256 } from "./context-snapshot";
+import type { SessionAttachment, SessionEngine } from "./engine-call";
 import { ingestObservation } from "./ingest";
 import { createInterviewSessionPolicy } from "./interview-policy";
 import type { Fixture, Person } from "./live-session-fixture";
@@ -39,24 +40,97 @@ import {
 } from "./session-replay-fixtures";
 import type { SessionTraceEvent, TraceSink } from "./trace";
 
-export type FakeGateway = AiExecutionGateway & {
-  requests: AiExecutionRequest[];
-  // Resolves once the gateway has been called `count` times in total.
+// One call as the session put it to the engine, read back from what the
+// engine was given, in the words a test wants to assert on.
+export type SessionAsk = {
+  profileId: string;
+  system: string | undefined;
+  prompt: string;
+  schema: unknown;
+  attachments: SessionAttachment[];
+  policy: Execution["policy"];
+  idempotencyKey: string | undefined;
+  scope: Execution["scope"];
+  permissions: readonly string[] | undefined;
+  for: Execution["for"];
+  traceId: string | undefined;
+  signal: AbortSignal;
+};
+const textOf = (input: ModelInput, role: "system" | "user") => {
+  const message = input.messages.find((entry) => entry.role === role);
+  return message?.parts
+    .map((part) => (part.type === "text" ? part.text : ""))
+    .join("");
+};
+export const askOf = (input: ModelInput, execution: Execution): SessionAsk => ({
+  profileId: input.profileId,
+  system: textOf(input, "system"),
+  prompt: textOf(input, "user") ?? "",
+  schema: input.schema,
+  attachments: input.messages.flatMap((message) =>
+    message.parts.flatMap((part) =>
+      part.type === "attachment"
+        ? [
+            {
+              id: part.id,
+              kind: part.kind,
+              name: part.name,
+              reference: part.reference,
+              ...(part.mediaType ? { mimeType: part.mediaType } : {}),
+            },
+          ]
+        : [],
+    ),
+  ),
+  policy: execution.policy,
+  idempotencyKey: execution.idempotencyKey,
+  scope: execution.scope,
+  permissions: execution.permissions,
+  for: execution.for,
+  traceId: execution.traceId,
+  signal: execution.signal,
+});
+
+export type EngineCall = {
+  input: ModelInput;
+  execution: Execution;
+  options?: unknown;
+};
+
+export type FakeEngine = SessionEngine & {
+  requests: SessionAsk[];
+  // Every call exactly as the engine was handed it, for a suite that must see
+  // a field the session should never send (a tool, an option).
+  sent: EngineCall[];
+  // Resolves once the engine has been called `count` times in total.
   called(count: number): Promise<void>;
   // Holds every call until release() is called.
   hold(): { release(): void };
   // Releases any hold still in place (test cleanup).
   releaseAll(): void;
+  // The answer to one call, before it is streamed. A suite wraps this to
+  // count, delay or replace an answer; every call goes through it.
+  answer(ask: SessionAsk): Promise<{ result: unknown } | { failure: Failure }>;
 };
 
-export function createFakeGateway(
+const NO_USAGE = {
+  status: "unavailable",
+  reason: "not-reported",
+  cost: { status: "unavailable", reason: "not-reported" },
+} as const;
+
+export function createFakeEngine(
   behaviour: {
-    result?: (request: AiExecutionRequest) => unknown;
-    fail?: (request: AiExecutionRequest) => unknown | undefined;
-    generatedBy?: { runtime: string; model: string };
+    result?: (ask: SessionAsk) => unknown;
+    // A typed failure ends the call failed, as the engine ends one.
+    fail?: (ask: SessionAsk) => Failure | undefined;
+    // A runtime whose answer was already on its way when the call was
+    // cancelled: the answer is delivered anyway, so a suite can prove a late
+    // result is refused at the fenced write.
+    answersAfterCancel?: boolean;
   } = {},
-): FakeGateway {
-  const requests: AiExecutionRequest[] = [];
+): FakeEngine {
+  const requests: SessionAsk[] = [];
   const waiters: Array<{ count: number; resolve: () => void }> = [];
   let gate: Promise<void> | null = null;
   let releaseGate: () => void = () => {};
@@ -67,15 +141,13 @@ export function createFakeGateway(
         waiter.resolve();
       }
   };
-  const unsupported = () => {
-    throw new Error("The fake gateway only executes.");
-  };
-  return {
+  const engine: FakeEngine = {
     requests,
+    sent: [],
     called: (count) =>
       requests.length >= count
         ? Promise.resolve()
-        : new Promise((resolve) => waiters.push({ count, resolve })),
+        : new Promise<void>((resolve) => waiters.push({ count, resolve })),
     hold() {
       const release = () => {
         gate = null;
@@ -90,56 +162,69 @@ export function createFakeGateway(
       gate = null;
       releaseGate();
     },
-    async execute<T = unknown>(
-      request: AiExecutionRequest,
-    ): Promise<AiExecution<T>> {
-      requests.push(request);
+    async answer(ask) {
+      requests.push(ask);
       notify();
       if (gate) await gate;
-      const failure = behaviour.fail?.(request);
-      if (failure !== undefined) throw failure;
+      const failure = behaviour.fail?.(ask);
+      if (failure !== undefined) return { failure };
       return {
-        executionId: `exec-${requests.length}`,
-        family: "direct-model",
-        targetId: "fake",
-        result: (behaviour.result?.(request) ??
+        result:
+          behaviour.result?.(ask) ??
           (/\b(?:notice|salary|pay|compensation|available|availability|start|join|remote|onsite|hybrid)\b/i.test(
-            capturedText(request),
+            capturedText(ask),
           )
             ? CANNED_LOGISTICS_DRAFT
-            : CANNED_DRAFT)) as T,
-        ...(behaviour.generatedBy
-          ? { generatedBy: behaviour.generatedBy }
-          : {}),
+            : CANNED_DRAFT),
       };
     },
-    streamStructured: unsupported,
-    // The draft-answer stage streams (session-dispatch.ts): the canned result
-    // is written as text in two deltas, then completed, exactly as a runtime
-    // writes the structured-output JSON. It goes through `this.execute`, so a
-    // suite that wraps execute (a hold, a count) still sees every call.
-    async *stream<T = unknown>(
-      this: AiExecutionGateway,
-      request: AiExecutionRequest,
-    ): AsyncIterable<AiEvent<T>> {
-      const execution = await this.execute<T>(request);
-      const text = JSON.stringify(execution.result) ?? "";
+    // Every stage reads the engine's stream (session-dispatch.ts): the canned
+    // result is written as text in two parts, then done, exactly as a runtime
+    // writes structured output. It goes through `answer`, so a suite that
+    // wraps it (a hold, a count) still sees every call.
+    async *stream(input, execution, options): AsyncGenerator<StreamPart> {
+      engine.sent.push({
+        input,
+        execution,
+        ...(options === undefined ? {} : { options }),
+      });
+      const answered = await engine.answer(askOf(input, execution));
+      // A call cancelled while it was held ends as the engine ends one.
+      if (execution.signal.aborted && !behaviour.answersAfterCancel) {
+        yield { type: "cancelled" };
+        return;
+      }
+      if ("failure" in answered) {
+        yield { type: "failed", failure: answered.failure };
+        return;
+      }
+      const text = JSON.stringify(answered.result) ?? "";
       const half = Math.ceil(text.length / 2);
-      yield { type: "text-delta", text: text.slice(0, half) };
-      yield { type: "text-delta", text: text.slice(half) };
+      if (text.slice(0, half))
+        yield { type: "text", text: text.slice(0, half) };
+      if (text.slice(half)) yield { type: "text", text: text.slice(half) };
       yield {
-        type: "completed",
-        result: execution.result,
-        ...(execution.generatedBy
-          ? { generatedBy: execution.generatedBy }
-          : {}),
+        type: "done",
+        value: answered.result as never,
+        usage: NO_USAGE,
       };
     },
-    cancel: async () => undefined,
-    resume: unsupported,
-    listAvailableTargets: async () => [],
   };
+  return engine;
 }
+
+// The failure a runtime or the engine ends a call with, for a suite that
+// scripts one: `failed("refused", { refusal: "policy" })`.
+export const failed = (
+  code: Failure["code"],
+  extra: Partial<Failure> = {},
+): Failure => ({
+  code,
+  reason: "scripted failure",
+  retryable:
+    code === "unavailable" || code === "timeout" || code === "rate-limited",
+  ...extra,
+});
 
 export type CollectedTrace = TraceSink & { events: SessionTraceEvent[] };
 export function collectTraces(): CollectedTrace {
@@ -314,7 +399,8 @@ export async function startSessionForPerson(
 
 export type ProcessorBuild = {
   workerId: string;
-  gateway: AiExecutionGateway;
+  engine: SessionEngine;
+  answeredBy?: SessionProcessorPorts["answeredBy"];
   trace?: TraceSink;
   options?: Partial<SessionProcessorOptions>;
   // Wraps the database store port, to inject faults or spy on scopes.
@@ -362,7 +448,8 @@ export function buildProcessor(fx: Fixture, build: ProcessorBuild) {
   const ports: SessionProcessorPorts = {
     claim: build.wrapClaim ? build.wrapClaim(swept) : swept,
     store: build.wrapStore ? build.wrapStore(store) : store,
-    gateway: build.gateway,
+    engine: build.engine,
+    ...(build.answeredBy ? { answeredBy: build.answeredBy } : {}),
     policy: build.policy ?? createInterviewSessionPolicy(),
     clock: build.clock ?? { nowMs: () => Date.now() },
     trace: build.trace ?? collectTraces(),

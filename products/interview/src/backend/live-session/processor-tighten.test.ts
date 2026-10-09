@@ -1,5 +1,5 @@
 // Device-only is enforced INSIDE a running dispatch (S5-2): a session tightened
-// to device-only while its coding dispatch is between two gateway calls sends
+// to device-only while its coding dispatch is between two engine calls sends
 // no further remote request and creates no agent job; the standing is re-read
 // before every call and before an escalation job is requested.
 import { randomUUID } from "node:crypto";
@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   QUESTION,
   runResult,
-  scriptedGateway,
+  scriptedEngine,
   solutionFor,
 } from "./coding-fixture";
 import type { AgentEscalationPort } from "./escalation";
@@ -81,7 +81,7 @@ describe("a tighten in the middle of a coding dispatch", () => {
         });
       },
     };
-    const gateway = scriptedGateway({
+    const engine = scriptedEngine({
       solution: (request) =>
         solutionFor(request, { escalation: "iterative-repair" }),
     });
@@ -91,7 +91,7 @@ describe("a tighten in the middle of a coding dispatch", () => {
     };
     const processor = buildProcessor(fx, {
       workerId: "worker-tighten-mid",
-      gateway,
+      engine,
       codeRunner: runner,
       agentEscalation: port,
       clock: { nowMs: () => now },
@@ -106,7 +106,7 @@ describe("a tighten in the middle of a coding dispatch", () => {
       () => reached,
     );
     expect(reached).toBe(true);
-    const before = gateway.requests.length;
+    const before = engine.requests.length;
 
     await repo.tightenProcessingPolicy(
       started.scope,
@@ -119,13 +119,13 @@ describe("a tighten in the middle of a coding dispatch", () => {
       await processor.tick(NEVER_ABORTED);
       await processor.idle();
     }
-    const after = gateway.requests.slice(before);
+    const after = engine.requests.slice(before);
     const jobs = await fx.owner.query(
       "SELECT id FROM ai.agent_jobs WHERE id IN (SELECT job_id FROM interview.session_actions WHERE session_id=$1 AND job_id IS NOT NULL)",
       [started.sessionId],
     );
     const actions = await repo.listActions(started.scope, started.sessionId);
-    gateway.releaseAll();
+    engine.releaseAll();
     await processor.close();
     // The dispatch under the old policy ended as policy_changed; nothing it
     // began was published.
@@ -136,9 +136,7 @@ describe("a tighten in the middle of a coding dispatch", () => {
       ),
     ).toEqual([]);
     expect(actions.map((a) => a.suppressionReason)).toContain("policy_changed");
-    expect(after.filter((r) => r.processingPolicy !== "device-only")).toEqual(
-      [],
-    );
+    expect(after.filter((r) => r.policy !== "device-only")).toEqual([]);
     expect(jobs.rows).toHaveLength(0);
   }, 120_000);
 });

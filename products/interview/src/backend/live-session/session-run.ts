@@ -33,8 +33,6 @@ import {
   screenSnapshotSchema,
   transcriptFinalSchema,
 } from "@omnitech/active-session-contracts";
-import type { AgentAttachment } from "@omnitech/ai-contracts";
-import { MAX_TASK_ATTACHMENTS } from "@omnitech/ai-contracts";
 import type { CodeRunner } from "@omnitech/code-runner";
 import {
   LIVE_OWNER_HINT_AUTO,
@@ -78,6 +76,7 @@ import {
   type TranscriptView,
   type Utterance,
 } from "./core/index";
+import { MAX_TASK_ATTACHMENTS, type SessionAttachment } from "./engine-call";
 import type { FenceHolder } from "./fenced-writes";
 import type { InterviewSessionPolicy } from "./interview-policy";
 import {
@@ -707,7 +706,10 @@ const provenanceOf = (task: Task): string[] => [
 
 // The images a task revision's answer rests on, newest last and bounded, as
 // attachments that name only provenance ids (the loader resolves them).
-export function attachmentsFor(run: SessionRun, task: Task): AgentAttachment[] {
+export function attachmentsFor(
+  run: SessionRun,
+  task: Task,
+): SessionAttachment[] {
   return provenanceOf(task)
     .filter(isSnapshotProvenanceId)
     .slice(-MAX_TASK_ATTACHMENTS)
@@ -742,7 +744,7 @@ function revisionReasonOf(input: LiveOwnerInputRequest): RevisionReason {
 // text are simply absent.
 export function screenshotTextFor(
   run: SessionRun,
-  attachments: readonly AgentAttachment[],
+  attachments: readonly SessionAttachment[],
 ): ScreenshotText[] {
   const found = attachments.flatMap((attachment, index) => {
     const known = run.snapshots.get(attachment.id);

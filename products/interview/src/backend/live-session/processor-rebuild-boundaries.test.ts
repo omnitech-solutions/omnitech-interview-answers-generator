@@ -3,12 +3,12 @@
 // remembers the segments its revision rests on, so a handover never merges an
 // answered question into the next one, never restarts a corrected task at
 // revision 1, and never drops a question as a duplicate. Real processor over
-// a disposable PostgreSQL, a fake gateway and a virtual clock.
+// a disposable PostgreSQL, a fake engine and a virtual clock.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type Fixture, startFixture } from "./live-session-fixture";
 import {
   buildProcessor,
-  createFakeGateway,
+  createFakeEngine,
   NEVER_ABORTED,
   type StartedFor,
   startSessionFor,
@@ -27,14 +27,14 @@ afterAll(() => fx.stop());
 function rig() {
   let now = 1_000_000;
   const worker = (id: string) => {
-    const gateway = createFakeGateway();
+    const engine = createFakeEngine();
     const processor = buildProcessor(fx, {
       workerId: id,
-      gateway,
+      engine,
       clock: { nowMs: () => now },
       options: { settleMs: 1_500 },
     });
-    return { gateway, processor };
+    return { engine, processor };
   };
   const settle = async (processor: ReturnType<typeof worker>["processor"]) => {
     for (let i = 0; i < 8; i += 1) {
@@ -56,8 +56,8 @@ const ledger = async (session: StartedFor): Promise<string[]> =>
     )
     .sort();
 
-const asked = (gateway: ReturnType<typeof createFakeGateway>): string =>
-  gateway.requests.map(capturedText).join(" | ");
+const asked = (engine: ReturnType<typeof createFakeEngine>): string =>
+  engine.requests.map(capturedText).join(" | ");
 
 describe("a handover keeps live utterance boundaries and revisions", () => {
   it("answers a follow-up to a corrected question after a restart", async () => {
@@ -95,7 +95,7 @@ describe("a handover keeps live utterance boundaries and revisions", () => {
     await settle(two.processor);
     await two.processor.close();
 
-    expect(asked(two.gateway)).toContain("start sooner");
+    expect(asked(two.engine)).toContain("start sooner");
     // The corrected task was r2 live; the follow-up is r3, not a second r2.
     expect(await ledger(session)).toEqual([
       "task-q-e1@r1:succeeded",
@@ -129,7 +129,7 @@ describe("a handover keeps live utterance boundaries and revisions", () => {
     await settle(two.processor);
     await two.processor.close();
 
-    expect(asked(two.gateway)).toContain("code review");
+    expect(asked(two.engine)).toContain("code review");
     expect(await ledger(session)).toEqual([
       "task-q-q1@r1:succeeded",
       "task-q-q2@r1:succeeded",
@@ -214,6 +214,6 @@ describe("a handover keeps live utterance boundaries and revisions", () => {
       "task-q-q3@r1:succeeded",
     ]);
     // The rebuilt run asked only the new question.
-    expect(two.gateway.requests).toHaveLength(1);
+    expect(two.engine.requests).toHaveLength(1);
   });
 });

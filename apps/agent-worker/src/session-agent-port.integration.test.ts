@@ -6,10 +6,10 @@
 // them, tool-less, through the same worker port and real adapters.
 import { readdir } from "node:fs/promises";
 import { deflateSync } from "node:zlib";
-import { createClaudeRuntimeAdapter } from "@omnitech/agent-runtime-claude";
-import { createCodexRuntimeAdapter } from "@omnitech/agent-runtime-codex";
-import type { AiProfile } from "@omnitech/ai-runtime";
-import { resolveAgentProfiles } from "@omnitech/ai-runtime/config";
+import type { ModelInput, ModelPart } from "@omnitech/ai-engine";
+import { createClaudeRuntimeAdapter } from "@omnitech/ai-engine/providers/agents/claude-sdk";
+import { createCodexRuntimeAdapter } from "@omnitech/ai-engine/providers/agents/codex-app-server";
+import { resolveAgentProfiles } from "@omnitech/platform-runtime/ai-config";
 import { describe, expect, it } from "vitest";
 import {
   createSessionAgentPort,
@@ -88,81 +88,79 @@ function setup() {
     runtime === "codex" ? "assistant-codex" : "assistant-claude-code",
   );
   if (!agent) throw new Error("profile missing");
-  const profile: AiProfile = {
-    id: "integration",
-    label: "integration",
-    family: "agent-runtime",
-    targetId: agent.runtime,
-    taskTypes: ["structured-generation"],
-    enabled: true,
-  };
+  const profileId = "integration";
   const adapters = {
     codex: createCodexRuntimeAdapter(),
     "claude-code": createClaudeRuntimeAdapter(),
   };
   const port = createSessionAgentPort({
     runtimes: adapters,
-    profiles: new Map([[profile.id, agent]]),
+    profiles: new Map([[profileId, agent]]),
     attachmentSource: async () => textPng("BANANA 42"),
   });
-  const context = {
-    tenantId: "t",
-    userId: "u",
-    productId: "p",
-    permissions: [],
+  // One call as the engine hands it to the port, read to its end.
+  const ask = async (
+    parts: ModelInput["messages"][number]["parts"],
+    schema?: ModelInput["schema"],
+  ) => {
+    const answered: ModelPart[] = [];
+    for await (const part of port.stream(
+      { tenantId: "t", actorId: "u", productId: "p" },
+      {
+        profileId,
+        messages: [{ role: "user", parts }],
+        ...(schema === undefined ? {} : { schema }),
+      },
+      new AbortController().signal,
+      { traceId: "0".repeat(32), spanId: "0".repeat(16), attempt: 1 },
+    ))
+      answered.push(part);
+    return answered;
   };
-  return { profile, port, adapters, context };
+  return { port, adapters, ask };
 }
 
 describe.skipIf(runtime !== "claude-code" && runtime !== "codex")(
   "session agent port against a real provider (requires ACTIVE_SESSION_AGENT_INTEGRATION)",
   () => {
     it("answers one tool-less question and leaves no staged files", async () => {
-      const { profile, port, adapters, context } = setup();
-      const execution = await port.execute(
-        {
-          context,
-          task: {
-            type: "structured-generation",
-            prompt: "Reply with the word ok.",
-          },
-        },
-        profile,
-      );
-      expect(execution.family).toBe("agent-runtime");
+      const { port, adapters, ask } = setup();
+      const answered = await ask([
+        { type: "text", text: "Reply with the word ok." },
+      ]);
+      // An agent runtime answered: the call ended with something written.
+      expect(port.kind).toBe("agent");
+      expect(answered.some((part) => part.type === "text")).toBe(true);
       await port.sweep();
       for (const adapter of Object.values(adapters)) await adapter.close?.();
     }, 120_000);
 
     it("reads the text in a screenshot, tool-less", async () => {
-      const { profile, port, adapters, context } = setup();
-      const execution = await port.execute(
-        {
-          context,
-          task: {
-            type: "structured-generation",
-            prompt:
-              'Read the text in the attached image exactly. Reply with JSON {"text": "<the text you read>"}.',
-            schema: {
-              type: "object",
-              properties: { text: { type: "string" } },
-              required: ["text"],
-              additionalProperties: false,
-            },
-            attachments: [
-              {
-                id: "synthetic",
-                kind: "image",
-                name: "synthetic.png",
-                reference: "synthetic",
-                mimeType: "image/png",
-              },
-            ],
+      const { adapters, ask } = setup();
+      const answered = await ask(
+        [
+          {
+            type: "text",
+            text: 'Read the text in the attached image exactly. Reply with JSON {"text": "<the text you read>"}.',
           },
+          {
+            type: "attachment",
+            id: "synthetic",
+            kind: "image",
+            name: "synthetic.png",
+            reference: "synthetic",
+            mediaType: "image/png",
+          },
+        ],
+        {
+          type: "object",
+          properties: { text: { type: "string" } },
+          required: ["text"],
+          additionalProperties: false,
         },
-        profile,
       );
-      const result = execution.result as { text?: string };
+      const result = (answered.find((part) => part.type === "value")?.value ??
+        {}) as { text?: string };
       // The recorded observation: result tokens are logged by the runner.
       process.stderr.write(
         `IMAGE-RESULT ${runtime} ${JSON.stringify(result)}\n`,

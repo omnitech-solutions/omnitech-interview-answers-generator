@@ -5,7 +5,7 @@ import {
   verifyDatabaseRole,
   verifyMigrations,
 } from "@omnitech/database";
-import { createPlatformAiGateway } from "./src/platform/ai";
+import { createPlatformAiEngine } from "./src/platform/ai";
 import { resolveAuthSecret } from "./src/platform/auth-settings";
 import { createProductBackends } from "./src/platform/products";
 
@@ -50,7 +50,7 @@ try {
 const stop = new AbortController();
 process.once("SIGTERM", () => stop.abort());
 process.once("SIGINT", () => stop.abort());
-for (const backend of createProductBackends(createPlatformAiGateway()))
+for (const backend of createProductBackends(createPlatformAiEngine()))
   backend.runWorker?.(stop.signal).catch((error) =>
     // Only the error's class is logged; its message can quote content.
     console.error(

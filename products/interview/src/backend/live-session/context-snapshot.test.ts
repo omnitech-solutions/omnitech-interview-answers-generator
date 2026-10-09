@@ -302,7 +302,7 @@ describe("selectSourcesForTask with an employer brief", () => {
         company: "Northwind Labs",
         title: "Staff engineer",
         technologies: ["Golang"],
-        responsibilities: ["Ran the on-call rotation for the payments gateway"],
+        responsibilities: ["Ran the on-call rotation for the payments engine"],
       },
       {
         company: "Relay Systems",

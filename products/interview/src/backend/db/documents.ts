@@ -2,7 +2,6 @@
 // candidacy and platform-artifact tables; legacy profile keys are text and are
 // verified in the same tenant transaction before a document is inserted.
 
-import type { AiUsage } from "@omnitech/ai-contracts";
 import { artifacts, tenants } from "@omnitech/platform-storage/schema";
 import { sql } from "drizzle-orm";
 import {
@@ -322,7 +321,8 @@ export const documentGenerationBatches = interview.table.withRLS(
     batchId: text("batch_id").notNull(),
     fieldsHash: text("fields_hash").notNull(),
     values: jsonb("values").$type<Record<string, string>>().notNull(),
-    usage: jsonb("usage").$type<AiUsage>(),
+    // The engine's usage; a row written before the engine holds flat counts.
+    usage: jsonb("usage"),
     createdAt: createdAt(),
   },
   (t) => [

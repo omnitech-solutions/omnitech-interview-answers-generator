@@ -11,7 +11,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PNG_BYTES } from "../live-session-fixture";
 import {
   buildProcessor,
-  createFakeGateway,
+  createFakeEngine,
   insertSessionJob,
   seedBriefingDraft,
   seedMatrixProfile,
@@ -84,8 +84,8 @@ beforeAll(async () => {
     mediaType: "image/png",
     windowLabel: "Owner A's private window",
   });
-  const gateway = createFakeGateway();
-  const processor = buildProcessor(fx, { workerId: "worker-cross", gateway });
+  const engine = createFakeEngine();
+  const processor = buildProcessor(fx, { workerId: "worker-cross", engine });
   await settle(processor);
   await processor.close();
   jobId = await insertSessionJob(

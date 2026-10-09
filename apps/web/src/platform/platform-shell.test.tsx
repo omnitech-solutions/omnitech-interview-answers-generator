@@ -49,9 +49,9 @@ beforeEach(() => {
       sent.push({ url: String(input), init });
       if (String(input).startsWith("/api/platform/v1/ai-targets"))
         return Response.json([
-          { id: "images", kind: "image", family: "direct-model" },
-          { id: "claude-code", kind: "language", family: "agent" },
-          { id: "fast", kind: "language", family: "direct-model" },
+          { id: "images", kind: "image" },
+          { id: "agent/claude-code", kind: "agent" },
+          { id: "fast", kind: "model" },
         ]);
       return Response.json({});
     }),
@@ -166,7 +166,7 @@ describe("the member's AI profile", () => {
     expect(sent).toEqual([]);
   });
 
-  it("defaults to the first direct language model, with one live request", async () => {
+  it("defaults to the first model profile, with one live request", async () => {
     renderShell(context(), true);
     await settle();
     expect(window.localStorage.getItem("platform.aiProfileId")).toBe("fast");

@@ -23,7 +23,8 @@ import {
   buildProcessor,
   type CollectedTrace,
   collectTraces,
-  createFakeGateway,
+  createFakeEngine,
+  failed,
   settle,
 } from "../processor-fixture";
 import { ActiveSessionRepository } from "../repository";
@@ -138,19 +139,19 @@ describe("the canary never leaves a store", () => {
       expect.arrayContaining(["event_conflict", "invalid_message"]),
     );
 
-    // Dispatch: the real processor, then a failing gateway on a second path.
-    const gateway = createFakeGateway();
+    // Dispatch: the real processor, then a failing engine on a second path.
+    const engine = createFakeEngine();
     const processor = buildProcessor(world.fx, {
       workerId: "worker-canary-path",
-      gateway,
+      engine,
       trace: sinks.traces,
     });
     await settle(processor);
     await processor.close();
-    expect(gateway.requests.length).toBeGreaterThan(0);
+    expect(engine.requests.length).toBeGreaterThan(0);
     // The model call itself carries the question: the plant reached the
     // dispatch, so its absence from the sinks means something.
-    expect(JSON.stringify(gateway.requests)).toContain(CANARY);
+    expect(JSON.stringify(engine.requests)).toContain(CANARY);
     // And the owner's own stream holds it: the plant reached storage.
     expect(JSON.stringify(await world.page(owner))).toContain(CANARY);
 
@@ -174,12 +175,17 @@ describe("the canary never leaves a store", () => {
         startMs: segment.startMs,
         endMs: segment.endMs,
       });
-    const failingGateway = createFakeGateway({
-      fail: () => new Error(`gateway failed on ${CANARY}`),
+    const failingEngine = createFakeEngine({
+      // Provider text in the reason and the detail: neither may be traced.
+      fail: () =>
+        failed("unavailable", {
+          reason: `engine failed on ${CANARY}`,
+          detail: `engine failed on ${CANARY}`,
+        }),
     });
     const failingProcessor = buildProcessor(world.fx, {
       workerId: "worker-canary-failing",
-      gateway: failingGateway,
+      engine: failingEngine,
       trace: sinks.traces,
       options: { maxAttempts: 2 },
     });
@@ -190,7 +196,7 @@ describe("the canary never leaves a store", () => {
     ).listActions(failing.scope, failing.id);
     expect(failedActions.map((a) => a.dispatchStatus)).toContain("failed");
     // A failed action keeps no error text.
-    expect(JSON.stringify(failedActions)).not.toContain("gateway failed");
+    expect(JSON.stringify(failedActions)).not.toContain("engine failed");
 
     // The owner's reads, the end, the delete and the purge.
     world.as(owner.person);

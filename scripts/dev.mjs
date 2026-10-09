@@ -54,6 +54,15 @@ const localEnvironment = {
     configuredEnvironment.ACTIVE_SESSION_AGENT_PORT ?? "on",
   ACTIVE_SESSION_AGENT_PROFILE:
     configuredEnvironment.ACTIVE_SESSION_AGENT_PROFILE ?? "claude",
+  // Every AI call is kept as a run with its steps, prompts and answers included,
+  // in the AI engine's own development database (in the omnitech-ai-engine
+  // repository, `pnpm dev` starts it on 127.0.0.1:54329). When that database
+  // is not running the worker says so once and keeps nothing; nothing else
+  // changes. Set these in .env to keep runs elsewhere or without content.
+  AI_ENGINE_DATABASE_URL:
+    configuredEnvironment.AI_ENGINE_DATABASE_URL ??
+    "postgres://engine:engine@127.0.0.1:54329/engine",
+  AI_ENGINE_CAPTURE: configuredEnvironment.AI_ENGINE_CAPTURE ?? "full",
   NEXT_PUBLIC_FAKE_AUTH_ENABLED:
     configuredEnvironment.NEXT_PUBLIC_FAKE_AUTH_ENABLED ?? "true",
   AUTH_SECRET:

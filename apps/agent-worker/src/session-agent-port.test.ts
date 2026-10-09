@@ -10,19 +10,20 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { ModelInput, ModelPart } from "@omnitech/ai-engine";
 import type {
+  AgentAttachment,
   AgentCapabilities,
   AgentEvent,
   AgentProfile,
   AgentRunRequest,
   AgentRuntimeAdapter,
-} from "@omnitech/agent-runtime-contracts";
-import type { AiExecutionRequest } from "@omnitech/ai-contracts";
-import type { AiProfile } from "@omnitech/ai-runtime";
+} from "@omnitech/ai-engine/providers/agents";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   createSessionAgentPort,
   SessionAgentError,
+  type SessionAgentPort,
   type SessionAgentPortOptions,
   type StandingVerdict,
 } from "./session-agent-port";
@@ -45,14 +46,8 @@ const agentProfile: AgentProfile = {
   webSearch: false,
 };
 
-const aiProfile: AiProfile = {
-  id: "session-agent",
-  label: "Session agent",
-  family: "agent-runtime",
-  targetId: "claude-code",
-  taskTypes: ["structured-generation"],
-  enabled: true,
-};
+// The engine profile id the port maps to the agent profile above.
+const PROFILE_ID = "session-agent";
 
 const FULL: AgentCapabilities = {
   resume: false,
@@ -92,18 +87,70 @@ const completes: Script = async function* () {
   yield { type: "completed", result: { sessionId: "s", output: { a: 1 } } };
 };
 
-const context = {
-  tenantId: "t1",
-  userId: "u1",
-  productId: "p",
-  permissions: [],
+const scope = { tenantId: "t1", actorId: "u1", productId: "p" };
+// What the engine tells a provider about the call it serves.
+const CALL = { traceId: "0".repeat(32), spanId: "0".repeat(16), attempt: 1 };
+
+type Ask = {
+  prompt?: string;
+  profileId?: string;
+  attachments?: readonly AgentAttachment[];
+  signal?: AbortSignal;
 };
 
-function task(overrides: Partial<AiExecutionRequest["task"]> = {}) {
+// One call as the engine hands it to the port: the prompt as the user's text,
+// each attachment named by reference.
+function ask(overrides: Ask = {}): ModelInput {
   return {
-    context,
-    task: { type: "structured-generation", prompt: "q", ...overrides },
-  } as AiExecutionRequest;
+    profileId: overrides.profileId ?? PROFILE_ID,
+    messages: [
+      {
+        role: "user",
+        parts: [
+          { type: "text", text: overrides.prompt ?? "q" },
+          ...(overrides.attachments ?? []).map((attachment) => ({
+            type: "attachment" as const,
+            id: attachment.id,
+            kind: attachment.kind,
+            name: attachment.name,
+            reference: attachment.reference,
+            ...(attachment.mimeType ? { mediaType: attachment.mimeType } : {}),
+          })),
+        ],
+      },
+    ],
+  };
+}
+
+const stream = (subject: SessionAgentPort, overrides: Ask = {}) =>
+  subject.stream(
+    scope,
+    ask(overrides),
+    overrides.signal ?? new AbortController().signal,
+    CALL,
+  );
+
+// Reads one call to its end: the text written, the structured answer, and the
+// parts as they came. A failed call rejects with its SessionAgentError.
+async function run(subject: SessionAgentPort, overrides: Ask = {}) {
+  const parts: ModelPart[] = [];
+  for await (const part of stream(subject, overrides)) parts.push(part);
+  return {
+    parts,
+    text: parts.map((part) => (part.type === "text" ? part.text : "")).join(""),
+    value: parts.find((part) => part.type === "value")?.value,
+  };
+}
+
+// A call that fails: the parts it yielded first, then the error it threw.
+async function failingCall(subject: SessionAgentPort, overrides: Ask = {}) {
+  const parts: ModelPart[] = [];
+  try {
+    for await (const part of stream(subject, overrides)) parts.push(part);
+  } catch (error) {
+    return { parts, error: error as SessionAgentError };
+  }
+  throw new Error("expected a failure");
 }
 
 const png = (id = "obs-1") => ({
@@ -126,7 +173,7 @@ function port(
 ) {
   return createSessionAgentPort({
     runtimes: { "claude-code": runtime },
-    profiles: new Map([[aiProfile.id, agentProfile]]),
+    profiles: new Map([[PROFILE_ID, agentProfile]]),
     stagingBase: join(base, "staging"),
     attachmentSource: async () => Buffer.from("IMG"),
     ...extra,
@@ -148,13 +195,14 @@ async function rejection(promise: Promise<unknown>) {
 describe("session agent port", () => {
   it("runs a tool-less attempt and leaves the Claude sign-in environment alone", async () => {
     const { runtime, seen } = fakeRuntime(completes);
-    const execution = await port(runtime).execute(task(), aiProfile);
+    const subject = port(runtime);
+    const answer = await run(subject);
 
-    expect(execution).toMatchObject({
-      family: "agent-runtime",
-      targetId: "claude-code",
-      result: { a: 1 },
-    });
+    // An agent provider, whose structured result is the answer and whose
+    // written text is passed on as it came.
+    expect(subject.kind).toBe("agent");
+    expect(answer.value).toEqual({ a: 1 });
+    expect(answer.text).toBe("ok");
     expect(seen[0]).toMatchObject({ toolless: true, attachments: [] });
     // HOME and the Claude config dir are the worker's allowlisted ones, so the
     // local sign-in works; isolation is tools:[] and no persisted session.
@@ -162,14 +210,14 @@ describe("session agent port", () => {
     expect(await staged()).toEqual([]);
   });
 
-  it("reports the profile's runtime and model as display metadata", async () => {
+  // Which runtime and model answered is now `answeredBy` on the session engine
+  // (session-engine.test.ts); the port states the model alone, for the record.
+  it("reports the profile's model as display metadata", () => {
     const { runtime } = fakeRuntime(completes);
-    const execution = await port(runtime).execute(task(), aiProfile);
+    const subject = port(runtime);
 
-    expect(execution.generatedBy).toEqual({
-      runtime: agentProfile.runtime,
-      model: agentProfile.model,
-    });
+    expect(subject.model?.(PROFILE_ID)).toBe(agentProfile.model);
+    expect(subject.model?.("unmapped")).toBeUndefined();
   });
 
   describe("Codex per-attempt home", () => {
@@ -180,7 +228,7 @@ describe("session agent port", () => {
     const codexPort = (runtime: AgentRuntimeAdapter, authFile: string) =>
       port(runtime, {
         runtimes: { codex: runtime },
-        profiles: new Map([[aiProfile.id, codexProfile]]),
+        profiles: new Map([[PROFILE_ID, codexProfile]]),
         codexAuthFile: authFile,
       });
 
@@ -198,7 +246,7 @@ describe("session agent port", () => {
         };
         yield* completes(request, []);
       });
-      await codexPort(runtime, authFile).execute(task(), aiProfile);
+      await run(codexPort(runtime, authFile));
 
       expect(inside).toEqual({
         mode: 0o600,
@@ -212,10 +260,7 @@ describe("session agent port", () => {
 
     it("runs without a copy when no sign-in file exists", async () => {
       const { runtime, seen } = fakeRuntime(completes);
-      await codexPort(runtime, join(base, "absent.json")).execute(
-        task(),
-        aiProfile,
-      );
+      await run(codexPort(runtime, join(base, "absent.json")));
       expect(seen[0]?.environment?.["CODEX_HOME"]).toBeTruthy();
       expect(await staged()).toEqual([]);
     });
@@ -226,9 +271,7 @@ describe("session agent port", () => {
       ...FULL,
       imageInput: false,
     });
-    const error = await rejection(
-      port(runtime).execute(task({ attachments: [png()] }), aiProfile),
-    );
+    const error = await rejection(run(port(runtime), { attachments: [png()] }));
     expect(error).toBeInstanceOf(SessionAgentError);
     expect(error.sessionCode).toBe("vision-unsupported");
     expect(seen).toEqual([]);
@@ -240,30 +283,34 @@ describe("session agent port", () => {
     expect(
       (
         await rejection(
-          createSessionAgentPort({
-            runtimes: { "claude-code": runtime },
-            profiles: new Map([[aiProfile.id, agentProfile]]),
-            stagingBase: join(base, "staging"),
-          }).execute(task({ attachments: [png()] }), aiProfile),
+          run(
+            createSessionAgentPort({
+              runtimes: { "claude-code": runtime },
+              profiles: new Map([[PROFILE_ID, agentProfile]]),
+              stagingBase: join(base, "staging"),
+            }),
+            { attachments: [png()] },
+          ),
         )
       ).sessionCode,
     ).toBe("attachment-refused");
     const unproven = fakeRuntime(completes, { ...FULL, toolless: false });
-    expect(
-      (await rejection(port(unproven.runtime).execute(task(), aiProfile)))
-        .sessionCode,
-    ).toBe("toolless-unsupported");
+    expect((await rejection(run(port(unproven.runtime)))).sessionCode).toBe(
+      "toolless-unsupported",
+    );
     // A profile that grants tools is refused too.
     expect(
       (
         await rejection(
-          createSessionAgentPort({
-            runtimes: { "claude-code": runtime },
-            profiles: new Map([
-              [aiProfile.id, { ...agentProfile, tools: ["Read"] }],
-            ]),
-            stagingBase: join(base, "staging"),
-          }).execute(task(), aiProfile),
+          run(
+            createSessionAgentPort({
+              runtimes: { "claude-code": runtime },
+              profiles: new Map([
+                [PROFILE_ID, { ...agentProfile, tools: ["Read"] }],
+              ]),
+              stagingBase: join(base, "staging"),
+            }),
+          ),
         )
       ).sessionCode,
     ).toBe("toolless-unsupported");
@@ -280,10 +327,7 @@ describe("session agent port", () => {
       yield { type: "completed", result: { sessionId: "s", output: "x" } };
     });
 
-    await port(runtime).execute(
-      task({ attachments: [png("a"), png("b")] }),
-      aiProfile,
-    );
+    await run(port(runtime), { attachments: [png("a"), png("b")] });
 
     expect(during?.mode).toBe(0o700);
     expect(during?.files.sort()).toEqual(["image-0.png", "image-1.png"]);
@@ -310,20 +354,17 @@ describe("session agent port", () => {
         },
       };
     });
-    await rejection(
-      port(failing.runtime).execute(task({ attachments: [png()] }), aiProfile),
-    );
+    await rejection(run(port(failing.runtime), { attachments: [png()] }));
     expect(await staged()).toEqual([]);
 
     const hanging = fakeRuntime(async function* () {
       yield { type: "text-delta", text: "partial" };
       await new Promise(() => undefined);
     });
-    const iterator = port(hanging.runtime)
-      .stream(task({ attachments: [png()] }), aiProfile)
-      [Symbol.asyncIterator]();
-    await iterator.next(); // started
-    await iterator.next(); // text-delta
+    const iterator = stream(port(hanging.runtime), {
+      attachments: [png()],
+    })[Symbol.asyncIterator]();
+    await iterator.next(); // the text written so far
     expect((await staged()).length).toBe(1);
     await iterator.return?.();
     expect(await staged()).toEqual([]);
@@ -343,18 +384,17 @@ describe("session agent port", () => {
     expect(await staged()).toEqual([]);
 
     const events: string[] = [];
-    const running = (async () => {
-      for await (const event of subject.stream(
-        task({ attachments: [png()] }),
-        aiProfile,
-      ))
-        events.push(event.type);
-    })();
-    while (!events.includes("text-delta"))
+    const running = rejection(
+      (async () => {
+        for await (const event of stream(subject, { attachments: [png()] }))
+          events.push(event.type);
+      })(),
+    );
+    while (!events.includes("text"))
       await new Promise((resolve) => setTimeout(resolve, 5));
     await subject.purge();
-    await running;
-    expect(events.at(-1)).toBe("failed");
+    // The purged attempt ends failed: the call rejects with its typed error.
+    expect((await running).sessionCode).toBe("cancelled");
     expect(await staged()).toEqual([]);
   });
 
@@ -369,21 +409,20 @@ describe("session agent port", () => {
         },
       };
     });
-    const error = await rejection(
-      port(failing.runtime).execute(task(), aiProfile),
-    );
+    const error = await rejection(run(port(failing.runtime)));
     expect(error.sessionCode).toBe("provider");
     expect(JSON.stringify([error.message, error.failure])).not.toMatch(
       /SECRET|shot|original/,
     );
 
-    const events: AgentEvent[] = [];
-    for await (const event of port(failing.runtime).stream(task(), aiProfile))
-      events.push(event as AgentEvent);
-    expect(JSON.stringify(events)).not.toMatch(/SECRET|shot|original/);
-    expect(events.at(-1)).toMatchObject({
-      type: "failed",
-      error: { code: "provider", retryable: false },
+    // The failure the engine ends the call with: its own code for a provider
+    // failure, the session code as the detail, and nothing the provider said.
+    const streamed = await failingCall(port(failing.runtime));
+    expect(JSON.stringify(streamed.parts)).not.toMatch(/SECRET|shot|original/);
+    expect(streamed.error.failure).toMatchObject({
+      code: "unavailable",
+      detail: "provider",
+      retryable: false,
     });
   });
 
@@ -392,9 +431,7 @@ describe("session agent port", () => {
       yield { type: "tool-started", tool: "command" };
       yield { type: "completed", result: { sessionId: "s", output: "x" } };
     });
-    const error = await rejection(
-      port(tool.runtime).execute(task(), aiProfile),
-    );
+    const error = await rejection(run(port(tool.runtime)));
     expect(error.sessionCode).toBe("tool-refused");
     expect(tool.cancelled).toHaveLength(1);
 
@@ -409,10 +446,9 @@ describe("session agent port", () => {
         },
       };
     });
-    expect(
-      (await rejection(port(refused.runtime).execute(task(), aiProfile)))
-        .sessionCode,
-    ).toBe("attachment-refused");
+    expect((await rejection(run(port(refused.runtime)))).sessionCode).toBe(
+      "attachment-refused",
+    );
 
     // The typed reason decides, never the wording: the same text with no reason
     // is a plain policy refusal.
@@ -426,13 +462,12 @@ describe("session agent port", () => {
         },
       };
     });
-    expect(
-      (await rejection(port(worded.runtime).execute(task(), aiProfile)))
-        .sessionCode,
-    ).toBe("policy-refused");
+    expect((await rejection(run(port(worded.runtime)))).sessionCode).toBe(
+      "policy-refused",
+    );
   });
 
-  it("carries the adapter's typed reason on the error and the failed event, with no suffix in any message", async () => {
+  it("carries the adapter's typed reason on the error and its failure, with no suffix in any message", async () => {
     const ended = fakeRuntime(async function* () {
       yield {
         type: "failed",
@@ -445,21 +480,17 @@ describe("session agent port", () => {
         },
       };
     });
-    const error = await rejection(
-      port(ended.runtime).execute(task(), aiProfile),
-    );
+    const error = await rejection(run(port(ended.runtime)));
     expect(error.sessionCode).toBe("provider");
     expect(error.reason).toBe("error_max_turns");
-    expect(error.failure).toMatchObject({ reason: "error_max_turns" });
+    // The engine's failure carries the typed reason after the session code.
+    expect(error.failure).toMatchObject({ detail: "provider:error_max_turns" });
     expect(error.message).not.toContain("reason");
 
-    const events: AgentEvent[] = [];
-    for await (const event of port(ended.runtime).stream(task(), aiProfile))
-      events.push(event as AgentEvent);
-    const failed = events.at(-1);
+    const failed = (await failingCall(port(ended.runtime))).error.failure;
     expect(failed).toMatchObject({
-      type: "failed",
-      error: { code: "provider", reason: "error_max_turns" },
+      code: "unavailable",
+      detail: "provider:error_max_turns",
     });
     expect(JSON.stringify(failed)).not.toContain("[reason");
 
@@ -475,8 +506,7 @@ describe("session agent port", () => {
       };
     });
     expect(
-      (await rejection(port(lookalike.runtime).execute(task(), aiProfile)))
-        .reason,
+      (await rejection(run(port(lookalike.runtime)))).reason,
     ).toBeUndefined();
   });
 
@@ -485,22 +515,21 @@ describe("session agent port", () => {
       yield { type: "text-delta", text: "x".repeat(2_000) };
       yield { type: "completed", result: { sessionId: "s", output: "x" } };
     });
-    expect(
-      (await rejection(port(big.runtime).execute(task(), aiProfile)))
-        .sessionCode,
-    ).toBe("output-too-large");
+    expect((await rejection(run(port(big.runtime)))).sessionCode).toBe(
+      "output-too-large",
+    );
 
     const slow = fakeRuntime(async function* () {
       await new Promise(() => undefined);
     });
     const quick = createSessionAgentPort({
       runtimes: { "claude-code": slow.runtime },
-      profiles: new Map([[aiProfile.id, { ...agentProfile, timeoutMs: 20 }]]),
+      profiles: new Map([[PROFILE_ID, { ...agentProfile, timeoutMs: 20 }]]),
       stagingBase: join(base, "staging"),
     });
     // The fake never ends on its own: cancelling must end the attempt.
     const error = await Promise.race([
-      rejection(quick.execute(task(), aiProfile)),
+      rejection(run(quick)),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error("never settled")), 500),
       ),
@@ -523,10 +552,10 @@ describe("session agent port", () => {
       maxSessionAttempts: 1,
       stillPermitted: () => permitted,
     });
-    const first = subject.execute(task(), aiProfile);
+    const first = run(subject);
     while (seen.length === 0)
       await new Promise((resolve) => setTimeout(resolve, 5));
-    const second = rejection(subject.execute(task(), aiProfile));
+    const second = rejection(run(subject));
     // The session tightens while the second attempt waits for capacity.
     permitted = false;
     release();
@@ -546,14 +575,14 @@ describe("session agent port", () => {
     const subject = port(runtime, {
       maxSessionAttempts: 1,
       maxLiveStreak: 2,
-      isBackground: (request) => request.task.prompt.startsWith("bg"),
+      isBackground: (request) => request.prompt.startsWith("bg"),
     });
     const settled = [
-      subject.execute(task({ prompt: "holder" }), aiProfile),
-      subject.execute(task({ prompt: "bg-1" }), aiProfile),
-      subject.execute(task({ prompt: "live-1" }), aiProfile),
-      subject.execute(task({ prompt: "live-2" }), aiProfile),
-      subject.execute(task({ prompt: "live-3" }), aiProfile),
+      run(subject, { prompt: "holder" }),
+      run(subject, { prompt: "bg-1" }),
+      run(subject, { prompt: "live-1" }),
+      run(subject, { prompt: "live-2" }),
+      run(subject, { prompt: "live-3" }),
     ];
     const finishNext = async () => {
       while (gates.length === 0)
@@ -567,65 +596,59 @@ describe("session agent port", () => {
     expect(order).toEqual(["holder", "live-1", "live-2", "bg-1", "live-3"]);
   });
 
-  it("cancels only inside the caller's tenant and when a waiting attempt is aborted", async () => {
+  // `cancel(context, executionId)` by tenant is gone: a call is cancelled
+  // through its own signal, which only its caller holds.
+  it("cancels a running attempt when its signal aborts, and a waiting attempt that is aborted", async () => {
     const { runtime, seen, cancelled } = fakeRuntime(async function* () {
       await new Promise(() => undefined);
     });
     const subject = port(runtime, { maxSessionAttempts: 1 });
-    const events: AgentEvent[] = [];
-    let executionId = "";
-    const running = (async () => {
-      for await (const event of subject.stream(task(), aiProfile)) {
-        if (event.type === "started") executionId = event.executionId;
-        events.push(event as AgentEvent);
-      }
-    })();
+    const call = new AbortController();
+    const running = rejection(run(subject, { signal: call.signal }));
     while (seen.length === 0)
       await new Promise((resolve) => setTimeout(resolve, 5));
-
-    await subject.cancel({ ...context, tenantId: "other" }, executionId);
     expect(cancelled).toEqual([]);
-    await subject.cancel(context, executionId);
-    // The fake never ends on its own; the abort ends the attempt typed.
-    await Promise.race([running, new Promise((r) => setTimeout(r, 50))]);
-    expect(cancelled).toEqual([executionId]);
 
+    // The single slot is held, so this one waits for capacity.
     const waiting = new AbortController();
-    const queued = rejection(
-      subject.execute({ ...task(), signal: waiting.signal }, aiProfile),
-    );
+    const queued = rejection(run(subject, { signal: waiting.signal }));
     waiting.abort();
     expect((await queued).sessionCode).toBe("cancelled");
+    expect(cancelled).toEqual([]);
+
+    call.abort();
+    // The fake never ends on its own; the abort ends the attempt typed.
+    const error = await Promise.race([
+      running,
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("never settled")), 500),
+      ),
+    ]);
+    expect(error.sessionCode).toBe("cancelled");
+    expect(error.failure).toMatchObject({ code: "cancelled" });
+    expect(cancelled).toEqual([seen[0]?.runId]);
   });
 
-  it("is unavailable for a profile without an agent mapping and cannot resume", async () => {
-    const { runtime } = fakeRuntime(completes);
-    const subject = port(runtime);
-    expect(
-      (
-        await rejection(
-          subject.execute(task(), { ...aiProfile, id: "unmapped" }),
-        )
-      ).sessionCode,
-    ).toBe("profile-unavailable");
-    const events: unknown[] = [];
-    for await (const event of subject.resume({
-      context,
-      executionId: "x",
-      input: "i",
-    }))
-      events.push(event);
-    expect(events).toMatchObject([{ type: "failed" }]);
+  it("is unavailable for a profile without an agent mapping", async () => {
+    const { runtime, seen } = fakeRuntime(completes);
+    const error = await rejection(
+      run(port(runtime), { profileId: "unmapped" }),
+    );
+    expect(error.sessionCode).toBe("profile-unavailable");
+    expect(error.failure).toMatchObject({
+      code: "invalid-request",
+      retryable: false,
+    });
+    expect(seen).toEqual([]);
   });
+
   it("rejects an already-aborted call as cancelled and leaves capacity usable", async () => {
     const { runtime, seen } = fakeRuntime(completes);
     const subject = port(runtime, { maxSessionAttempts: 1 });
     const aborted = new AbortController();
     aborted.abort();
     const error = await Promise.race([
-      rejection(
-        subject.execute({ ...task(), signal: aborted.signal }, aiProfile),
-      ),
+      rejection(run(subject, { signal: aborted.signal })),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error("never settled")), 500),
       ),
@@ -633,7 +656,7 @@ describe("session agent port", () => {
     expect(error.sessionCode).toBe("cancelled");
     expect(seen).toEqual([]);
     // The single slot was never taken: the next attempt runs.
-    expect((await subject.execute(task(), aiProfile)).result).toEqual({ a: 1 });
+    expect((await run(subject)).value).toEqual({ a: 1 });
   });
 
   it("types a paused session and a failed standing read as retryable, a denial as final", async () => {
@@ -645,10 +668,7 @@ describe("session agent port", () => {
     ];
     for (const [verdict, code, retryable] of verdicts) {
       const error = await rejection(
-        port(runtime, { stillPermitted: () => verdict }).execute(
-          task(),
-          aiProfile,
-        ),
+        run(port(runtime, { stillPermitted: () => verdict })),
       );
       expect(error.sessionCode).toBe(code);
       expect(error.retryable).toBe(retryable);
@@ -666,11 +686,14 @@ describe("session agent port", () => {
     ];
     for (const [loaderCode, code, retryable] of cases) {
       const error = await rejection(
-        port(runtime, {
-          attachmentSource: async () => {
-            throw Object.assign(new Error("x"), { code: loaderCode });
-          },
-        }).execute(task({ attachments: [png()] }), aiProfile),
+        run(
+          port(runtime, {
+            attachmentSource: async () => {
+              throw Object.assign(new Error("x"), { code: loaderCode });
+            },
+          }),
+          { attachments: [png()] },
+        ),
       );
       expect(error.sessionCode).toBe(code);
       expect(error.retryable).toBe(retryable);
@@ -685,9 +708,9 @@ describe("session agent port", () => {
     await symlink(victim, join(base, "staging"));
     const { runtime, seen } = fakeRuntime(completes);
     const subject = port(runtime);
-    expect(
-      (await rejection(subject.execute(task(), aiProfile))).sessionCode,
-    ).toBe("profile-unavailable");
+    expect((await rejection(run(subject))).sessionCode).toBe(
+      "profile-unavailable",
+    );
     await expect(subject.sweep()).rejects.toBeInstanceOf(SessionAgentError);
     await expect(subject.sweepIdle()).rejects.toBeInstanceOf(SessionAgentError);
     expect(seen).toEqual([]);

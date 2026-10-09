@@ -5,7 +5,6 @@
 // processor builds from the claimed session; an unreadable key, an unknown
 // session or any read failure answers a typed verdict, never "permitted" (fail
 // closed).
-import type { AiExecutionRequest } from "@omnitech/ai-contracts";
 import type { PlatformDatabase } from "@omnitech/database";
 import { sql } from "drizzle-orm";
 import { isUuid } from "./errors";
@@ -31,16 +30,15 @@ export function standingVerdictOf(
 }
 
 export function createSessionStillPermitted(database: PlatformDatabase) {
-  return async (
-    request: Pick<AiExecutionRequest, "context" | "idempotencyKey">,
-  ): Promise<StandingVerdict> => {
+  return async (request: {
+    tenantId: string;
+    actorId: string;
+    idempotencyKey?: string | undefined;
+  }): Promise<StandingVerdict> => {
     const sessionId = request.idempotencyKey?.split(":")[0];
     if (!isUuid(sessionId)) return false;
     try {
-      const scope = {
-        tenantId: request.context.tenantId,
-        actorId: request.context.userId,
-      };
+      const scope = { tenantId: request.tenantId, actorId: request.actorId };
       const row = await inOwnerScope(database, scope, (tx) =>
         firstRow<{ status: string; processing_policy: string }>(
           tx,

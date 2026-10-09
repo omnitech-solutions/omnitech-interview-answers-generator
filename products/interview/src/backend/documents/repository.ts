@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import type { AiUsage } from "@omnitech/ai-contracts";
+import { type Usage, usageSchema } from "@omnitech/ai-engine";
 import type { PlatformDatabase, TenantDatabase } from "@omnitech/database";
 import { withTenant } from "@omnitech/database";
 import {
@@ -30,6 +30,32 @@ export type TemplateRevisionRow = typeof documentTemplateRevisions.$inferSelect;
 export type DocumentRow = typeof documents.$inferSelect;
 export type DocumentRevisionRow = typeof documentRevisions.$inferSelect;
 export type DocumentExportRow = typeof documentExports.$inferSelect;
+
+// What a kept batch used, as the engine states usage. A batch kept before
+// the engine holds flat counts ({ inputTokens, outputTokens, totalTokens,
+// costUsd }): those are read as the counts they are.
+export function storedUsage(value: unknown): Usage | null {
+  const current = usageSchema.safeParse(value);
+  if (current.success) return current.data;
+  if (typeof value !== "object" || value === null) return null;
+  const flat = value as Record<string, unknown>;
+  const count = (key: string) =>
+    typeof flat[key] === "number" ? { [key]: flat[key] } : {};
+  const counts = {
+    ...count("inputTokens"),
+    ...count("outputTokens"),
+    ...count("totalTokens"),
+  };
+  const kept = usageSchema.safeParse({
+    status: "partial",
+    ...counts,
+    cost:
+      typeof flat["costUsd"] === "number"
+        ? { status: "actual", amount: flat["costUsd"], currency: "USD" }
+        : { status: "unavailable", reason: "not-reported" },
+  });
+  return kept.success ? kept.data : null;
+}
 
 export class DocumentNotFound extends Error {
   constructor() {
@@ -275,7 +301,7 @@ export class InterviewDocumentRepository {
       {
         fieldsHash: string;
         values: Record<string, string>;
-        usage?: AiUsage | null;
+        usage?: Usage | null;
       }
     >
   > {
@@ -308,7 +334,11 @@ export class InterviewDocumentRepository {
       return Object.fromEntries(
         rows.map((row) => [
           row.batchId,
-          { fieldsHash: row.fieldsHash, values: row.values, usage: row.usage },
+          {
+            fieldsHash: row.fieldsHash,
+            values: row.values,
+            usage: storedUsage(row.usage),
+          },
         ]),
       );
     });
@@ -321,7 +351,7 @@ export class InterviewDocumentRepository {
       id: string;
       fieldsHash: string;
       values: Record<string, string>;
-      usage?: AiUsage | null;
+      usage?: Usage | null;
     },
   ): Promise<void> {
     await this.inScope(scope, async (db) => {

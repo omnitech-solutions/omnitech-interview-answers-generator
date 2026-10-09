@@ -1,5 +1,5 @@
 // The Active Session assistance path end to end (ADR-0016), without a
-// database or a provider: the REAL processor, the REAL AiExecutionGateway and
+// database or a provider: the REAL processor, the REAL AI engine and
 // the REAL session agent port, with a FAKE runtime adapter in the shape of each
 // provider (claude-code, codex) and a fake direct model for the text-only
 // stages, over the product's in-memory session world. It shows the same
@@ -9,7 +9,6 @@
 // pixels are outside what this can show (see the *.integration tests).
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { AiPolicyRefusedError } from "@omnitech/ai-contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { sweepStagingBase } from "./session-agent-port";
 import {
@@ -423,7 +422,7 @@ describe("screenshots fail closed", () => {
     }
   });
 
-  it("refuses in a device-only session, and the gateway itself refuses an agent profile there", async () => {
+  it("refuses in a device-only session, and the engine itself refuses an agent profile there", async () => {
     const h = await make({ processingPolicy: "device-only" });
     h.addSnapshot("shot-1");
     h.world.ownerInput("r-1", { operation: "analyze", snapshots: SHOT });
@@ -435,19 +434,27 @@ describe("screenshots fail closed", () => {
     expect(h.agent.seen).toHaveLength(0);
     expect(h.model.requests).toHaveLength(0);
     // Even a direct request cannot reach the runtime with a device-only policy.
-    await expect(
-      h.gateway.execute({
-        context: {
-          tenantId: h.world.scope.tenantId,
-          userId: h.world.scope.actorId,
-          productId: "omnitech.interview",
-          permissions: ["interview.read"],
+    expect(
+      await h.engine.generate(
+        {
+          profileId: AGENT_PROFILE_ID,
+          messages: [{ role: "user", parts: [{ type: "text", text: "x" }] }],
         },
-        profileId: AGENT_PROFILE_ID,
-        processingPolicy: "device-only",
-        task: { type: "structured-generation", prompt: "x" },
-      }),
-    ).rejects.toBeInstanceOf(AiPolicyRefusedError);
+        {
+          scope: {
+            tenantId: h.world.scope.tenantId,
+            actorId: h.world.scope.actorId,
+            productId: "omnitech.interview",
+          },
+          permissions: ["interview.read"],
+          signal: new AbortController().signal,
+          policy: "device-only",
+        },
+      ),
+    ).toMatchObject({
+      ok: false,
+      failure: { code: "refused", refusal: "policy" },
+    });
     expect(h.agent.seen).toHaveLength(0);
   });
 });
@@ -464,7 +471,7 @@ describe("a spoken correction during code generation", () => {
         codingBrief: {
           ...CODING_BRIEF,
           constraints:
-            revisionOf(request.task.prompt) === 1
+            revisionOf(request.prompt) === 1
               ? CODING_BRIEF.constraints
               : [
                   ...CODING_BRIEF.constraints,
@@ -477,7 +484,7 @@ describe("a spoken correction during code generation", () => {
         new Promise((resolve, reject) => {
           void released.then(() =>
             resolve({
-              ...solution(revisionOf(request.task.prompt)),
+              ...solution(revisionOf(request.prompt)),
               coverage: [{ constraintIndex: 0, testName: "t0" }],
             }),
           );
@@ -545,6 +552,12 @@ describe("purge and end", () => {
     expect((await h.stagedEntries()).length).toBe(1);
     h.world.status("ended");
     await settle(processor);
+    // The engine ends a cancelled call without waiting for its provider to
+    // close (engine.ts: "It is not waited for"), so the port removes the
+    // staged image a moment after the processor has settled, where the old
+    // gateway returned only once it was gone.
+    for (let i = 0; i < 200 && (await h.stagedEntries()).length > 0; i += 1)
+      await new Promise((resolve) => setTimeout(resolve, 5));
     expect(await h.stagedEntries()).toEqual([]);
     expect(
       h.world.actions.filter((a) => a.dispatchStatus === "succeeded"),
@@ -629,39 +642,38 @@ describe("no content leaves through traces, errors or logs", () => {
     }
     // A refusal's typed error names a code, never the prompt or an attachment.
     const refused = await make({ imageInput: false });
-    const error = await refused.port
-      .execute(
+    const error = await (async () => {
+      for await (const _ of refused.port.stream(
         {
-          context: {
-            tenantId: refused.world.scope.tenantId,
-            userId: refused.world.scope.actorId,
-            productId: "omnitech.interview",
-            permissions: ["interview.read"],
-          },
-          task: {
-            type: "structured-generation",
-            prompt: `prompt ${CANARY.spoken}`,
-            attachments: [
-              {
-                id: `snap/x/${CANARY.window}/y`,
-                kind: "image",
-                name: `${CANARY.window}.png`,
-                reference: `snap/x/${CANARY.window}/y`,
-                mimeType: "image/png",
-              },
-            ],
-          },
+          tenantId: refused.world.scope.tenantId,
+          actorId: refused.world.scope.actorId,
+          productId: "omnitech.interview",
         },
         {
-          id: AGENT_PROFILE_ID,
-          label: "agent",
-          family: "agent-runtime",
-          targetId: "claude-code",
-          taskTypes: ["structured-generation"],
-          enabled: true,
+          profileId: AGENT_PROFILE_ID,
+          messages: [
+            {
+              role: "user",
+              parts: [
+                { type: "text", text: `prompt ${CANARY.spoken}` },
+                {
+                  type: "attachment",
+                  id: `snap/x/${CANARY.window}/y`,
+                  kind: "image",
+                  name: `${CANARY.window}.png`,
+                  reference: `snap/x/${CANARY.window}/y`,
+                  mediaType: "image/png",
+                },
+              ],
+            },
+          ],
         },
-      )
-      .catch((caught: Error) => caught);
+        new AbortController().signal,
+      )) {
+        // A refused call yields nothing before it fails.
+      }
+      return undefined;
+    })().catch((caught: Error) => caught);
     expect(error).toBeInstanceOf(Error);
     const text = `${(error as Error).message} ${JSON.stringify(error)}`;
     for (const canary of Object.values(CANARY))

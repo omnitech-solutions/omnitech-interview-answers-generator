@@ -318,7 +318,7 @@ describe("web API", () => {
 
   it("tells a technical reader which fields of the reply broke the format", async () => {
     const message =
-      "The model's reply did not match the required format, even after one correction: guide.talkingPoints: Too big";
+      "The model's reply did not match the required format: guide.talkingPoints: Too big";
     mocks.generateInterviewAnswer.mockRejectedValueOnce(
       new WorkspaceError("generation-failed", message),
     );

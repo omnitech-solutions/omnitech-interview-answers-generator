@@ -2,7 +2,7 @@
 // role (requires Docker, like the other session suites): one atomic request
 // makes exactly ONE new revision of a task (target) or ONE new task (no target)
 // from 0..N images, in the order sent; regenerate re-runs a task from the same
-// sources. The real processor and assist stage run over a scripted fake gateway;
+// sources. The real processor and assist stage run over a scripted fake engine;
 // only counts, ids, order and marker wording are asserted, never content.
 import {
   LIVE_OCR_LIMITS,
@@ -22,7 +22,8 @@ import { type Fixture, pngOf, startFixture } from "./live-session-fixture";
 import {
   buildProcessor,
   collectTraces,
-  createFakeGateway,
+  createFakeEngine,
+  type SessionAsk,
   settle,
 } from "./processor-fixture";
 import { ActiveSessionRepository } from "./repository";
@@ -65,21 +66,21 @@ async function world(
     processingPolicy: policy,
     captureSources: ["microphone", "screen"],
   });
-  const gateway = createFakeGateway();
+  const engine = createFakeEngine();
   const trace = collectTraces();
   const processor = buildProcessor(fx, {
     workerId: `worker-${name}`,
-    gateway,
+    engine,
     trace,
     visionProfileId: "vision-profile",
   });
   const sessionId = started.session.id;
   cleanups.push(async () => {
-    gateway.releaseAll();
+    engine.releaseAll();
     await processor.close();
     await repo.controlSession(scope, sessionId, "end");
   });
-  return { person, scope, sessionId, gateway, processor, trace };
+  return { person, scope, sessionId, engine, processor, trace };
 }
 type World = Awaited<ReturnType<typeof world>>;
 
@@ -132,11 +133,13 @@ const ownerShots = async (w: World) =>
       [w.sessionId],
     )
   ).rows as Array<{ event_id: string; sequence: string; bytes: string }>;
-const attachmentsOf = (request: { task: unknown }) =>
-  ((request.task as { attachments?: Array<{ reference: string }> })
-    .attachments ?? []) as Array<{ reference: string }>;
-const promptOf = (request: { task: unknown }) =>
-  (request.task as { prompt: string }).prompt;
+const sent = (request: SessionAsk | undefined) => {
+  if (!request) throw new Error("no such call reached the engine");
+  return request;
+};
+const attachmentsOf = (request: SessionAsk | undefined) =>
+  sent(request).attachments;
+const promptOf = (request: SessionAsk | undefined) => sent(request).prompt;
 const refusedWith = async (
   promise: Promise<unknown>,
   code: string,
@@ -177,8 +180,8 @@ describe("apply without a target: one new task from N images, in order", () => {
 
     await settle(w.processor);
     expect(new Set((await actions(w)).map((a) => a.taskId)).size).toBe(1);
-    expect(w.gateway.requests).toHaveLength(1);
-    const request = w.gateway.requests[0] as never;
+    expect(w.engine.requests).toHaveLength(1);
+    const request = w.engine.requests[0];
     expect(attachmentsOf(request).map((a) => a.reference)).toEqual(
       ["n-1", "n-1.2", "n-1.3"].map(
         (id) => `snap/${w.sessionId}/studio.owner-capture/${id}`,
@@ -197,9 +200,7 @@ describe("apply without a target: one new task from N images, in order", () => {
       B.byteLength,
     ]);
     await settle(w.processor);
-    expect(
-      attachmentsOf(w.gateway.requests[0] as never).map((a) => a.reference),
-    ).toEqual(
+    expect(attachmentsOf(w.engine.requests[0]).map((a) => a.reference)).toEqual(
       ["o-1", "o-1.2", "o-1.3"].map(
         (id) => `snap/${w.sessionId}/studio.owner-capture/${id}`,
       ),
@@ -213,9 +214,9 @@ describe("apply without a target: one new task from N images, in order", () => {
       { sourceId: "studio.owner-capture", eventId: "s-1" },
     ]);
     await settle(w.processor);
-    expect(w.gateway.requests).toHaveLength(1);
-    expect(attachmentsOf(w.gateway.requests[0] as never)).toHaveLength(1);
-    expect(promptOf(w.gateway.requests[0] as never)).not.toContain(
+    expect(w.engine.requests).toHaveLength(1);
+    expect(attachmentsOf(w.engine.requests[0])).toHaveLength(1);
+    expect(promptOf(w.engine.requests[0])).not.toContain(
       "successive screenshots",
     );
   });
@@ -300,8 +301,8 @@ describe("apply with a target: one new revision of the same task", () => {
     ]);
     expect(rows[0]?.dispatchStatus).toBe("succeeded");
     expect(await reasons(w)).toEqual([null, "added-screenshot"]);
-    expect(w.gateway.requests).toHaveLength(2);
-    const second = w.gateway.requests[1] as never;
+    expect(w.engine.requests).toHaveLength(2);
+    const second = w.engine.requests[1];
     // Three existing and two new: the newest four, oldest first.
     expect(attachmentsOf(second).map((a) => a.reference)).toEqual(
       ["t-1.2", "t-1.3", "t-2", "t-2.2"].map(
@@ -333,7 +334,7 @@ describe("apply with a target: one new revision of the same task", () => {
     ]);
     expect(rows[0]?.dispatchStatus).toBe("succeeded");
     expect(await reasons(w)).toEqual([null, "regenerate"]);
-    expect(attachmentsOf(w.gateway.requests[1] as never)).toHaveLength(3);
+    expect(attachmentsOf(w.engine.requests[1])).toHaveLength(3);
     // The same id for a different target is refused.
     await refusedWith(
       regenerate(w, "g-1", { taskId, revision: 2 }),
@@ -407,7 +408,7 @@ describe("apply with a target: one new revision of the same task", () => {
     await repo.controlSession(w.scope, w.sessionId, "pause");
     await regenerate(w, "p-1", { taskId, revision: 1 });
     await settle(w.processor);
-    expect(w.gateway.requests).toHaveLength(1);
+    expect(w.engine.requests).toHaveLength(1);
     expect(await actions(w)).toHaveLength(1);
   });
 
@@ -562,7 +563,7 @@ describe("text read from a screenshot on the device (OCR)", () => {
 
     // The call: the labelled text for the image that has some, a hint for the
     // cut-off one, nothing for the image without.
-    const request = w.gateway.requests.at(-1) as never;
+    const request = w.engine.requests.at(-1);
     const prompt = promptOf(request);
     const labels = [
       ...prompt.matchAll(/Screenshot (S\d+) \((screenshot-\d)\)/g),
@@ -596,7 +597,7 @@ describe("text read from a screenshot on the device (OCR)", () => {
     const w = await world("ocr-none");
     await capture(w, { requestId: "y-1" }, [A, B]);
     await settle(w.processor);
-    const prompt = promptOf(w.gateway.requests[0] as never);
+    const prompt = promptOf(w.engine.requests[0]);
     expect(prompt).not.toContain("SCREENSHOT TEXT");
     expect(prompt).not.toContain("on-screen text");
   });
@@ -610,7 +611,7 @@ describe("text read from a screenshot on the device (OCR)", () => {
     const taskId = (await actions(w))[0]?.taskId as string;
     await regenerate(w, "z-2", { taskId, revision: 1 });
     await settle(w.processor);
-    expect(promptOf(w.gateway.requests[1] as never)).toContain(
+    expect(promptOf(w.engine.requests[1])).toContain(
       "Screenshot S1 (screenshot-1) on-screen text",
     );
   });
@@ -669,7 +670,7 @@ describe("text read from a screenshot on the device (OCR)", () => {
     const w = await world("ocr-device", "device-only");
     await capture(w, { requestId: "d-1", ocr: [read(`${SECRET} text.`)] }, [A]);
     await settle(w.processor);
-    expect(w.gateway.requests).toHaveLength(0);
+    expect(w.engine.requests).toHaveLength(0);
   });
 
   it("accepts the ocr field on the multipart route and refuses malformed JSON", async () => {
@@ -780,8 +781,8 @@ describe("the display a screenshot was captured on", () => {
     ]);
 
     // Not in the model's prompt, not in a trace, not in a console line.
-    for (const request of w.gateway.requests)
-      expect(promptOf(request as never)).not.toContain(NAME);
+    for (const request of w.engine.requests)
+      expect(promptOf(request)).not.toContain(NAME);
     expect(JSON.stringify(w.trace.events)).not.toContain(NAME);
     for (const spy of spies) spy.mockRestore();
     expect(logged.join("\n")).not.toContain(NAME);

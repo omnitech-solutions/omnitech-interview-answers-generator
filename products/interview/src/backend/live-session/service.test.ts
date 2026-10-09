@@ -1,11 +1,10 @@
 // The assistance service through the REAL processor on a disposable PostgreSQL
-// with a scripted fake gateway (the model is never reached): a response whose
+// with a scripted fake engine (the model is never reached): a response whose
 // reference does not support its claim publishes nothing; a supported
 // matrix-backed claim publishes with the pinned revision; logistics answers
 // draw on candidate preferences only (and list what is missing when there are
 // none); an unreadable context is a retryable failure; the pinned context is
 // loaded once per run; and an oversize device prompt is refused, not cut.
-import type { AiExecutionRequest } from "@omnitech/ai-contracts";
 import { liveActionSchema } from "@omnitech/interview-contracts";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { DEVICE_MAX_PROMPT_BYTES } from "./assist-stage";
@@ -14,7 +13,8 @@ import {
   buildProcessor,
   type CollectedTrace,
   collectTraces,
-  createFakeGateway,
+  createFakeEngine,
+  type SessionAsk,
   seedBriefingDraft,
   seedMatrixProfile,
   settle,
@@ -54,7 +54,7 @@ async function world(
     profile?: boolean | { sha256: string };
     preferences?: string;
     policy?: "device-only" | "permitted-remote";
-    gateway?: ReturnType<typeof createFakeGateway>;
+    engine?: ReturnType<typeof createFakeEngine>;
     options?: { maxAttempts?: number };
     wrapStore?: Parameters<typeof buildProcessor>[1]["wrapStore"];
   } = {},
@@ -88,10 +88,10 @@ async function world(
     },
   );
   const trace: CollectedTrace = collectTraces();
-  const gateway = options.gateway ?? createFakeGateway();
+  const engine = options.engine ?? createFakeEngine();
   const processor = buildProcessor(fx, {
     workerId: `worker-${name}`,
-    gateway,
+    engine,
     trace,
     ...(options.options ? { options: options.options } : {}),
     ...(options.wrapStore ? { wrapStore: options.wrapStore } : {}),
@@ -101,7 +101,7 @@ async function world(
     await repo.controlSession(started.scope, started.sessionId, "end");
   });
   const actions = () => repo.listActions(started.scope, started.sessionId);
-  return { ...started, profile, gateway, processor, trace, actions };
+  return { ...started, profile, engine, processor, trace, actions };
 }
 
 const opening = () => RECRUITER_SCREEN[0]?.segments ?? [];
@@ -111,7 +111,7 @@ const notice = () =>
 describe("unsupported references", () => {
   it("drops a claim whose reference exists but does not support it, publishes the draft without it, and traces no text", async () => {
     const CANARY = "CANARY-UNSUPPORTED-CLAIM";
-    const gateway = createFakeGateway({
+    const engine = createFakeEngine({
       result: (request) =>
         output({
           category: "experience-story",
@@ -131,7 +131,7 @@ describe("unsupported references", () => {
           ],
         }),
     });
-    const w = await world("svc-unsupported", { profile: true, gateway });
+    const w = await world("svc-unsupported", { profile: true, engine });
     for (const segment of opening()) await w.ingestor.ingest(segment);
     await settle(w.processor);
 
@@ -157,7 +157,7 @@ describe("unsupported references", () => {
     );
     expect(parsed[0]?.result).toMatchObject({ claims: [] });
     // Settled: the same revision is not retried.
-    expect(gateway.requests).toHaveLength(1);
+    expect(engine.requests).toHaveLength(1);
     expect(
       w.trace.events.some((event) => event.event === "dispatch.published"),
     ).toBe(true);
@@ -169,7 +169,7 @@ describe("unsupported references", () => {
   }, 60_000);
 
   it("publishes a supported matrix-backed claim with the pinned revision", async () => {
-    const gateway = createFakeGateway({
+    const engine = createFakeEngine({
       result: (request) =>
         output({
           category: "experience-story",
@@ -194,7 +194,7 @@ describe("unsupported references", () => {
           ],
         }),
     });
-    const w = await world("svc-supported", { profile: true, gateway });
+    const w = await world("svc-supported", { profile: true, engine });
     for (const segment of opening()) await w.ingestor.ingest(segment);
     await settle(w.processor);
 
@@ -248,7 +248,7 @@ describe("unsupported references", () => {
   }, 60_000);
 
   it("records a coding category and owes a second solve-code action for the same revision", async () => {
-    const gateway = createFakeGateway({
+    const engine = createFakeEngine({
       result: () =>
         output({
           category: "coding",
@@ -260,7 +260,7 @@ describe("unsupported references", () => {
           },
         }),
     });
-    const w = await world("svc-coding", { gateway });
+    const w = await world("svc-coding", { engine });
     for (const segment of opening()) await w.ingestor.ingest(segment);
     await settle(w.processor);
     const stored = await w.actions();
@@ -289,7 +289,7 @@ describe("what the model says it could not see", () => {
       { kind: "examples" },
       { kind: "constraints", note: "the limits are cut off" },
     ];
-    const gateway = createFakeGateway({
+    const engine = createFakeEngine({
       result: () =>
         output({
           category: "coding",
@@ -302,7 +302,7 @@ describe("what the model says it could not see", () => {
           missingContext: [kept[0], { kind: "bogus" }, kept[1]],
         }),
     });
-    const w = await world("svc-missing-context", { gateway });
+    const w = await world("svc-missing-context", { engine });
     for (const segment of opening()) await w.ingestor.ingest(segment);
     await settle(w.processor);
     const stored = await w.actions();
@@ -325,10 +325,10 @@ describe("what the model says it could not see", () => {
 describe("hazard 7d: notice period and compensation", () => {
   // The scripted model answers from preferences when its prompt carries them
   // and lists the field as missing when it does not.
-  const noticeAnswer = (request: AiExecutionRequest) => {
-    const preferences = blockJson(request.task.prompt, "CANDIDATE PREFERENCES");
+  const noticeAnswer = (request: SessionAsk) => {
+    const preferences = blockJson(request.prompt, "CANDIDATE PREFERENCES");
     const isNotice = /notice/i.test(
-      request.task.prompt.split("END CAPTURED")[0] ?? "",
+      request.prompt.split("END CAPTURED")[0] ?? "",
     );
     const field = isNotice ? "notice-period" : "compensation";
     const pointer = isNotice
@@ -364,11 +364,11 @@ describe("hazard 7d: notice period and compensation", () => {
   };
 
   it("draws notice period and compensation from the approved preferences when present", async () => {
-    const gateway = createFakeGateway({ result: noticeAnswer });
+    const engine = createFakeEngine({ result: noticeAnswer });
     const w = await world("svc-7d-present", {
       profile: true,
       preferences: CANDIDATE_PREFERENCES,
-      gateway,
+      engine,
     });
     await askBoth(w);
 
@@ -391,8 +391,8 @@ describe("hazard 7d: notice period and compensation", () => {
   }, 60_000);
 
   it("lists the fields as missing and states no figure when there are no preferences", async () => {
-    const gateway = createFakeGateway({ result: noticeAnswer });
-    const w = await world("svc-7d-absent", { profile: true, gateway });
+    const engine = createFakeEngine({ result: noticeAnswer });
+    const w = await world("svc-7d-absent", { profile: true, engine });
     await askBoth(w);
 
     const stored = await w.actions();
@@ -418,7 +418,7 @@ describe("hazard 7d: notice period and compensation", () => {
   }, 60_000);
 
   it("publishes nothing when the model invents a figure without preferences", async () => {
-    const gateway = createFakeGateway({
+    const engine = createFakeEngine({
       result: () =>
         output({
           category: "logistics",
@@ -433,7 +433,7 @@ describe("hazard 7d: notice period and compensation", () => {
           logistics: { found: [], missing: [] },
         }),
     });
-    const w = await world("svc-7d-invented", { profile: true, gateway });
+    const w = await world("svc-7d-invented", { profile: true, engine });
     for (const segment of notice()[0]?.segments ?? [])
       await w.ingestor.ingest(segment);
     await settle(w.processor);
@@ -475,17 +475,17 @@ describe("the pinned context", () => {
   }, 60_000);
 
   it("is a retryable failure when it cannot be read or verified, with an id-only trace and no model call", async () => {
-    const gateway = createFakeGateway();
+    const engine = createFakeEngine();
     const w = await world("svc-unavailable", {
       // The recorded digest no longer matches the matrix.
       profile: { sha256: "d".repeat(64) },
-      gateway,
+      engine,
       options: { maxAttempts: 2 },
     });
     for (const segment of opening()) await w.ingestor.ingest(segment);
     await settle(w.processor, 12);
 
-    expect(gateway.requests).toHaveLength(0);
+    expect(engine.requests).toHaveLength(0);
     const stored = await w.actions();
     expect(
       stored.map((action) => [action.attempt, action.dispatchStatus]),
@@ -506,11 +506,11 @@ describe("the pinned context", () => {
 
 describe("the device window", () => {
   it("refuses an oversize device prompt as prompt_too_large: settled, never truncated, no model call", async () => {
-    const gateway = createFakeGateway();
+    const engine = createFakeEngine();
     const w = await world("svc-device-big", {
       profile: true,
       policy: "device-only",
-      gateway,
+      engine,
     });
     // Three-byte characters: the question alone outgrows the device window.
     const question = `${"字".repeat(3_990)}?`;
@@ -523,7 +523,7 @@ describe("the device window", () => {
     });
     await settle(w.processor, 12);
 
-    expect(gateway.requests).toHaveLength(0);
+    expect(engine.requests).toHaveLength(0);
     expect(await w.actions()).toEqual([
       expect.objectContaining({
         dispatchStatus: "suppressed",

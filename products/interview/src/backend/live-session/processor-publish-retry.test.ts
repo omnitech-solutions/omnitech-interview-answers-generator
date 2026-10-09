@@ -6,7 +6,7 @@ import { type Fixture, startFixture } from "./live-session-fixture";
 import {
   buildProcessor,
   collectTraces,
-  createFakeGateway,
+  createFakeEngine,
   NEVER_ABORTED,
   startSessionFor,
 } from "./processor-fixture";
@@ -30,11 +30,11 @@ describe("a transient publish error", () => {
     );
     let now = 5_000_000;
     let failOnce = true;
-    const gateway = createFakeGateway();
+    const engine = createFakeEngine();
     const trace = collectTraces();
     const processor = buildProcessor(fx, {
       workerId: "worker-publish-retry",
-      gateway,
+      engine,
       trace,
       clock: { nowMs: () => now },
       options: { settleMs: 1_500 },
@@ -69,6 +69,6 @@ describe("a transient publish error", () => {
       [1, "failed", 1],
       [1, "succeeded", 2],
     ]);
-    expect(gateway.requests).toHaveLength(2);
+    expect(engine.requests).toHaveLength(2);
   });
 });

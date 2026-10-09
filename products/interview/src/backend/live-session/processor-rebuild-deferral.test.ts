@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type Fixture, startFixture } from "./live-session-fixture";
 import {
   buildProcessor,
-  createFakeGateway,
+  createFakeEngine,
   NEVER_ABORTED,
   type StartedFor,
   startSessionFor,
@@ -25,12 +25,12 @@ afterAll(() => fx.stop());
 
 let now = 1_000_000;
 const worker = (id: string) => {
-  const gateway = createFakeGateway();
+  const engine = createFakeEngine();
   return {
-    gateway,
+    engine,
     processor: buildProcessor(fx, {
       workerId: id,
-      gateway,
+      engine,
       clock: { nowMs: () => now },
       options: { settleMs: 1_500 },
     }),
@@ -80,7 +80,7 @@ async function run(name: string, rebuild: "none" | "handover" | "pause") {
     await settle(current.processor);
   }
   if (rebuild === "handover") {
-    requests.push(...current.gateway.requests.map(capturedText));
+    requests.push(...current.engine.requests.map(capturedText));
     await current.processor.close();
     current = worker(`${name}-2`);
     await settle(current.processor);
@@ -92,7 +92,7 @@ async function run(name: string, rebuild: "none" | "handover" | "pause") {
     await settle(current.processor);
     await settle(current.processor);
   }
-  requests.push(...current.gateway.requests.map(capturedText));
+  requests.push(...current.engine.requests.map(capturedText));
   const result = { requests, ledger: await ledger(session) };
   await current.processor.close();
   await repo.controlSession(session.scope, session.sessionId, "end");
@@ -135,14 +135,14 @@ describe("rebuild after a deferred topic and an ignored cue", () => {
         await session.ingestor.ingest(step);
         await settle(current.processor);
         if (handovers) {
-          requests.push(current.gateway.requests.map(capturedText));
+          requests.push(current.engine.requests.map(capturedText));
           await current.processor.close();
           n += 1;
           current = worker(`${name}-${n}`);
           await settle(current.processor);
         }
       }
-      requests.push(current.gateway.requests.map(capturedText));
+      requests.push(current.engine.requests.map(capturedText));
       const result = {
         requests: requests.flat(),
         ledger: await ledger(session),

@@ -47,13 +47,7 @@ interface Allowance {
 const allowlist: readonly Allowance[] = [
   {
     dir: ".",
-    dependency: "@omnitech/agent-runtime-contracts",
-    reason:
-      "scripts/benchmark-document-groups.ts is a manual benchmark run through tsx from the repository root; it reaches workspace sources directly and ships nowhere",
-  },
-  {
-    dir: ".",
-    dependency: "@omnitech/ai-contracts",
+    dependency: "@omnitech/ai-engine",
     reason:
       "scripts/benchmark-document-groups.ts is a manual benchmark run through tsx from the repository root; it reaches workspace sources directly and ships nowhere",
   },

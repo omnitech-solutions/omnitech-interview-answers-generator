@@ -317,7 +317,7 @@ describe("matrix-backed", () => {
       run(
         [
           matrixClaim(
-            "Built streaming gateways, schedulers, kubernetes tooling",
+            "Built streaming engines, schedulers, kubernetes tooling",
             [quote],
           ),
         ],

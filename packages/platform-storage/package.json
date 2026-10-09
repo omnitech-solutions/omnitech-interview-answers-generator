@@ -27,8 +27,7 @@
     "test": "vitest run --config ../../vitest.package.config.ts"
   },
   "dependencies": {
-    "@omnitech/agent-job-service": "workspace:*",
-    "@omnitech/agent-runtime-contracts": "workspace:*",
+    "@omnitech/ai-engine": "0.1.0",
     "@omnitech/database": "workspace:*",
     "@omnitech/platform-contracts": "workspace:*",
     "drizzle-orm": "catalog:",

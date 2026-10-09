@@ -7,8 +7,8 @@ import type {
   JobActor,
   PersistedAgentEvent,
   ResumeJobOptions,
-} from "@omnitech/agent-job-service";
-import type { AgentEvent } from "@omnitech/agent-runtime-contracts";
+} from "@omnitech/ai-engine/jobs";
+import type { AgentEvent } from "@omnitech/ai-engine/providers/agents";
 import {
   type DatabaseClient,
   enterTenant,

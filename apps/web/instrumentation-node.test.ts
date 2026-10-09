@@ -10,7 +10,7 @@ vi.mock("@omnitech/database", () => ({
   verifyDatabaseRole: async () => undefined,
   verifyMigrations,
 }));
-vi.mock("./src/platform/ai", () => ({ createPlatformAiGateway: () => ({}) }));
+vi.mock("./src/platform/ai", () => ({ createPlatformAiEngine: () => ({}) }));
 vi.mock("./src/platform/products", () => ({
   createProductBackends: () => [{ runWorker }],
 }));

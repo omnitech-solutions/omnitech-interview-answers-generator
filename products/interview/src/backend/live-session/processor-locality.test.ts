@@ -1,16 +1,15 @@
-// Device-only locality through the real processor and the REAL gateway with
-// spy provider adapters (rule:device-only-enforced-twice,
+// Device-only locality through the real processor and the REAL engine with
+// spy provider ports (rule:device-only-enforced-twice,
 // rule:unlisted-stage-refused): a device-only session reaches only a profile
 // the environment declared device-local; a remote or undeclared profile is
 // refused with no call to any adapter and no fallback to the remote profile,
 // and the refusal is traced by id and code only. A permitted-remote session
 // uses the fast profile as before.
-import type { ModelProviderAdapter } from "@omnitech/ai-contracts";
 import {
-  type AgentExecutionPort,
-  type AiProfile,
-  createAiExecutionGateway,
-} from "@omnitech/ai-runtime";
+  createAiEngine,
+  type ModelPort,
+  type Profile,
+} from "@omnitech/ai-engine";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   INTERVIEW_SESSION_DEVICE_PROFILE,
@@ -39,88 +38,52 @@ afterEach(async () => {
 });
 afterAll(() => fx.stop());
 
-// No agent runtime and no image provider exist in these sessions' gateway; a
-// call reaching either would be a locality or routing failure.
-const noAgents = {} as AgentExecutionPort;
-
 const opening = () => RECRUITER_SCREEN[0]?.segments ?? [];
 
-// One spy adapter per target: the calls that reach it, by target id.
-function spyModel(targetId: string, calls: string[]): ModelProviderAdapter {
+// One spy port per provider: the calls that reach it, by provider name. The
+// canned draft is written as text, as a model API writes structured output;
+// the engine checks it against the schema and ends the call done.
+function spyModel(provider: string, calls: string[]): ModelPort {
   return {
-    providerId: targetId,
-    modelId: targetId,
-    capabilities: {
-      streaming: false,
-      structuredOutput: true,
-      tools: false,
-      vision: false,
-      search: false,
-    },
-    async listModels() {
-      return [];
-    },
-    async execute() {
-      calls.push(targetId);
-      return {
-        executionId: `spy-${targetId}`,
-        family: "direct-model",
-        targetId,
-        result: CANNED_DRAFT,
-      };
-    },
-    // The draft-answer stage streams (session-dispatch.ts): the canned draft
-    // is written as text, then completed; the spy records the stream and the
-    // execute it goes through.
-    async *stream(request) {
-      calls.push(`${targetId}.stream`);
-      const execution = await this.execute(request);
-      yield { type: "text-delta", text: JSON.stringify(execution.result) };
-      yield { type: "completed", result: execution.result };
-    },
-    async *streamStructured() {
-      yield* [];
-      calls.push(`${targetId}.streamStructured`);
+    async *stream() {
+      calls.push(provider);
+      yield { type: "text", text: JSON.stringify(CANNED_DRAFT) };
     },
   };
 }
-
 const profile = (
   id: string,
-  targetId: string,
-  locality: AiProfile["locality"],
-): AiProfile => ({
+  provider: string,
+  locality: Profile["locality"],
+): Profile => ({
   id,
-  label: id,
-  family: "direct-model",
-  targetId,
-  taskTypes: ["structured-generation"],
-  enabled: true,
+  provider,
   ...(locality === undefined ? {} : { locality }),
 });
 
 async function run(
   name: string,
   policy: "device-only" | "permitted-remote",
-  deviceLocality: AiProfile["locality"],
+  deviceLocality: Profile["locality"],
 ) {
   const calls: string[] = [];
-  const gateway = createAiExecutionGateway({
+  const engine = createAiEngine({
     profiles: [
       profile(INTERVIEW_SESSION_FAST_PROFILE, "remote-model", "remote"),
       profile(INTERVIEW_SESSION_DEVICE_PROFILE, "device-model", deviceLocality),
     ],
-    models: [spyModel("remote-model", calls), spyModel("device-model", calls)],
-    images: [],
-    agents: noAgents,
-    authorize: async () => true,
+    providers: {
+      "remote-model": spyModel("remote-model", calls),
+      "device-model": spyModel("device-model", calls),
+    },
+    authorize: () => true,
   });
   const world = await startSessionFor(fx, repo, fx.tenantA, name, policy);
   for (const segment of opening()) await world.ingestor.ingest(segment);
   const trace = collectTraces();
   const processor = buildProcessor(fx, {
     workerId: `worker-${name}`,
-    gateway,
+    engine,
     trace,
   });
   cleanups.push(async () => {
@@ -132,7 +95,7 @@ async function run(
   return { calls, trace, action };
 }
 
-describe("device-only sessions through the real gateway", () => {
+describe("device-only sessions through the real engine", () => {
   it.each([
     ["a profile declared remote", "remote"],
     ["a profile declaring nothing", undefined],
@@ -164,7 +127,7 @@ describe("device-only sessions through the real gateway", () => {
 
   it("run on a device-declared profile and call only the device adapter", async () => {
     const { calls, action } = await run("loc-device", "device-only", "device");
-    expect(calls).toEqual(["device-model.stream", "device-model"]);
+    expect(calls).toEqual(["device-model"]);
     expect(action).toMatchObject({ dispatchStatus: "succeeded" });
     expect(action?.result).toMatchObject({
       meta: {
@@ -180,7 +143,7 @@ describe("device-only sessions through the real gateway", () => {
       "permitted-remote",
       "device",
     );
-    expect(calls).toEqual(["remote-model.stream", "remote-model"]);
+    expect(calls).toEqual(["remote-model"]);
     expect(action).toMatchObject({ dispatchStatus: "succeeded" });
   });
 });
@@ -188,23 +151,21 @@ describe("device-only sessions through the real gateway", () => {
 describe("tightening locality mid-session", () => {
   it("makes the next dispatch use the device policy, read from the row just before the call", async () => {
     const calls: string[] = [];
-    const gateway = createAiExecutionGateway({
+    const engine = createAiEngine({
       profiles: [
         profile(INTERVIEW_SESSION_FAST_PROFILE, "remote-model", "remote"),
         profile(INTERVIEW_SESSION_DEVICE_PROFILE, "device-model", "device"),
       ],
-      models: [
-        spyModel("remote-model", calls),
-        spyModel("device-model", calls),
-      ],
-      images: [],
-      agents: noAgents,
-      authorize: async () => true,
+      providers: {
+        "remote-model": spyModel("remote-model", calls),
+        "device-model": spyModel("device-model", calls),
+      },
+      authorize: () => true,
     });
     const world = await startSessionFor(fx, repo, fx.tenantA, "loc-tighten");
     const processor = buildProcessor(fx, {
       workerId: "worker-loc-tighten",
-      gateway,
+      engine,
     });
     cleanups.push(async () => {
       await processor.close();
@@ -220,6 +181,6 @@ describe("tightening locality mid-session", () => {
     );
     for (const segment of opening()) await world.ingestor.ingest(segment);
     await settle(processor);
-    expect(calls).toEqual(["device-model.stream", "device-model"]);
+    expect(calls).toEqual(["device-model"]);
   });
 });

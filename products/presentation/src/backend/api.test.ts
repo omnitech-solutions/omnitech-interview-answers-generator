@@ -1,8 +1,14 @@
-import type {
-  AiAccessContext,
-  AiExecutionGateway,
-  AiExecutionRequest,
-} from "@omnitech/ai-contracts";
+import {
+  type AiEngine,
+  createAiEngine,
+  type Execution,
+  type ImagePort,
+  type ImageRequest,
+  type ImageResult,
+  type ModelInput,
+  type ModelPort,
+  type Scope,
+} from "@omnitech/ai-engine";
 import {
   createPlatformDatabase,
   type PlatformDatabase,
@@ -27,48 +33,65 @@ type Json = any;
 let pg: DisposablePostgres;
 let member: PlatformDatabase;
 const contexts = new Map<string, PlatformContext>();
-const aiCalls: AiExecutionRequest[] = [];
-const targetCalls: AiAccessContext[] = [];
+// What the engine was asked for, as the model and image providers saw it, and
+// the executions its policy was asked to authorise.
+const modelCalls: { scope: Scope; input: ModelInput }[] = [];
+const imageCalls: { scope: Scope; request: ImageRequest }[] = [];
+const authorized: Execution[] = [];
 let nextAiResult: unknown = {};
-let aiFailure: Error | undefined;
+let nextImage: ImageResult | undefined;
+let aiFailure: unknown;
 
 const PNG =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 
-const gateway: AiExecutionGateway = {
-  async execute(request) {
-    aiCalls.push(request);
-    if (aiFailure) throw aiFailure;
-    return {
-      executionId: "exec-1",
-      family: "language",
-      targetId: "target-1",
-      result: nextAiResult,
-    } as never;
-  },
-  async listAvailableTargets(context) {
-    targetCalls.push(context);
-    return [
-      {
-        id: "target-1",
-        label: "Fast model",
-        family: "language",
-        kind: "language",
-        capabilities: ["structured-generation"],
-      },
-    ] as never;
-  },
-  streamStructured: () => {
-    throw new Error("not used");
-  },
-  stream: () => {
-    throw new Error("not used");
-  },
-  cancel: async () => {},
-  resume: () => {
-    throw new Error("not used");
+const noUsage = {
+  status: "unavailable",
+  reason: "test provider",
+  cost: { status: "unavailable", reason: "test provider" },
+} as const;
+
+// A model that answers with whatever the test set, or fails with it.
+const model: ModelPort = {
+  async *stream(scope, input) {
+    modelCalls.push({ scope, input });
+    if (aiFailure !== undefined) throw aiFailure;
+    yield { type: "text", text: JSON.stringify(nextAiResult) };
+    yield { type: "usage", usage: noUsage };
   },
 };
+
+const imageMaker: ImagePort = {
+  providerId: "test-images",
+  capabilities: { editing: false, aspectRatios: ["1:1", "16:9", "9:16"] },
+  async generate(scope, request) {
+    imageCalls.push({ scope, request });
+    if (aiFailure !== undefined) throw aiFailure;
+    if (!nextImage) throw new Error("no image prepared");
+    return nextImage;
+  },
+};
+
+// A real engine over the providers above. Profile `members-only` is refused to
+// a member without the share permission.
+const engine: AiEngine = createAiEngine({
+  profiles: [
+    { id: "fast", provider: "text", label: "Fast model" },
+    { id: "p", provider: "text" },
+    { id: "members-only", provider: "text", label: "Members only" },
+    { id: "images", provider: "pictures", label: "Pictures" },
+    { id: "i", provider: "pictures" },
+  ],
+  providers: { text: model },
+  images: { pictures: imageMaker },
+  authorize: (execution, profile) => {
+    authorized.push(execution);
+    return profile.id !== "members-only" ||
+      execution.permissions?.includes("presentation.share")
+      ? true
+      : "Members only.";
+  },
+});
 
 function buildContext(
   tenant: { id: string; slug: string },
@@ -90,11 +113,11 @@ function buildContext(
   };
 }
 
-function appFor(ai?: AiExecutionGateway) {
+function appFor(withEngine?: AiEngine) {
   return createPresentationApi({
     database: member,
     resolveContext: async (slug) => contexts.get(slug) ?? null,
-    ...(ai ? { ai } : {}),
+    ...(withEngine ? { engine: withEngine } : {}),
   });
 }
 
@@ -107,12 +130,13 @@ async function call(
   path: string,
   body?: unknown,
   target = app,
+  headers: Record<string, string> = {},
 ) {
   const response = await target.request(
     `/presentation/v1${path}${path.includes("?") ? "&" : "?"}tenant=${tenant}`,
     {
       method,
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...headers },
       ...(body === undefined || method === "GET"
         ? {}
         : { body: JSON.stringify(body) }),
@@ -168,7 +192,7 @@ beforeAll(async () => {
     ),
   );
   member = createPlatformDatabase(pg.memberUrl);
-  app = appFor(gateway);
+  app = appFor(engine);
   appWithoutAi = appFor();
 }, 60_000);
 
@@ -183,7 +207,6 @@ describe("access", () => {
     ["GET", "/documents/00000000-0000-4000-8000-000000000000"],
     ["GET", "/themes"],
     ["GET", "/images"],
-    ["GET", "/ai-targets"],
     ["POST", "/documents"],
     ["DELETE", "/documents/00000000-0000-4000-8000-000000000000"],
   ])("refuses %s %s without a tenant membership", async (method, path) => {
@@ -753,23 +776,39 @@ describe("images and recordings", () => {
   });
 });
 
-describe("AI generation", () => {
-  it("lists the AI targets available to the member", async () => {
-    targetCalls.length = 0;
-    const response = await call("north", "GET", "/ai-targets");
-    expect(response.status).toBe(200);
-    expect(response.body).toEqual([
-      expect.objectContaining({ id: "target-1" }),
-    ]);
-    expect(targetCalls[0]).toMatchObject({
-      productId: "omnitech.presentation",
-      permissions: ["presentation.share"],
-    });
-  });
+// The text of every message of one role that reached the model.
+function textsOf(call: { input: ModelInput }, role: string): string[] {
+  return call.input.messages
+    .filter((message) => message.role === role)
+    .flatMap((message) => message.parts)
+    .flatMap((part) => (part.type === "text" ? [part.text] : []));
+}
 
-  it("answers 503 on every AI route when no gateway is configured", async () => {
+// Who the engine was told is asking: the member of the tenant, in this product.
+function askedBy(tenant: string) {
+  const context = contexts.get(tenant)!;
+  return {
+    scope: {
+      tenantId: context.tenant.id,
+      actorId: context.user.id,
+      productId: "omnitech.presentation",
+    },
+    permissions: context.permissions,
+  };
+}
+
+async function recordedImages(): Promise<
+  { id: string; prompt_reference: string }[]
+> {
+  const result = await pg.owner.query<{ id: string; prompt_reference: string }>(
+    "SELECT id, prompt_reference FROM presentation.generated_images",
+  );
+  return result.rows;
+}
+
+describe("AI generation", () => {
+  it("answers 503 on every AI route when no engine is configured", async () => {
     for (const [method, path] of [
-      ["GET", "/ai-targets"],
       ["POST", "/generate/outline"],
       ["POST", "/images/generate"],
       ["POST", "/documents/x/slides/generate"],
@@ -783,7 +822,7 @@ describe("AI generation", () => {
   });
 
   it("builds the outline prompt from every supplied option", async () => {
-    aiCalls.length = 0;
+    modelCalls.length = 0;
     nextAiResult = { title: "T", outline: ["a"] };
     const response = await call("north", "POST", "/generate/outline", {
       prompt: "Pitch our garden",
@@ -796,19 +835,14 @@ describe("AI generation", () => {
       scenario: "Demo day",
       layout: "narrative",
     });
-    expect(response.status).toBe(200);
-    expect(response.body).toMatchObject({
-      executionId: "exec-1",
-      result: nextAiResult,
+    expect(response).toEqual({ status: 200, body: { result: nextAiResult } });
+    const request = modelCalls[0]!;
+    expect(request.input.profileId).toBe("fast");
+    expect(request.scope).toMatchObject({ productId: "omnitech.presentation" });
+    expect(request.input.schema).toMatchObject({
+      required: ["title", "outline"],
     });
-    const request = aiCalls[0]!;
-    expect(request.profileId).toBe("fast");
-    expect(request.context).toMatchObject({
-      productId: "omnitech.presentation",
-    });
-    const task = request.task as { type: string; prompt: string };
-    expect(task.type).toBe("structured-generation");
-    expect(task.prompt).toBe(
+    expect(textsOf(request, "user")).toEqual([
       [
         "Pitch our garden",
         "Create an outline for exactly 5 slides.",
@@ -819,11 +853,12 @@ describe("AI generation", () => {
         "Scenario: Demo day.",
         "Use a narrative presentation structure.",
       ].join("\n\n"),
-    );
+    ]);
   });
 
   it("omits automatic options from the outline prompt", async () => {
-    aiCalls.length = 0;
+    modelCalls.length = 0;
+    nextAiResult = { title: "T", outline: ["a"] };
     await call("north", "POST", "/generate/outline", {
       prompt: "Just this",
       profileId: "fast",
@@ -831,15 +866,24 @@ describe("AI generation", () => {
       audience: "Auto",
       scenario: "Auto",
     });
-    expect((aiCalls[0]!.task as { prompt: string }).prompt).toBe("Just this");
+    expect(textsOf(modelCalls[0]!, "user")).toEqual(["Just this"]);
   });
 
-  it("rejects invalid generation requests and reports gateway failures as 502", async () => {
+  it("rejects invalid generation requests and reports engine failures as 502", async () => {
     expect(
       (await call("north", "POST", "/generate/outline", { prompt: "" })).body,
     ).toEqual({
       error: "Invalid generation request.",
     });
+    expect(
+      (
+        await call("north", "POST", "/generate/outline", {
+          prompt: "x",
+          profileId: "p",
+          slideCount: 0,
+        })
+      ).body,
+    ).toEqual({ error: "Invalid generation request." });
     aiFailure = new Error("model overloaded");
     try {
       expect(
@@ -848,7 +892,7 @@ describe("AI generation", () => {
           profileId: "p",
         }),
       ).toEqual({ status: 502, body: { error: "Generation failed." } });
-      aiFailure = "boom" as never;
+      aiFailure = "boom";
       expect(
         (
           await call("north", "POST", "/generate/outline", {
@@ -862,8 +906,60 @@ describe("AI generation", () => {
     }
   });
 
+  it("answers a refused or unknown profile with the same 502 and never asks the model", async () => {
+    modelCalls.length = 0;
+    nextAiResult = { title: "T", outline: ["a"] };
+    const refused = await call("viewer", "POST", "/generate/outline", {
+      prompt: "x",
+      profileId: "members-only",
+    });
+    expect(refused).toEqual({
+      status: 502,
+      body: { error: "Generation failed." },
+    });
+    const unknown = await call("north", "POST", "/generate/outline", {
+      prompt: "x",
+      profileId: "no-such-profile",
+    });
+    expect(unknown).toEqual({
+      status: 502,
+      body: { error: "Generation failed." },
+    });
+    expect(modelCalls).toHaveLength(0);
+  });
+
+  it("gives the engine the member's tenant, user and permissions, and the request's own signal", async () => {
+    authorized.length = 0;
+    nextAiResult = { title: "T", outline: ["a"] };
+    const cancel = new AbortController();
+    const response = await app.request(
+      "/presentation/v1/generate/outline?tenant=north",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ prompt: "x", profileId: "fast" }),
+        signal: cancel.signal,
+      },
+    );
+    expect(response.status).toBe(200);
+    const execution = authorized.at(-1)!;
+    expect(execution).toMatchObject(askedBy("north"));
+    // Cancelling the request is what cancels the engine's call.
+    expect(execution.signal.aborted).toBe(false);
+    cancel.abort();
+    expect(execution.signal.aborted).toBe(true);
+
+    await call("viewer", "POST", "/generate/outline", {
+      prompt: "x",
+      profileId: "fast",
+    });
+    expect(authorized.at(-1)).toMatchObject(askedBy("viewer"));
+    expect(authorized.at(-1)!.permissions).toEqual([]);
+  });
+
   it("generates a single slide at the requested position", async () => {
-    aiCalls.length = 0;
+    modelCalls.length = 0;
+    authorized.length = 0;
     nextAiResult = { sourceXml: "<SECTION><H1>New</H1></SECTION>" };
     const path =
       "/documents/00000000-0000-4000-8000-000000000000/slides/generate";
@@ -872,28 +968,32 @@ describe("AI generation", () => {
       profileId: "fast",
       position: 2,
     });
-    expect(withPosition.status).toBe(201);
-    expect(withPosition.body).toMatchObject({
-      position: 2,
-      result: nextAiResult,
+    expect(withPosition).toEqual({
+      status: 201,
+      body: { result: nextAiResult, position: 2 },
     });
+    expect(textsOf(modelCalls[0]!, "user")).toEqual(["A slide"]);
+    expect(modelCalls[0]!.input.schema).toMatchObject({
+      required: ["sourceXml"],
+    });
+    expect(authorized.at(-1)).toMatchObject(askedBy("north"));
     const defaulted = await call("north", "POST", path, {
       prompt: "A slide",
       profileId: "fast",
     });
-    expect(defaulted.body!["position"]).toBe(0);
+    expect(defaulted.body).toEqual({ result: nextAiResult, position: 0 });
     expect((await call("north", "POST", path, {})).body).toEqual({
       error: "Invalid slide generation request.",
     });
     aiFailure = new Error("slide failed");
     try {
       expect(
-        (await call("north", "POST", path, { prompt: "x", profileId: "p" }))
-          .body,
+        await call("north", "POST", path, { prompt: "x", profileId: "p" }),
       ).toEqual({
-        error: "Slide generation failed.",
+        status: 502,
+        body: { error: "Slide generation failed." },
       });
-      aiFailure = 1 as never;
+      aiFailure = 1;
       expect(
         (await call("north", "POST", path, { prompt: "x", profileId: "p" }))
           .body,
@@ -906,8 +1006,9 @@ describe("AI generation", () => {
   });
 
   it("generates an image, records its provenance and lists it", async () => {
-    aiCalls.length = 0;
-    nextAiResult = {
+    imageCalls.length = 0;
+    authorized.length = 0;
+    nextImage = {
       assetReference: PNG,
       mimeType: "image/png",
       providerId: "openai",
@@ -919,23 +1020,27 @@ describe("AI generation", () => {
       profileId: "images",
       aspectRatio: "16:9",
       modelId: "image-1",
-      width: 512,
-      height: 288,
     });
-    expect(response.status).toBe(200);
-    expect(aiCalls[0]!.task).toMatchObject({
-      type: "image-generation",
-      image: {
-        aspectRatio: "16:9",
-        modelId: "image-1",
-        width: 512,
-        height: 288,
-      },
+    expect(response).toEqual({
+      status: 200,
+      body: { imageId: expect.any(String) },
     });
+    expect(imageCalls[0]!.request).toEqual({
+      profileId: "images",
+      prompt: "A garden",
+      aspectRatio: "16:9",
+      modelId: "image-1",
+    });
+    expect(imageCalls[0]!.scope).toMatchObject({
+      productId: "omnitech.presentation",
+    });
+    expect(authorized.at(-1)).toMatchObject(askedBy("north"));
     const listed = (await call("north", "GET", "/images")).body!;
-    expect(
-      listed.find((i: Json) => i.id === response.body!["imageId"]),
-    ).toMatchObject({
+    const recorded = listed.find(
+      (i: Json) => i.id === response.body!["imageId"],
+    );
+    expect(recorded).toMatchObject({
+      assetReference: PNG,
       providerId: "openai",
       modelId: "image-1",
       metadata: { seed: 7 },
@@ -945,11 +1050,54 @@ describe("AI generation", () => {
       prompt: "bare",
       profileId: "images",
     });
-    expect(aiCalls[1]!.task).toMatchObject({ image: {} });
+    expect(imageCalls[1]!.request).toEqual({
+      profileId: "images",
+      prompt: "bare",
+    });
+  });
+
+  it("stores a generated image under the trace the engine made it in", async () => {
+    nextImage = {
+      assetReference: PNG,
+      mimeType: "image/png",
+      providerId: "openai",
+      modelId: "image-1",
+      provenance: {},
+    };
+    const promptReferenceOf = async (imageId: string) =>
+      (await recordedImages()).find((image) => image.id === imageId)
+        ?.prompt_reference;
+
+    // The request names no trace: one is made for the call.
+    authorized.length = 0;
+    const made = await call("north", "POST", "/images/generate", {
+      prompt: "x",
+      profileId: "images",
+    });
+    const madeTraceId = authorized.at(-1)!.traceId;
+    expect(madeTraceId).toMatch(/^[0-9a-f]{32}$/);
+    expect(await promptReferenceOf(made.body!["imageId"])).toBe(
+      `run:${madeTraceId}`,
+    );
+
+    // The request's own trace is the one used.
+    const traceId = "4bf92f3577b34da6a3ce929d0e0e4736";
+    const traced = await call(
+      "north",
+      "POST",
+      "/images/generate",
+      { prompt: "x", profileId: "images" },
+      app,
+      { traceparent: `00-${traceId}-00f067aa0ba902b7-01` },
+    );
+    expect(authorized.at(-1)!.traceId).toBe(traceId);
+    expect(await promptReferenceOf(traced.body!["imageId"])).toBe(
+      `run:${traceId}`,
+    );
   });
 
   it("refuses an image model id that could steer a provider URL", async () => {
-    aiCalls.length = 0;
+    imageCalls.length = 0;
     for (const modelId of [
       "../admin",
       "/etc/passwd",
@@ -965,50 +1113,56 @@ describe("AI generation", () => {
       });
       expect(refused.status).toBe(400);
     }
-    expect(aiCalls).toHaveLength(0);
+    expect(imageCalls).toHaveLength(0);
   });
 
-  it("refuses generated images pointing at loopback unless the provider is ComfyUI", async () => {
-    nextAiResult = {
-      assetReference: "http://127.0.0.1:8188/view?x=1",
+  it("accepts a generated image by URL or data URL, refuses any other reference, and records nothing it refuses", async () => {
+    const generate = (profileId = "images") =>
+      call("north", "POST", "/images/generate", { prompt: "x", profileId });
+    const made = {
       mimeType: "image/png",
       providerId: "openai",
       modelId: "m",
       provenance: {},
     };
-    const refused = await call("north", "POST", "/images/generate", {
-      prompt: "x",
-      profileId: "images",
-    });
-    expect(refused).toEqual({
-      status: 502,
-      body: { error: "Image assets cannot point to loopback hosts." },
-    });
-    nextAiResult = { ...(nextAiResult as object), providerId: "comfyui" };
-    expect(
-      (
-        await call("north", "POST", "/images/generate", {
-          prompt: "x",
-          profileId: "images",
-        })
-      ).status,
-    ).toBe(200);
+    for (const assetReference of [
+      PNG,
+      "https://cdn.example.test/a.png",
+      "http://cdn.example.test/a.png",
+    ]) {
+      nextImage = { ...made, assetReference };
+      expect((await generate()).status).toBe(200);
+    }
+
+    const before = (await recordedImages()).length;
+    for (const assetReference of [
+      "not a url",
+      "ftp://example.test/a.png",
+      "data:text/html,<p>x</p>",
+      "/tmp/a.png",
+    ]) {
+      nextImage = { ...made, assetReference };
+      expect(await generate()).toEqual({
+        status: 502,
+        body: {
+          error: "Image assets must use an HTTP(S) URL or image data URL.",
+        },
+      });
+    }
     expect(
       (await call("north", "POST", "/images/generate", { prompt: "" })).body,
     ).toEqual({ error: "Invalid image request." });
-    aiFailure = 1 as never;
+    nextImage = { ...made, assetReference: PNG };
+    aiFailure = 1;
     try {
-      expect(
-        (
-          await call("north", "POST", "/images/generate", {
-            prompt: "x",
-            profileId: "i",
-          })
-        ).body,
-      ).toEqual({ error: "Image generation failed." });
+      expect(await generate("i")).toEqual({
+        status: 502,
+        body: { error: "Image generation failed." },
+      });
     } finally {
       aiFailure = undefined;
     }
+    expect(await recordedImages()).toHaveLength(before);
   });
 });
 

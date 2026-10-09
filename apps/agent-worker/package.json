@@ -13,15 +13,10 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "catalog:",
-    "@omnitech/agent-job-service": "workspace:*",
-    "@omnitech/agent-runtime-claude": "workspace:*",
-    "@omnitech/agent-runtime-codex": "workspace:*",
-    "@omnitech/agent-runtime-contracts": "workspace:*",
-    "@omnitech/ai-contracts": "workspace:*",
-    "@omnitech/ai-provider-openai": "workspace:*",
-    "@omnitech/ai-runtime": "workspace:*",
+    "@omnitech/ai-engine": "0.1.0",
     "@omnitech/code-runner": "workspace:*",
     "@omnitech/database": "workspace:*",
+    "@omnitech/platform-runtime": "workspace:*",
     "@omnitech/platform-storage": "workspace:*",
     "@omnitech/product-interview": "workspace:*"
   },

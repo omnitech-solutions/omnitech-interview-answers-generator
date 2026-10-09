@@ -3,7 +3,7 @@
 // rule:fast-path-no-tools, rule:structured-field-decisions). A synthetic corpus
 // (prompt-injection-fixtures.ts) of hostile transcript lines, window labels,
 // employer context and model replies is driven through the REAL processor and
-// assist stage on a disposable PostgreSQL with a scripted fake gateway (no real
+// assist stage on a disposable PostgreSQL with a scripted fake engine (no real
 // model is reached) and these properties are proven:
 //   - the policy text of every request is constant and equals the policy built
 //     with no input at all; hostile text appears only inside the labelled
@@ -20,7 +20,6 @@
 //   - traces never contain corpus text;
 //   - the checks are not vacuous: a stage that interpolates captured text into
 //     the policy (or into the prompt header) fails them.
-import type { AiExecutionRequest } from "@omnitech/ai-contracts";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   INTERVIEW_SESSION_DEVICE_PROFILE,
@@ -32,12 +31,15 @@ import { ingestObservation } from "./ingest";
 import { createInterviewSessionPolicy } from "./interview-policy";
 import { type Fixture, PNG_BYTES, startFixture } from "./live-session-fixture";
 import {
+  askOf,
   buildProcessor,
   type CollectedTrace,
   collectTraces,
-  createFakeGateway,
-  type FakeGateway,
+  createFakeEngine,
+  type EngineCall,
+  type FakeEngine,
   ingestorFor,
+  NEVER_ABORTED,
   seedBriefingDraft,
   seedMatrixProfile,
   settle,
@@ -99,15 +101,20 @@ const CLEAN_SYSTEM = (() => {
   return prepared.prompt.system;
 })();
 
-const ALLOWED_REQUEST_FIELDS = [
-  "context",
+// What a session call may hand the engine, and nothing else: the execution
+// (who, where, which answer), the input (profile, messages, schema) and text
+// parts only. No tools, no options, no effort.
+const ALLOWED_EXECUTION_FIELDS = [
+  "for",
   "idempotencyKey",
-  "processingPolicy",
-  "profileId",
+  "permissions",
+  "policy",
+  "scope",
   "signal",
-  "task",
+  "traceId",
 ];
-const ALLOWED_TASK_FIELDS = ["prompt", "schema", "system", "type"];
+const ALLOWED_INPUT_FIELDS = ["messages", "profileId", "schema"];
+const ALLOWED_MESSAGE_FIELDS = ["parts", "role"];
 
 type Expectation = {
   profileId: string;
@@ -120,7 +127,7 @@ type Expectation = {
 // Every way a request can carry hostile input it must not. Returns codes, so
 // the same check can prove a mutated stage is caught.
 function requestViolations(
-  requests: readonly AiExecutionRequest[],
+  calls: readonly EngineCall[],
   expected: Expectation,
 ): string[] {
   const found: string[] = [];
@@ -128,30 +135,38 @@ function requestViolations(
     if (!found.includes(code)) found.push(code);
   };
   const all = [...expected.captured, ...expected.employer, ...expected.screen];
-  for (const request of requests) {
-    for (const key of Object.keys(request))
-      if (!ALLOWED_REQUEST_FIELDS.includes(key)) flag(`request_field:${key}`);
-    for (const key of Object.keys(request.task))
-      if (!ALLOWED_TASK_FIELDS.includes(key)) flag(`task_field:${key}`);
+  for (const { input, execution, options } of calls) {
+    for (const key of Object.keys(execution))
+      if (!ALLOWED_EXECUTION_FIELDS.includes(key)) flag(`request_field:${key}`);
+    if (options !== undefined) flag("request_field:options");
+    for (const key of Object.keys(input))
+      if (!ALLOWED_INPUT_FIELDS.includes(key)) flag(`task_field:${key}`);
+    for (const message of input.messages) {
+      for (const key of Object.keys(message))
+        if (!ALLOWED_MESSAGE_FIELDS.includes(key))
+          flag(`task_field:message.${key}`);
+      for (const part of message.parts)
+        if (part.type !== "text") flag(`task_field:part.${part.type}`);
+    }
+    const request = askOf(input, execution);
     if (request.profileId !== expected.profileId) flag("profile_changed");
-    if (request.processingPolicy !== expected.processingPolicy)
-      flag("policy_changed");
-    if (request.task.system !== CLEAN_SYSTEM) flag("system_policy_varies");
+    if (request.policy !== expected.processingPolicy) flag("policy_changed");
+    if (request.system !== CLEAN_SYSTEM) flag("system_policy_varies");
     // Everything but the prompt body: marker search.
     const rest = JSON.stringify({
-      ...request,
-      task: { ...request.task, prompt: "", system: "" },
-      signal: undefined,
+      input: { ...input, messages: [] },
+      execution: { ...execution, signal: undefined },
+      options,
     });
-    const outside = outsideBlocks(request.task.prompt);
+    const outside = outsideBlocks(request.prompt);
     for (const marker of all) {
-      if (request.task.system?.includes(marker)) flag("marker_in_system");
+      if (request.system?.includes(marker)) flag("marker_in_system");
       if (rest.includes(marker)) flag("marker_in_request_field");
       if (outside.includes(marker)) flag("marker_outside_block");
     }
     // Each block carries only what belongs in it.
     const block = (label: string) =>
-      JSON.stringify(blockJson<unknown>(request.task.prompt, label));
+      JSON.stringify(blockJson<unknown>(request.prompt, label));
     for (const marker of expected.captured) {
       if (block("APPROVED EXPERIENCE").includes(marker))
         flag("captured_in_experience_block");
@@ -164,7 +179,7 @@ function requestViolations(
       if (block("CAPTURED DATA").includes(marker))
         flag("employer_in_captured_block");
     for (const marker of expected.screen)
-      if (request.task.prompt.includes(marker)) flag("screen_text_in_prompt");
+      if (request.prompt.includes(marker)) flag("screen_text_in_prompt");
   }
   return found;
 }
@@ -178,7 +193,7 @@ async function world(
     policy?: "permitted-remote" | "device-only";
     employer?: boolean;
     screen?: boolean;
-    gateway?: FakeGateway;
+    engine?: FakeEngine;
     assist?: AssistStage;
   } = {},
 ) {
@@ -217,10 +232,10 @@ async function world(
   });
   const ingestor = ingestorFor(fx, fx.tenantA, started.credential.value);
   const trace: CollectedTrace = collectTraces();
-  const gateway = options.gateway ?? createFakeGateway();
+  const engine = options.engine ?? createFakeEngine();
   const processor = buildProcessor(fx, {
     workerId: `worker-${name}`,
-    gateway,
+    engine,
     trace,
     ...(options.assist
       ? { policy: createInterviewSessionPolicy({ assist: options.assist }) }
@@ -228,7 +243,7 @@ async function world(
   });
   const sessionId = started.session.id;
   cleanups.push(async () => {
-    gateway.releaseAll();
+    engine.releaseAll();
     await processor.close();
     await repo.controlSession(scope, sessionId, "end");
   });
@@ -239,7 +254,7 @@ async function world(
     credential: started.credential.value,
     ingestor,
     trace,
-    gateway,
+    engine,
     processor,
     actions: () => repo.listActions(scope, sessionId),
   };
@@ -321,9 +336,10 @@ describe.each([
     for (const entry of ofChannel("captured")) await ask(w, entry.text);
 
     // One answer per hostile captured question, and nothing else was asked.
-    const requests = w.gateway.requests;
+    const requests = w.engine.requests;
     expect(requests).toHaveLength(ofChannel("captured").length);
-    const violations = requestViolations(requests, {
+    expect(w.engine.sent).toHaveLength(requests.length);
+    const violations = requestViolations(w.engine.sent, {
       profileId,
       processingPolicy: policy,
       captured: markersOf(ofChannel("captured")),
@@ -338,7 +354,7 @@ describe.each([
     const capturedSeen = ofChannel("captured").every((entry) =>
       requests.some((request) =>
         JSON.stringify(
-          blockJson<unknown>(request.task.prompt, "CAPTURED DATA"),
+          blockJson<unknown>(request.prompt, "CAPTURED DATA"),
         ).includes(entry.id),
       ),
     );
@@ -347,7 +363,7 @@ describe.each([
       requests.flatMap((request) =>
         markersOf(ofChannel("employer-context")).filter((marker) =>
           JSON.stringify(
-            blockJson<unknown>(request.task.prompt, "EMPLOYER MATERIAL"),
+            blockJson<unknown>(request.prompt, "EMPLOYER MATERIAL"),
           ).includes(marker),
         ),
       ),
@@ -382,14 +398,14 @@ describe("model replies outside the closed schema", () => {
   it("are rejected as violations by code, publish nothing and change nothing", async () => {
     const replies = [...OUT_OF_SCHEMA_REPLIES];
     let call = 0;
-    const gateway = createFakeGateway({
+    const engine = createFakeEngine({
       result: () => {
         const reply = replies[call];
         call += 1;
         return reply?.build(answer({}));
       },
     });
-    const w = await world("inj-out-of-schema", { gateway });
+    const w = await world("inj-out-of-schema", { engine });
     const before = await unchangedFacts(w);
 
     for (const [index] of replies.entries())
@@ -432,7 +448,7 @@ describe("model replies outside the closed schema", () => {
 
     // Nothing but answers were asked for, with the row's profile and policy.
     expect(
-      requestViolations(w.gateway.requests, {
+      requestViolations(w.engine.sent, {
         profileId: INTERVIEW_SESSION_FAST_PROFILE,
         processingPolicy: "permitted-remote",
         captured: [],
@@ -450,7 +466,7 @@ describe("hostile text inside the schema's allowed fields", () => {
   it("publishes only as inert data: no job, no promotion, no extra action", async () => {
     const replies = [...EMBEDDED_REPLIES];
     let call = 0;
-    const gateway = createFakeGateway({
+    const engine = createFakeEngine({
       result: () => {
         const reply = replies[call];
         call += 1;
@@ -462,7 +478,7 @@ describe("hostile text inside the schema's allowed fields", () => {
             });
       },
     });
-    const w = await world("inj-embedded", { gateway });
+    const w = await world("inj-embedded", { engine });
     const before = await unchangedFacts(w);
 
     for (const [index] of replies.entries())
@@ -546,7 +562,7 @@ describe("a stage that lets captured text into the policy fails the checks", () 
     const w = await world(name, { ...(assist ? { assist } : {}) });
     const items = ofChannel("captured").slice(0, 3);
     for (const entry of items) await ask(w, entry.text);
-    return requestViolations(w.gateway.requests, {
+    return requestViolations(w.engine.sent, {
       profileId: INTERVIEW_SESSION_FAST_PROFILE,
       processingPolicy: "permitted-remote",
       captured: markersOf(items),
@@ -574,19 +590,26 @@ describe("a stage that lets captured text into the policy fails the checks", () 
   }, 60_000);
 
   it("flags a request that carries a tool field or a changed profile or policy", () => {
-    const base: AiExecutionRequest = {
-      context: {} as AiExecutionRequest["context"],
-      profileId: "interview-admin",
-      task: {
-        type: "structured-generation",
-        system: CLEAN_SYSTEM,
-        prompt: "TASK: draft_answer",
+    const base = {
+      input: {
+        profileId: "interview-admin",
+        messages: [
+          { role: "system", parts: [{ type: "text", text: CLEAN_SYSTEM }] },
+          {
+            role: "user",
+            parts: [{ type: "text", text: "TASK: draft_answer" }],
+          },
+        ],
         schema: {},
         tools: [{ name: "shell" }],
-      } as AiExecutionRequest["task"],
-      processingPolicy: "permitted-remote",
-      tools: [{ name: "shell" }],
-    } as AiExecutionRequest;
+      },
+      execution: {
+        scope: {},
+        signal: NEVER_ABORTED,
+        policy: "permitted-remote",
+        tools: [{ name: "shell" }],
+      },
+    } as unknown as EngineCall;
     expect(
       requestViolations([base], {
         profileId: INTERVIEW_SESSION_FAST_PROFILE,

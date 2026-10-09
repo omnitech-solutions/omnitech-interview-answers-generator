@@ -1,8 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import type {
-  AiExecutionGateway,
-  AiExecutionRequest,
-} from "@omnitech/ai-contracts";
+import { createAiEngine, type ModelPort } from "@omnitech/ai-engine";
 import {
   createPlatformDatabase,
   type PlatformDatabase,
@@ -34,11 +31,20 @@ let concurrentGate: {
 } | null = null;
 let saveGenerationGate: { entered: () => void; release: Promise<void> } | null =
   null;
-const ai = {
-  async execute(request: AiExecutionRequest) {
-    if (!request.context.permissions.includes("interview.read"))
-      throw new Error("AI profile not authorized");
-    output.push(request);
+// The model is the provider boundary: it records what the product asked for
+// and answers every field of the schema it was given.
+const model: ModelPort = {
+  async *stream(_scope, input, signal) {
+    output.push({
+      profileId: input.profileId,
+      prompt: input.messages
+        .filter((message) => message.role === "user")
+        .flatMap((message) =>
+          message.parts.map((part) => (part.type === "text" ? part.text : "")),
+        )
+        .join(""),
+      signal,
+    });
     if (concurrentGate) {
       const gate = concurrentGate;
       gate.entered++;
@@ -53,45 +59,60 @@ const ai = {
     if (waitForAbort) {
       enteredGeneration?.();
       await new Promise<void>((_resolve, reject) => {
-        request.signal?.addEventListener(
-          "abort",
-          () => reject(new Error("cancelled")),
-          { once: true },
-        );
+        signal.addEventListener("abort", () => reject(new Error("cancelled")), {
+          once: true,
+        });
       });
     }
-    const keys = Object.keys(request.task.schema?.["properties"] ?? {});
-    return {
-      executionId: "test",
-      family: "direct-model",
-      targetId: "test-model",
-      result: Object.fromEntries(
-        keys.map((key) => [
-          key,
-          key === "name" || key === "full_name" ? "Ada" : "Evidence",
-        ]),
+    const schema = input.schema as { properties?: Record<string, unknown> };
+    yield {
+      type: "text",
+      text: JSON.stringify(
+        Object.fromEntries(
+          Object.keys(schema.properties ?? {}).map((key) => [
+            key,
+            key === "name" || key === "full_name" ? "Ada" : "Evidence",
+          ]),
+        ),
       ),
     };
   },
-  async listAvailableTargets(
-    context: Parameters<AiExecutionGateway["listAvailableTargets"]>[0],
-  ) {
-    if (!context.permissions.includes("interview.read")) return [];
-    return [
-      {
-        id: "test-model",
-        label: "Test model",
-        kind: "language",
-        family: "direct-model",
-        capabilities: ["structured-generation"],
-      },
-    ];
+};
+const listed = (id: string, name: string) => ({
+  id,
+  name,
+  tags: [],
+  vision: false,
+  reasoning: false,
+  local: false,
+});
+const engine = createAiEngine({
+  profiles: [
+    { id: "test-model", label: "Test model", provider: "test" },
+    { id: "lm-studio", provider: "installed", catalog: true },
+    { id: "agent", provider: "agents", catalog: true },
+  ],
+  providers: {
+    test: model,
+    installed: model,
+    agents: { ...model, kind: "agent" },
   },
-  async *streamStructured() {},
-  async *stream() {},
-  async cancel() {},
-  async *resume() {},
-} as AiExecutionGateway;
+  catalogs: {
+    installed: {
+      list: async () => ({ models: [listed("lm-studio/qwen", "Qwen")] }),
+    },
+    agents: {
+      list: async () => ({
+        models: [listed("agent/claude-code", "Claude Code")],
+      }),
+    },
+  },
+  authorize: (execution) =>
+    execution.permissions?.includes("interview.read")
+      ? true
+      : "AI profile not authorized",
+});
+type Asked = { profileId: string; prompt: string; signal: AbortSignal };
 function context(
   actorId: string,
   permissions = ["interview.read", "interview.documents.write"],
@@ -126,7 +147,7 @@ function context(
 function app(actorId: string, permissions?: string[]) {
   return createDocumentsApi({
     database,
-    ai,
+    engine,
     resolveScope: async (request) =>
       resolveDocumentsScope(
         context(actorId, permissions),
@@ -137,7 +158,7 @@ function app(actorId: string, permissions?: string[]) {
 }
 
 it("does not expose write-target choices to a read-only Interview member", async () => {
-  const targets = vi.spyOn(ai, "listAvailableTargets");
+  const targets = vi.spyOn(engine, "profiles");
   try {
     const response = await app(ownerId, ["interview.read"]).request(
       `${url}/context`,
@@ -257,8 +278,15 @@ describe("Documents private API", () => {
       targets: Array<{ id: string }>;
       profiles: Array<{ revision: unknown }>;
     };
+    // A named model profile and the agent write documents; a catalogue's
+    // model is the assistant picker's, never a document's.
     expect(writableBody.targets).toEqual([
-      expect.objectContaining({ id: "test-model", family: expect.any(String) }),
+      { id: "test-model", label: "Test model", kind: "model" },
+      {
+        id: "agent/claude-code",
+        label: "Claude Code",
+        kind: "agent",
+      },
     ]);
     expect(writableBody.profiles[0]?.revision).toBe(1);
     expect(typeof writableBody.profiles[0]?.revision).toBe("number");
@@ -387,8 +415,7 @@ describe("Documents private API", () => {
     };
     expect(result.revision.values["about"]).toBe("Evidence");
     expect(output).toHaveLength(1);
-    expect((output[0] as AiExecutionRequest).profileId).toBe("test-model");
-    expect((output[0] as AiExecutionRequest).targetId).toBe("test-model");
+    expect((output[0] as Asked).profileId).toBe("test-model");
     const duplicate = await mine.request(
       url,
       post({
@@ -525,8 +552,7 @@ describe("Documents private API", () => {
     );
     expect(regenerated.status, await regenerated.clone().text()).toBe(201);
     expect(output).toHaveLength(callsBeforeRegeneration + 1);
-    expect((output.at(-1) as AiExecutionRequest).profileId).toBe("test-model");
-    expect((output.at(-1) as AiExecutionRequest).targetId).toBe("test-model");
+    expect((output.at(-1) as Asked).profileId).toBe("test-model");
     const values = Object.fromEntries(
       Object.keys(item.revision.values).map((key) => [key, "Evidence"]),
     );
@@ -626,21 +652,18 @@ describe("Documents private API", () => {
       post({ baseRevision: 2, fieldKey: "phone", aiTargetId: "test-model" }),
     );
     expect(directField.status).toBe(400);
-    const execute = vi.spyOn(ai, "execute");
     const regenerated = await mine.request(
       `${url}/${documentId}/regenerate`,
       post({ baseRevision: 2, fieldKey: "summary", aiTargetId: "test-model" }),
     );
     expect(regenerated.status, await regenerated.clone().text()).toBe(201);
     // The model is told what the field holds now, so it keeps its kind and length.
-    const sent = JSON.parse(
-      (execute.mock.calls.at(-1)![0] as { task: { prompt: string } }).task
-        .prompt,
-    ) as { fields: Array<{ key: string; currentValue?: string }> };
+    const sent = JSON.parse((output.at(-1) as Asked).prompt) as {
+      fields: Array<{ key: string; currentValue?: string }>;
+    };
     expect(sent.fields).toEqual([
       expect.objectContaining({ key: "summary", currentValue: "Manual" }),
     ]);
-    execute.mockRestore();
     const current = await mine.request(`${url}/${documentId}`, { headers });
     const latest = (await current.json()) as {
       revision: {
@@ -698,7 +721,7 @@ describe("Documents private API", () => {
     };
     expect(first.revision.provenance.sourceDigest).toMatch(/^[a-f0-9]{64}$/);
     expect(first.revision.provenance.claimState).toBe("unverified");
-    const targets = vi.spyOn(ai, "listAvailableTargets").mockResolvedValue([]);
+    const targets = vi.spyOn(engine, "profiles").mockResolvedValue([]);
     let replay: Response;
     try {
       replay = await mine.request(url, request());

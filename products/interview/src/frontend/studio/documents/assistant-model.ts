@@ -14,12 +14,13 @@ export function assistantModelId(): string | null {
   }
 }
 
-// `family` is the platform's own attribute for how a target runs; product code
-// reads it and never branches on a provider or model name (ADR-0007).
+// `kind` is the platform's own attribute for how a target runs (a model API,
+// an agent runtime, an image provider); product code reads it and never
+// branches on a provider or model name (ADR-0007).
 export type DocumentTarget = {
   id: string;
   label: string;
-  family?: "direct-model" | "agent-runtime";
+  kind?: "model" | "agent" | "image";
 };
 export type TargetResolution = {
   target: DocumentTarget | undefined;
@@ -28,7 +29,7 @@ export type TargetResolution = {
 };
 
 // Generation follows the assistant's model when that model can write
-// documents. Otherwise the first agent-runtime target the platform lists (the
+// documents. Otherwise the first agent target the platform lists (the
 // signed-in CLI agents), then whatever the host offers first.
 export function documentTarget(
   targets: readonly DocumentTarget[],
@@ -39,8 +40,7 @@ export function documentTarget(
     : undefined;
   if (chosen) return { target: chosen, skipped: null };
   return {
-    target:
-      targets.find((item) => item.family === "agent-runtime") ?? targets[0],
+    target: targets.find((item) => item.kind === "agent") ?? targets[0],
     skipped: preferred,
   };
 }

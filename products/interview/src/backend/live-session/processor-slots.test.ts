@@ -1,9 +1,8 @@
 // The two action slots (ADR-0016) through the REAL processor on a disposable
-// database with a held fake gateway: a spoken question is answered while a
+// database with a held fake engine: a spoken question is answered while a
 // coding action is still executing, a correction cancels the in-flight coding
 // and its old output can never publish, a failure in one slot settles only its
 // own action, and quiesce/close abort both slots.
-import type { AiExecutionRequest } from "@omnitech/ai-contracts";
 import { afterAll, afterEach, beforeAll, expect, it } from "vitest";
 import {
   INTERVIEW_ANSWER_PROFILE,
@@ -22,9 +21,10 @@ import {
 import { type Fixture, startFixture } from "./live-session-fixture";
 import {
   buildProcessor,
-  createFakeGateway,
-  type FakeGateway,
+  createFakeEngine,
+  failed,
   NEVER_ABORTED,
+  type SessionAsk,
   settle,
   startSessionFor,
 } from "./processor-fixture";
@@ -51,12 +51,12 @@ const SPOKEN = seg(
   "How would you design a rate limiter?",
 );
 
-// A scripted gateway whose calls on chosen profiles are held until released
-// (and, when asked, end with a rejection once the request's signal aborts).
-function heldGateway(options: { honorAbort?: boolean } = {}) {
+// A scripted engine whose calls on chosen profiles are held until released
+// (and, when asked, end cancelled once the request's signal aborts).
+function heldEngine(options: { honorAbort?: boolean } = {}) {
   // The spoken general question gets the default canned draft; the coding
   // question keeps the scripted coding draft and solution.
-  const inner = createFakeGateway({
+  const inner = createFakeEngine({
     result: (request) =>
       isSolutionRequest(request)
         ? solutionFor(request)
@@ -66,27 +66,28 @@ function heldGateway(options: { honorAbort?: boolean } = {}) {
   });
   const held = new Set<string>();
   const gates = new Map<string, { promise: Promise<void>; open(): void }>();
-  const reached: AiExecutionRequest[] = [];
-  const gateway: FakeGateway = {
-    ...inner,
-    execute: async (request) => {
-      const profileId = request.profileId ?? "";
-      const gate = held.has(profileId) ? gates.get(profileId) : undefined;
-      if (gate) {
-        reached.push(request);
-        await new Promise<void>((resolve, reject) => {
-          void gate.promise.then(resolve);
-          if (options.honorAbort)
-            request.signal?.addEventListener("abort", () =>
-              reject(new Error("aborted")),
-            );
-        });
-      }
-      return inner.execute(request);
-    },
+  const reached: SessionAsk[] = [];
+  // Every call goes through the engine's `answer`, so the wrap is put on
+  // the engine itself.
+  const engine = inner;
+  const answered = inner.answer;
+  engine.answer = async (request) => {
+    const profileId = request.profileId ?? "";
+    const gate = held.has(profileId) ? gates.get(profileId) : undefined;
+    if (gate) {
+      reached.push(request);
+      const aborted = await new Promise<boolean>((resolve) => {
+        void gate.promise.then(() => resolve(false));
+        if (options.honorAbort)
+          request.signal.addEventListener("abort", () => resolve(true));
+      });
+      // The fake ends a call whose signal is aborted as cancelled.
+      if (aborted) return { failure: failed("cancelled") };
+    }
+    return answered(request);
   };
   return {
-    gateway,
+    engine,
     reached,
     hold(profileId: string) {
       let open: () => void = () => {};
@@ -108,14 +109,14 @@ function heldGateway(options: { honorAbort?: boolean } = {}) {
 
 async function world(
   name: string,
-  held: ReturnType<typeof heldGateway>,
+  held: ReturnType<typeof heldEngine>,
   wrapStore?: Parameters<typeof buildProcessor>[1]["wrapStore"],
 ) {
   const started = await startSessionFor(fx, repo, fx.tenantA, name);
   const { runner } = fakeRunner();
   const processor = buildProcessor(fx, {
     workerId: `worker-${name}`,
-    gateway: held.gateway,
+    engine: held.engine,
     codeRunner: runner,
     ...(wrapStore ? { wrapStore } : {}),
   });
@@ -138,10 +139,10 @@ async function until(condition: () => boolean | Promise<boolean>, w: World) {
   throw new Error("condition not reached");
 }
 
-// Revision 1 is published and its solution call is held at the gateway.
+// Revision 1 is published and its solution call is held at the engine.
 async function withCodingInFlight(
   w: World,
-  held: ReturnType<typeof heldGateway>,
+  held: ReturnType<typeof heldEngine>,
 ) {
   held.hold(INTERVIEW_ANSWER_PROFILE);
   await w.ingestor.ingest(QUESTION);
@@ -149,7 +150,7 @@ async function withCodingInFlight(
 }
 
 it("answers a spoken question while a coding action is still executing", async () => {
-  const held = heldGateway();
+  const held = heldEngine();
   const w = await world("slots-parallel", held);
   await withCodingInFlight(w, held);
   await w.ingestor.ingest(NARRATE_1);
@@ -171,10 +172,10 @@ it("answers a spoken question while a coding action is still executing", async (
 }, 60_000);
 
 it("a correction cancels the in-flight coding and the old output cannot publish", async () => {
-  const held = heldGateway();
+  const held = heldEngine();
   const w = await world("slots-correction", held);
   await withCodingInFlight(w, held);
-  const stale = held.reached[0] as AiExecutionRequest;
+  const stale = held.reached[0] as SessionAsk;
   expect(revisionOf(stale)).toBe(1);
   await w.ingestor.ingest(NARRATE_1);
   await w.ingestor.ingest(BURSTS);
@@ -215,7 +216,7 @@ it("a failure in one slot settles only its own slot's action", {
   retry: 2,
   timeout: 60_000,
 }, async () => {
-  const held = heldGateway();
+  const held = heldEngine();
   let assistActionId: string | null = null;
   let armed = false;
   const failed: string[] = [];
@@ -263,7 +264,7 @@ it("a failure in one slot settles only its own slot's action", {
 });
 
 it("close aborts both slots", async () => {
-  const held = heldGateway({ honorAbort: true });
+  const held = heldEngine({ honorAbort: true });
   const w = await world("slots-close", held);
   await withCodingInFlight(w, held);
   held.hold(INTERVIEW_SESSION_FAST_PROFILE);
@@ -279,7 +280,7 @@ it("close aborts both slots", async () => {
 }, 60_000);
 
 it("a pause quiesces both slots", async () => {
-  const held = heldGateway({ honorAbort: true });
+  const held = heldEngine({ honorAbort: true });
   const w = await world("slots-pause", held);
   await withCodingInFlight(w, held);
   held.hold(INTERVIEW_SESSION_FAST_PROFILE);

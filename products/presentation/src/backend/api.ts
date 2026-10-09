@@ -1,8 +1,10 @@
 import {
-  type AiExecutionGateway,
-  type ImageResult,
+  type AiEngine,
+  type Execution,
+  executionFromHeaders,
   isSafeImageModelId,
-} from "@omnitech/ai-contracts";
+  type ModelMessage,
+} from "@omnitech/ai-engine";
 import type { PlatformDatabase } from "@omnitech/database";
 import {
   type PlatformContext,
@@ -53,8 +55,6 @@ const generationSchema = z.object({
     .trim()
     .refine(isSafeImageModelId, "Not an allowed image model id.")
     .optional(),
-  width: z.number().int().positive().max(4096).optional(),
-  height: z.number().int().positive().max(4096).optional(),
   slideCount: z.number().int().min(1).max(100).optional(),
   language: z.string().trim().min(1).max(40).optional(),
   layout: z.string().trim().min(1).max(40).optional(),
@@ -120,15 +120,47 @@ class ImageAssetRefusedError extends Error {
   }
 }
 
-// [SAFETY] Failures are logged as metadata only: the route and the error's
-// class, never its message, which can quote a prompt, a file or a reply.
+// The engine reported a failed generation. Only its code is kept: its detail
+// can carry provider text, which can quote a prompt or a reply.
+class AiFailureError extends Error {
+  constructor(readonly code: string) {
+    super("The AI engine reported a failure.");
+    this.name = "AiFailureError";
+  }
+}
+
+// [SAFETY] Failures are logged as metadata only: the route, the error's class
+// and an engine failure's code, never a message, which can quote a prompt, a
+// file or a reply.
 function logFailure(route: string, error: unknown) {
   console.error(
     JSON.stringify({
       route,
       error: error instanceof Error ? error.name : "non-error",
+      ...(error instanceof AiFailureError ? { code: error.code } : {}),
     }),
   );
+}
+
+const PRODUCT_ID = "omnitech.presentation";
+
+function userMessage(prompt: string): ModelMessage {
+  return { role: "user", parts: [{ type: "text", text: prompt }] };
+}
+
+// [DOMAIN] Who is asking: the member in the tenant, with the permissions the
+// engine's policy reads, bound to this request's own cancellation and trace.
+function executionFor(request: Request, access: PlatformContext): Execution {
+  return {
+    scope: {
+      tenantId: access.tenant.id,
+      actorId: access.user.id,
+      productId: PRODUCT_ID,
+    },
+    permissions: access.permissions,
+    signal: request.signal,
+    ...executionFromHeaders(request.headers),
+  };
 }
 
 function validateImageAssetReference(
@@ -170,7 +202,7 @@ class UnauthorizedError extends Error {
 export interface PresentationApiOptions {
   database: PlatformDatabase;
   resolveContext(tenantSlug: string): Promise<PlatformContext | null>;
-  ai?: AiExecutionGateway;
+  engine?: AiEngine;
 }
 
 export function createPresentationApi(options: PresentationApiOptions) {
@@ -219,24 +251,6 @@ export function createPresentationApi(options: PresentationApiOptions) {
     try {
       const resolved = await contextFor(context.req.query("tenant") ?? "");
       return context.json(await service.list(resolved.tenant));
-    } catch {
-      return context.json({ error: "Unauthorized" }, 401);
-    }
-  });
-
-  api.get("/presentation/v1/ai-targets", async (context) => {
-    if (!options.ai)
-      return context.json({ error: "AI is not configured." }, 503);
-    try {
-      const resolved = await contextFor(context.req.query("tenant") ?? "");
-      return context.json(
-        await options.ai.listAvailableTargets({
-          tenantId: resolved.access.tenant.id,
-          userId: resolved.access.user.id,
-          productId: "omnitech.presentation",
-          permissions: resolved.access.permissions,
-        }),
-      );
     } catch {
       return context.json({ error: "Unauthorized" }, 401);
     }
@@ -533,48 +547,45 @@ export function createPresentationApi(options: PresentationApiOptions) {
   });
 
   api.post("/presentation/v1/generate/outline", async (context) => {
-    if (!options.ai) {
+    if (!options.engine) {
       return context.json({ error: "AI is not configured." }, 503);
     }
     try {
       const resolved = await contextFor(context.req.query("tenant") ?? "");
       const input = generationSchema.parse(context.get("body"));
-      const execution = await options.ai.execute({
-        context: {
-          tenantId: resolved.access.tenant.id,
-          userId: resolved.access.user.id,
-          productId: "omnitech.presentation",
-          permissions: resolved.access.permissions,
-        },
-        profileId: input.profileId,
-        task: {
-          type: "structured-generation",
-          prompt: [
-            input.prompt,
-            input.slideCount === undefined
-              ? undefined
-              : `Create an outline for exactly ${input.slideCount} slides.`,
-            input.language === undefined
-              ? undefined
-              : `Write the outline in ${input.language}.`,
-            input.textContent
-              ? `Use ${input.textContent} text content.`
-              : undefined,
-            input.tone && input.tone !== "Auto"
-              ? `Tone: ${input.tone}.`
-              : undefined,
-            input.audience && input.audience !== "Auto"
-              ? `Audience: ${input.audience}.`
-              : undefined,
-            input.scenario && input.scenario !== "Auto"
-              ? `Scenario: ${input.scenario}.`
-              : undefined,
-            input.layout === undefined
-              ? undefined
-              : `Use a ${input.layout} presentation structure.`,
-          ]
-            .filter(Boolean)
-            .join("\n\n"),
+      const generated = await options.engine.generate(
+        {
+          profileId: input.profileId,
+          messages: [
+            userMessage(
+              [
+                input.prompt,
+                input.slideCount === undefined
+                  ? undefined
+                  : `Create an outline for exactly ${input.slideCount} slides.`,
+                input.language === undefined
+                  ? undefined
+                  : `Write the outline in ${input.language}.`,
+                input.textContent
+                  ? `Use ${input.textContent} text content.`
+                  : undefined,
+                input.tone && input.tone !== "Auto"
+                  ? `Tone: ${input.tone}.`
+                  : undefined,
+                input.audience && input.audience !== "Auto"
+                  ? `Audience: ${input.audience}.`
+                  : undefined,
+                input.scenario && input.scenario !== "Auto"
+                  ? `Scenario: ${input.scenario}.`
+                  : undefined,
+                input.layout === undefined
+                  ? undefined
+                  : `Use a ${input.layout} presentation structure.`,
+              ]
+                .filter(Boolean)
+                .join("\n\n"),
+            ),
+          ],
           schema: {
             type: "object",
             required: ["title", "outline"],
@@ -584,8 +595,10 @@ export function createPresentationApi(options: PresentationApiOptions) {
             },
           },
         },
-      });
-      return context.json(execution);
+        executionFor(context.req.raw, resolved.access),
+      );
+      if (!generated.ok) throw new AiFailureError(generated.failure.code);
+      return context.json({ result: generated.value });
     } catch (error) {
       if (error instanceof z.ZodError) {
         return context.json({ error: "Invalid generation request." }, 400);
@@ -598,31 +611,26 @@ export function createPresentationApi(options: PresentationApiOptions) {
   api.post(
     "/presentation/v1/documents/:id/slides/generate",
     async (context) => {
-      if (!options.ai)
+      if (!options.engine)
         return context.json({ error: "AI is not configured." }, 503);
       try {
         const resolved = await contextFor(context.req.query("tenant") ?? "");
         const input = slideGenerationSchema.parse(context.get("body"));
-        const execution = await options.ai.execute({
-          context: {
-            tenantId: resolved.access.tenant.id,
-            userId: resolved.access.user.id,
-            productId: "omnitech.presentation",
-            permissions: resolved.access.permissions,
-          },
-          profileId: input.profileId,
-          task: {
-            type: "structured-generation",
-            prompt: input.prompt,
+        const generated = await options.engine.generate(
+          {
+            profileId: input.profileId,
+            messages: [userMessage(input.prompt)],
             schema: {
               type: "object",
               required: ["sourceXml"],
               properties: { sourceXml: { type: "string" } },
             },
           },
-        });
+          executionFor(context.req.raw, resolved.access),
+        );
+        if (!generated.ok) throw new AiFailureError(generated.failure.code);
         return context.json(
-          { ...execution, position: input.position ?? 0 },
+          { result: generated.value, position: input.position ?? 0 },
           201,
         );
       } catch (error) {
@@ -639,46 +647,44 @@ export function createPresentationApi(options: PresentationApiOptions) {
   );
 
   api.post("/presentation/v1/images/generate", async (context) => {
-    if (!options.ai) {
+    if (!options.engine) {
       return context.json({ error: "AI is not configured." }, 503);
     }
     try {
       const resolved = await contextFor(context.req.query("tenant") ?? "");
       const input = generationSchema.parse(context.get("body"));
-      const execution = await options.ai.execute({
-        context: {
-          tenantId: resolved.access.tenant.id,
-          userId: resolved.access.user.id,
-          productId: "omnitech.presentation",
-          permissions: resolved.access.permissions,
-        },
-        profileId: input.profileId,
-        task: {
-          type: "image-generation",
+      // [DOMAIN] The image is made under a trace the request names, or one made
+      // here, so the stored image can point at the engine's record of making it.
+      const asked = executionFor(context.req.raw, resolved.access);
+      const execution = {
+        ...asked,
+        traceId: asked.traceId ?? crypto.randomUUID().replaceAll("-", ""),
+      };
+      const generated = await options.engine.images.generate(
+        {
+          profileId: input.profileId,
           prompt: input.prompt,
-          image: {
-            ...(input.aspectRatio === undefined
-              ? {}
-              : { aspectRatio: input.aspectRatio }),
-            ...(input.modelId === undefined ? {} : { modelId: input.modelId }),
-            ...(input.width === undefined ? {} : { width: input.width }),
-            ...(input.height === undefined ? {} : { height: input.height }),
-          },
+          ...(input.aspectRatio === undefined
+            ? {}
+            : { aspectRatio: input.aspectRatio }),
+          ...(input.modelId === undefined ? {} : { modelId: input.modelId }),
         },
-      });
-      const result = execution.result as ImageResult;
-      validateImageAssetReference(
-        result.assetReference,
-        result.providerId === "comfyui",
+        execution,
       );
+      if (!generated.ok) throw new AiFailureError(generated.failure.code);
+      const { image } = generated;
+      // The engine's image port has already refused an address on this machine
+      // from any provider that is not declared local; what is checked here is
+      // only that the reference is one this product can show.
+      validateImageAssetReference(image.assetReference, true);
       const imageId = await service.recordGeneratedImage(resolved.tenant, {
-        assetReference: result.assetReference,
-        promptReference: `generation:${execution.executionId}`,
-        providerId: result.providerId,
-        modelId: result.modelId,
-        metadata: result.provenance,
+        assetReference: image.assetReference,
+        promptReference: `run:${execution.traceId}`,
+        providerId: image.providerId,
+        modelId: image.modelId,
+        metadata: image.provenance,
       });
-      return context.json({ ...execution, imageId });
+      return context.json({ imageId });
     } catch (error) {
       if (error instanceof z.ZodError) {
         return context.json({ error: "Invalid image request." }, 400);

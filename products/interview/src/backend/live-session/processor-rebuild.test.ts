@@ -3,12 +3,12 @@
 // name every question as the last one did (M2): an answered question is not
 // dispatched or published again, and a question nobody answered yet is still
 // answered, exactly once. Real processor over a disposable PostgreSQL, a fake
-// gateway and a virtual clock.
+// engine and a virtual clock.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type Fixture, startFixture } from "./live-session-fixture";
 import {
   buildProcessor,
-  createFakeGateway,
+  createFakeEngine,
   NEVER_ABORTED,
   startSessionFor,
 } from "./processor-fixture";
@@ -66,11 +66,11 @@ const REVIEW = say(
 // A virtual clock: every settle moves it past the settle window first.
 function rig(name: string, workerId: string) {
   let now = 1_000_000;
-  const gateway = createFakeGateway();
-  const processorFor = (id: string, g = gateway) =>
+  const engine = createFakeEngine();
+  const processorFor = (id: string, g = engine) =>
     buildProcessor(fx, {
       workerId: id,
-      gateway: g,
+      engine: g,
       clock: { nowMs: () => now },
       options: { settleMs: SETTLE_MS },
     });
@@ -82,11 +82,11 @@ function rig(name: string, workerId: string) {
       if (!worked) return;
     }
   };
-  return { name, workerId, gateway, processorFor, settle };
+  return { name, workerId, engine, processorFor, settle };
 }
 
-const asked = (gateway: ReturnType<typeof createFakeGateway>) =>
-  gateway.requests.map((request) => capturedText(request));
+const asked = (engine: ReturnType<typeof createFakeEngine>) =>
+  engine.requests.map((request) => capturedText(request));
 
 describe("a rebuilt run keeps every question's identity (M2)", () => {
   it("does not answer an answered question again after pause and resume", async () => {
@@ -99,7 +99,7 @@ describe("a rebuilt run keeps every question's identity (M2)", () => {
     }
     for (const segment of [ANSWER, REVIEW]) await w.ingestor.ingest(segment);
     await r.settle(p);
-    expect(r.gateway.requests).toHaveLength(2);
+    expect(r.engine.requests).toHaveLength(2);
 
     await repo.controlSession(w.scope, w.sessionId, "pause");
     await r.settle(p);
@@ -108,7 +108,7 @@ describe("a rebuilt run keeps every question's identity (M2)", () => {
     await r.settle(p);
 
     // Nothing was owed after the resume: two questions, two drafts, once each.
-    expect(r.gateway.requests).toHaveLength(2);
+    expect(r.engine.requests).toHaveLength(2);
     const stored = await repo.listActions(w.scope, w.sessionId);
     expect(stored.filter((a) => a.dispatchStatus === "succeeded")).toHaveLength(
       2,
@@ -126,14 +126,14 @@ describe("a rebuilt run keeps every question's identity (M2)", () => {
     }
     for (const segment of [ANSWER, REVIEW]) await w.ingestor.ingest(segment);
     await first.settle(p1);
-    expect(first.gateway.requests).toHaveLength(2);
+    expect(first.engine.requests).toHaveLength(2);
     await p1.close();
 
     const second = rig("handover", "worker-rebuild-2");
     const p2 = second.processorFor("worker-rebuild-2");
     await second.settle(p2);
     await second.settle(p2);
-    expect(asked(second.gateway)).toEqual([]);
+    expect(asked(second.engine)).toEqual([]);
     const stored = await repo.listActions(w.scope, w.sessionId);
     expect(stored.filter((a) => a.dispatchStatus === "succeeded")).toHaveLength(
       2,
@@ -149,7 +149,7 @@ describe("a rebuilt run keeps every question's identity (M2)", () => {
       await w.ingestor.ingest(segment);
       await first.settle(p1);
     }
-    expect(first.gateway.requests).toHaveLength(1);
+    expect(first.engine.requests).toHaveLength(1);
     await p1.close();
 
     // The review question arrives while no worker holds the session.
@@ -159,7 +159,7 @@ describe("a rebuilt run keeps every question's identity (M2)", () => {
     const p2 = second.processorFor("worker-lost-2");
     await second.settle(p2);
     await second.settle(p2);
-    const lines = asked(second.gateway);
+    const lines = asked(second.engine);
     expect(lines).toHaveLength(1);
     expect(lines[0]).toContain("code review");
     expect(lines[0]).not.toContain("notice period");

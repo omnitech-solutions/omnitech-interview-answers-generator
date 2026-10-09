@@ -1,8 +1,8 @@
 // Bounded lease renewal (ADR-0011): a session whose renewals keep throwing is
 // dropped after maxRenewFailures consecutive failures, writes nothing, and a
 // renewal that answers resets the count. In-memory ports; no database.
-import type { AiExecutionGateway } from "@omnitech/ai-contracts";
 import { describe, expect, it } from "vitest";
+import type { SessionEngine } from "./engine-call";
 import { createInterviewSessionPolicy } from "./interview-policy";
 import { createSessionProcessor } from "./processor";
 import type { SessionClaimPort, SessionStorePort } from "./processor-ports";
@@ -46,7 +46,7 @@ function harness(renew: SessionClaimPort["renew"], maxRenewFailures?: number) {
     {
       claim,
       store,
-      gateway: {} as AiExecutionGateway,
+      engine: {} as SessionEngine,
       policy: createInterviewSessionPolicy(),
       clock: { nowMs: () => 0 },
       trace: { emit: (event) => events.push(event) },

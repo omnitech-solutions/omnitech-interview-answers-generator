@@ -1,12 +1,11 @@
-// Test support for the coding path suites: a scripted fake gateway that answers
+// Test support for the coding path suites: a scripted fake engine that answers
 // the prose call with a coding draft and the solution call with a closed
 // solution, a fake runner that reports the tests the code declares, and the
 // synthetic spoken lines of a live-coding exchange (Interviewer and Candidate
 // placeholders only). Tests, not production code, import this.
-import type { AiExecutionRequest } from "@omnitech/ai-contracts";
 import type { RunResult } from "@omnitech/interview-contracts";
 import { vi } from "vitest";
-import { createFakeGateway } from "./processor-fixture";
+import { createFakeEngine, type SessionAsk } from "./processor-fixture";
 import { seg } from "./session-replay-fixtures";
 import type { SessionCodeRunner } from "./session-run";
 
@@ -22,16 +21,16 @@ const CONSTRAINTS_BY_REVISION: Record<number, string[]> = {
     "a small burst above the limit is allowed",
   ],
 };
-export const revisionOf = (request: AiExecutionRequest) =>
-  Number(/^REVISION: (\d+)$/m.exec(request.task.prompt)?.[1]);
-const briefOf = (request: AiExecutionRequest) => {
-  const lines = request.task.prompt.split("\n");
+export const revisionOf = (request: SessionAsk) =>
+  Number(/^REVISION: (\d+)$/m.exec(request.prompt)?.[1]);
+const briefOf = (request: SessionAsk) => {
+  const lines = request.prompt.split("\n");
   const at = lines.findIndex((line) => line.startsWith("BEGIN TASK BRIEF"));
   return JSON.parse(lines[at + 1] ?? "{}") as { constraints: string[] };
 };
-export const isSolutionRequest = (request: AiExecutionRequest) =>
-  request.task.prompt.startsWith("TASK: solve_code");
-export const codingDraft = (request: AiExecutionRequest) => ({
+export const isSolutionRequest = (request: SessionAsk) =>
+  request.prompt.startsWith("TASK: solve_code");
+export const codingDraft = (request: SessionAsk) => ({
   category: "coding",
   draft: "Restate the problem, then outline the approach.",
   claims: [],
@@ -44,7 +43,7 @@ export const codingDraft = (request: AiExecutionRequest) => ({
   },
 });
 export const solutionFor = (
-  request: AiExecutionRequest,
+  request: SessionAsk,
   overrides: Record<string, unknown> = {},
 ) => {
   const constraints = briefOf(request).constraints;
@@ -62,13 +61,16 @@ export const solutionFor = (
     ...overrides,
   };
 };
-export const scriptedGateway = (
+export const scriptedEngine = (
   options: {
-    solution?: (request: AiExecutionRequest, call: number) => unknown;
+    solution?: (request: SessionAsk, call: number) => unknown;
+    // See createFakeEngine: a late answer is delivered after a cancel.
+    answersAfterCancel?: boolean;
   } = {},
 ) => {
   let solutionCalls = 0;
-  return createFakeGateway({
+  return createFakeEngine({
+    ...(options.answersAfterCancel ? { answersAfterCancel: true } : {}),
     result: (request) => {
       if (!isSolutionRequest(request)) return codingDraft(request);
       solutionCalls += 1;

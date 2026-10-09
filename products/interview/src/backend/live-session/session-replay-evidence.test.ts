@@ -1,6 +1,6 @@
 // E-A2 and E-A3: the synthetic replay sets driven through the REAL processor on
 // a disposable PostgreSQL (real ingest, replay, core, fenced writes, claim
-// verification) with a scripted fake gateway. The model is never reached; its
+// verification) with a scripted fake engine. The model is never reached; its
 // replies are closed-schema answers keyed by the question text the prompt
 // actually carries, so each grounding hazard gets the response a model would
 // plausibly give. The pinned profile is the synthetic matrix; notice period and
@@ -8,7 +8,6 @@
 //
 // Each case is a named `it`; every set also records one stdout line of counts
 // only (no spoken text, no draft text).
-import type { AiExecutionRequest } from "@omnitech/ai-contracts";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { INTERVIEW_ANSWER_PROFILE } from "../../assistant-profile";
 import { LEAVING_REASON_PLACEHOLDER } from "./claims";
@@ -28,9 +27,10 @@ import {
   buildProcessor,
   type CollectedTrace,
   collectTraces,
-  createFakeGateway,
-  type FakeGateway,
+  createFakeEngine,
+  type FakeEngine,
   NEVER_ABORTED,
+  type SessionAsk,
   seedBriefingDraft,
   seedMatrixProfile,
   settle,
@@ -82,7 +82,7 @@ type WorldOptions = {
   // Link a briefing draft carrying these candidate preferences (the one
   // approved source of notice period and compensation).
   preferences?: string;
-  gateway?: FakeGateway;
+  engine?: FakeEngine;
   codeRunner?: SessionCodeRunner;
 };
 
@@ -109,20 +109,20 @@ async function world(name: string, options: WorldOptions = {}) {
     },
   );
   const trace: CollectedTrace = collectTraces();
-  const gateway = options.gateway ?? createFakeGateway();
+  const engine = options.engine ?? createFakeEngine();
   const processor = buildProcessor(fx, {
     workerId: `worker-${name}`,
-    gateway,
+    engine,
     trace,
     ...(options.codeRunner ? { codeRunner: options.codeRunner } : {}),
   });
   cleanups.push(async () => {
-    gateway.releaseAll();
+    engine.releaseAll();
     await processor.close();
     await repo.controlSession(started.scope, started.sessionId, "end");
   });
   const actions = () => repo.listActions(started.scope, started.sessionId);
-  return { ...started, profile, gateway, processor, trace, actions };
+  return { ...started, profile, engine, processor, trace, actions };
 }
 type World = Awaited<ReturnType<typeof world>>;
 
@@ -169,7 +169,7 @@ async function report(
       tasks: snapshot?.tasks.length ?? 0,
       finalRevisions: snapshot?.tasks.map((task) => task.revision) ?? [],
       deferred: snapshot?.deferred.length ?? 0,
-      modelCalls: w.gateway.requests.length,
+      modelCalls: w.engine.requests.length,
       published: stored.filter((action) => action.result !== null).length,
       rejected: stored.filter(
         (action) => action.suppressionReason === "invalid_output",
@@ -202,15 +202,15 @@ describe("every replay set through the real processor", () => {
         for (let revision = 1; revision < task.revision; revision += 1)
           expect(task.standing[revision]).toBe("outdated");
       }
-      // A call is made only for a task revision: one gateway request per
+      // A call is made only for a task revision: one engine request per
       // recorded action, and none of them carries an inert segment.
       const stored = await w.actions();
-      expect(w.gateway.requests).toHaveLength(stored.length);
+      expect(w.engine.requests).toHaveLength(stored.length);
       const inert = new Set(set.expect.inertEventIds);
       const inertTexts = segmentsOf(set)
         .filter((segment) => inert.has(segment.eventId))
         .map((segment) => segment.text);
-      for (const request of w.gateway.requests)
+      for (const request of w.engine.requests)
         for (const text of inertTexts)
           expect(capturedText(request)).not.toContain(text);
       await report(name, w, set);
@@ -222,14 +222,14 @@ describe("every replay set through the real processor", () => {
 // ---- (a) backchannel and monologue only ---------------------------------------
 
 describe("(a) backchannel and monologue only", () => {
-  it("opens no task and makes no gateway call", async () => {
+  it("opens no task and makes no engine call", async () => {
     const set = hazard("backchannel-and-monologue-only");
     const w = await world("evidence-a");
     await replay(w, set.phases);
     const snapshot = w.processor.snapshot(w.sessionId);
     expect(snapshot?.tasks).toEqual([]);
     expect(snapshot?.deferred).toEqual([]);
-    expect(w.gateway.requests).toHaveLength(0);
+    expect(w.engine.requests).toHaveLength(0);
     expect(await w.actions()).toEqual([]);
     await report("backchannel-and-monologue-only", w, set);
   }, 60_000);
@@ -262,7 +262,7 @@ describe("(b) one logical task per question", () => {
       [2, "draft-answer", "succeeded"],
     ]);
     // The candidate's long answer between the two utterances revised nothing.
-    expect(w.gateway.requests).toHaveLength(2);
+    expect(w.engine.requests).toHaveLength(2);
     await report("compound-question-with-part-two", w, set);
   }, 60_000);
 
@@ -273,7 +273,7 @@ describe("(b) one logical task per question", () => {
     const snapshot = w.processor.snapshot(w.sessionId);
     expect(snapshot?.deferred).toHaveLength(1);
     expect(snapshot?.tasks.map((task) => task.revision)).toEqual([1]);
-    expect(w.gateway.requests).toHaveLength(1);
+    expect(w.engine.requests).toHaveLength(1);
     await report("deferred-topic", w, set);
   }, 60_000);
 });
@@ -312,7 +312,7 @@ describe("(c) an ASR correction supersedes", () => {
       dispatchStatus: "succeeded",
     });
     // The corrected question reaches the model; the misheard words do not.
-    const revisionTwo = w.gateway.requests[1] as AiExecutionRequest;
+    const revisionTwo = w.engine.requests[1] as SessionAsk;
     expect(capturedText(revisionTwo)).toContain("npm audit");
     expect(capturedText(revisionTwo)).not.toContain("and PM audit");
 
@@ -339,7 +339,7 @@ describe("(d) hazard 7a: an affirmation the approved matrix lacks", () => {
   const set = hazard("hazard-7a-unsupported-framework");
 
   it("labels the framework claim not-in-matrix, publishes the section and leaves the matrix as it was", async () => {
-    const gateway = createFakeGateway({
+    const engine = createFakeEngine({
       result: (request) =>
         answer({
           category: "experience-story",
@@ -364,7 +364,7 @@ describe("(d) hazard 7a: an affirmation the approved matrix lacks", () => {
           ],
         }),
     });
-    const w = await world("evidence-d1", { profile: true, gateway });
+    const w = await world("evidence-d1", { profile: true, engine });
     const before = await protectedTableDigests(fx);
     await replay(w, set.phases);
 
@@ -388,7 +388,7 @@ describe("(d) hazard 7a: an affirmation the approved matrix lacks", () => {
   }, 60_000);
 
   it("drops the same claim stated as matrix-backed with a real but unsupporting reference and publishes the draft without it", async () => {
-    const gateway = createFakeGateway({
+    const engine = createFakeEngine({
       result: (request) =>
         answer({
           category: "experience-story",
@@ -409,7 +409,7 @@ describe("(d) hazard 7a: an affirmation the approved matrix lacks", () => {
           ],
         }),
     });
-    const w = await world("evidence-d2", { profile: true, gateway });
+    const w = await world("evidence-d2", { profile: true, engine });
     const before = await protectedTableDigests(fx);
     await replay(w, set.phases);
 
@@ -437,7 +437,7 @@ describe("(e) hazard 7b: a spoken metric is not a fact", () => {
   const SPOKEN = "70 percent";
 
   const rejectedAs = async (name: string, claim: Record<string, unknown>) => {
-    const gateway = createFakeGateway({
+    const engine = createFakeEngine({
       result: (request) =>
         answer({
           category: "experience-story",
@@ -454,7 +454,7 @@ describe("(e) hazard 7b: a spoken metric is not a fact", () => {
           ],
         }),
     });
-    const w = await world(name, { profile: true, gateway });
+    const w = await world(name, { profile: true, engine });
     await replay(w, set.phases);
     const stored = await w.actions();
     expect(stored).toHaveLength(1);
@@ -476,7 +476,7 @@ describe("(e) hazard 7b: a spoken metric is not a fact", () => {
       await rejectedAs("evidence-e1", {
         kind: "matrix-backed",
         text: `Cut the order query p95 latency by ${SPOKEN}`,
-        refs: (request: AiExecutionRequest) => [
+        refs: (request: SessionAsk) => [
           refFor(request, "APPROVED EXPERIENCE", "/roles/0/metrics/0/label"),
         ],
       }),
@@ -498,7 +498,7 @@ describe("(e) hazard 7b: a spoken metric is not a fact", () => {
   }, 120_000);
 
   it("accepts the matrix's own metric, with its label and value cited", async () => {
-    const gateway = createFakeGateway({
+    const engine = createFakeEngine({
       result: (request) =>
         answer({
           category: "experience-story",
@@ -523,7 +523,7 @@ describe("(e) hazard 7b: a spoken metric is not a fact", () => {
           ],
         }),
     });
-    const w = await world("evidence-e4", { profile: true, gateway });
+    const w = await world("evidence-e4", { profile: true, engine });
     await replay(w, set.phases);
     const [stored] = await w.actions();
     expect(stored).toMatchObject({ dispatchStatus: "succeeded" });
@@ -540,7 +540,7 @@ describe("(f) hazard 7c: leaving a role", () => {
   const set = hazard("hazard-7c-leaving-roles");
 
   it("backs employer and dates with the matrix and leaves the reason as a placeholder", async () => {
-    const gateway = createFakeGateway({
+    const engine = createFakeEngine({
       result: (request) =>
         answer({
           category: "leaving-role",
@@ -563,7 +563,7 @@ describe("(f) hazard 7c: leaving a role", () => {
           ],
         }),
     });
-    const w = await world("evidence-f1", { profile: true, gateway });
+    const w = await world("evidence-f1", { profile: true, engine });
     await replay(w, set.phases);
     const [stored] = await w.actions();
     expect(stored).toMatchObject({ dispatchStatus: "succeeded" });
@@ -582,7 +582,7 @@ describe("(f) hazard 7c: leaving a role", () => {
   }, 60_000);
 
   it("drops a disparaging sentence and a generated reason: the published draft keeps only the placeholder, with no claims", async () => {
-    const disparaging = createFakeGateway({
+    const disparaging = createFakeEngine({
       result: () =>
         answer({
           category: "leaving-role",
@@ -598,7 +598,7 @@ describe("(f) hazard 7c: leaving a role", () => {
     });
     const w = await world("evidence-f2", {
       profile: true,
-      gateway: disparaging,
+      engine: disparaging,
     });
     await replay(w, set.phases);
     const stored = await w.actions();
@@ -615,7 +615,7 @@ describe("(f) hazard 7c: leaving a role", () => {
     expect(JSON.stringify(stored)).not.toContain("incompetent");
     expect(JSON.stringify(w.trace.events)).not.toContain("incompetent");
 
-    const invented = createFakeGateway({
+    const invented = createFakeEngine({
       result: () =>
         answer({
           category: "leaving-role",
@@ -631,7 +631,7 @@ describe("(f) hazard 7c: leaving a role", () => {
     });
     const second = await world("evidence-f3", {
       profile: true,
-      gateway: invented,
+      engine: invented,
     });
     await replay(second, set.phases);
     const [invent] = await second.actions();
@@ -649,16 +649,16 @@ describe("(f) hazard 7c: leaving a role", () => {
 
 describe("(g) hazard 7d: logistics drawn only from approved preferences", () => {
   const set = hazard("hazard-7d-notice-and-compensation");
-  const isNotice = (request: AiExecutionRequest) =>
+  const isNotice = (request: SessionAsk) =>
     /notice/i.test(capturedText(request));
 
   // The scripted model answers from the preferences its prompt carries.
-  const faithful = (request: AiExecutionRequest) => {
+  const faithful = (request: SessionAsk) => {
     const field = isNotice(request) ? "notice-period" : "compensation";
     const pointer = isNotice(request)
       ? "/context/candidatePreferences/0"
       : "/context/candidatePreferences/1";
-    const present = request.task.prompt.includes(pointer);
+    const present = request.prompt.includes(pointer);
     if (!present)
       return answer({
         category: "logistics",
@@ -687,7 +687,7 @@ describe("(g) hazard 7d: logistics drawn only from approved preferences", () => 
     const w = await world("evidence-g1", {
       profile: true,
       preferences: CANDIDATE_PREFERENCES,
-      gateway: createFakeGateway({ result: faithful }),
+      engine: createFakeEngine({ result: faithful }),
     });
     await replay(w, set.phases);
     const results = [...(await currentResults(w)).values()];
@@ -713,7 +713,7 @@ describe("(g) hazard 7d: logistics drawn only from approved preferences", () => 
     const w = await world("evidence-g2", {
       profile: true,
       preferences: CANDIDATE_PREFERENCES_NONE,
-      gateway: createFakeGateway({ result: faithful }),
+      engine: createFakeEngine({ result: faithful }),
     });
     await replay(w, set.phases);
     const results = [...(await currentResults(w)).values()];
@@ -734,7 +734,7 @@ describe("(g) hazard 7d: logistics drawn only from approved preferences", () => 
   }, 60_000);
 
   it("rejects a generated figure, with or without preferences", async () => {
-    const generated = createFakeGateway({
+    const generated = createFakeEngine({
       result: () =>
         answer({
           category: "logistics",
@@ -752,7 +752,7 @@ describe("(g) hazard 7d: logistics drawn only from approved preferences", () => 
     const absent = await world("evidence-g3", {
       profile: true,
       preferences: CANDIDATE_PREFERENCES_NONE,
-      gateway: generated,
+      engine: generated,
     });
     await replay(absent, set.phases.slice(0, 1));
     expect((await absent.actions())[0]).toMatchObject({
@@ -764,7 +764,7 @@ describe("(g) hazard 7d: logistics drawn only from approved preferences", () => 
     });
 
     // With preferences, a figure the preference does not state is no better.
-    const altered = createFakeGateway({
+    const altered = createFakeEngine({
       result: (request) =>
         answer({
           category: "logistics",
@@ -791,7 +791,7 @@ describe("(g) hazard 7d: logistics drawn only from approved preferences", () => 
     const present = await world("evidence-g4", {
       profile: true,
       preferences: CANDIDATE_PREFERENCES,
-      gateway: altered,
+      engine: altered,
     });
     await replay(present, set.phases.slice(0, 1));
     const [stored] = await present.actions();
@@ -818,7 +818,7 @@ describe("(h) engineering-manager set", () => {
   // Leadership answers built only from what the matrix holds; a theme the
   // matrix does not cover has every STAR element listed as missing.
   const star = (
-    request: AiExecutionRequest,
+    request: SessionAsk,
     claims: Array<{ text: string; pointers: string[] }>,
     elements: Partial<
       Record<"situation" | "task" | "action" | "result", [string, number]>
@@ -852,7 +852,7 @@ describe("(h) engineering-manager set", () => {
       },
     });
   };
-  const managerModel = (request: AiExecutionRequest) => {
+  const managerModel = (request: SessionAsk) => {
     const spoken = capturedText(request);
     if (spoken.includes(TECHNICAL))
       return answer({
@@ -914,7 +914,7 @@ describe("(h) engineering-manager set", () => {
   it("drafts source-backed STAR answers, lists missing elements, and keeps them apart from a technical answer", async () => {
     const w = await world("evidence-h", {
       profile: true,
-      gateway: createFakeGateway({ result: managerModel }),
+      engine: createFakeEngine({ result: managerModel }),
     });
     await replay(w, MANAGER_FIXTURE.phases);
     // A technical-concept question in the same session.
@@ -982,7 +982,7 @@ describe("(h) engineering-manager set", () => {
 // ---- (i) live coding: constraint changes on one task -----------------------------
 
 describe("(i) live coding with a mid-exercise constraint change", () => {
-  const proseFor = (request: AiExecutionRequest) => ({
+  const proseFor = (request: SessionAsk) => ({
     category: "coding",
     draft: "Restate the problem, then outline the approach.",
     claims: [],
@@ -1029,25 +1029,28 @@ describe("(i) live coding with a mid-exercise constraint change", () => {
       release = resolve;
     });
     let reached = false;
-    const inner = createFakeGateway({
+    const inner = createFakeEngine({
       result: (request) =>
         isSolutionRequest(request) ? solutionFor(request) : proseFor(request),
+      // The held answer arrives late, after its revision was replaced.
+      answersAfterCancel: true,
     });
-    const gateway: FakeGateway = {
-      ...inner,
-      execute: async (request) => {
-        if (
-          request.profileId === INTERVIEW_ANSWER_PROFILE &&
-          revisionOf(request) === 2
-        ) {
-          reached = true;
-          await gate;
-        }
-        return inner.execute(request);
-      },
+    // Every call goes through the engine's `answer`, so the wrap is put on
+    // the engine itself.
+    const engine = inner;
+    const answered = inner.answer;
+    engine.answer = async (request) => {
+      if (
+        request.profileId === INTERVIEW_ANSWER_PROFILE &&
+        revisionOf(request) === 2
+      ) {
+        reached = true;
+        await gate;
+      }
+      return answered(request);
     };
     const { runner, used } = recordedRunner();
-    const w = await world("evidence-i1", { gateway, codeRunner: runner });
+    const w = await world("evidence-i1", { engine, codeRunner: runner });
     const [stating, burst, instances, bucket] = ALL_REPLAY_SETS["live-coding"]!
       .phases as readonly ReplayPhase[];
     const before = await protectedTableDigests(fx);
@@ -1132,7 +1135,7 @@ describe("(i) live coding with a mid-exercise constraint change", () => {
   }, 120_000);
 
   it("reports generated, tests passed and fully verified as distinct states when the last constraint has no test", async () => {
-    const gateway = createFakeGateway({
+    const engine = createFakeEngine({
       result: (request) =>
         isSolutionRequest(request)
           ? solutionFor(
@@ -1145,7 +1148,7 @@ describe("(i) live coding with a mid-exercise constraint change", () => {
           : proseFor(request),
     });
     const { runner } = recordedRunner();
-    const w = await world("evidence-i2", { gateway, codeRunner: runner });
+    const w = await world("evidence-i2", { engine, codeRunner: runner });
     await replay(w, ALL_REPLAY_SETS["live-coding"]?.phases ?? []);
 
     const solves = (await w.actions()).filter(
@@ -1176,7 +1179,8 @@ describe("(i) live coding with a mid-exercise constraint change", () => {
     const ports: Record<keyof SessionProcessorPorts, string> = {
       claim: "worker lease and fence",
       store: "owner-scoped database",
-      gateway: "AI execution by profile",
+      engine: "AI execution by profile",
+      answeredBy: "host display metadata",
       policy: "task identity and stages",
       clock: "time",
       trace: "id-only events",

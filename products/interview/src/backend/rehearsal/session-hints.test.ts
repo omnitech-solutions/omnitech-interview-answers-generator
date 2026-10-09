@@ -23,7 +23,7 @@ import {
 } from "../live-session/live-session-fixture";
 import {
   buildProcessor,
-  createFakeGateway,
+  createFakeEngine,
   ingestorFor,
   settle,
 } from "../live-session/processor-fixture";
@@ -155,7 +155,7 @@ async function runOneQuestion(world: {
 }) {
   const processor = buildProcessor(fx, {
     workerId: `worker-${world.sessionId.slice(0, 8)}`,
-    gateway: createFakeGateway(),
+    engine: createFakeEngine(),
   });
   cleanups.push(() => processor.close());
   const ingestor = ingestorFor(fx, world.scope.tenantId, world.credential);

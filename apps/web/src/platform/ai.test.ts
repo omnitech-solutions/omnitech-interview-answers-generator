@@ -1,5 +1,5 @@
 // @vitest-environment node
-import type { AiAccessContext } from "@omnitech/ai-contracts";
+import type { Execution, InteractionRecord } from "@omnitech/ai-engine";
 import { getPlatformDatabase } from "@omnitech/database";
 import { migrateDatabase } from "@omnitech/database/migrate";
 import {
@@ -18,9 +18,44 @@ import {
   it,
   vi,
 } from "vitest";
-import { createPlatformAiGateway, interviewAssistantBudget } from "./ai";
 
-// Every variable the gateway reads, cleared so the developer's own shell
+// The provider SDK clients are only constructed here, never called: the
+// engine's own tests cover what its ports send through them.
+vi.mock("openai", () => ({
+  default: class {
+    constructor(readonly options: unknown) {}
+  },
+}));
+vi.mock("@anthropic-ai/sdk", () => ({
+  default: class {
+    constructor(readonly options: unknown) {}
+  },
+}));
+// The product names its two profiles; its backend is not this test's subject.
+vi.mock("@omnitech/product-interview/backend", () => ({
+  INTERVIEW_ANSWER_PROFILE: "interview-answers",
+  INTERVIEW_ASSISTANT_PROFILE: "interview-assistant",
+}));
+// The engine's own tables are another database; the trace is kept here.
+const traced: InteractionRecord[] = [];
+const connectEngineStore = vi.fn((_url: string) => ({
+  store: {
+    trace: {
+      write(record: InteractionRecord) {
+        traced.push(record);
+      },
+    },
+  },
+}));
+vi.mock("@omnitech/ai-engine/store/postgres", () => ({ connectEngineStore }));
+
+const {
+  createPlatformAiEngine,
+  interviewAssistantBudget,
+  interviewAssistantListing,
+} = await import("./ai");
+
+// Every variable the engine's composition reads, cleared so the developer's own shell
 // never changes what a test sees.
 const AI_ENVIRONMENT = [
   "AI_BASE_URL",
@@ -53,6 +88,8 @@ const AI_ENVIRONMENT = [
   "TOGETHER_IMAGE_MODEL",
   "AGENT_PAYLOAD_SECRET",
   "CONNECTED_ACCOUNT_SECRET",
+  "AI_ENGINE_DATABASE_URL",
+  "AI_ENGINE_CAPTURE",
 ];
 
 let pg: DisposablePostgres;
@@ -70,7 +107,7 @@ beforeAll(async () => {
   );
   userId = user.rows[0]!.id;
   tenantId = tenant.rows[0]!.id;
-  // The gateway's agent port keeps jobs in the platform database.
+  // The engine's agent jobs are kept in the platform database.
   process.env["DATABASE_URL"] = pg.memberUrl;
 }, 60_000);
 afterAll(async () => {
@@ -81,6 +118,8 @@ afterAll(async () => {
 });
 
 beforeEach(() => {
+  traced.length = 0;
+  connectEngineStore.mockClear();
   for (const name of AI_ENVIRONMENT) vi.stubEnv(name, undefined);
 });
 afterEach(() => {
@@ -88,17 +127,30 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const context = (): AiAccessContext => ({
-  tenantId,
-  userId,
-  productId: "omnitech.presentation",
-  permissions: ["presentation.read"],
+// The member every call is made for. The listing takes the same object: the
+// engine hands it to the host's authorisation as it is.
+const asking = (permissions: readonly string[] = ["presentation.read"]) => ({
+  scope: { tenantId, actorId: userId, productId: "omnitech.presentation" },
+  permissions,
 });
-const imageRequest = (image: Record<string, unknown> = {}) => ({
-  context: context(),
-  profileId: "image-balanced",
-  task: { type: "image-generation" as const, prompt: "A lighthouse", image },
+const execution = (signal = new AbortController().signal): Execution => ({
+  ...asking(),
+  signal,
 });
+const image = (request: { modelId?: string; aspectRatio?: string } = {}) =>
+  createPlatformAiEngine().images.generate(
+    { profileId: "image-balanced", prompt: "A lighthouse", ...request },
+    execution(),
+  );
+const made = async (pending: ReturnType<typeof image>) => {
+  const result = await pending;
+  if (!result.ok) throw new Error(result.failure.detail);
+  return result.image;
+};
+const refused = async (pending: ReturnType<typeof image>) => {
+  const result = await pending;
+  return result.ok ? undefined : result.failure;
+};
 
 // A provider's HTTP endpoint: each request is recorded and answered in turn.
 function provider(...answers: Response[]) {
@@ -112,6 +164,21 @@ function provider(...answers: Response[]) {
   );
   return requests;
 }
+
+// One streamed chat completion, as an OpenAI-compatible endpoint sends it.
+const completion = (text: string) =>
+  new Response(
+    [
+      {
+        choices: [{ index: 0, delta: { content: text }, finish_reason: null }],
+      },
+      { choices: [{ index: 0, delta: {}, finish_reason: "stop" }] },
+    ]
+      .map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`)
+      .join("")
+      .concat("data: [DONE]\n\n"),
+    { headers: { "content-type": "text/event-stream" } },
+  );
 
 describe("the assistant's context budget", () => {
   it("keeps a quarter of a local model's window for output", () => {
@@ -136,77 +203,77 @@ describe("the assistant's context budget", () => {
   });
 });
 
-describe("the gateway with no model configured", () => {
-  it("drafts locally and lists the draft model in the picker", async () => {
-    const gateway = createPlatformAiGateway();
-    const targets = await gateway.listAvailableTargets(context());
+describe("the engine with no model configured", () => {
+  it("declares no language profile, no catalogue, no agents and no jobs", async () => {
+    const engine = createPlatformAiEngine();
     expect(
-      targets.find((target) => target.id === "document-fast"),
-    ).toMatchObject({
-      label: "Local draft (no AI service)",
-      family: "direct-model",
-    });
-    const assistant = targets.find(
-      (target) => target.id === "interview-assistant",
-    );
-    expect(assistant?.listing).toMatchObject({
-      name: "Draft model",
-      shortName: "Default",
-      local: false,
-      provider: { name: "Draft model", local: false },
-    });
-    // No catalogs and no agents without their configuration.
-    expect(targets.map((target) => target.id)).not.toContain("agent/codex");
-
-    const draft = await gateway.execute<{ title: string }>({
-      context: context(),
-      profileId: "document-fast",
-      task: {
-        type: "structured-generation",
-        prompt: "Quarterly review",
-        schema: { type: "object", properties: { title: { type: "string" } } },
+      (await engine.profiles(asking())).map((profile) => profile.id),
+    ).toEqual(["image-balanced"]);
+    expect(interviewAssistantListing()).toBeUndefined();
+    expect(engine.jobs).toBeUndefined();
+    const answer = await engine.generate(
+      {
+        profileId: "document-fast",
+        messages: [{ role: "user", parts: [{ type: "text", text: "Hello" }] }],
       },
+      execution(),
+    );
+    expect(answer).toMatchObject({
+      ok: false,
+      failure: { code: "invalid-request" },
     });
-    expect(draft.result.title).toBe("Quarterly review");
   });
 
   it("refuses a member without a product permission", async () => {
-    const gateway = createPlatformAiGateway();
+    const engine = createPlatformAiEngine();
+    expect(await engine.profiles(asking([]))).toEqual([]);
     expect(
-      await gateway.listAvailableTargets({ ...context(), permissions: [] }),
-    ).toEqual([]);
+      await engine.images.generate(
+        { profileId: "image-balanced", prompt: "A lighthouse" },
+        { ...asking([]), signal: new AbortController().signal },
+      ),
+    ).toMatchObject({
+      ok: false,
+      failure: { code: "refused", refusal: "authorization" },
+    });
   });
 
   it("generates placeholder images without an image service", async () => {
-    const image = await createPlatformAiGateway().execute<{
-      providerId: string;
-      assetReference: string;
-      mimeType: string;
-    }>(imageRequest());
-    expect(image.result.providerId).toBe("fake-image");
-    expect(image.result.assetReference).toMatch(/^data:image\/svg\+xml,/);
-    expect(image.result.mimeType).toBe("image/svg+xml");
+    const result = await made(image());
+    expect(result.providerId).toBe("fake-image");
+    expect(result.assetReference).toMatch(/^data:image\/svg\+xml,/);
+    expect(result.mimeType).toBe("image/svg+xml");
   });
 });
 
-describe("the gateway with a language model", () => {
+describe("the engine with a language model", () => {
   it("names a hosted model and its endpoint in the picker", async () => {
     vi.stubEnv("AI_BASE_URL", "https://models.example.com/v1");
     vi.stubEnv("AI_MODEL", "vendor/large-model");
     vi.stubEnv("AI_API_KEY", "test-key");
     vi.stubEnv("ANTHROPIC_API_KEY", "anthropic-key");
-    const targets = await createPlatformAiGateway().listAvailableTargets(
-      context(),
-    );
-    expect(targets.find((target) => target.id === "document-fast")?.label).toBe(
-      "Fast",
-    );
+    const profiles = await createPlatformAiEngine().profiles(asking());
     expect(
-      targets.find((target) => target.id === "document-quality")?.label,
-    ).toBe("High quality");
+      profiles.map(({ id, label, kind }) => ({ id, label, kind })),
+    ).toEqual([
+      { id: "document-fast", label: "Fast", kind: "model" },
+      { id: "document-quality", label: "High quality", kind: "model" },
+      {
+        id: "interview-assistant",
+        label: "Interview assistant",
+        kind: "model",
+      },
+      { id: "interview-answers", label: "Interview answers", kind: "model" },
+      { id: "image-balanced", label: "Balanced", kind: "image" },
+    ]);
+    // The hosted Anthropic model writes the high-quality documents.
     expect(
-      targets.find((target) => target.id === "interview-assistant")?.listing,
-    ).toMatchObject({
+      profiles.find((profile) => profile.id === "document-quality"),
+    ).toMatchObject({ provider: "anthropic-api", model: "claude-sonnet-5-5" });
+    expect(
+      profiles.find((profile) => profile.id === "document-fast"),
+    ).toMatchObject({ provider: "openai", model: "vendor/large-model" });
+    expect(interviewAssistantListing()).toMatchObject({
       name: "vendor/large-model",
       shortName: "large-model",
       tags: [],
@@ -220,37 +287,97 @@ describe("the gateway with a language model", () => {
     });
   });
 
+  it("sizes each profile's output on the one configured model", async () => {
+    vi.stubEnv("AI_BASE_URL", "http://127.0.0.1:1234/v1");
+    vi.stubEnv("AI_MODEL", "qwen-loaded");
+    const requests = provider(completion("Hello"), completion("Hello"));
+    const engine = createPlatformAiEngine();
+    const say = (profileId: string) =>
+      engine.generate(
+        {
+          profileId,
+          messages: [{ role: "user", parts: [{ type: "text", text: "Hi" }] }],
+        },
+        execution(),
+      );
+    expect(await say("interview-assistant")).toMatchObject({
+      ok: true,
+      value: "Hello",
+    });
+    await say("document-fast");
+    expect(requests.map(({ url }) => url)).toEqual([
+      "http://127.0.0.1:1234/v1/chat/completions",
+      "http://127.0.0.1:1234/v1/chat/completions",
+    ]);
+    expect(JSON.parse(String(requests[0]?.init?.body))).toMatchObject({
+      model: "qwen-loaded",
+      max_completion_tokens: 8192,
+      temperature: 0.3,
+    });
+    const document = JSON.parse(String(requests[1]?.init?.body));
+    expect(document).toMatchObject({
+      model: "qwen-loaded",
+      max_completion_tokens: 16_384,
+    });
+    expect(document).not.toHaveProperty("temperature");
+  });
+
+  // The engine waits out its backoff on its own clock, so this takes two seconds.
+  it("tries a document call again while the local model is busy, and an assistant turn once", async () => {
+    vi.stubEnv("AI_BASE_URL", "http://127.0.0.1:1234/v1");
+    vi.stubEnv("AI_MODEL", "qwen-loaded");
+    const requests = provider(
+      new Response("{}", { status: 503 }),
+      completion("Ready"),
+      new Response("{}", { status: 503 }),
+    );
+    const engine = createPlatformAiEngine();
+    const say = (profileId: string) =>
+      engine.generate(
+        {
+          profileId,
+          messages: [{ role: "user", parts: [{ type: "text", text: "Hi" }] }],
+        },
+        execution(),
+      );
+    expect(await say("document-fast")).toMatchObject({
+      ok: true,
+      value: "Ready",
+    });
+    expect(requests).toHaveLength(2);
+    expect(await say("interview-assistant")).toMatchObject({
+      ok: false,
+      failure: { code: "unavailable" },
+    });
+    expect(requests).toHaveLength(3);
+  }, 15_000);
+
   it("lists only declared device profiles under a device-only policy", async () => {
-    const deviceOnly = {
-      taskType: "structured-chat",
-      processingPolicy: "device-only",
-    } as const;
-    provider(); // LM Studio's catalog answers nothing
+    const listing = async (policy?: "device-only") =>
+      (
+        await createPlatformAiEngine().profiles({
+          ...asking(),
+          ...(policy ? { policy } : {}),
+        })
+      ).map((profile) => profile.id);
+    provider(); // LM Studio's catalogue answers nothing
     vi.stubEnv("AI_BASE_URL", "http://127.0.0.1:1234/v1");
     vi.stubEnv("AI_MODEL", "qwen-loaded");
     // Loopback alone is not a declaration: nothing is device until declared.
-    const undeclared = await createPlatformAiGateway().listAvailableTargets(
-      context(),
-      deviceOnly,
-    );
+    const undeclared = await listing("device-only");
     vi.stubEnv("AI_LOCALITY", "device");
-    const declared = await createPlatformAiGateway().listAvailableTargets(
-      context(),
-      deviceOnly,
-    );
+    const declared = await listing("device-only");
     // Without a policy the listing is unchanged.
-    const unrestricted = await createPlatformAiGateway().listAvailableTargets(
-      context(),
-      { taskType: "structured-chat" },
-    );
+    const unrestricted = await listing();
 
     expect(undeclared).toEqual([]);
-    expect(declared.map((target) => target.id)).toEqual([
+    expect(declared).toEqual([
+      "document-fast",
+      "document-quality",
       "interview-assistant",
+      "interview-answers",
     ]);
-    expect(unrestricted.map((target) => target.id)).toContain(
-      "interview-assistant",
-    );
+    expect(unrestricted).toEqual([...declared, "image-balanced"]);
   });
 
   it("offers LM Studio's other installed models beside the loaded one", async () => {
@@ -269,25 +396,33 @@ describe("the gateway with a language model", () => {
         ],
       }),
     );
-    const gateway = createPlatformAiGateway();
-    const assistant = (await gateway.listAvailableTargets(context())).find(
-      (target) => target.id === "interview-assistant",
-    );
-    expect(assistant?.listing).toMatchObject({
+    expect(interviewAssistantListing()).toMatchObject({
       tags: ["loaded"],
       local: true,
       contextWindow: 65_536,
     });
 
-    const chat = await gateway.listAvailableTargets(context(), {
-      taskType: "structured-chat",
-    });
+    const profiles = await createPlatformAiEngine().profiles(asking());
     expect(requests[0]?.url).toBe("http://127.0.0.1:1234/api/v1/models");
     // The configured model is offered once, as the assistant itself.
-    expect(chat.map((target) => target.id)).toContain("lm-studio/gemma");
-    expect(chat.map((target) => target.id)).not.toContain(
+    expect(profiles.map((profile) => profile.id)).not.toContain(
       "lm-studio/qwen-loaded",
     );
+    // Each model names where it runs, so the picker can group them.
+    expect(
+      profiles.find((profile) => profile.id === "lm-studio/gemma"),
+    ).toMatchObject({
+      label: "Gemma",
+      model: "gemma",
+      listing: {
+        id: "lm-studio/gemma",
+        provider: {
+          name: "LM Studio",
+          endpoint: "127.0.0.1:1234",
+          local: true,
+        },
+      },
+    });
   });
 
   it("reaches LM Studio at its own address when the default model is hosted", async () => {
@@ -297,9 +432,7 @@ describe("the gateway with a language model", () => {
     vi.stubEnv("LM_STUDIO_MODEL", "local-extra");
     vi.stubEnv("LM_STUDIO_BASE_URL", "http://127.0.0.1:4321/v1");
     const requests = provider(Response.json({ models: [] }));
-    await createPlatformAiGateway().listAvailableTargets(context(), {
-      taskType: "structured-chat",
-    });
+    await createPlatformAiEngine().profiles(asking());
     expect(requests[0]?.url).toBe("http://127.0.0.1:4321/api/v1/models");
   });
 
@@ -318,13 +451,48 @@ describe("the gateway with a language model", () => {
         ],
       }),
     );
-    const chat = await createPlatformAiGateway().listAvailableTargets(
-      context(),
-      { taskType: "structured-chat" },
+    const profiles = await createPlatformAiEngine().profiles(asking());
+    expect(
+      profiles.find((profile) => profile.id === "openrouter/vendor/free:free")
+        ?.listing?.provider,
+    ).toMatchObject({ name: "OpenRouter · free", local: false });
+  });
+});
+
+describe("the interaction record", () => {
+  const say = () =>
+    createPlatformAiEngine().images.generate(
+      { profileId: "image-balanced", prompt: "A lighthouse" },
+      execution(),
     );
-    expect(chat.map((target) => target.id)).toContain(
-      "openrouter/vendor/free:free",
+
+  it("is kept nowhere until the engine's database is named", async () => {
+    await say();
+    expect(connectEngineStore).not.toHaveBeenCalled();
+    expect(traced).toEqual([]);
+  });
+
+  it("is kept without content by default", async () => {
+    vi.stubEnv("AI_ENGINE_DATABASE_URL", "postgresql://engine@db/ai");
+    await say();
+    expect(connectEngineStore).toHaveBeenCalledWith(
+      "postgresql://engine@db/ai",
     );
+    expect(traced).toHaveLength(1);
+    expect(traced[0]).toMatchObject({
+      operation: "image",
+      profileId: "image-balanced",
+      outcome: "done",
+      scope: { tenantId },
+    });
+    expect(JSON.stringify(traced[0])).not.toContain("lighthouse");
+  });
+
+  it("keeps the prompt only when AI_ENGINE_CAPTURE is full", async () => {
+    vi.stubEnv("AI_ENGINE_DATABASE_URL", "postgresql://engine@db/ai");
+    vi.stubEnv("AI_ENGINE_CAPTURE", "full");
+    await say();
+    expect(JSON.stringify(traced[0])).toContain("A lighthouse");
   });
 });
 
@@ -343,10 +511,9 @@ describe("image generation", () => {
         ],
       }),
     );
-    const image = await createPlatformAiGateway().execute<{
-      assetReference: string;
-      width: number;
-    }>(imageRequest({ modelId: "fal-ai/custom", aspectRatio: "1:1" }));
+    const result = await made(
+      image({ modelId: "fal-ai/custom", aspectRatio: "1:1" }),
+    );
     expect(requests[0]?.url).toBe("https://fal.run/fal-ai/custom");
     expect(requests[0]?.init?.headers).toMatchObject({
       authorization: "Key fal-key",
@@ -355,11 +522,13 @@ describe("image generation", () => {
       prompt: "A lighthouse",
       aspect_ratio: "1:1",
     });
-    expect(image.result).toMatchObject({
+    expect(result).toMatchObject({
       assetReference: "https://cdn.fal.test/image.jpg",
       mimeType: "image/jpeg",
       width: 1600,
       height: 900,
+      providerId: "fal",
+      modelId: "fal-ai/custom",
     });
   });
 
@@ -370,15 +539,15 @@ describe("image generation", () => {
       Response.json({ images: [] }),
       Response.json({ images: [{ url: "https://cdn.fal.test/a.png" }] }),
     );
-    const gateway = createPlatformAiGateway();
-    await expect(gateway.execute(imageRequest())).rejects.toThrow(
-      "FAL returned 429.",
-    );
-    await expect(gateway.execute(imageRequest())).rejects.toThrow(
-      "FAL returned no image.",
-    );
-    const image = await gateway.execute<{ mimeType: string }>(imageRequest());
-    expect(image.result.mimeType).toBe("image/png");
+    expect(await refused(image())).toMatchObject({
+      code: "rate-limited",
+      detail: "FAL returned HTTP 429.",
+    });
+    expect(await refused(image())).toMatchObject({
+      code: "unavailable",
+      detail: "FAL returned no image.",
+    });
+    expect((await made(image())).mimeType).toBe("image/png");
   });
 
   it("queues a ComfyUI workflow and returns its first output", async () => {
@@ -395,15 +564,14 @@ describe("image generation", () => {
         },
       }),
     );
-    const image = await createPlatformAiGateway().execute<{
-      assetReference: string;
-    }>(imageRequest());
+    const result = await made(image());
     expect(requests[0]?.url).toBe("http://comfy.test:8188/prompt");
     expect(JSON.parse(String(requests[0]?.init?.body))).toEqual({
       prompt: { "6": { inputs: { text: "A lighthouse" } } },
     });
     expect(requests[1]?.url).toBe("http://comfy.test:8188/history/p1");
-    expect(image.result.assetReference).toBe(
+    expect(result.providerId).toBe("comfyui");
+    expect(result.assetReference).toBe(
       "http://comfy.test:8188/view?filename=out.png&subfolder=&type=output",
     );
   });
@@ -426,11 +594,9 @@ describe("image generation", () => {
           },
         }),
       );
-      const pending = createPlatformAiGateway().execute<{
-        assetReference: string;
-      }>(imageRequest());
+      const pending = made(image());
       await vi.advanceTimersByTimeAsync(3_000);
-      expect((await pending).result.assetReference).toBe(
+      expect((await pending).assetReference).toBe(
         "http://127.0.0.1:8188/view?filename=a.png&subfolder=run&type=temp",
       );
     } finally {
@@ -440,17 +606,14 @@ describe("image generation", () => {
 
   it("reports ComfyUI configuration and queue failures", async () => {
     vi.stubEnv("COMFYUI_WORKFLOW_JSON", "not json");
-    await expect(
-      createPlatformAiGateway().execute(imageRequest()),
-    ).rejects.toThrow("COMFYUI_WORKFLOW_JSON must be valid JSON.");
+    expect((await refused(image()))?.detail).toBe(
+      "COMFYUI_WORKFLOW_JSON must be valid JSON.",
+    );
 
     vi.stubEnv("COMFYUI_WORKFLOW_JSON", "{}");
     provider(new Response("{}", { status: 500 }), Response.json({}));
-    const gateway = createPlatformAiGateway();
-    await expect(gateway.execute(imageRequest())).rejects.toThrow(
-      "ComfyUI returned 500.",
-    );
-    await expect(gateway.execute(imageRequest())).rejects.toThrow(
+    expect((await refused(image()))?.detail).toBe("ComfyUI returned HTTP 500.");
+    expect((await refused(image()))?.detail).toBe(
       "ComfyUI returned no prompt id.",
     );
   });
@@ -467,18 +630,17 @@ describe("image generation", () => {
             : Response.json({}),
         ),
       );
-      const pending = createPlatformAiGateway().execute(imageRequest());
-      const failed = expect(pending).rejects.toThrow(
+      const pending = refused(image());
+      await vi.advanceTimersByTimeAsync(121_000);
+      expect((await pending)?.detail).toBe(
         "ComfyUI image generation timed out.",
       );
-      await vi.advanceTimersByTimeAsync(121_000);
-      await failed;
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it("runs on Together AI with the requested size", async () => {
+  it("runs on Together AI with its default model", async () => {
     vi.stubEnv("TOGETHER_AI_API_KEY", "together-key");
     const requests = provider(
       Response.json({
@@ -492,24 +654,22 @@ describe("image generation", () => {
       new Response("{}", { status: 503 }),
       Response.json({ data: [] }),
     );
-    const gateway = createPlatformAiGateway();
-    const image = await gateway.execute<{ revisedPrompt: string }>(
-      imageRequest({ width: 512, height: 768 }),
-    );
+    const result = await made(image());
     expect(requests[0]?.url).toBe(
       "https://api.together.xyz/v1/images/generations",
     );
     expect(JSON.parse(String(requests[0]?.init?.body))).toEqual({
       model: "black-forest-labs/FLUX.1-schnell-Free",
       prompt: "A lighthouse",
-      width: 512,
-      height: 768,
+      width: 1024,
+      height: 1024,
     });
-    expect(image.result.revisedPrompt).toBe("A lighthouse at dusk");
-    await expect(gateway.execute(imageRequest())).rejects.toThrow(
-      "Together AI returned 503.",
-    );
-    await expect(gateway.execute(imageRequest())).rejects.toThrow(
+    expect(result.revisedPrompt).toBe("A lighthouse at dusk");
+    expect(await refused(image())).toMatchObject({
+      code: "unavailable",
+      detail: "Together AI returned HTTP 503.",
+    });
+    expect((await refused(image()))?.detail).toBe(
       "Together AI returned no image.",
     );
   });
@@ -521,10 +681,7 @@ describe("image generation", () => {
       Response.json({ data: [{ b64_json: "aGVsbG8=" }] }),
       Response.json({ data: [{ url: "https://cdn.openai.test/b.png" }] }),
     );
-    const gateway = createPlatformAiGateway();
-    const wide = await gateway.execute<{ assetReference: string }>(
-      imageRequest({ aspectRatio: "16:9" }),
-    );
+    const wide = await made(image({ aspectRatio: "16:9" }));
     expect(requests[0]?.url).toBe(
       "https://openai.example.com/v1/images/generations",
     );
@@ -532,117 +689,40 @@ describe("image generation", () => {
       model: "gpt-image-1",
       size: "1536x1024",
     });
-    expect(wide.result.assetReference).toBe("data:image/png;base64,aGVsbG8=");
-    await gateway.execute(imageRequest());
+    expect(wide.assetReference).toBe("data:image/png;base64,aGVsbG8=");
+    await made(image());
     expect(JSON.parse(String(requests[1]?.init?.body)).size).toBe("1024x1024");
   });
 });
 
-describe("agent jobs", () => {
+describe("agents", () => {
+  const SECRET = "a-payload-secret-of-32-characters!";
   const latestJob = async () =>
     (
       await pg.owner.query<{ id: string; status: string; profile: unknown }>(
         "SELECT id, status, profile_snapshot AS profile FROM ai.agent_jobs ORDER BY created_at DESC, id LIMIT 1",
       )
     ).rows[0];
-
-  it("queues an agent job for the worker and cancels it on request", async () => {
-    vi.stubEnv("AGENT_PAYLOAD_SECRET", "a-payload-secret-of-32-characters!");
-    const gateway = createPlatformAiGateway();
-    const execution = await gateway.execute<{ jobId: string; status: string }>({
-      context: context(),
-      profileId: "presentation-editor",
-      task: { type: "agent-job", prompt: "Tighten slide three." },
-    });
-    expect(execution).toMatchObject({
-      family: "agent-runtime",
-      targetId: "claude-code",
-      result: { status: "queued" },
-    });
-    expect((await latestJob())?.id).toBe(execution.result.jobId);
-
-    await gateway.cancel(context(), execution.executionId);
-    expect((await latestJob())?.status).toBe("cancelling");
-    // An unknown job has nothing to cancel.
-    await gateway.cancel(context(), "00000000-0000-4000-8000-0000000000ff");
-  });
-
-  it("streams a queued job as started and completed", async () => {
-    vi.stubEnv(
-      "CONNECTED_ACCOUNT_SECRET",
-      "a-payload-secret-of-32-characters!",
-    );
-    const events = [];
-    for await (const event of createPlatformAiGateway().stream({
-      context: context(),
-      profileId: "presentation-editor",
-      task: { type: "agent-job", prompt: "Draft speaker notes." },
-    }))
-      events.push(event.type);
-    expect(events).toEqual(["started", "completed"]);
-  });
-
-  it("refuses agent jobs without a payload secret, and resumes none", async () => {
-    const gateway = createPlatformAiGateway();
-    await expect(
-      gateway.execute({
-        context: context(),
-        profileId: "presentation-editor",
-        task: { type: "agent-job", prompt: "Anything" },
-      }),
-    ).rejects.toThrow("AGENT_PAYLOAD_SECRET is not configured.");
-    const resumed = gateway.resume({
-      context: context(),
-      executionId: "job",
-      input: "Continue",
-    });
-    await expect(resumed[Symbol.asyncIterator]().next()).rejects.toThrow(
-      "Resume requires an existing agent session job.",
-    );
-  });
-
-  it("lists Claude Code and Codex for the assistant when agents can run", async () => {
-    vi.stubEnv("AGENT_PAYLOAD_SECRET", "a-payload-secret-of-32-characters!");
-    const targets = await createPlatformAiGateway().listAvailableTargets(
-      context(),
-    );
-    const agents = targets.filter((target) => target.id.startsWith("agent/"));
-    expect(agents.map((target) => target.listing?.name)).toEqual([
-      "Claude Code",
-      "Codex",
-    ]);
-    expect(agents[0]?.listing?.description).toMatch(
-      /^Runs .+ through your Claude Code login\./,
-    );
-  });
-
-  it("does not offer the local draft stand-in beside the agents", async () => {
-    const assistant = async () =>
-      (await createPlatformAiGateway().listAvailableTargets(context())).find(
-        (target) => target.id === "interview-assistant",
-      );
-    // With no agents the stand-in is all there is, so the picker names it.
-    expect((await assistant())?.listing).toMatchObject({ name: "Draft model" });
-
-    // Agents can run and no language model is configured: the profile stays
-    // (the product still names it), but the picker does not list it.
-    vi.stubEnv("AGENT_PAYLOAD_SECRET", "a-payload-secret-of-32-characters!");
-    const beside = await assistant();
-    expect(beside).toMatchObject({
-      id: "interview-assistant",
-      family: "direct-model",
-    });
-    expect(beside).not.toHaveProperty("listing");
-
-    // A configured language model is a real choice beside the agents.
-    vi.stubEnv("AI_BASE_URL", "https://models.example.com/v1");
-    vi.stubEnv("AI_MODEL", "vendor/large-model");
-    vi.stubEnv("AI_API_KEY", "test-key");
-    expect((await assistant())?.listing).toMatchObject({
-      name: "vendor/large-model",
-      shortName: "large-model",
-    });
-  });
+  const statusOf = async (jobId: string) =>
+    (
+      await pg.owner.query<{ status: string }>(
+        "SELECT status FROM ai.agent_jobs WHERE id = $1",
+        [jobId],
+      )
+    ).rows[0]?.status;
+  // The job the call queued, once it exists.
+  async function queuedAfter(before: string | undefined) {
+    let job = await latestJob();
+    while (!job || job.id === before) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      job = await latestJob();
+    }
+    return job;
+  }
+  const turnMessages = [
+    { role: "system", parts: [{ type: "text", text: "Be brief." }] },
+    { role: "user", parts: [{ type: "text", text: "What is a CTE?" }] },
+  ] as const;
 
   // The agent worker is the boundary: the test plays it, writing events to
   // the job the turn queued.
@@ -650,28 +730,21 @@ describe("agent jobs", () => {
     events: object[],
     options: { schema?: object; signal?: AbortSignal } = {},
   ) {
-    vi.stubEnv("AGENT_PAYLOAD_SECRET", "a-payload-secret-of-32-characters!");
+    vi.stubEnv("AGENT_PAYLOAD_SECRET", SECRET);
     const before = (await latestJob())?.id;
-    const turn = createPlatformAiGateway().streamStructured({
-      context: context(),
-      profileId: "agent/claude-code",
-      messages: [
-        { role: "system", parts: [{ type: "text", text: "Be brief." }] },
-        { role: "user", parts: [{ type: "text", text: "What is a CTE?" }] },
-        { role: "assistant", parts: [] },
-      ],
-      ...(options.schema ? { schema: options.schema } : {}),
-      ...(options.signal ? { signal: options.signal } : {}),
-    } as never);
+    const turn = createPlatformAiEngine().stream(
+      {
+        profileId: "agent/claude-code",
+        messages: turnMessages,
+        ...(options.schema ? { schema: options.schema } : {}),
+      } as never,
+      execution(options.signal),
+    );
     const parts: unknown[] = [];
     const reading = (async () => {
       for await (const part of turn) parts.push(part);
     })();
-    let job = await latestJob();
-    while (!job || job.id === before) {
-      await new Promise((resolve) => setTimeout(resolve, 20));
-      job = await latestJob();
-    }
+    const job = await queuedAfter(before);
     for (const event of events)
       await new PostgresAgentJobWorkerRepository(pg.owner).appendEvent(
         job.id,
@@ -680,6 +753,22 @@ describe("agent jobs", () => {
     return { parts, reading, job };
   }
 
+  it("lists Claude Code and Codex when agents can run", async () => {
+    vi.stubEnv("AGENT_PAYLOAD_SECRET", SECRET);
+    const engine = createPlatformAiEngine();
+    const agents = (await engine.profiles(asking())).filter(
+      (profile) => profile.kind === "agent",
+    );
+    expect(agents.map(({ id, label }) => ({ id, label }))).toEqual([
+      { id: "agent/claude-code", label: "Claude Code" },
+      { id: "agent/codex", label: "Codex" },
+    ]);
+    expect(agents[0]?.listing?.description).toMatch(
+      /^Runs .+ through your Claude Code login\./,
+    );
+    expect(engine.jobs).toBeDefined();
+  });
+
   it("streams an assistant turn's text from the agent's job", async () => {
     const { parts, reading, job } = await assistantTurn([
       { type: "text-delta", text: "A common " },
@@ -687,14 +776,11 @@ describe("agent jobs", () => {
       { type: "completed", result: { output: "ignored" } },
     ]);
     await reading;
-    expect(parts.slice(0, 2)).toEqual([
+    expect(parts).toEqual([
       { type: "text", text: "A common " },
       { type: "text", text: "table expression." },
+      expect.objectContaining({ type: "done" }),
     ]);
-    expect(parts[2]).toMatchObject({
-      type: "usage",
-      usage: { status: "unavailable" },
-    });
     expect(job.profile).toMatchObject({ id: "assistant-claude-code" });
   });
 
@@ -704,43 +790,32 @@ describe("agent jobs", () => {
       { schema: { type: "object" } },
     );
     await reading;
-    expect(parts[0]).toEqual({ type: "text", text: '{"answer":42}' });
+    expect(parts).toEqual([
+      { type: "text", text: '{"answer":42}' },
+      expect.objectContaining({ type: "done", value: { answer: 42 } }),
+    ]);
     expect(job.profile).toMatchObject({ outputSchema: { type: "object" } });
   });
 
-  it("lists the agent models for document generation too", async () => {
-    vi.stubEnv("AGENT_PAYLOAD_SECRET", "a-payload-secret-of-32-characters!");
-    const targets = await createPlatformAiGateway().listAvailableTargets(
-      context(),
-      { taskType: "structured-generation" },
-    );
-    expect(targets.map((target) => target.id)).toEqual(
-      expect.arrayContaining(["agent/claude-code", "agent/codex"]),
-    );
-  });
-
-  it("generates structured document values on an agent and returns the parsed JSON", async () => {
-    vi.stubEnv("AGENT_PAYLOAD_SECRET", "a-payload-secret-of-32-characters!");
+  it("generates structured values on an agent, with what the run reported it used", async () => {
+    vi.stubEnv("AGENT_PAYLOAD_SECRET", SECRET);
     const before = (await latestJob())?.id;
     const schema = {
       type: "object",
       properties: { summary: { type: "string" } },
     };
-    const generating = createPlatformAiGateway().execute({
-      context: context(),
-      profileId: "agent/claude-code",
-      task: {
-        type: "structured-generation",
-        system: "Return JSON.",
-        prompt: "{}",
+    const generating = createPlatformAiEngine().generate(
+      {
+        profileId: "agent/claude-code",
+        messages: [
+          { role: "system", parts: [{ type: "text", text: "Return JSON." }] },
+          { role: "user", parts: [{ type: "text", text: "{}" }] },
+        ],
         schema,
       },
-    });
-    let job = await latestJob();
-    while (!job || job.id === before) {
-      await new Promise((resolve) => setTimeout(resolve, 20));
-      job = await latestJob();
-    }
+      execution(),
+    );
+    const job = await queuedAfter(before);
     const worker = new PostgresAgentJobWorkerRepository(pg.owner);
     await worker.appendEvent(job.id, {
       type: "usage",
@@ -751,16 +826,25 @@ describe("agent jobs", () => {
         costUsd: 0.11,
       },
     } as never);
+    // The agent fenced its JSON as Markdown while it wrote.
+    await worker.appendEvent(job.id, {
+      type: "text-delta",
+      text: '```json\n{"summary":"Ledger migrations."}\n```',
+    } as never);
     await worker.appendEvent(job.id, {
       type: "completed",
-      result: { output: { summary: "Ledger migrations." } },
+      result: { output: '```json\n{"summary":"Ledger migrations."}\n```' },
     } as never);
-    const execution = await generating;
-    expect(execution).toMatchObject({
-      family: "agent-runtime",
-      targetId: "claude-code",
-      result: { summary: "Ledger migrations." },
-      usage: { outputTokens: 90, costUsd: 0.11 },
+    expect(await generating).toEqual({
+      ok: true,
+      value: { summary: "Ledger migrations." },
+      usage: {
+        status: "known",
+        inputTokens: 2,
+        outputTokens: 90,
+        totalTokens: 92,
+        cost: { status: "actual", amount: 0.11, currency: "USD" },
+      },
     });
     expect(job.profile).toMatchObject({
       id: "assistant-claude-code",
@@ -769,44 +853,48 @@ describe("agent jobs", () => {
   });
 
   it("reports a failed agent run", async () => {
-    const { reading } = await assistantTurn([
-      { type: "failed", error: { code: "agent-crashed", message: "boom" } },
+    const { parts, reading } = await assistantTurn([
+      {
+        type: "failed",
+        error: { code: "provider", message: "boom", retryable: false },
+      },
     ]);
-    await expect(reading).rejects.toThrow("Agent run failed: agent-crashed");
+    await reading;
+    expect(parts).toEqual([
+      {
+        type: "failed",
+        failure: expect.objectContaining({ code: "unavailable" }),
+      },
+    ]);
   });
 
   it("fails a run that started twice and stops the job, instead of joining two runs", async () => {
-    const { reading, job } = await assistantTurn([
+    const { parts, reading, job } = await assistantTurn([
       { type: "started", sessionId: "first" },
       { type: "started", sessionId: "first" },
       { type: "text-delta", text: '{"a":' },
       { type: "started", sessionId: "second" },
     ]);
-    await expect(reading).rejects.toThrow("Agent run restarted");
-    expect(
-      (
-        await pg.owner.query<{ status: string }>(
-          "SELECT status FROM ai.agent_jobs WHERE id = $1",
-          [job.id],
-        )
-      ).rows[0]?.status,
-    ).toBe("cancelling");
+    await reading;
+    expect(parts.at(-1)).toMatchObject({
+      type: "failed",
+      failure: { reason: "The agent run restarted" },
+    });
+    await vi.waitFor(async () =>
+      expect(await statusOf(job.id)).toBe("cancelling"),
+    );
   });
 
   it("cancels the job when the turn is stopped", async () => {
     const controller = new AbortController();
-    const { reading, job } = await assistantTurn([], {
+    const { parts, reading, job } = await assistantTurn([], {
       signal: controller.signal,
     });
     controller.abort();
-    await expect(reading).rejects.toThrow();
-    expect(
-      (
-        await pg.owner.query<{ status: string }>(
-          "SELECT status FROM ai.agent_jobs WHERE id = $1",
-          [job.id],
-        )
-      ).rows[0]?.status,
-    ).toBe("cancelling");
+    await reading;
+    expect(parts).toEqual([{ type: "cancelled" }]);
+    await vi.waitFor(async () =>
+      expect(await statusOf(job.id)).toBe("cancelling"),
+    );
   });
 });
