@@ -11,6 +11,7 @@ await sourceScanTests(harness)
 await credentialAccountTests(harness)
 await eventsTests(harness)
 await callAudioTests(harness)
+await voiceActivityTests(harness)
 
 for failure in harness.failures { print(failure) }
 print("capture-core-tests: \(harness.passed) passed, \(harness.failures.count) failed")

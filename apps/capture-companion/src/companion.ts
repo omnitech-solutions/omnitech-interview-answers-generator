@@ -8,10 +8,14 @@ import {
   type CaptureFailureCode,
   type CaptureRequest,
   type CaptureSource,
+  createVoiceActivityReporter,
   type IngestMessage,
   type Observation,
+  type RefusalCode,
   type ScreenSnapshot,
   type SessionControlState,
+  type VoiceActivityReporter,
+  type VoiceActivitySource,
   validateIngestMessage,
 } from "@omnitech/active-session-contracts";
 import { type Backoff, createBackoff } from "./backoff";
@@ -27,6 +31,7 @@ import {
   heartbeatMessage,
   screenSnapshotMessage,
   transcriptFinalMessage,
+  voiceActivityMessage,
 } from "./messages";
 import { Outbox } from "./outbox";
 import { recordSourceLoss, type SourceLossReason } from "./source-loss";
@@ -44,6 +49,12 @@ import {
 
 // Heartbeat and capability messages are not capture sources.
 const COMPANION_SOURCE_ID = "companion";
+// The refusals after which no more voice activity is sent for the run.
+const VOICE_ACTIVITY_REFUSALS: ReadonlySet<RefusalCode> = new Set([
+  "voice_activity_off",
+  "invalid_observation",
+  "unsupported_version",
+]);
 const DEFAULT_HEARTBEAT_MS = 5_000;
 // While the screen source runs, Studio may hand over a capture-now request on
 // any acknowledgement, so the heartbeat pulls faster to pick one up within a
@@ -115,6 +126,11 @@ export class Companion {
   private flushing: Promise<void> | undefined;
   private flushAgain = false;
   private started = false;
+  private readonly voiceReporters = new Map<
+    VoiceActivitySource,
+    VoiceActivityReporter
+  >();
+  private voiceActivityOff = false;
 
   constructor(private readonly options: CompanionOptions) {
     this.client = createWireClient({
@@ -294,6 +310,51 @@ export class Companion {
       this.flushing = undefined;
     });
     return this.flushing;
+  }
+
+  // ---- Voice activity: a transient signal, never queued. -------------------
+  // Whether a voice is on one audio source right now, as the caller's detector
+  // reads it (createVoiceActivityDetector). Call it every pass: a change is
+  // told at once, "speaking" again about once a second, and nothing otherwise.
+  // A report that does not get through is said again later if still true; a
+  // Studio that does not take voice activity is told nothing more this run.
+  async reportVoiceActivity(
+    source: VoiceActivitySource,
+    speaking: boolean,
+  ): Promise<void> {
+    if (this.voiceActivityOff || !this.accepting(source)) return;
+    const now = this.clock.now();
+    let reporter = this.voiceReporters.get(source);
+    if (!reporter) {
+      reporter = createVoiceActivityReporter();
+      this.voiceReporters.set(source, reporter);
+    }
+    const say = reporter.next(speaking, now);
+    if (say === undefined) return;
+    const outcome = await this.client.send(
+      voiceActivityMessage({
+        sourceId: COMPANION_SOURCE_ID,
+        sentAt: isoAt(now),
+        source,
+        speaking: say,
+      }),
+    );
+    if (outcome.kind === "ack" && outcome.ack.status !== "refused") {
+      reporter.sent(say, now);
+      return;
+    }
+    // Off by the owner's switch or the session's locality, or a Studio that
+    // does not know the message (it reads as an invalid observation).
+    if (
+      outcome.kind === "ack" &&
+      outcome.ack.status === "refused" &&
+      VOICE_ACTIVITY_REFUSALS.has(outcome.ack.code)
+    ) {
+      this.voiceActivityOff = true;
+      this.voiceReporters.clear();
+      return;
+    }
+    reporter.failed(now);
   }
 
   // LOCAL STOP: everything that matters is done before this returns its

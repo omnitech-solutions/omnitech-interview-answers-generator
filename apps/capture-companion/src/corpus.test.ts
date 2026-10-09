@@ -20,6 +20,7 @@ import {
   screenSnapshotMessage,
   sourceDisconnectedMessage,
   transcriptFinalMessage,
+  voiceActivityMessage,
 } from "./messages";
 import { createWireClient } from "./wire-client";
 
@@ -51,6 +52,7 @@ const builders: Record<string, (body: never) => unknown> = {
   heartbeat: heartbeatMessage,
   "capability.report": capabilityReportMessage,
   "capture.failure": captureFailureMessage,
+  "voice.activity": voiceActivityMessage,
 };
 
 const validIngest = entries.filter(

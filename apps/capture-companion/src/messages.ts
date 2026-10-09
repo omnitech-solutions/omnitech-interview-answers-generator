@@ -9,6 +9,7 @@ import {
   type ScreenSnapshot,
   type SourceDisconnected,
   type TranscriptFinal,
+  type VoiceActivity,
   WIRE_VERSION,
 } from "@omnitech/active-session-contracts";
 
@@ -49,6 +50,14 @@ export const captureFailureMessage = (
 ): CaptureFailure => ({
   version: WIRE_VERSION,
   kind: "capture.failure",
+  ...body,
+});
+
+export const voiceActivityMessage = (
+  body: Body<VoiceActivity>,
+): VoiceActivity => ({
+  version: WIRE_VERSION,
+  kind: "voice.activity",
   ...body,
 });
 

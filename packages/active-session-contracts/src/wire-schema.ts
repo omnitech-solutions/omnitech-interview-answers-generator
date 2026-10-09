@@ -4,6 +4,7 @@ import {
   capabilityReportSchema,
   captureFailureSchema,
   heartbeatSchema,
+  voiceActivitySchema,
 } from "./control";
 import { WIRE_VERSION } from "./ids";
 import { observationSchema } from "./observation";
@@ -20,6 +21,7 @@ export const COMPANION_MESSAGE_KINDS = [
   "heartbeat",
   "capability.report",
   "capture.failure",
+  "voice.activity",
 ] as const;
 
 const companionMessageSchema = z.union([
@@ -27,6 +29,7 @@ const companionMessageSchema = z.union([
   heartbeatSchema,
   capabilityReportSchema,
   captureFailureSchema,
+  voiceActivitySchema,
 ]);
 
 const toJsonSchema = (schema: z.ZodType) => {

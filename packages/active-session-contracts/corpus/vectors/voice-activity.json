@@ -1,0 +1,422 @@
+{
+  "description": "Voice-activity detector vectors: each segment is `ms` of a constant sample value whose level is `db` dBFS, at 16 kHz in 20 ms frames; `changes` is when `speaking` changed, in ms of audio. The TypeScript and the Swift detector must both reproduce every one exactly.",
+  "sampleRate": 16000,
+  "vectors": [
+    {
+      "name": "a voice between two silences",
+      "segments": [
+        {
+          "db": -70,
+          "ms": 1000
+        },
+        {
+          "db": -25,
+          "ms": 1000
+        },
+        {
+          "db": -70,
+          "ms": 1500
+        }
+      ],
+      "changes": [
+        {
+          "atMs": 1160,
+          "speaking": true
+        },
+        {
+          "atMs": 2500,
+          "speaking": false
+        }
+      ]
+    },
+    {
+      "name": "a 300 ms dip inside a voice is not a stop",
+      "segments": [
+        {
+          "db": -70,
+          "ms": 500
+        },
+        {
+          "db": -25,
+          "ms": 800
+        },
+        {
+          "db": -70,
+          "ms": 300
+        },
+        {
+          "db": -25,
+          "ms": 800
+        },
+        {
+          "db": -70,
+          "ms": 1000
+        }
+      ],
+      "changes": [
+        {
+          "atMs": 660,
+          "speaking": true
+        },
+        {
+          "atMs": 2900,
+          "speaking": false
+        }
+      ]
+    },
+    {
+      "name": "a 700 ms pause is a stop and the voice after it a new start",
+      "segments": [
+        {
+          "db": -70,
+          "ms": 500
+        },
+        {
+          "db": -25,
+          "ms": 800
+        },
+        {
+          "db": -70,
+          "ms": 700
+        },
+        {
+          "db": -25,
+          "ms": 800
+        },
+        {
+          "db": -70,
+          "ms": 1000
+        }
+      ],
+      "changes": [
+        {
+          "atMs": 660,
+          "speaking": true
+        },
+        {
+          "atMs": 1800,
+          "speaking": false
+        },
+        {
+          "atMs": 2160,
+          "speaking": true
+        },
+        {
+          "atMs": 3300,
+          "speaking": false
+        }
+      ]
+    },
+    {
+      "name": "a steady level from the first sample is never a voice",
+      "segments": [
+        {
+          "db": -30,
+          "ms": 6000
+        }
+      ],
+      "changes": []
+    },
+    {
+      "name": "a level that steps up and stays becomes the floor",
+      "segments": [
+        {
+          "db": -70,
+          "ms": 1000
+        },
+        {
+          "db": -40,
+          "ms": 6000
+        }
+      ],
+      "changes": [
+        {
+          "atMs": 1160,
+          "speaking": true
+        },
+        {
+          "atMs": 4500,
+          "speaking": false
+        }
+      ]
+    },
+    {
+      "name": "20 ms clicks every 200 ms never add up",
+      "segments": [
+        {
+          "db": -15,
+          "ms": 20
+        },
+        {
+          "db": -70,
+          "ms": 180
+        },
+        {
+          "db": -15,
+          "ms": 20
+        },
+        {
+          "db": -70,
+          "ms": 180
+        },
+        {
+          "db": -15,
+          "ms": 20
+        },
+        {
+          "db": -70,
+          "ms": 180
+        },
+        {
+          "db": -15,
+          "ms": 20
+        },
+        {
+          "db": -70,
+          "ms": 180
+        },
+        {
+          "db": -15,
+          "ms": 20
+        },
+        {
+          "db": -70,
+          "ms": 180
+        },
+        {
+          "db": -15,
+          "ms": 20
+        },
+        {
+          "db": -70,
+          "ms": 180
+        },
+        {
+          "db": -15,
+          "ms": 20
+        },
+        {
+          "db": -70,
+          "ms": 180
+        },
+        {
+          "db": -15,
+          "ms": 20
+        },
+        {
+          "db": -70,
+          "ms": 180
+        },
+        {
+          "db": -15,
+          "ms": 20
+        },
+        {
+          "db": -70,
+          "ms": 180
+        },
+        {
+          "db": -15,
+          "ms": 20
+        },
+        {
+          "db": -70,
+          "ms": 180
+        },
+        {
+          "db": -15,
+          "ms": 20
+        },
+        {
+          "db": -70,
+          "ms": 180
+        },
+        {
+          "db": -15,
+          "ms": 20
+        },
+        {
+          "db": -70,
+          "ms": 180
+        },
+        {
+          "db": -15,
+          "ms": 20
+        },
+        {
+          "db": -70,
+          "ms": 180
+        },
+        {
+          "db": -15,
+          "ms": 20
+        },
+        {
+          "db": -70,
+          "ms": 180
+        },
+        {
+          "db": -15,
+          "ms": 20
+        },
+        {
+          "db": -70,
+          "ms": 180
+        },
+        {
+          "db": -15,
+          "ms": 20
+        },
+        {
+          "db": -70,
+          "ms": 180
+        },
+        {
+          "db": -15,
+          "ms": 20
+        },
+        {
+          "db": -70,
+          "ms": 180
+        },
+        {
+          "db": -15,
+          "ms": 20
+        },
+        {
+          "db": -70,
+          "ms": 180
+        },
+        {
+          "db": -15,
+          "ms": 20
+        },
+        {
+          "db": -70,
+          "ms": 180
+        },
+        {
+          "db": -15,
+          "ms": 20
+        },
+        {
+          "db": -70,
+          "ms": 180
+        }
+      ],
+      "changes": []
+    },
+    {
+      "name": "140 ms of sound is too short to be a voice",
+      "segments": [
+        {
+          "db": -70,
+          "ms": 500
+        },
+        {
+          "db": -25,
+          "ms": 140
+        },
+        {
+          "db": -70,
+          "ms": 1000
+        }
+      ],
+      "changes": []
+    },
+    {
+      "name": "a voice 16 dB over a loud room",
+      "segments": [
+        {
+          "db": -36,
+          "ms": 2000
+        },
+        {
+          "db": -20,
+          "ms": 1000
+        },
+        {
+          "db": -36,
+          "ms": 1500
+        }
+      ],
+      "changes": [
+        {
+          "atMs": 2160,
+          "speaking": true
+        },
+        {
+          "atMs": 3500,
+          "speaking": false
+        }
+      ]
+    },
+    {
+      "name": "a sound 6 dB over the room is not a voice",
+      "segments": [
+        {
+          "db": -50,
+          "ms": 2000
+        },
+        {
+          "db": -44,
+          "ms": 1000
+        },
+        {
+          "db": -50,
+          "ms": 1000
+        }
+      ],
+      "changes": []
+    },
+    {
+      "name": "below the least threshold nothing is a voice",
+      "segments": [
+        {
+          "db": -120,
+          "ms": 1000
+        },
+        {
+          "db": -52,
+          "ms": 2000
+        },
+        {
+          "db": -120,
+          "ms": 500
+        }
+      ],
+      "changes": []
+    },
+    {
+      "name": "a voice that falls to just above the stop threshold stays on",
+      "segments": [
+        {
+          "db": -70,
+          "ms": 500
+        },
+        {
+          "db": -25,
+          "ms": 500
+        },
+        {
+          "db": -50,
+          "ms": 2000
+        },
+        {
+          "db": -70,
+          "ms": 1000
+        }
+      ],
+      "changes": [
+        {
+          "atMs": 660,
+          "speaking": true
+        },
+        {
+          "atMs": 3500,
+          "speaking": false
+        }
+      ]
+    }
+  ]
+}

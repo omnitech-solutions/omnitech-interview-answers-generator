@@ -1034,3 +1034,87 @@ describe("capture requests", () => {
     ]);
   });
 });
+
+describe("voice activity", () => {
+  const reports = (requests: RecordedRequest[]) =>
+    requests
+      .filter((request) => request.message.kind === "voice.activity")
+      .map((request) => [
+        request.message["source"],
+        request.message["speaking"],
+      ]);
+
+  it("tells a change at once, keeps a voice alive about once a second, and never queues a report", async () => {
+    const { companion, studio, clock } = setup();
+    await companion.start();
+    // Asked four times a second, as the companion's pass does.
+    const pass = async (speaking: boolean, times: number) => {
+      for (let at = 0; at < times; at += 1) {
+        await companion.reportVoiceActivity("application-audio", speaking);
+        await clock.advance(250);
+      }
+    };
+    await pass(false, 4);
+    await pass(true, 12);
+    await pass(false, 4);
+    expect(reports(studio.requests)).toEqual([
+      ["application-audio", false],
+      ["application-audio", true],
+      ["application-audio", true],
+      ["application-audio", true],
+      ["application-audio", false],
+    ]);
+    const sent = studio.requests.find(
+      (request) => request.message.kind === "voice.activity",
+    );
+    // The session credential, the ingest route, and nothing of the audio.
+    expect(sent?.headers.Authorization).toBe(`Bearer ${FAKE_CREDENTIAL}`);
+    expect(sent?.url).toMatch(/\/sessions\/ingest$/);
+    expect(Object.keys(sent?.message ?? {}).sort()).toEqual([
+      "kind",
+      "sentAt",
+      "source",
+      "sourceId",
+      "speaking",
+      "version",
+    ]);
+    expect(companion.pending).toBe(0);
+  });
+
+  it("sends nothing more for the run once Studio says it is off, or does not know the message", async () => {
+    for (const legacy of [false, true]) {
+      const { companion, studio, clock } = setup();
+      studio.legacy = legacy;
+      if (!legacy)
+        studio.script = (request) =>
+          request.message.kind === "voice.activity"
+            ? refusedAck("voice_activity_off", "active")
+            : undefined;
+      await companion.start();
+      for (let at = 0; at < 8; at += 1) {
+        await companion.reportVoiceActivity("microphone", at % 2 === 0);
+        await clock.advance(1_500);
+      }
+      expect(reports(studio.requests)).toHaveLength(1);
+      // Everything else carries on.
+      expect(companion.snapshot().phase).toBe("listening");
+    }
+  });
+
+  it("says a report again after one that did not get through, and nothing for a source it does not have", async () => {
+    const { companion, studio, clock } = setup({ sources: ["microphone"] });
+    await companion.start();
+    await companion.reportVoiceActivity("application-audio", true);
+    expect(reports(studio.requests)).toEqual([]);
+    studio.script = (request) =>
+      request.message.kind === "voice.activity" ? "network-error" : undefined;
+    await companion.reportVoiceActivity("microphone", true);
+    await companion.reportVoiceActivity("microphone", true);
+    expect(reports(studio.requests)).toHaveLength(1);
+    studio.script = undefined;
+    await clock.advance(1_000);
+    await companion.reportVoiceActivity("microphone", true);
+    expect(reports(studio.requests)).toHaveLength(2);
+    expect(companion.pending).toBe(0);
+  });
+});

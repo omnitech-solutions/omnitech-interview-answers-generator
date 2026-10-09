@@ -1,5 +1,5 @@
-// Ingest: one credential-authenticated message (an observation or a heartbeat)
-// from the capture companion. Identity comes only from the credential
+// Ingest: one credential-authenticated message (an observation, a heartbeat or
+// another content-free report) from the capture companion. Identity comes only from the credential
 // (rule:identity-from-credential): the credential's hash resolves the ONE
 // session, and every later read or write runs in a tenant-and-actor transaction
 // for that session's owner. A failed lookup is one refusal (rule:credential-
@@ -27,8 +27,11 @@ import {
   type Observation,
   type ObservationIssue,
   type RefusalCode,
+  VOICE_ACTIVITY_ACK_EVENT_ID,
+  type VoiceActivity,
   validateObservation,
   validateWireMessage,
+  voiceActivitySchema,
   WIRE_VERSION,
 } from "@omnitech/active-session-contracts";
 import type { PlatformDatabase, TenantDatabase } from "@omnitech/database";
@@ -69,6 +72,11 @@ import { presentedCredentialHash } from "./session-credential";
 import { cancelSessionJobs, type SessionJobs } from "./session-jobs";
 import { lockSession, type SessionRecord } from "./session-record";
 import { reconcileLocked, transitionLocked } from "./status-transition";
+import {
+  type VoiceActivityGate,
+  type VoiceActivityHeard,
+  voiceActivityGate,
+} from "./voice-activity";
 
 // Companion lifecycle events: ids, codes and permission states, never content.
 const log = createLogger({ service: "interview-web" });
@@ -91,6 +99,16 @@ export type IngestOptions = {
   // on a remote model reads only those; the owner's own recording, which
   // stays on this machine, may keep any.
   onHeard?: (heard: HeardLine) => void;
+  // Whether this Studio takes voice activity at all (the owner's switch).
+  // Absent or false: a report is refused voice_activity_off and told to nobody.
+  voiceActivity?: boolean;
+  // Told that an audio source of a session started or stopped hearing a
+  // voice. [SAFETY] Only ever for a session whose owner allows processing off
+  // this device: a device-only session's activity is told to nobody.
+  onActivity?: (activity: VoiceActivityHeard) => void;
+  // The bound on how often a session's activity reports are taken. Tests pass
+  // their own; production shares the process's.
+  activityGate?: VoiceActivityGate;
 };
 
 export type HeardLine = {
@@ -174,6 +192,7 @@ type Locked = {
   ack: Acknowledgement;
   cancelJobs: boolean;
   heard?: HeardLine;
+  activity?: VoiceActivityHeard;
   retryAfterSeconds?: number;
 };
 
@@ -226,6 +245,13 @@ export async function ingestObservation(
   if (outcome.heard) {
     try {
       options.onHeard?.(outcome.heard);
+    } catch {
+      // The acknowledgement stands whatever a listener does.
+    }
+  }
+  if (outcome.activity) {
+    try {
+      options.onActivity?.(outcome.activity);
     } catch {
       // The acknowledgement stands whatever a listener does.
     }
@@ -345,6 +371,18 @@ async function ingestLocked(
       closed,
       envelope,
       cancelJobs,
+    );
+  if (kind === "voice.activity")
+    return voiceActivityLocked(
+      scope,
+      row,
+      status,
+      control,
+      closed,
+      envelope,
+      cancelJobs,
+      options,
+      limits,
     );
 
   // [GUARD] A session that is not capturing accepts nothing, a resend or not.
@@ -832,6 +870,87 @@ async function captureFailureLocked(
       control,
     },
     cancelJobs,
+  };
+}
+
+// Whether a voice is being heard on one of the session's audio sources right
+// now. [SAFETY] A transient signal, never content: nothing of the report is
+// written (no observation, no artifact, not even the contact stamp, so a
+// heartbeat's spacing is untouched) and nothing of it is logged. It is taken only while the
+// session is capturing, only for an audio source the session registered at
+// start, only when the owner's switch is on, and only for a session whose
+// owner allows processing off this device (the listener is the coach, on a
+// remote model). Everything else is a content-free refusal; voice_activity_off
+// tells the companion to stop sending for the rest of its run.
+function voiceActivityLocked(
+  scope: OwnerScope,
+  row: SessionRecord,
+  status: SessionStatus,
+  control: ControlStatus,
+  closed: RefusalCode | null,
+  envelope: unknown,
+  cancelJobs: boolean,
+  options: IngestOptions,
+  limits: IngestLimits,
+): Locked {
+  // A pending capture request rides only on the answers the companion reads
+  // for one (a heartbeat, an observation), never on this.
+  const standing = withoutCapture(control);
+  const validated = validateWireMessage<VoiceActivity>(
+    voiceActivitySchema,
+    envelope,
+  );
+  if (!validated.ok)
+    return {
+      ack: refusal(
+        validated.issues.some((i) => i.code === "unsupported_version")
+          ? "unsupported_version"
+          : "invalid_observation",
+        { control: standing, issues: validated.issues },
+      ),
+      cancelJobs,
+    };
+  if (status !== "active")
+    return {
+      ack: refusal(closed ?? "session_paused", { control: standing }),
+      cancelJobs,
+    };
+  if (options.voiceActivity !== true || row.policy !== "permitted-remote")
+    return {
+      ack: refusal("voice_activity_off", { control: standing }),
+      cancelJobs,
+    };
+  // [SAFETY] The companion cannot broaden the sources fixed at start: a
+  // source the session never registered says nothing here.
+  if (!(row.sources?.captureSources ?? []).includes(validated.value.source))
+    return {
+      ack: refusal("invalid_observation", {
+        control: standing,
+        issues: [{ path: ["source"], code: "invalid_value" }],
+      }),
+      cancelJobs,
+    };
+  const gate = options.activityGate ?? voiceActivityGate;
+  if (!gate.allow(row.id, row.nowMs, limits.maxVoiceActivityPerMinute))
+    return {
+      ack: refusal("rate_limited", { control: standing }),
+      cancelJobs,
+      retryAfterSeconds: 1,
+    };
+  return {
+    ack: {
+      version: WIRE_VERSION,
+      status: "accepted",
+      sourceId: validated.value.sourceId,
+      eventId: VOICE_ACTIVITY_ACK_EVENT_ID,
+      control: standing,
+    },
+    cancelJobs,
+    activity: {
+      source: validated.value.source,
+      speaking: validated.value.speaking,
+      session: { ...scope, sessionId: row.id },
+    },
   };
 }
 

@@ -189,6 +189,103 @@ public final class CompanionSession {
         outbox.enqueue(factory.make(source, .sourceDisconnected(source: source, reason: reason)), now: clock.now())
     }
 
+    // MARK: voice activity
+
+    // [SAFETY] Per-source state, never shared: the microphone's noise floor
+    // says nothing about the call's. Only loudness values are held, never audio.
+    private var voiceDetectors: [CaptureSource: VoiceActivityDetector] = [:]
+    private var voiceReporters: [CaptureSource: VoiceActivityReporter] = [:]
+    private var voiceTotals: [CaptureSource: VoiceActivityTotals] = [:]
+    // Studio said it does not take voice activity (switched off, a device-only
+    // session, or a Studio that does not know the message): nothing more is
+    // sent for the rest of this run. Detection carries on, for the totals.
+    public private(set) var voiceActivityRefused = false
+
+    // The audio one pass drained from a source's ring buffer, before it goes
+    // to the recogniser: whether a voice is on it is decided here.
+    public func hearAudio(source: CaptureSource, frames: [AudioFrame]) {
+        guard source != .screen, !frames.isEmpty, machine.isCapturing, machine.statuses[source] == .running
+        else { return }
+        var detector = voiceDetectors[source] ?? VoiceActivityDetector()
+        let was = detector.speaking
+        detector.push(frames)
+        voiceDetectors[source] = detector
+        var totals = voiceTotals[source] ?? VoiceActivityTotals()
+        if detector.speaking { totals.voicedMs += frames.reduce(0) { $0 + $1.durationMs } }
+        if detector.speaking, !was { totals.starts += 1 }
+        voiceTotals[source] = totals
+    }
+
+    // Whether a voice is on the source right now, as the detector reads it.
+    public func voiceSpeaking(_ source: CaptureSource) -> Bool { voiceDetectors[source]?.speaking ?? false }
+
+    // How much voice a source has carried since the run began: sizes for the
+    // event log, so a person can check the detector against a call they heard.
+    public func voiceTotals(_ source: CaptureSource) -> VoiceActivityTotals {
+        voiceTotals[source] ?? VoiceActivityTotals()
+    }
+
+    // [DOMAIN] One pass: tells Studio what is due for each selected audio
+    // source (a change at once, a keep-alive while a voice goes on). It is a
+    // transient signal: never queued in the outbox, never resent, and a report
+    // that does not get through is simply said again later if still true.
+    // [SAFETY] Same credential, same ingest route and same headers as every
+    // other message; the answer is read only for whether the report was taken.
+    public func reportVoiceActivity() async {
+        guard !voiceActivityRefused else { return }
+        guard machine.isCapturing else {
+            // Paused, lost or stopped: Studio lets what it was told lapse, and
+            // a resume says where each source stands again.
+            voiceDetectors = [:]
+            voiceReporters = [:]
+            return
+        }
+        for source in [CaptureSource.applicationAudio, .microphone] where machine.selection.contains(source) {
+            if machine.statuses[source] != .running { voiceDetectors[source] = nil }
+            let speaking = voiceDetectors[source]?.speaking ?? false
+            let nowMs = Int(clock.now().timeIntervalSince1970 * 1000)
+            var reporter = voiceReporters[source] ?? VoiceActivityReporter()
+            guard let say = reporter.next(speaking: speaking, nowMs: nowMs) else { continue }
+            switch await sendVoiceActivity(source, speaking: say) {
+            case .taken: reporter.sent(speaking: say, nowMs: nowMs)
+            case .later: reporter.failed(nowMs: nowMs)
+            case .off(let code):
+                voiceActivityRefused = true
+                voiceReporters = [:]
+                CompanionEvents.record(.server, "voice.activity_off", ["code": code.rawValue])
+                return
+            }
+            voiceReporters[source] = reporter
+        }
+    }
+
+    private enum VoiceDelivery {
+        case taken, later
+        case off(RefusalCode)
+    }
+
+    private func sendVoiceActivity(_ source: CaptureSource, speaking: Bool) async -> VoiceDelivery {
+        let activity = VoiceActivity(
+            sourceId: factory.companionId, sentAt: TimeText.iso(clock.now()),
+            source: source == .microphone ? .microphone : .applicationAudio, speaking: speaking)
+        guard let credential = try? credentials.load(),
+            let request = endpoint.request(
+                for: .voiceActivity(activity), credential: credential, screenSelection: screenSelection()),
+            case .response(_, let body, _) = await transport.send(request),
+            case .ok(let ack) = WireValidator.validateAcknowledgement(data: body)
+        else { return .later }
+        switch ack {
+        case .accepted, .duplicate: return .taken
+        case .refused(let code, _, _):
+            switch code {
+            // Off by the owner's switch or the session's locality; or a Studio
+            // that does not know the message (it reads as an invalid observation).
+            case .voiceActivityOff, .invalidObservation, .unsupportedVersion: return .off(code)
+            default: return .later
+            }
+        }
+    }
+
     public func localStop() { stopController.stopNow() }
 
     // MARK: sending

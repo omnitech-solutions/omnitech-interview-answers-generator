@@ -34,7 +34,11 @@ export {
   refusedAckSchema,
   type SessionControlState,
   sessionControlStateSchema,
+  VOICE_ACTIVITY_ACK_EVENT_ID,
+  type VoiceActivity,
+  type VoiceActivitySource,
   validateIngestMessage,
+  voiceActivitySchema,
 } from "./control";
 export {
   CREDENTIAL_PREFIX,
@@ -90,3 +94,8 @@ export {
   detectScreenshotMediaType,
   type ScreenshotMediaType,
 } from "./screenshot";
+export {
+  createVoiceActivityDetector,
+  createVoiceActivityReporter,
+  type VoiceActivityReporter,
+} from "./voice-activity";

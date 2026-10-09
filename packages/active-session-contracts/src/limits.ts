@@ -28,6 +28,10 @@ export const ACTIVE_SESSION_LIMITS = Object.freeze({
   // heartbeat while stopping a loop from hammering the contact stamp. Closer
   // messages are refused rate_limited, never queued.
   minHeartbeatIntervalMs: 1_000,
+  // Voice-activity reports are a change plus a keep-alive about once a second
+  // per audio source while a voice goes on: two sources and their starts and
+  // stops stay well under four a second. More is refused rate_limited.
+  maxVoiceActivityPerMinute: 240,
   // Short-lived and strictly under the duration cap; a longer session needs an
   // owner-initiated replacement (rule:credential-lifetime-and-renewal).
   credentialLifetimeMs: 2 * 60 * 60 * 1000,

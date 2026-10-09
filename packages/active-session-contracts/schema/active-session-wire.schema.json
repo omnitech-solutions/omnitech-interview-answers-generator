@@ -9,7 +9,8 @@
     "capture.gap",
     "heartbeat",
     "capability.report",
-    "capture.failure"
+    "capture.failure",
+    "voice.activity"
   ],
   "companionMessage": {
     "anyOf": [
@@ -503,6 +504,46 @@
           "code"
         ],
         "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "number",
+            "const": 1
+          },
+          "kind": {
+            "type": "string",
+            "const": "voice.activity"
+          },
+          "sourceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9._:-]+$"
+          },
+          "sentAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "source": {
+            "type": "string",
+            "enum": ["microphone", "application-audio"]
+          },
+          "speaking": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "version",
+          "kind",
+          "sourceId",
+          "sentAt",
+          "source",
+          "speaking"
+        ],
+        "additionalProperties": false
       }
     ]
   },
@@ -744,7 +785,8 @@
               "rate_limited",
               "limit_reached",
               "event_conflict",
-              "capture_request_stale"
+              "capture_request_stale",
+              "voice_activity_off"
             ]
           },
           "control": {

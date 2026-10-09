@@ -28,6 +28,10 @@ import { createDocumentsApi, resolveDocumentsScope } from "./documents/api";
 import { resolveDocumentsConfig } from "./documents/config";
 import { createSessionRoutes } from "./live-session/routes";
 import { transcriptRecordings } from "./live-session/transcript-recording";
+import {
+  tellCoachWhoSpeaks,
+  voiceActivityEnabled,
+} from "./live-session/voice-activity";
 import { loadLocalDefaultProfile } from "./local-default-profile";
 import { loadLocalTemplates, localMatrixPath } from "./local-seeds";
 import { createCodeRunner } from "./services";
@@ -287,6 +291,12 @@ export function createInterviewBackend(services: InterviewBackendServices) {
           heard.session,
         );
       },
+      // Who is speaking, from the session's own audio sources (the call's
+      // audio is the interviewer, the microphone the candidate). Off unless
+      // the owner turned it on; ingest tells it only for a session that may
+      // be processed off this device, as with what is heard.
+      voiceActivity: voiceActivityEnabled(),
+      onActivity: tellCoachWhoSpeaks(coachTranscript),
     }),
   );
   // Interview answers and explanations, generated on the engine for the

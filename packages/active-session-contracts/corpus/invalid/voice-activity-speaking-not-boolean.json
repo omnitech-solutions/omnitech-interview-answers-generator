@@ -1,0 +1,15 @@
+{
+  "description": "A voice activity report says speaking as text",
+  "message": {
+    "version": 1,
+    "kind": "voice.activity",
+    "sourceId": "companion-1",
+    "sentAt": "2026-10-03T10:00:05.000Z",
+    "source": "microphone",
+    "speaking": "yes"
+  },
+  "expect": {
+    "ok": false,
+    "issueCodes": ["invalid_type"]
+  }
+}

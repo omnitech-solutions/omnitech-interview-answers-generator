@@ -106,6 +106,19 @@ extension CaptureFailure {
     }
 }
 
+extension VoiceActivity {
+    public var json: JSONValue {
+        .object([
+            "version": .number(Double(wireVersion)),
+            "kind": .string("voice.activity"),
+            "sourceId": .string(sourceId),
+            "sentAt": .string(sentAt),
+            "source": .string(source.rawValue),
+            "speaking": .bool(speaking),
+        ])
+    }
+}
+
 extension IngestMessage {
     public var json: JSONValue {
         switch self {
@@ -113,6 +126,7 @@ extension IngestMessage {
         case .heartbeat(let heartbeat): return heartbeat.json
         case .capabilityReport(let report): return report.json
         case .captureFailure(let failure): return failure.json
+        case .voiceActivity(let activity): return activity.json
         }
     }
 

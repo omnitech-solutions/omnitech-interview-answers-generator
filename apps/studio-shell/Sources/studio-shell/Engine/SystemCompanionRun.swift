@@ -295,6 +295,19 @@ public final class SystemCompanionRun: EngineRun {
         }
     }
 
+    // The detector's totals at the last report, so each report says what its
+    // own window heard.
+    private var voiceReported: [CaptureSource: VoiceActivityTotals] = [:]
+
+    private func voiced(_ source: CaptureSource) -> VoiceActivityTotals {
+        let now = session.voiceTotals(source)
+        let before = voiceReported[source] ?? VoiceActivityTotals()
+        var window = VoiceActivityTotals()
+        window.voicedMs = now.voicedMs - before.voicedMs
+        window.starts = now.starts - before.starts
+        return window
+    }
+
     // About every 15 s: sizes and levels, so the log says whether audio arrives.
     private func reportAudio() {
         CompanionEvents.record(
@@ -305,10 +318,17 @@ public final class SystemCompanionRun: EngineRun {
                 "micPeakDb": "\(peakDb[.microphone] ?? -120)", "appPeakDb": "\(peakDb[.applicationAudio] ?? -120)",
                 "micRate": "\(rates[.microphone] ?? 0)", "micSilent": microphoneSilent ? "true" : "false",
                 "micLevel": "\(levels[.microphone] ?? 0)", "appLevel": "\(levels[.applicationAudio] ?? 0)",
+                // What the voice-activity detector made of the same window: how
+                // long it read a voice on each source and how many times one began.
+                "micVoiceMs": "\(voiced(.microphone).voicedMs)", "appVoiceMs": "\(voiced(.applicationAudio).voicedMs)",
+                "micVoiceStarts": "\(voiced(.microphone).starts)",
+                "appVoiceStarts": "\(voiced(.applicationAudio).starts)",
+                "voiceSent": session.voiceActivityRefused ? "false" : "true",
             ])
         fedMs = [:]
         peakDb = [:]
         segments = 0
+        for source in rings.keys { voiceReported[source] = session.voiceTotals(source) }
     }
 
     public func step() async {
@@ -323,8 +343,12 @@ public final class SystemCompanionRun: EngineRun {
         for (source, ring) in rings {
             let frames = ring.drain()
             meter(source, frames)
+            session.hearAudio(source: source, frames: frames)
             transcribers[source]?.feed(frames)
         }
+        // Who is speaking, for Studio's coach: a change at once, then a
+        // keep-alive about once a second while the voice goes on.
+        await session.reportVoiceActivity()
         if counter % 60 == 59 { reportAudio() }
         serveCaptureRequest()
         if counter % 4 == 0 {

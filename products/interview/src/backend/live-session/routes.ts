@@ -69,6 +69,10 @@ export type SessionRoutesOptions = {
   ingestLimits?: IngestOptions["limits"];
   // Told each transcript line a session stored (the coach, a recording).
   onHeard?: IngestOptions["onHeard"];
+  // Whether voice activity from a session's audio sources is taken (the
+  // owner's switch), and who is told when one starts or stops hearing a voice.
+  voiceActivity?: boolean;
+  onActivity?: IngestOptions["onActivity"];
   // Told the text read from a capture of the screen (the coach), with its
   // session and whether that session may be processed off this device.
   onScreen?: (screen: {
@@ -127,6 +131,8 @@ const REFUSAL_STATUS: Record<string, Status> = {
   event_conflict: 409,
   // The named capture request is not the pending one: nothing was stored.
   capture_request_stale: 409,
+  // Voice activity is not taken (the owner's switch, or a device-only session).
+  voice_activity_off: 409,
 };
 
 class BodyTooLarge extends Error {}
@@ -338,6 +344,8 @@ export function createSessionRoutes(options: SessionRoutesOptions) {
           retryAfter = seconds;
         },
         ...(options.onHeard ? { onHeard: options.onHeard } : {}),
+        voiceActivity: options.voiceActivity === true,
+        ...(options.onActivity ? { onActivity: options.onActivity } : {}),
       },
     );
     if (ack.status === "refused") {

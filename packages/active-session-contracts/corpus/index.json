@@ -156,6 +156,13 @@
       "issueCodes": ["identity_field_forbidden"]
     },
     {
+      "file": "invalid/identity-voice-activity.json",
+      "outcome": "invalid",
+      "family": "ingest",
+      "kind": "voice.activity",
+      "issueCodes": ["identity_field_forbidden"]
+    },
+    {
       "file": "invalid/missing-field.json",
       "outcome": "invalid",
       "family": "ingest",
@@ -205,6 +212,27 @@
       "issueCodes": ["unsupported_version"]
     },
     {
+      "file": "invalid/voice-activity-extra-field.json",
+      "outcome": "invalid",
+      "family": "ingest",
+      "kind": "voice.activity",
+      "issueCodes": ["unknown_field"]
+    },
+    {
+      "file": "invalid/voice-activity-screen-source.json",
+      "outcome": "invalid",
+      "family": "ingest",
+      "kind": "voice.activity",
+      "issueCodes": ["invalid_value"]
+    },
+    {
+      "file": "invalid/voice-activity-speaking-not-boolean.json",
+      "outcome": "invalid",
+      "family": "ingest",
+      "kind": "voice.activity",
+      "issueCodes": ["invalid_type"]
+    },
+    {
       "file": "valid/ack-accepted-capability.json",
       "outcome": "valid",
       "family": "acknowledgement",
@@ -230,6 +258,12 @@
     },
     {
       "file": "valid/ack-accepted-paused.json",
+      "outcome": "valid",
+      "family": "acknowledgement",
+      "kind": "acknowledgement.accepted"
+    },
+    {
+      "file": "valid/ack-accepted-voice-activity.json",
       "outcome": "valid",
       "family": "acknowledgement",
       "kind": "acknowledgement.accepted"
@@ -314,6 +348,12 @@
     },
     {
       "file": "valid/ack-refused-unsupported-version.json",
+      "outcome": "valid",
+      "family": "acknowledgement",
+      "kind": "acknowledgement.refused"
+    },
+    {
+      "file": "valid/ack-refused-voice-activity-off.json",
       "outcome": "valid",
       "family": "acknowledgement",
       "kind": "acknowledgement.refused"
@@ -461,6 +501,30 @@
       "outcome": "valid",
       "family": "ingest",
       "kind": "transcript.final"
+    },
+    {
+      "file": "valid/voice-activity-application-audio-speaking.json",
+      "outcome": "valid",
+      "family": "ingest",
+      "kind": "voice.activity"
+    },
+    {
+      "file": "valid/voice-activity-application-audio-stopped.json",
+      "outcome": "valid",
+      "family": "ingest",
+      "kind": "voice.activity"
+    },
+    {
+      "file": "valid/voice-activity-microphone-speaking.json",
+      "outcome": "valid",
+      "family": "ingest",
+      "kind": "voice.activity"
+    },
+    {
+      "file": "valid/voice-activity-microphone-stopped.json",
+      "outcome": "valid",
+      "family": "ingest",
+      "kind": "voice.activity"
     }
   ]
 }

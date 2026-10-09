@@ -130,6 +130,10 @@ export const REFUSAL_CODES = [
   // failed or unknown. Nothing is stored; a snapshot with no requestId is
   // unaffected (ADR-0020).
   "capture_request_stale",
+  // Studio has voice activity switched off (or does not take it for this
+  // session): the companion stops sending it for the rest of its run. Nothing
+  // else about the session changes.
+  "voice_activity_off",
 ] as const;
 export const refusalCodeSchema = z.enum(REFUSAL_CODES);
 export type RefusalCode = z.infer<typeof refusalCodeSchema>;
@@ -247,11 +251,40 @@ export const captureFailureSchema = z.strictObject({
 });
 export type CaptureFailure = z.infer<typeof captureFailureSchema>;
 
+// Fixed acknowledgement event id for a voice-activity report.
+export const VOICE_ACTIVITY_ACK_EVENT_ID = "voice-activity";
+
+// The audio sources that can say whether a voice is heard on them: the same
+// two a transcript may name. A label of a source, never a verified identity.
+export const VOICE_ACTIVITY_SOURCES = [
+  "microphone",
+  "application-audio",
+] as const;
+export type VoiceActivitySource = (typeof VOICE_ACTIVITY_SOURCES)[number];
+
+// [DOMAIN] Whether a voice is being heard on one audio source RIGHT NOW. A
+// final transcript arrives only when its phrase is over, so text alone cannot
+// say that someone is still talking; this can. It is a transient signal, not
+// content and not an observation: no event id, no sequence, never stored and
+// never resent. The companion repeats `speaking: true` about once a second
+// while the voice goes on (a signal that stops arriving lapses in Studio) and
+// says `speaking: false` when it stops.
+export const voiceActivitySchema = z.strictObject({
+  version: wireVersionSchema,
+  kind: z.literal("voice.activity"),
+  sourceId: opaqueIdSchema,
+  sentAt: isoTimestampSchema,
+  source: z.enum(VOICE_ACTIVITY_SOURCES),
+  speaking: z.boolean(),
+});
+export type VoiceActivity = z.infer<typeof voiceActivitySchema>;
+
 export const ingestMessageSchema = z.union([
   observationSchema,
   heartbeatSchema,
   capabilityReportSchema,
   captureFailureSchema,
+  voiceActivitySchema,
 ]);
 export type IngestMessage = z.infer<typeof ingestMessageSchema>;
 
@@ -271,6 +304,9 @@ export function validateIngestMessage(
   }
   if (kind === "capture.failure") {
     return validateWireMessage(captureFailureSchema, input);
+  }
+  if (kind === "voice.activity") {
+    return validateWireMessage(voiceActivitySchema, input);
   }
   return validateObservation(input);
 }

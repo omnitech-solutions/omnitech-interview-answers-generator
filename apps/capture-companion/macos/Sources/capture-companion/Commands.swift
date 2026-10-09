@@ -251,7 +251,13 @@ private func runLoop(
                 if transcribing { transcriber.start() } else { transcriber.stop() }
             }
         }
-        for (source, ring) in box.rings { transcribers[source]?.feed(ring.drain()) }
+        for (source, ring) in box.rings {
+            let frames = ring.drain()
+            session.hearAudio(source: source, frames: frames)
+            transcribers[source]?.feed(frames)
+        }
+        // Who is speaking, for Studio's coach: a change at once, then a keep-alive.
+        await session.reportVoiceActivity()
 
         // Capture now: a request handed over on the last acknowledgement is
         // taken once, captured once, and answered with one tagged screenshot.

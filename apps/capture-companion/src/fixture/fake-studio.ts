@@ -13,6 +13,7 @@ import {
   HEARTBEAT_ACK_EVENT_ID,
   type RefusalCode,
   type SessionControlState,
+  VOICE_ACTIVITY_ACK_EVENT_ID,
   WIRE_VERSION,
 } from "@omnitech/active-session-contracts";
 import type { FetchLike, FetchResponse } from "../wire-client";
@@ -98,7 +99,7 @@ export type FakeStudio = {
   // Capture failures reported for the pending request, in order.
   readonly failures: { requestId: string; code: CaptureFailureCode }[];
   // An older Studio: it never hands over a request and (strict) refuses the
-  // capture.failure kind it does not know. Otherwise Studio negotiates: a
+  // capture.failure and voice.activity kinds it does not know. Otherwise Studio negotiates: a
   // request is handed over only on a request that declared support for it.
   legacy: boolean;
   // Decides a reply before the default; return undefined to fall through.
@@ -174,7 +175,14 @@ export function fakeStudio(): FakeStudio {
                 ...acceptedAck(request.message, studio.state),
                 eventId: CAPTURE_FAILURE_ACK_EVENT_ID,
               }
-            : acceptedAck(request.message, studio.state, handOver));
+            : request.message.kind === "voice.activity"
+              ? studio.legacy
+                ? refusedAck("invalid_observation", studio.state)
+                : {
+                    ...acceptedAck(request.message, studio.state),
+                    eventId: VOICE_ACTIVITY_ACK_EVENT_ID,
+                  }
+              : acceptedAck(request.message, studio.state, handOver));
       if (reply === "network-error") throw new Error("network");
       const respond = (json: unknown, retryAfter?: string): FetchResponse => ({
         headers: {

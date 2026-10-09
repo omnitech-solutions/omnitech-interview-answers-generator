@@ -111,6 +111,9 @@ public enum RefusalCode: String, CaseIterable, Sendable {
     case eventConflict = "event_conflict"
     // A screenshot named a capture request that is not the pending one; nothing was stored.
     case captureRequestStale = "capture_request_stale"
+    // Studio does not take voice activity (switched off, or a device-only
+    // session): no more is sent for the rest of this run.
+    case voiceActivityOff = "voice_activity_off"
 }
 
 // Why a capture request could not be honoured: a closed set of content-free codes (ADR-0020).
@@ -288,6 +291,24 @@ public enum IngestMessage: Equatable, Sendable {
     case heartbeat(Heartbeat)
     case capabilityReport(CapabilityReport)
     case captureFailure(CaptureFailure)
+    case voiceActivity(VoiceActivity)
+}
+
+// Whether a voice is being heard on one audio source right now. A transient
+// signal, not content and not an observation: no event id, no sequence, never
+// queued and never resent.
+public struct VoiceActivity: Equatable, Sendable {
+    public let sourceId: String
+    public let sentAt: String
+    public let source: TranscriptSource
+    public let speaking: Bool
+
+    public init(sourceId: String, sentAt: String, source: TranscriptSource, speaking: Bool) {
+        self.sourceId = sourceId
+        self.sentAt = sentAt
+        self.source = source
+        self.speaking = speaking
+    }
 }
 
 // The companion could not capture for one request: correlated by id, bounded to a closed code.
@@ -462,6 +483,9 @@ public enum WireValidator {
         case .string("capture.failure"):
             object.markUsed("kind")
             parsed = parseCaptureFailure(object).map(IngestMessage.captureFailure)
+        case .string("voice.activity"):
+            object.markUsed("kind")
+            parsed = parseVoiceActivity(object).map(IngestMessage.voiceActivity)
         default:
             // An unknown or missing kind stops here: its other fields cannot be judged.
             reader.issues.append(WireIssue(path: [.key("kind")], code: .unknownKind))
@@ -630,6 +654,16 @@ public enum WireValidator {
         object.finish()
         guard let sourceId, let sentAt, let requestId, let code else { return nil }
         return CaptureFailure(sourceId: sourceId, sentAt: sentAt, requestId: requestId, code: code)
+    }
+
+    private static func parseVoiceActivity(_ object: ObjectReader) -> VoiceActivity? {
+        let sourceId = object.id("sourceId")
+        let sentAt = object.timestamp("sentAt")
+        let source = object.enumeration("source", TranscriptSource.self)
+        let speaking = object.bool("speaking")
+        object.finish()
+        guard let sourceId, let sentAt, let source, let speaking else { return nil }
+        return VoiceActivity(sourceId: sourceId, sentAt: sentAt, source: source, speaking: speaking)
     }
 
     private static func parseCapabilityReport(_ object: ObjectReader) -> CapabilityReport? {

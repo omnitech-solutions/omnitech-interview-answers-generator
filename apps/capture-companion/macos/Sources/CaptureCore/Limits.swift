@@ -12,6 +12,7 @@ public enum ActiveSessionLimits {
     // Sessions do not expire by default (ten years), as limits.ts says.
     public static let sessionDurationCapMs = 10 * 365 * 24 * 60 * 60 * 1000
     public static let minHeartbeatIntervalMs = 1_000
+    public static let maxVoiceActivityPerMinute = 240
     public static let credentialLifetimeMs = 2 * 60 * 60 * 1000
     public static let maxActiveSessionsPerOwner = 1
     public static let maxSpeakerLabelChars = 64
@@ -27,6 +28,7 @@ public enum ActiveSessionLimits {
         "maxIngestPerMinute": maxIngestPerMinute,
         "sessionDurationCapMs": sessionDurationCapMs,
         "minHeartbeatIntervalMs": minHeartbeatIntervalMs,
+        "maxVoiceActivityPerMinute": maxVoiceActivityPerMinute,
         "credentialLifetimeMs": credentialLifetimeMs,
         "maxActiveSessionsPerOwner": maxActiveSessionsPerOwner,
         "maxSpeakerLabelChars": maxSpeakerLabelChars,

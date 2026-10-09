@@ -46,9 +46,17 @@ const extraEntrypointReasons: Record<string, string> = {
 };
 
 const surfaces: Record<string, SurfaceRow> = {
-  "@omnitech/capture-companion": { entrypoints: 2, names: 75 },
+  // +1: voiceActivityMessage, the builder of the voice.activity message, beside
+  // the builders of every other message the companion can emit.
+  "@omnitech/capture-companion": { entrypoints: 2, names: 76 },
   // +2: heartbeatDiagnosticsSchema and HeartbeatDiagnostics, the companion's state as codes on a heartbeat.
-  "@omnitech/active-session-contracts": { entrypoints: 1, names: 81 },
+  // +7: voice activity from a session's audio sources, the signal that tells
+  // the coach who is speaking. The wire message (voiceActivitySchema,
+  // VoiceActivity, VoiceActivitySource, VOICE_ACTIVITY_ACK_EVENT_ID) and the
+  // one definition of "speaking" its senders share
+  // (createVoiceActivityDetector, createVoiceActivityReporter and the
+  // VoiceActivityReporter type a sender holds per source).
+  "@omnitech/active-session-contracts": { entrypoints: 1, names: 88 },
   // +3: the host runner service and its client (RemoteCodeRunner,
   // RemoteCodeRunnerOptions, createRunnerHandler), for a containerised web app.
   "@omnitech/code-runner": { entrypoints: 1, names: 6 },
@@ -102,7 +110,10 @@ const surfaces: Record<string, SurfaceRow> = {
   // +2: where a coach transcript came from, and so where its notes belong
   // (COACH_SPACES, CoachSpace), shared by the transcript store, the notes
   // routes and the coach in the worker, so a replay never writes over a call.
-  "@omnitech/interview-contracts": { entrypoints: 1, names: 426 },
+  // +1: who is speaking, as an audio source reports it
+  // (coachActivityInputSchema), shared by the coach-activity route and
+  // whoever feeds the transcript a voice-activity signal.
+  "@omnitech/interview-contracts": { entrypoints: 1, names: 427 },
   "@omnitech/interview-library": { entrypoints: 1, names: 5 },
   "@omnitech/interview-playground-control": { entrypoints: 1, names: 16 },
   "@omnitech/interview-storage": { entrypoints: 1, names: 8 },
@@ -126,7 +137,12 @@ const surfaces: Record<string, SurfaceRow> = {
   // decision the replay prints (decide, turnsOf, TURN_TIMING, TurnTiming,
   // Decision, ActReason); and the kind of round the coach is in (COACH_MODES,
   // CoachMode).
-  "@omnitech/product-interview": { entrypoints: 6, names: 108 },
+  // +3, on ./session-worker: who is speaking, as the turn decision takes it
+  // (Speaking), which the listen and replay commands pass to `decide`; and the
+  // coach's ledger of a conversation (CoachLedger, COACH_LEDGER_VERSION), which
+  // the worker's Studio client loads and saves so a restarted coach takes up
+  // where the last one stopped.
+  "@omnitech/product-interview": { entrypoints: 6, names: 111 },
   "@omnitech/product-presentation": { entrypoints: 3, names: 11 },
 };
 

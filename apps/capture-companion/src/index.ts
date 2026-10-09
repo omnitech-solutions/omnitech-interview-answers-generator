@@ -35,6 +35,7 @@ export {
   screenSnapshotMessage,
   sourceDisconnectedMessage,
   transcriptFinalMessage,
+  voiceActivityMessage,
 } from "./messages";
 export { type Allocation, Outbox, type OutboxEntry } from "./outbox";
 export {
