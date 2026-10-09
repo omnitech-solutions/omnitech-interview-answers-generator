@@ -2053,7 +2053,7 @@ packages:
     os: [win32]
 
   '@oc-tech/omni-ui-components@file:vendor/omni-ui-components/oc-tech-omni-ui-components-0.1.0.tgz':
-    resolution: {integrity: sha512-zOvht6u+k8W2Hp++yRgiqIRpq7x00yqwMX+JhoQ2AkoTygF2s2Fip/Kh4oXTwc2aFu66w87Tlfe/oMwq4dSt/A==, tarball: file:vendor/omni-ui-components/oc-tech-omni-ui-components-0.1.0.tgz}
+    resolution: {integrity: sha512-nb2nbyIsIXSP2fYFIuRHqDuVzxubR5mPIpZSLF1/zuiMEXYs4FwnlB+nwCcYHAqaebTIVKSg+taKNI9bMHPAUg==, tarball: file:vendor/omni-ui-components/oc-tech-omni-ui-components-0.1.0.tgz}
     version: 0.1.0
     peerDependencies:
       react: ^18.3.1 || ^19.0.0
