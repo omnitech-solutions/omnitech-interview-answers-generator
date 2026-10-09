@@ -578,3 +578,59 @@ describe("the kind of round in the prompt", () => {
     expect(at("MODE: SYSTEM DESIGN")).toBeGreaterThan(at("NEW LINES"));
   });
 });
+
+describe("the shared screen in the prompt", () => {
+  const SCREEN_HEAD =
+    "ON THE SHARED SCREEN (text read from the latest capture; it may be cut or misread):";
+  const lines = [
+    line(1, "interviewer", "Welcome, thanks for making the time."),
+    line(2, "interviewer", "Can you find the defect in this handler?"),
+  ];
+  const base = { lines, readTo: 1, notes: [] };
+
+  it("says nothing of it when there is none, given or empty", () => {
+    const without = coachPrompt(base);
+    expect(without).not.toContain("ON THE SHARED SCREEN");
+    expect(coachPrompt({ ...base, screen: "" })).toBe(without);
+  });
+
+  it("puts its text between the conversation so far and the new lines, and leaves the rest as it was", () => {
+    const screen = "def handler(request):\n    return request.body";
+    const prompt = coachPrompt({ ...base, screen });
+    const all = prompt.split("\n");
+    const at = all.indexOf(SCREEN_HEAD);
+    expect(all.slice(at - 2, at + 5)).toEqual([
+      "INTERVIEWER: Welcome, thanks for making the time.",
+      "",
+      SCREEN_HEAD,
+      "def handler(request):",
+      "    return request.body",
+      "",
+      NEW_HEAD,
+    ]);
+    expect(prompt.replace(`${SCREEN_HEAD}\n${screen}\n\n`, "")).toBe(
+      coachPrompt(base),
+    );
+  });
+
+  it("gives the model the first 5,000 characters of it", () => {
+    const prompt = coachPrompt({
+      ...base,
+      screen: `${"a".repeat(5_000)}${"b".repeat(50)}`,
+    });
+    expect(prompt).toContain(`\n${"a".repeat(5_000)}\n`);
+    expect(prompt).not.toContain("b".repeat(2));
+  });
+
+  it("names it in the reason given for a changed screen", () => {
+    const prompt = coachPrompt({
+      ...base,
+      screen: "a failing test",
+      reason: "screen-change",
+    });
+    expect(prompt).toContain(
+      "WHY NOW: what is on the shared screen has changed. Read ON THE SHARED SCREEN:",
+    );
+    expect(prompt).toContain(SILENT);
+  });
+});

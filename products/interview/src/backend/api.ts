@@ -824,7 +824,11 @@ console.log(solve([1, 2, 3]));`,
   });
   // Clearing the notes clears what the coach read to write them.
   app.delete("/api/v1/coach-notes", (context) => {
-    coachTranscript.clear();
+    // Only the conversation those notes were written from is cleared with
+    // them: closing a replay leaves a live session's transcript alone.
+    const space = context.req.query("space") === "replay" ? "replay" : "live";
+    if (coachTranscript.since(Number.MAX_SAFE_INTEGER).space === space)
+      coachTranscript.clear();
     return context.json(notesOf(context).clear());
   });
 

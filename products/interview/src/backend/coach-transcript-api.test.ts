@@ -45,6 +45,7 @@ import { createApi } from "./api";
 
 const TRANSCRIPT = "http://localhost/api/v1/coach-transcript";
 const NOTES = "http://localhost/api/v1/coach-notes";
+const REPLAY_NOTES = `${NOTES}?space=replay`;
 const AT = "2026-10-08T09:00:00.000Z";
 const CANARY = "canary words nobody should see quoted";
 
@@ -69,6 +70,7 @@ type Read = {
   epoch: string;
   cursor: number;
   lines: { seq: number; speaker: string; text: string; at: string }[];
+  space?: string;
 };
 const read = async (response: Response) => (await response.json()) as Read;
 const reading = async (after?: string) =>
@@ -96,7 +98,13 @@ describe("the coach transcript API", () => {
     const response = await send("GET");
     expect(response.status).toBe(200);
     const body = await read(response);
-    expect(body).toEqual({ epoch: expect.any(String), cursor: 0, lines: [] });
+    // Nothing was attached yet in this process: it is the live space.
+    expect(body).toEqual({
+      epoch: expect.any(String),
+      cursor: 0,
+      lines: [],
+      space: "live",
+    });
     expect(coachTranscriptResponseSchema.safeParse(body).success).toBe(true);
   });
 
@@ -110,7 +118,13 @@ describe("the coach transcript API", () => {
     expect(posted.status).toBe(201);
     const added = await read(posted);
     // The answer is the cursor alone: what was said is not echoed.
-    expect(added).toEqual({ epoch: expect.any(String), cursor: 2, lines: [] });
+    // Lines attached over HTTP come from no session: they are a replay.
+    expect(added).toEqual({
+      epoch: expect.any(String),
+      cursor: 2,
+      lines: [],
+      space: "replay",
+    });
     const body = await reading();
     expect(body).toEqual({
       epoch: added.epoch,
@@ -129,6 +143,7 @@ describe("the coach transcript API", () => {
           at: AT,
         },
       ],
+      space: "replay",
     });
     expect(coachTranscriptResponseSchema.safeParse(body).success).toBe(true);
   });
@@ -231,7 +246,12 @@ describe("the coach transcript API", () => {
     const cleared = await send("DELETE");
     expect(cleared.status).toBe(200);
     const body = await read(cleared);
-    expect(body).toEqual({ epoch: expect.any(String), cursor: 0, lines: [] });
+    expect(body).toEqual({
+      epoch: expect.any(String),
+      cursor: 0,
+      lines: [],
+      space: "replay",
+    });
     expect(body.epoch).not.toBe(before.epoch);
     expect(await reading()).toEqual(body);
     expect(
@@ -239,7 +259,7 @@ describe("the coach transcript API", () => {
     ).toBe(1);
   });
 
-  it("clearing the coach's notes clears the transcript the coach read to write them", async () => {
+  it("clearing the person's own notes leaves an attached transcript alone: it is a replay's", async () => {
     await send("POST", { lines: [{ text: "something that was said" }] });
     await send("POST", { title: "A note", key: "q-1" }, NOTES);
     const before = await reading();
@@ -249,9 +269,31 @@ describe("the coach transcript API", () => {
 
     expect(cleared.status).toBe(200);
     expect(((await cleared.json()) as { notes: unknown[] }).notes).toEqual([]);
+    // Only the conversation those notes were written from goes with them.
     const after = await reading();
-    expect(after).toEqual({ epoch: expect.any(String), cursor: 0, lines: [] });
+    expect(after.epoch).toBe(before.epoch);
+    expect(after.lines).toHaveLength(1);
+    expect(after.space).toBe("replay");
+  });
+
+  it("clearing a replay's notes clears the transcript too, and leaves the person's own notes on show", async () => {
+    await send("POST", { lines: [{ text: "something that was said" }] });
+    await send("POST", { title: "The person's own", key: "q-1" }, NOTES);
+    await send("POST", { title: "Of the replay", key: "q-1" }, REPLAY_NOTES);
+    const before = await reading();
+
+    const cleared = await send("DELETE", undefined, REPLAY_NOTES);
+
+    expect(cleared.status).toBe(200);
+    expect(((await cleared.json()) as { notes: unknown[] }).notes).toEqual([]);
+    const after = await reading();
+    expect(after).toMatchObject({ cursor: 0, lines: [] });
     expect(after.epoch).not.toBe(before.epoch);
+    const own = (await (await send("GET", undefined, NOTES)).json()) as {
+      notes: { title: string }[];
+    };
+    expect(own.notes.map((note) => note.title)).toEqual(["The person's own"]);
+    await send("DELETE", undefined, NOTES);
   });
 
   it("clearing the transcript leaves the coach's notes on show", async () => {

@@ -4,7 +4,7 @@ _Last updated: 2026-10-07_
 
 **Start here:** [[research/concepts/architecture-overview]] — how the system fits together and where package boundaries lie.
 
-## Research (9 sources, 9 synthesis pages)
+## Research (9 sources, 13 synthesis pages)
 
 See [[research/index]].
 

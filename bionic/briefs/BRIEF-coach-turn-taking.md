@@ -37,8 +37,8 @@ post a note the person did not need.
    been silent for a stated time after a sentence that reads as finished.
 2. **Fast on a finished question, patient on an unfinished one.** A turn that ends in a question
    or a request ("tell me", "walk me through") is acted on after a short pause (about 0.8 s). A
-   turn that trails off ("so, um…", "and our,") waits longer (about 2.5 s) and never forever
-   (a ceiling of about 8 s of silence, not 6 s from the first word).
+   turn that reads as finished talk waits longer (2.5 s), and one that trails off ("so, um…",
+   "and our,") waits 6 s of silence, never 6 s from the first word.
 3. **A follow-up in the same breath joins the question.** New interviewer sentences within the
    turn extend it; if a call is already running for the turn's first part, it is cancelled and
    made again with the whole turn, under the same note.
@@ -56,8 +56,9 @@ post a note the person did not need.
 
 - **A. Tune the three numbers.** Cheap; cannot fix the half question (a fixed wait is either too
   short for a slow asker or too long for a quick one) or the storm.
-- **B. Turn-taking as above, as a pure function** `decide(lines, now, state) → wait | act(turn) |
-  recall(turn)`, tested on recorded timings without a model. The coach loop only obeys it.
+- **B. Turn-taking as above, as pure functions** (`decide` → wait or act with a reason;
+  `shouldRecall` for a call already running), tested on recorded timings without a model. The
+  coach loop only obeys them. **Built 2026-10-09** (`products/interview/src/backend/coach/turns.ts`).
 - **C. Ask a small fast model "is the question finished?"** Accurate, but adds a call and its
   delay before every note, and an on-device model the owner has said not to load unasked.
 

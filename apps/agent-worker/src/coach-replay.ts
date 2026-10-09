@@ -338,9 +338,14 @@ function onEvent(event: CoachEvent) {
 }
 
 // The plan for the call, from a file, as the person would have written it.
-const planText = one("--plan")
-  ? readFileSync(one("--plan") as string, "utf8")
-  : undefined;
+let planText: string | undefined;
+if (one("--plan"))
+  try {
+    planText = readFileSync(one("--plan") as string, "utf8");
+  } catch {
+    console.error(`That file could not be read: ${one("--plan")}`);
+    process.exit(1);
+  }
 const coach = createCoach({
   engine: timingOnly ? silent : modelEngine(),
   profileId: "coach",

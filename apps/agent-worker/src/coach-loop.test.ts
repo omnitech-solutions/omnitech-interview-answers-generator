@@ -104,6 +104,77 @@ describe("the Studio API as the coach uses it", () => {
     });
   });
 
+  it("posts a replay's note to the replay's notes, and any other to the person's own", async () => {
+    const { sent, fetcher } = fakeFetch(() =>
+      json({ revision: 1, notes: [] }, 201),
+    );
+    const signal = new AbortController().signal;
+    const api = coachApi("http://studio.test:3000", TOKEN, fetcher);
+    const note = { title: "Sharding", key: "coach-1a2b3c4d-1", revision: 1 };
+
+    await api.notes.post(note, signal, "replay");
+    await api.notes.post(note, signal, "live");
+    await api.notes.post(note, signal);
+
+    expect(sent.map((each) => each.url)).toEqual([
+      "http://studio.test:3000/api/v1/coach-notes?space=replay",
+      "http://studio.test:3000/api/v1/coach-notes",
+      "http://studio.test:3000/api/v1/coach-notes",
+    ]);
+    // The same note, the same token, wherever it goes.
+    for (const each of sent)
+      expect(each.init).toEqual({
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${TOKEN}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(note),
+        signal,
+      });
+  });
+
+  it("a 409 for a replay's note is not an error either, and a refusal is", async () => {
+    const signal = new AbortController().signal;
+    const note = { title: "Sharding", key: "coach-1a2b3c4d-1", revision: 1 };
+    await expect(
+      coachApi(
+        "http://studio.test:3000",
+        TOKEN,
+        fakeFetch(() => json({ error: { code: "stale_coach_note" } }, 409))
+          .fetcher,
+      ).notes.post(note, signal, "replay"),
+    ).resolves.toBeUndefined();
+    await expect(
+      coachApi(
+        "http://studio.test:3000",
+        TOKEN,
+        fakeFetch(() => json({ error: { message: CANARY } }, 400)).fetcher,
+      ).notes.post(note, signal, "replay"),
+    ).rejects.toMatchObject({ name: "CoachApiError", status: 400 });
+  });
+
+  it("reads the plan for the call, and none when it is empty", async () => {
+    const { sent, fetcher } = fakeFetch(() =>
+      json({ text: "mode: coding\nFix the booking service." }),
+    );
+    const api = coachApi("http://studio.test:3000", TOKEN, fetcher);
+    expect(await api.plan()).toBe("mode: coding\nFix the booking service.");
+    expect(sent[0]?.url).toBe("http://studio.test:3000/api/v1/coach-plan");
+    expect(sent[0]?.init).toMatchObject({
+      method: "GET",
+      headers: { authorization: `Bearer ${TOKEN}` },
+    });
+    for (const body of [{ text: "" }, {}])
+      expect(
+        await coachApi(
+          "http://studio.test:3000",
+          TOKEN,
+          fakeFetch(() => json(body)).fetcher,
+        ).plan(),
+      ).toBeUndefined();
+  });
+
   it("a 409 for a note is not an error: a newer revision is already on show", async () => {
     const { sent, fetcher } = fakeFetch(() =>
       json({ error: { code: "stale_coach_note" } }, 409),

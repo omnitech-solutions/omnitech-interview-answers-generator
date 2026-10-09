@@ -72,7 +72,11 @@ export function createCoachContext(
       }
       if (!held.pack) return [];
       return held.pack.facts("coach", query).map((fact) => ({
-        pointer: fact.pointer,
+        // A looked-up field has its own address under its record's
+        // ("/candidate/name"), so two fields of one record are two facts.
+        pointer: fact.exact
+          ? `${fact.pointer}/${fact.slot.split(".").at(-1)}`
+          : fact.pointer,
         // A looked-up field says what it is ("Company: Northwind").
         text: fact.exact
           ? `${LABEL[fact.slot] ?? fact.slot}: ${fact.text}`

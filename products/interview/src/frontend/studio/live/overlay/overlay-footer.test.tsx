@@ -309,17 +309,25 @@ describe("footer", () => {
 
     it("starts the recording of the session the footer was given", async () => {
       const asked: { url: string; method?: string; body?: unknown }[] = [];
+      // The server's side: off until asked, as the window reads on opening.
+      let held: { on: boolean; lines: number; file?: string } = {
+        on: false,
+        lines: 0,
+      };
       vi.stubGlobal(
         "fetch",
         async (input: RequestInfo | URL, init?: RequestInit) => {
+          const body = JSON.parse(String(init?.body ?? "null"));
           asked.push({
             url: String(input),
             ...(init?.method ? { method: init.method } : {}),
-            body: JSON.parse(String(init?.body ?? "null")),
+            body,
           });
+          if (init?.method === "POST")
+            held = { on: body.on === true, lines: 0, file: "f.txt" };
           return new Response(
             JSON.stringify({
-              recording: { on: true, lines: 0, file: "f.txt" },
+              recording: held,
             }),
             { status: 200, headers: { "content-type": "application/json" } },
           );
@@ -331,7 +339,12 @@ describe("footer", () => {
         expect(record()).toHaveAttribute("data-recording", "on"),
       );
       expect(record()).toHaveTextContent("Recording · 0 lines");
+      // The read on opening, then the press.
       expect(asked).toEqual([
+        {
+          url: `/api/interview/t/local/sessions/${SESSION}/recording`,
+          body: null,
+        },
         {
           url: `/api/interview/t/local/sessions/${SESSION}/recording`,
           method: "POST",

@@ -152,6 +152,20 @@ const post = (...notes: CoachNote[]) => {
   posted = [...posted, ...notes];
   revision += 1;
 };
+// What a replay's coach has posted: kept apart, and none unless a test says.
+let replayed: CoachNote[] = [];
+let replayRevision = 1;
+const postReplay = (...notes: CoachNote[]) => {
+  replayed = [...replayed, ...notes];
+  replayRevision += 1;
+};
+// What the layout asked the notes API, as [method, address].
+const askedNotes = () =>
+  vi
+    .mocked(fetch)
+    .mock.calls.map(
+      ([input, init]) => [init?.method ?? "GET", String(input)] as const,
+    );
 const settle = () => act(() => vi.advanceTimersByTimeAsync(0));
 const poll = () => act(() => vi.advanceTimersByTimeAsync(POLL_MS));
 async function show(
@@ -285,11 +299,31 @@ beforeEach(() => {
   window.localStorage.clear();
   posted = [FIRST, SECOND];
   revision = 1;
+  replayed = [];
+  replayRevision = 1;
+  // The notes API as the server answers it: the person's own notes, and the
+  // replay's (`?space=replay`) apart from them, each cleared by a DELETE.
   vi.stubGlobal(
     "fetch",
-    vi.fn(
-      async () => new Response(JSON.stringify({ revision, notes: posted })),
-    ),
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const replay = String(input).includes("space=replay");
+      if (init?.method === "DELETE") {
+        if (replay) {
+          replayed = [];
+          replayRevision += 1;
+        } else {
+          posted = [];
+          revision += 1;
+        }
+      }
+      return new Response(
+        JSON.stringify(
+          replay
+            ? { revision: replayRevision, notes: replayed }
+            : { revision, notes: posted },
+        ),
+      );
+    }),
   );
 });
 afterEach(() => {
@@ -2327,5 +2361,108 @@ describe("picking a question brings the studio's answer to it", () => {
     pickListed(2);
     onShow(QUESTION_TWO, ASK_TWO);
     expect(select).not.toHaveBeenCalled();
+  });
+});
+
+describe("a replay's notes", () => {
+  const REPLAYED = note(7, 70, {
+    title: "From the replay",
+    markdown: "- **Saga**: compensate, do not roll back",
+    ask: ASK_TWO,
+    askId: "q-consistency",
+  });
+  const tag = () => screen.queryByTestId("pn-coach-replay");
+  const close = () => screen.queryByTestId("pn-coach-replay-close");
+
+  it("both spaces are read: the person's own, and the replay's apart from them", async () => {
+    await show("coach");
+    expect(askedNotes()).toEqual([
+      ["GET", "/api/v1/coach-notes"],
+      ["GET", "/api/v1/coach-notes?space=replay"],
+    ]);
+  });
+
+  it("while there are none the pane is the person's own: no tag, no Close replay, following live", async () => {
+    await show("coach");
+    expect(tag()).toBeNull();
+    expect(close()).toBeNull();
+    expect(notesPane()).toHaveTextContent("Following live");
+    expect(metaOf(blocks()[0])).toContain("Name the techniques");
+  });
+
+  it.each(["coach", "conversation", "prompter"] as const)(
+    "take the pane in the %s view: tagged Replay, with Close replay, and not said to follow live",
+    async (view) => {
+      replayed = [REPLAYED];
+      await show(view);
+      expect(tag()).toHaveTextContent("Replay");
+      expect(within(notesPane()).getByTestId("pn-coach-replay")).toBe(tag());
+      expect(close()).toHaveTextContent("Close replay");
+      expect(close()).toHaveAttribute(
+        "title",
+        "Clear the replay's notes and show your own again.",
+      );
+      expect(notesPane()).not.toHaveTextContent("Following live");
+      // The replay's notes are the ones drawn, never the person's own.
+      expect(blocks()).toHaveLength(1);
+      expect(metaOf(blocks()[0])).toContain("From the replay");
+      expect(linesOf(blocks()[0])).toEqual([
+        "Saga: compensate, do not roll back",
+      ]);
+      expect(notesPane()).not.toHaveTextContent("Outbox");
+    },
+  );
+
+  it("arriving during the session take the pane on the next read", async () => {
+    await show("coach");
+    expect(tag()).toBeNull();
+    postReplay(REPLAYED);
+    await poll();
+    expect(tag()).toHaveTextContent("Replay");
+    expect(notesPane()).not.toHaveTextContent("Following live");
+    expect(metaOf(blocks()[0])).toContain("From the replay");
+  });
+
+  it("Close replay clears the replay's notes, and only those: the person's own are back, untouched", async () => {
+    replayed = [REPLAYED];
+    await show("coach");
+    vi.mocked(fetch).mockClear();
+    fireEvent.click(close() as HTMLElement);
+    // At once, before the server has answered.
+    expect(tag()).toBeNull();
+    expect(close()).toBeNull();
+    await settle();
+    expect(askedNotes().filter(([method]) => method === "DELETE")).toEqual([
+      ["DELETE", "/api/v1/coach-notes?space=replay"],
+    ]);
+    expect(replayed).toEqual([]);
+    expect(posted).toEqual([FIRST, SECOND]);
+    expect(notesPane()).toHaveTextContent("Following live");
+    expect(blocks()).toHaveLength(1);
+    expect(metaOf(blocks()[0])).toContain("Name the techniques");
+    expect(linesOf(blocks()[0])).toEqual(["Outbox: one transaction"]);
+    // And it stays closed as the reads go on.
+    await poll();
+    expect(tag()).toBeNull();
+  });
+
+  it("the Context pane is given the replay's notes while they are on show", async () => {
+    replayed = [REPLAYED];
+    await show("coach");
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /Context/ }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    expect(screen.getByTestId("pane-context")).toHaveAttribute(
+      "data-notes",
+      "From the replay",
+    );
+  });
+
+  it("are not read while the session is not open", async () => {
+    replayed = [REPLAYED];
+    await show("coach", { ...session(), open: false } as PanelSession);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(tag()).toBeNull();
   });
 });

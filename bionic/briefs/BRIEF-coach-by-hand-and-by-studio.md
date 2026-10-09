@@ -51,13 +51,14 @@ and wordy. The Studio's coach is fast and short and has no memory or plan.
      turn sends only what is new. This is the main gap between "live in a desktop agent" and
      "a direct call", and it also makes each turn cheaper and quicker.
 3. **A desktop agent as the runner** (Claude Desktop, Codex Desktop): a small command the agent
-   runs, `interview-answers coach listen`, that blocks until the turn-taking rule says "act"
-   and prints the turn, the plan and the selected facts; and `interview-answers coach note` to
-   post. The agent's loop is then "listen → think → note → listen", with the Studio deciding
+   runs, `pnpm coach:listen`, that blocks until the turn-taking rule says "act" and prints the
+   turn, the new lines, the lines before and the plan (built 2026-10-09; it does not yet print
+   the selected facts); and `node scripts/coach-note.mjs` to post. The agent's loop is then "listen → think → note → listen", with the Studio deciding
    *when* and the agent deciding *what*. A project skill carries the note rules. No database
    polling, no browser scripting.
 4. **Only one coach writes at a time**: starting a desktop coach pauses the worker's for that
-   session, and the window says which is coaching.
+   session, and the window says which is coaching. (Not built: for now the Studio is run with
+   `INTERVIEW_COACH=off` while an agent coaches.)
 
 ## Options
 

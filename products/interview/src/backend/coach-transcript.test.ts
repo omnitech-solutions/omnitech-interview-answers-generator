@@ -2,6 +2,7 @@
 // a cursor, bounded, and gone (with a new epoch) when cleared. And a recorder's
 // exported transcript read into lines. Every name and sentence here is invented.
 import {
+  COACH_SPACES,
   coachTranscriptInputSchema,
   coachTranscriptResponseSchema,
 } from "@omnitech/interview-contracts";
@@ -22,7 +23,12 @@ describe("the coach transcript", () => {
   it("starts empty, at cursor 0, under an epoch", () => {
     const transcript = createCoachTranscript();
     const read = transcript.since();
-    expect(read).toEqual({ epoch: expect.any(String), cursor: 0, lines: [] });
+    expect(read).toEqual({
+      epoch: expect.any(String),
+      cursor: 0,
+      lines: [],
+      space: "live",
+    });
     expect(read.epoch.length).toBeGreaterThan(0);
     expect(coachTranscriptResponseSchema.safeParse(read).success).toBe(true);
   });
@@ -41,6 +47,7 @@ describe("the coach transcript", () => {
       epoch: transcript.since().epoch,
       cursor: 2,
       lines: [],
+      space: "replay",
     });
     const second = transcript.add([{ text: "And then?", at: AT }]);
     expect(second.cursor).toBe(3);
@@ -107,6 +114,7 @@ describe("the coach transcript", () => {
       epoch: expect.any(String),
       cursor: 0,
       lines: [],
+      space: "replay",
     });
     expect(cleared.epoch).not.toBe(before);
     expect(transcript.since()).toEqual(cleared);
@@ -114,6 +122,7 @@ describe("the coach transcript", () => {
       epoch: cleared.epoch,
       cursor: 1,
       lines: [],
+      space: "replay",
     });
     expect(transcript.since().lines).toEqual([
       { seq: 1, speaker: "unknown", text: "after", at: AT },
@@ -174,11 +183,8 @@ describe("the live session the coach transcript was heard in", () => {
     ).toEqual(SESSION);
     const read = transcript.since();
     expect(read.session).toEqual(SESSION);
+    expect(read.space).toBe("live");
     expect(coachTranscriptResponseSchema.safeParse(read).success).toBe(true);
-    // An attached line afterwards leaves the session as it was.
-    expect(transcript.add([{ text: "attached", at: AT }]).session).toEqual(
-      SESSION,
-    );
   });
 
   it("follows the session last heard", () => {
@@ -188,7 +194,7 @@ describe("the live session the coach transcript was heard in", () => {
     expect(transcript.since().session).toEqual(NEXT);
   });
 
-  it("outlives a clear, so a transcript attached afterwards keeps that session", () => {
+  it("outlives a clear while the transcript is still the live one", () => {
     const transcript = createCoachTranscript();
     transcript.add([{ text: "heard live", at: AT }], SESSION);
     const cleared = transcript.clear();
@@ -196,10 +202,198 @@ describe("the live session the coach transcript was heard in", () => {
       epoch: expect.any(String),
       cursor: 0,
       lines: [],
+      space: "live",
       session: SESSION,
     });
-    transcript.add([{ text: "attached afterwards", at: AT }]);
-    expect(transcript.since()).toMatchObject({ cursor: 1, session: SESSION });
+    expect(transcript.since()).toEqual(cleared);
+  });
+
+  it("is not reported for a transcript attached afterwards: a replay is coached from itself alone", () => {
+    const transcript = createCoachTranscript();
+    transcript.add([{ text: "heard live", at: AT }], SESSION);
+    const attached = transcript.add([{ text: "attached afterwards", at: AT }]);
+    expect(attached).not.toHaveProperty("session");
+    expect(transcript.since()).not.toHaveProperty("session");
+    expect(transcript.clear()).not.toHaveProperty("session");
+  });
+});
+
+describe("the space a transcript is in", () => {
+  const SESSION = {
+    tenantId: "00000000-0000-4000-8000-000000000001",
+    actorId: "00000000-0000-4000-8000-000000000002",
+    sessionId: "00000000-0000-4000-8000-000000000003",
+  };
+
+  it("is one of live and replay, and an answer without one is still read", () => {
+    expect(COACH_SPACES).toEqual(["live", "replay"]);
+    const answer = { epoch: "e", cursor: 0, lines: [] };
+    expect(coachTranscriptResponseSchema.parse(answer)).toEqual(answer);
+    expect(
+      coachTranscriptResponseSchema.parse({ ...answer, space: "replay" }).space,
+    ).toBe("replay");
+    expect(
+      coachTranscriptResponseSchema.safeParse({ ...answer, space: "test" })
+        .success,
+    ).toBe(false);
+  });
+
+  it("is live until lines are added without a session, which is a replay under a NEW epoch", () => {
+    const transcript = createCoachTranscript();
+    const start = transcript.since();
+    expect(start.space).toBe("live");
+    const attached = transcript.add([{ text: "attached", at: AT }]);
+    expect(attached.space).toBe("replay");
+    expect(attached.epoch).not.toBe(start.epoch);
+    expect(attached.cursor).toBe(1);
+    // More of the same replay stays under its epoch.
+    const more = transcript.add([{ text: "and more", at: AT }]);
+    expect(more).toMatchObject({
+      epoch: attached.epoch,
+      cursor: 2,
+      space: "replay",
+    });
+  });
+
+  it("a replay after a live session never holds the live lines, and numbers from 1", () => {
+    const transcript = createCoachTranscript();
+    const live = transcript.add(
+      [
+        { text: "heard live", at: AT },
+        { text: "and again", at: AT },
+      ],
+      SESSION,
+    );
+    expect(live.space).toBe("live");
+    const replay = transcript.add([{ text: "attached", at: AT }]);
+    expect(replay.epoch).not.toBe(live.epoch);
+    expect(transcript.since()).toEqual({
+      epoch: replay.epoch,
+      cursor: 1,
+      lines: [{ seq: 1, speaker: "unknown", text: "attached", at: AT }],
+      space: "replay",
+    });
+  });
+
+  it("a session's line after a replay switches back to live under a new epoch, with the session named", () => {
+    const transcript = createCoachTranscript();
+    transcript.add([{ text: "heard live", at: AT }], SESSION);
+    const replay = transcript.add([{ text: "attached", at: AT }]);
+    const back = transcript.add([{ text: "live again", at: AT }], SESSION);
+    expect(back.epoch).not.toBe(replay.epoch);
+    expect(transcript.since()).toEqual({
+      epoch: back.epoch,
+      cursor: 1,
+      lines: [{ seq: 1, speaker: "unknown", text: "live again", at: AT }],
+      space: "live",
+      session: SESSION,
+    });
+  });
+
+  it("a clear keeps the space it was in", () => {
+    const transcript = createCoachTranscript();
+    transcript.add([{ text: "attached", at: AT }]);
+    expect(transcript.clear().space).toBe("replay");
+    transcript.add([{ text: "live", at: AT }], SESSION);
+    expect(transcript.clear().space).toBe("live");
+  });
+});
+
+describe("what is on the shared screen", () => {
+  const SESSION = {
+    tenantId: "00000000-0000-4000-8000-000000000001",
+    actorId: "00000000-0000-4000-8000-000000000002",
+    sessionId: "00000000-0000-4000-8000-000000000003",
+  };
+  const NOW = "2026-10-08T10:15:00.000Z";
+  const clocked = () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(NOW));
+    return createCoachTranscript();
+  };
+
+  it("is absent until a screen was read", () => {
+    const transcript = createCoachTranscript();
+    expect(transcript.since()).not.toHaveProperty("screen");
+    expect(
+      transcript.add([{ text: "live", at: AT }], SESSION),
+    ).not.toHaveProperty("screen");
+  });
+
+  it("is held trimmed, stamped now, on every answer, and names the session it came from", () => {
+    const transcript = clocked();
+    const epoch = transcript.since().epoch;
+    transcript.setScreen("  def two_sum(nums, target):\n    pass  ", SESSION);
+    const read = transcript.since();
+    expect(read).toEqual({
+      epoch,
+      cursor: 0,
+      lines: [],
+      space: "live",
+      session: SESSION,
+      screen: { text: "def two_sum(nums, target):\n    pass", at: NOW },
+    });
+    expect(coachTranscriptResponseSchema.safeParse(read).success).toBe(true);
+    expect(transcript.add([{ text: "live", at: AT }], SESSION).screen).toEqual(
+      read.screen,
+    );
+  });
+
+  it("is the latest only: a later screen takes the last one's place", () => {
+    const transcript = clocked();
+    transcript.setScreen("the first screen", SESSION);
+    vi.setSystemTime(new Date("2026-10-08T10:15:30.000Z"));
+    transcript.setScreen("the second screen");
+    expect(transcript.since().screen).toEqual({
+      text: "the second screen",
+      at: "2026-10-08T10:15:30.000Z",
+    });
+    // Without a session of its own it leaves the session as it was.
+    expect(transcript.since().session).toEqual(SESSION);
+  });
+
+  it("holds 8,000 characters at most: the first 8,000", () => {
+    const transcript = createCoachTranscript();
+    transcript.setScreen("a".repeat(8_000));
+    expect(transcript.since().screen?.text).toBe("a".repeat(8_000));
+    transcript.setScreen(`${"b".repeat(8_000)}c`);
+    expect(transcript.since().screen?.text).toBe("b".repeat(8_000));
+  });
+
+  it.each(["", "   ", "\n\t\n"])(
+    "a screen with no text (%j) changes nothing",
+    (text) => {
+      const transcript = clocked();
+      transcript.setScreen("what was there", SESSION);
+      const before = transcript.since();
+      transcript.setScreen(text, { ...SESSION, sessionId: SESSION.tenantId });
+      expect(transcript.since()).toEqual(before);
+    },
+  );
+
+  it("is never held in the replay space: a live screen says nothing about a replay", () => {
+    const transcript = createCoachTranscript();
+    transcript.add([{ text: "attached", at: AT }]);
+    transcript.setScreen("a live session's screen", SESSION);
+    expect(transcript.since()).not.toHaveProperty("screen");
+  });
+
+  it("is cleared by a clear", () => {
+    const transcript = createCoachTranscript();
+    transcript.setScreen("on the screen", SESSION);
+    expect(transcript.clear()).not.toHaveProperty("screen");
+    expect(transcript.since()).not.toHaveProperty("screen");
+  });
+
+  it("goes when a replay is attached, and is not there when the live session comes back", () => {
+    const transcript = createCoachTranscript();
+    transcript.setScreen("on the screen", SESSION);
+    expect(transcript.add([{ text: "attached", at: AT }])).not.toHaveProperty(
+      "screen",
+    );
+    expect(
+      transcript.add([{ text: "live again", at: AT }], SESSION),
+    ).not.toHaveProperty("screen");
   });
 });
 

@@ -28,6 +28,7 @@ import {
   type Fixture,
   type Person,
   PNG_BYTES,
+  pngOf,
   screenshot,
   startFixture,
   transcript,
@@ -1414,6 +1415,154 @@ describe("what a session hears, told to a listener", () => {
   });
 });
 
+// What a capture shows, as the text read from it on the device: whoever
+// coaches is told it, with the session and whether it may leave the device.
+describe("what a capture shows, told to a listener", () => {
+  type Screen = {
+    text: string;
+    session: { tenantId: string; actorId: string; sessionId: string };
+    remote: boolean;
+  };
+  const read = (text: string) => ({ engine: "vision" as const, text });
+  const watching = (onScreen: (screen: Screen) => void) =>
+    createSessionRoutes({ database: fx.member, resolveContext, onScreen });
+  // One capture as the window sends it: multipart, an image per `image`
+  // field and the on-device text of the images as one JSON list.
+  const capture = (
+    sessionId: string,
+    a: ReturnType<typeof app>,
+    ocr?: unknown,
+    images = 1,
+  ) => {
+    const form = new FormData();
+    form.set("requestId", `c-${randomUUID().slice(0, 8)}`);
+    form.set("operation", "analyze");
+    for (let at = 0; at < images; at += 1)
+      form.append(
+        "image",
+        new File([pngOf(640, 480, at) as BlobPart], `shot-${at}.png`, {
+          type: "image/png",
+        }),
+      );
+    if (ocr !== undefined) form.set("ocr", JSON.stringify(ocr));
+    return a.request(`${base()}/${sessionId}/capture`, {
+      method: "POST",
+      body: form,
+    });
+  };
+  async function beginWith(name: string, processingPolicy: string) {
+    const person = await member(name);
+    as(person);
+    const response = await post("", { ...START, processingPolicy });
+    expect(response.status).toBe(201);
+    const body = (await response.json()) as { session: { id: string } };
+    return { person, id: body.session.id };
+  }
+
+  it("tells the text read from the capture's images, joined in order, with the session and that it may leave the device", async () => {
+    const owner = await begin("screen-told");
+    const told: Screen[] = [];
+    const a = watching((screen) => told.push(screen));
+    const response = await capture(
+      owner.id,
+      a,
+      [
+        read("def available_slots(day):"),
+        read("FAILED test_slots.py::test_overlap"),
+      ],
+      2,
+    );
+    expect(response.status).toBe(202);
+    expect(told).toEqual([
+      {
+        text: "def available_slots(day):\n\nFAILED test_slots.py::test_overlap",
+        session: {
+          tenantId: fx.tenantA,
+          actorId: owner.person.id,
+          sessionId: owner.id,
+        },
+        remote: true,
+      },
+    ]);
+  });
+
+  it("leaves out an image with no text read from it", async () => {
+    const owner = await begin("screen-gaps");
+    const told: Screen[] = [];
+    const a = watching((screen) => told.push(screen));
+    expect(
+      (
+        await capture(
+          owner.id,
+          a,
+          [null, read("the only text on show"), read("")],
+          3,
+        )
+      ).status,
+    ).toBe(202);
+    expect(told.map((screen) => screen.text)).toEqual([
+      "the only text on show",
+    ]);
+  });
+
+  it("tells nothing for a capture with no text: none sent, or none read from any image", async () => {
+    const owner = await begin("screen-none");
+    const told: Screen[] = [];
+    const a = watching((screen) => told.push(screen));
+    expect((await capture(owner.id, a)).status).toBe(202);
+    expect((await capture(owner.id, a, [null])).status).toBe(202);
+    expect((await capture(owner.id, a, [read("")])).status).toBe(202);
+    expect(told).toEqual([]);
+  });
+
+  it("marks a device-only session's screen as not to leave the device", async () => {
+    const owner = await beginWith("screen-device-only", "device-only");
+    const told: Screen[] = [];
+    const a = watching((screen) => told.push(screen));
+    expect(
+      (await capture(owner.id, a, [read("kept on this machine")])).status,
+    ).toBe(202);
+    expect(told.map((screen) => [screen.text, screen.remote])).toEqual([
+      ["kept on this machine", false],
+    ]);
+  });
+
+  it("tells nothing for a capture that was refused, or that is not the owner's", async () => {
+    const owner = await begin("screen-refused");
+    const told: Screen[] = [];
+    const a = watching((screen) => told.push(screen));
+    // No image, and a text list that is not one.
+    expect(
+      (await capture(owner.id, a, [read("text with no image")], 0)).status,
+    ).toBe(400);
+    expect((await capture(owner.id, a, [{ engine: "vision" }])).status).toBe(
+      400,
+    );
+    const stranger = await member("screen-refused-other");
+    as(stranger);
+    expect(
+      (await capture(owner.id, a, [read("another member's look")])).status,
+    ).toBe(404);
+    expect(told).toEqual([]);
+  });
+
+  it("accepts the capture whatever the listener does, and with no listener", async () => {
+    const owner = await begin("screen-throws");
+    let told = 0;
+    const a = watching(() => {
+      told += 1;
+      throw new Error("the listener broke");
+    });
+    expect((await capture(owner.id, a, [read("on the screen")])).status).toBe(
+      202,
+    );
+    expect(told).toBe(1);
+    expect(
+      (await capture(owner.id, app(), [read("on the screen")])).status,
+    ).toBe(202);
+  });
+});
+
 // The owner's own recording of what a session hears: off until asked for,
 // the owner's alone, never started on an ended session, stopped by its end.
 describe("the recording routes", () => {
@@ -1471,7 +1620,7 @@ describe("the recording routes", () => {
       on: true,
       startedAt: expect.any(String),
       file: expect.stringMatching(
-        new RegExp(`^[\\dT-]{19}-${owner.id.slice(0, 8)}\\.txt$`),
+        new RegExp(`^[\\dT-]{23}-${owner.id.slice(0, 8)}\\.txt$`),
       ),
       lines: 0,
     });

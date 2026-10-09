@@ -33,11 +33,50 @@ export function useTranscriptRecording(sessionId: string | null) {
   const [failed, setFailed] = useState(false);
   const on = useRef(false);
   on.current = recording.on;
+  // A start that has been asked for and not yet answered: closing the window
+  // in that moment must still stop it.
+  const starting = useRef(false);
+  // Whether the person has pressed the control in this window.
+  const pressed = useRef(false);
+
+  // [SAFETY] Off every time the window opens: a recording left running by a
+  // window that crashed or reloaded is stopped here, never silently resumed.
+  useEffect(() => {
+    if (!sessionId) return;
+    let live = true;
+    void studioFetch(endpoint(sessionId))
+      .then(read)
+      .then((found) => {
+        // [GUARD] A press made before this read came back is newer than it:
+        // the read never hides a recording that press started.
+        if (!live || !found || pressed.current) return;
+        if (!found.on) return setRecording(found);
+        return studioFetch(endpoint(sessionId), {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ on: false }),
+        })
+          .then(read)
+          .catch(() => null)
+          .then((stopped) => {
+            if (!live || pressed.current) return;
+            // A recording that could not be stopped is shown as it is: on,
+            // with the button that stops it.
+            setRecording(stopped ?? found);
+          });
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [sessionId]);
 
   const set = useCallback(
     async (next: boolean) => {
       if (!sessionId) return;
       setFailed(false);
+      pressed.current = true;
+      starting.current = next;
       const result = await studioFetch(endpoint(sessionId), {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -45,6 +84,7 @@ export function useTranscriptRecording(sessionId: string | null) {
       })
         .then(read)
         .catch(() => null);
+      starting.current = false;
       if (result) setRecording(result);
       else setFailed(true);
     },
@@ -68,7 +108,7 @@ export function useTranscriptRecording(sessionId: string | null) {
   useEffect(() => {
     if (!sessionId) return;
     return () => {
-      if (!on.current) return;
+      if (!on.current && !starting.current) return;
       void studioFetch(endpoint(sessionId), {
         method: "POST",
         headers: { "content-type": "application/json" },

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <base href="file:///Users/desoleary/dev/omnitech-solutions/omnitech-interview-answers-generator/bionic/adrs/ADR-0035-record-every-ai-interaction-with-its-content-in-dev.md" />
+  <base href="file:///Users/desoleary/dev/omnitech-solutions/omnitech-interview-answers-generator/bionic/research/references/ui-components.md" />
   <meta http-equiv="Content-Security-Policy" content="default-src &#39;none&#39;; style-src &#39;unsafe-inline&#39;; img-src data: file: https: http:; script-src &#39;sha256-5r/l3uvUx8zScgVbq2O9OrLHO5B7bmoi01J0CoE4H9Q=&#39; &#39;sha256-e1fUJ6xicGd9r42DgN7SzHMzb5FJoWe44f4NbvZmBK4=&#39; &#39;sha256-TFyubY75bh2LDr4D4DvN90TnGIjtAWJzHjxqgQIGZv0=&#39; &#39;sha256-DOXTlFnQakqXpCboPuvVUD1ahUEHCtpyYyqFY7Dn9yI=&#39; &#39;sha256-nHgvzzBPaB5qjhV0KrcyA9CaFcqAr1Jd/Ha6mP7+iRo=&#39; &#39;wasm-unsafe-eval&#39;;" />
   <style>
   :root {
@@ -465,142 +465,263 @@ th {
   <h2>Metadata</h2>
   <table>
     <tbody>
-      <tr><th>accepted_date</th><td>&lt;null&gt;</td></tr><tr><th>amends[0]</th><td>ADR-0007</td></tr><tr><th>amends[1]</th><td>ADR-0012</td></tr><tr><th>amends[2]</th><td>ADR-0034</td></tr><tr><th>date</th><td>2026-10-08 00:00:00 +0000</td></tr><tr><th>deciders[0]</th><td>Desmond O&#39;Leary</td></tr><tr><th>deprecated_date</th><td>&lt;null&gt;</td></tr><tr><th>id</th><td>ADR-0035</td></tr><tr><th>proposed_date</th><td>2026-10-08 00:00:00 +0000</td></tr><tr><th>status</th><td>Proposed</td></tr><tr><th>superseded_by</th><td>&lt;null&gt;</td></tr><tr><th>superseded_date</th><td>&lt;null&gt;</td></tr><tr><th>tags[0]</th><td>observability</td></tr><tr><th>tags[1]</th><td>ai</td></tr><tr><th>tags[2]</th><td>tracing</td></tr><tr><th>tags[3]</th><td>opentelemetry</td></tr><tr><th>title</th><td>Record every AI interaction with its content in development, as spans exported through OpenTelemetry</td></tr>
+      <tr><th>last_reviewed</th><td>2026-10-06 00:00:00 +0000</td></tr><tr><th>slug</th><td>ui-components</td></tr><tr><th>tags[0]</th><td>ui</td></tr><tr><th>tags[1]</th><td>components</td></tr><tr><th>tags[2]</th><td>button</td></tr><tr><th>tags[3]</th><td>tokens</td></tr><tr><th>tags[4]</th><td>css</td></tr><tr><th>tags[5]</th><td>studio</td></tr><tr><th>tags[6]</th><td>overlay</td></tr><tr><th>tags[7]</th><td>native</td></tr><tr><th>title</th><td>UI components: vocabulary and rules</td></tr><tr><th>type</th><td>references</td></tr>
     </tbody>
   </table>
 </section>
-    <article class="markdown"><h1 id="adr-0035-record-every-ai-interaction-with-its-content-in-development-as-spans-exported-through-opentelemetry">ADR-0035 — Record every AI interaction with its content in development, as spans exported through OpenTelemetry</h1>
-<h2 id="context">Context</h2>
-<p>The owner’s rule for development is that every AI interaction is traced end to end with its content:
-what came in (for the live assistant, the transcript lines heard), the prompt actually sent, and what
-the model returned. A missing step is a defect. An audit on 2026-10-08 found that no call path meets
-it. There is no database record of an interaction: <code>ai.usage_records</code> has no writer; the live path
-keeps the transcript and the validated answer and loses the selection of context sources, the prompt
-and the raw output; briefing, document, playground and presentation paths keep less. The only content
-trace is the terminal log, which cuts strings at 2,000 characters, drops content in the readable
-format, and logs nothing for streamed output.</p>
-<p>Three accepted or proposed decisions stand in the way. ADR-0007 forbids logging content by default
-and allows it only by explicit opt-in. ADR-0012 makes session traces id-only and purges a session
-completely at its end. ADR-0034 routes AI calls through one logger that is quiet about content in
-every environment, and rejected OpenTelemetry as more than a local product needed. The owner has
-since decided to adopt OpenTelemetry now, having used its GenAI naming for the same purpose elsewhere.</p>
-<h2 id="decision">Decision</h2>
+    <article class="markdown"><h1 id="ui-components-vocabulary-and-rules">UI components: vocabulary and rules</h1>
+<p>One component per job, configured by data, styled only by tokens. The home is
+<code>products/interview/src/frontend/ui/</code>; <code>index.ts</code> is the only import path
+(<code>import { Button } from "../ui"</code>). The decision and the audits behind it are in
+<code>bionic/inbox/redesign/ui-components/plan.md</code>. No new package or dependency:
+there is no Tailwind, <code>cva</code> or Radix here, and a 3-line <code>join</code> replaces <code>cn</code>.</p>
+<h2 id="files">Files</h2>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Job</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ui/button.tsx</code></td>
+<td>The <code>Button</code> component and its vocabulary (<code>BUTTON_VARIANTS</code>, <code>BUTTON_SIZES</code>)</td>
+</tr>
+<tr>
+<td><code>ui/ui.css</code></td>
+<td>Rules that select on <code>data-slot</code>, <code>data-variant</code>, <code>data-size</code>, <code>data-state</code>; read only <code>var(--ui-*)</code></td>
+</tr>
+<tr>
+<td><code>ui/tokens.css</code></td>
+<td>The <code>--ui-*</code> token layer and the per-surface scopes (the only place a literal belongs)</td>
+</tr>
+<tr>
+<td><code>ui/join.ts</code></td>
+<td>Class joiner</td>
+</tr>
+<tr>
+<td><code>ui/button.test.tsx</code></td>
+<td>Behaviour matrix, plus a guard that reads the CSS</td>
+</tr>
+</tbody>
+</table>
+<p>Both stylesheets are imported at the top of <code>studio/tokens.css</code>, which the
+product exports as <code>./studio.css</code>; the overlay, the native panels and Studio all
+get them through that one path.</p>
+<h2 id="button-api">Button API</h2>
+<p><code>&lt;Button&gt;</code> renders a real <code>&lt;button&gt;</code> (or, with <code>asChild</code>, the single child
+element, for <code>&lt;a href&gt;</code>). Props extend <code>ButtonHTMLAttributes</code>. <code>forwardRef</code>,
+<code>displayName</code>, <code>type="button"</code> by default.</p>
+<table>
+<thead>
+<tr>
+<th>Prop</th>
+<th>Values</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>variant</code></td>
+<td><code>primary</code> <code>secondary</code> <code>ghost</code> <code>destructive</code> <code>go</code> <code>link</code> <code>glass</code></td>
+<td><code>secondary</code></td>
+</tr>
+<tr>
+<td><code>size</code></td>
+<td><code>sm</code> <code>md</code> <code>lg</code> <code>icon</code></td>
+<td><code>md</code></td>
+</tr>
+<tr>
+<td><code>icon</code> / <code>iconAfter</code></td>
+<td>an <code>IconName</code> (leading / trailing)</td>
+<td>none</td>
+</tr>
+<tr>
+<td><code>loading</code></td>
+<td>sets <code>disabled</code>, <code>aria-busy</code>, <code>data-state="loading"</code>, a spinner replaces the leading icon</td>
+<td><code>false</code></td>
+</tr>
+<tr>
+<td><code>pressed</code></td>
+<td>sets <code>aria-pressed</code>, <code>data-state="pressed"</code></td>
+<td>unset</td>
+</tr>
+<tr>
+<td><code>asChild</code></td>
+<td>clone the one child element instead of rendering a <code>&lt;button&gt;</code>; never reaches the DOM</td>
+<td><code>false</code></td>
+</tr>
+</tbody>
+</table>
+<p>Emitted attributes: <code>data-slot="button"</code>, <code>data-variant</code>, <code>data-size</code>,
+<code>data-state</code> (<code>idle</code> | <code>loading</code> | <code>pressed</code>).</p>
+<h3 id="variants">Variants</h3>
+<table>
+<thead>
+<tr>
+<th>Variant</th>
+<th>Use it for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>primary</code></td>
+<td>The one main action of a surface or dialog (accent fill)</td>
+</tr>
+<tr>
+<td><code>secondary</code></td>
+<td>The default ordinary action (outlined)</td>
+</tr>
+<tr>
+<td><code>ghost</code></td>
+<td>Quiet actions and icon-only controls (transparent, fills on hover)</td>
+</tr>
+<tr>
+<td><code>destructive</code></td>
+<td>End, Delete (red fill)</td>
+</tr>
+<tr>
+<td><code>go</code></td>
+<td>Start or Resume (green fill)</td>
+</tr>
+<tr>
+<td><code>link</code></td>
+<td>An inline text action (underline on hover, no frame, no fixed height)</td>
+</tr>
+<tr>
+<td><code>glass</code></td>
+<td>Controls on translucent chrome: native panels, toolbars, pills</td>
+</tr>
+</tbody>
+</table>
+<h3 id="sizes">Sizes</h3>
+<table>
+<thead>
+<tr>
+<th>Size</th>
+<th>Height token</th>
+<th>Height</th>
+<th>Use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sm</code></td>
+<td><code>--ui-height-sm</code></td>
+<td>28px</td>
+<td>Dense rows, toolbars</td>
+</tr>
+<tr>
+<td><code>md</code></td>
+<td><code>--ui-height-md</code></td>
+<td>32px</td>
+<td>Default</td>
+</tr>
+<tr>
+<td><code>lg</code></td>
+<td><code>--ui-height-lg</code></td>
+<td>40px</td>
+<td>Top-level live buttons</td>
+</tr>
+<tr>
+<td><code>icon</code></td>
+<td><code>--ui-height-icon</code></td>
+<td>square, same as <code>md</code></td>
+<td>Icon only; give it an <code>aria-label</code></td>
+</tr>
+</tbody>
+</table>
+<p>The 40px rule: every top-level button on the live page needs a 40px hit area
+(<code>studio/live/layout-rules.test.ts</code>, <code>session-bar.test.tsx</code>), so those use
+<code>size="lg"</code>.</p>
+<h3 id="states">States</h3>
 <ul>
-<li><p>In development, every call to a model is recorded in the database with its content: the input it
-answers, the system and user prompt verbatim and uncut, the context sources that were selected and
-those that were cut with the reason for each, the raw output before validation, the model and its
-parameters, usage, timing, outcome and error, and what the call was for (session and task, briefing,
-document, job).</p>
+<li><p><strong>Hover</strong> applies only to <code>:hover:not(:disabled):not([aria-disabled="true"])</code>.</p>
 </li>
-<li><p>The record is written at the AI gateway, the one seam every product already calls (ADR-0007), for
-single, streamed and structured-stream calls and for the correction turn after a failed validation.
-A model call that does not pass through the gateway, or is not recorded to the same shape, is a
-defect.</p>
+<li><p><strong>Focus</strong> is one ring on <code>:focus-visible</code> (<code>--ui-focus-ring</code>, <code>--ui-focus-width</code>, <code>--ui-focus-offset</code>) for every variant.</p>
 </li>
-<li><p>The database record is the source of truth and is shaped as a span: a trace id, a span id and a
-parent, so the steps of one request (context selection, the model call, each tool call,
-post-processing) form one tree.</p>
+<li><p><strong>Disabled</strong> uses the native <code>disabled</code> attribute (an <code>asChild</code> anchor uses <code>aria-disabled="true"</code> and <code>tabindex="-1"</code>): cursor <code>default</code>, opacity <code>--ui-disabled-opacity</code>.</p>
 </li>
-<li><p>OpenTelemetry is introduced now. The gateway emits a span per step through the OpenTelemetry API,
-named and attributed by the GenAI semantic conventions, sharing its ids with the database record.
-Where the conventions have no name, attributes take the product’s own prefix. With no exporter
-configured the spans cost nothing and nothing leaves the machine.</p>
+<li><p><strong>Loading</strong> is disabled plus <code>aria-busy</code>: cursor <code>progress</code>, opacity <code>--ui-loading-opacity</code>.</p>
 </li>
-<li><p>Content lives in the tenant-scoped database record. It is not placed on exported spans; a span
-carries the ids that find it.</p>
-</li>
-<li><p>One setting decides whether content is captured. It is on by default in development and a service
-refuses to start with it on in production, so ADR-0007’s default holds where it matters.</p>
-</li>
-<li><p>A development trace is kept for a stated period of its own and is not removed by the session purge
-of ADR-0012. With capture off there is no content to purge, and ADR-0012 is unchanged.</p>
-</li>
-<li><p>A person can read a trace back by session, task, document or job, without a database client.</p>
-</li>
-<li><p>The terminal log remains for following a run live; it is no longer the record. It prints AI
-content uncut in the readable format when capture is on.</p>
+<li><p><strong>Pressed</strong> looks like hover, held (the variant’s <code>-hover</code> background).</p>
 </li>
 </ul>
-<p>Amended: ADR-0007’s “never log content by default” now reads as the production default, with
-development capture on. ADR-0012’s id-only rule keeps to logs and the session trace; the interaction
-record is a separate, content-bearing store that exists only when capture is on. ADR-0034’s “quiet
-about content in every environment” and its rejection of OpenTelemetry are replaced by this decision.</p>
-<h2 id="alternatives-considered">Alternatives Considered</h2>
-<h3 id="option-a-keep-the-terminal-log-and-repair-it-no-truncation-content-in-the-readable-format">Option A — Keep the terminal log and repair it (no truncation, content in the readable format)</h3>
+<h2 id="tokens">Tokens</h2>
+<p>Components read only <code>--ui-*</code>. <code>ui.css</code> and the component write no colour
+literal, length, opacity or duration (the test enforces it).</p>
 <ul>
-<li><p><strong>Pros:</strong> no schema change, no new dependency.</p>
+<li><p><strong>Structure (<code>:root</code>)</strong>: <code>--ui-height-{sm,md,lg,icon}</code>, <code>--ui-pad-{sm,md,lg}</code>, <code>--ui-gap</code>, <code>--ui-font-size-{sm,md,lg}</code>, <code>--ui-font-weight</code>, <code>--ui-line-height</code>, <code>--ui-icon-size</code>, <code>--ui-icon-size-lg</code>, <code>--ui-radius</code>, <code>--ui-radius-glass</code>, <code>--ui-border-width</code>, <code>--ui-underline-offset</code>, <code>--ui-focus-width</code>, <code>--ui-focus-offset</code>, <code>--ui-disabled-opacity</code>, <code>--ui-loading-opacity</code>, <code>--ui-transition</code>, <code>--ui-spinner-{size,width,speed}</code>, <code>--ui-text-shadow</code>.</p>
 </li>
-<li><p><strong>Cons:</strong> nothing durable, nothing queryable, no link from a prompt to the answer it produced or
-to the sources it was built from.</p>
+<li><p><strong>Colour roles per intent</strong>: <code>--ui-&lt;intent&gt;-bg | -fg | -border | -hover</code> for <code>primary</code>, <code>secondary</code>, <code>ghost</code>, <code>destructive</code>, <code>go</code>, <code>glass</code>; <code>--ui-ghost-fg-hover</code>; <code>--ui-link-fg</code>, <code>--ui-link-fg-hover</code>; <code>--ui-glass-edge</code>, <code>--ui-glass-blur</code>; <code>--ui-focus-ring</code>.</p>
 </li>
-<li><p><strong>Why not:</strong> the rule is a record of every interaction; a scrolling terminal is not one.</p>
+<li><p><strong>Surface scopes</strong> map the roles onto what each surface already defines. <code>:root</code> holds a neutral fallback.</p>
 </li>
 </ul>
-<h3 id="option-b-the-database-record-with-opentelemetry-names-and-the-exporter-later">Option B — The database record with OpenTelemetry names, and the exporter later</h3>
-<ul>
-<li><p><strong>Pros:</strong> the smallest change; a later move to OpenTelemetry is a mapping.</p>
+<table>
+<thead>
+<tr>
+<th>Scope</th>
+<th>Selector</th>
+<th>Maps onto</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Studio</td>
+<td><code>.studio-app .oa-host</code> (and its <code>[data-theme]</code> wrappers, the palette scrim)</td>
+<td><code>--accent</code>, <code>--surface</code>, <code>--border</code>, <code>--subtle</code>, <code>--hover</code>, <code>--text</code>, <code>--muted</code>, <code>--red</code>, <code>--green</code></td>
+</tr>
+<tr>
+<td>Overlay</td>
+<td><code>.ov-root</code>, <code>.ov-card</code>, <code>.ov-sheet</code></td>
+<td><code>--ov-btn</code>, <code>--ov-btn-hover</code>, <code>--ov-accent</code>, <code>--ov-red</code>, <code>--ov-green</code>, <code>--ov-chip</code>; 6px radius, opacity .45</td>
+</tr>
+<tr>
+<td>Native panels</td>
+<td><code>.pn-root</code> (and <code>.pn-root .ov-card</code>)</td>
+<td><code>--pn-accent</code>, <code>--pn-link</code>, <code>--pn-glass-fill</code>, <code>--pn-control-line</code>, <code>--pn-blur-control</code>; the Resume green fill with a white .45 border; glass is a pill</td>
+</tr>
+<tr>
+<td>Clear glass</td>
+<td><code>.pn-root[data-glass="clear"]</code></td>
+<td>the stronger hairline and chip tokens panels.css redeclares</td>
+</tr>
+</tbody>
+</table>
+<h2 id="rules">Rules</h2>
+<ol>
+<li><p>Never hard-code a colour, radius, height, spacing or opacity in a component or in a rule you migrate; use or add a <code>--ui-*</code> token.</p>
 </li>
-<li><p><strong>Cons:</strong> two steps where one will do; no standard viewer for timing in the meantime.</p>
+<li><p>A button is a real <code>&lt;button&gt;</code> or <code>&lt;a href&gt;</code>, never a <code>div</code>: the native shell’s drag and cursor probe (<code>apps/studio-shell/Sources/StudioShellCore/WindowDrag.swift</code>) treats <code>button</code>, <code>a[href]</code>, <code>[role=button]</code>, <code>[disabled]</code> and <code>[aria-disabled]</code> as controls.</p>
 </li>
-<li><p><strong>Why not:</strong> recommended first, and the owner chose to adopt OpenTelemetry now.</p>
+<li><p>Disabled and loading use <code>disabled</code> (anchors: <code>aria-disabled</code>).</p>
 </li>
-</ul>
-<h3 id="option-c-opentelemetry-only-with-prompts-and-output-on-the-spans">Option C — OpenTelemetry only, with prompts and output on the spans</h3>
-<ul>
-<li><p><strong>Pros:</strong> one system; any trace viewer shows everything.</p>
+<li><p>CSS selects on the data attributes only; never on a variant class.</p>
 </li>
-<li><p><strong>Cons:</strong> content leaves the tenant-scoped database for whatever the exporter points at; span
-size limits cut long prompts; the record depends on a collector being present.</p>
+<li><p>Import from <code>../ui</code>, never from a file inside it.</p>
 </li>
-<li><p><strong>Why not:</strong> content stays under row-level security, and the record must exist with no collector.</p>
+<li><p>Keep labels and accessible names when migrating; tests use <code>getByRole("button", { name })</code>.</p>
 </li>
-</ul>
-<h2 id="consequences">Consequences</h2>
-<p><strong>Positive:</strong></p>
-<ul>
-<li><p>“What did the model read” becomes a read of one record, for every path, including the sources
-that were cut.</p>
+<li><p>Legacy container classes (<code>.pn-pill</code>, <code>.pn-single-foot</code>, <code>.pn-strip</code>) stay.</p>
 </li>
-<li><p>One shape replaces five partial ones (session results, proposal snapshots, document usage, agent
-payloads, the log).</p>
+</ol>
+<h2 id="adding-a-variant">Adding a variant</h2>
+<ol>
+<li><p>Add the name to <code>ButtonVariant</code> and an entry to <code>BUTTON_VARIANTS</code> in <code>button.tsx</code> (the type is a <code>Record</code>, so it will not compile without one).</p>
 </li>
-<li><p>Selection quality can be measured from recorded runs.</p>
+<li><p>Add its <code>--ui-&lt;name&gt;-*</code> roles to the <code>:root</code> fallback and to every surface scope in <code>ui/tokens.css</code>.</p>
 </li>
-</ul>
-<p><strong>Negative:</strong></p>
-<ul>
-<li><p>A migration, and a new dependency on the OpenTelemetry API and SDK (a scope checkpoint under ADR-0002).</p>
+<li><p>Add a <code>[data-slot="button"][data-variant="&lt;name&gt;"]</code> rule to <code>ui/ui.css</code> that sets the <code>--ui-btn-*</code> locals from those roles.</p>
 </li>
-<li><p>Development databases hold interview content beyond a session’s end; the retention period must
-be chosen and enforced.</p>
+<li><p>Update the vocabulary tables here. <code>button.test.tsx</code> fails until the CSS rule, the tokens and the scope mappings exist; adding a size follows the same path through <code>BUTTON_SIZES</code> and <code>--ui-height-&lt;name&gt;</code>.</p>
 </li>
-<li><p>The GenAI conventions are still changing; names adopted now may need renaming.</p>
-</li>
-</ul>
-<p><strong>Follow-on work:</strong></p>
-<ul>
-<li><p>Route the vendored assistant library’s model calls through the gateway, or record them to the
-same shape; it bypasses the gateway today.</p>
-</li>
-<li><p>Have the live path’s context selection return what it kept and what it cut.</p>
-</li>
-<li><p>Decide the shared projection package that produces that selection (a following decision).</p>
-</li>
-</ul>
-<h2 id="references">References</h2>
-<ul>
-<li><p>[[adrs/ADR-0007-route-ai-work-through-aiexecutiongateway-profiles]]</p>
-</li>
-<li><p>[[adrs/ADR-0012-keep-active-session-data-private-to-the-actor-and]]</p>
-</li>
-<li><p>[[adrs/ADR-0034-record-native-app-and-companion-events-through-one]]</p>
-</li>
-<li><p>[[adrs/ADR-0002-simplicity-first-the-least-complex-design-that-mee]]</p>
-</li>
-<li><p>OpenTelemetry semantic conventions for generative AI (<code>gen_ai.*</code>), checked against the current
-specification before any name is frozen.</p>
-</li>
-</ul>
+</ol>
+<h2 id="promotion">Promotion</h2>
+<p>Everything imports from one <code>index.ts</code>, so moving to a <code>packages/ui</code> package
+later is mechanical (an ADR, an export-surface row, a wider react vitest
+include). Do it when a second product, Presentation, adopts the components.</p>
 </article>
   </main>
   <div class="diagram-overlay" data-clearance-diagram-overlay="true" hidden>

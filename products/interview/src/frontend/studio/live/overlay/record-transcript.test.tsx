@@ -1,20 +1,26 @@
 // The Record transcript control against a server the test holds by hand: it
 // is off until pressed, says plainly when it is on and how many lines it
 // holds, reads the count again while on, and never leaves a recording
-// running behind a window that has closed.
+// running behind a window that has closed. Opening the window reads the
+// server's state once (and stops a recording found on), so every case begins
+// with that one GET.
 import {
   act,
   cleanup,
   fireEvent,
   render,
+  renderHook,
   screen,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { RecordTranscriptButton } from "./record-transcript";
+import {
+  RecordTranscriptButton,
+  useTranscriptRecording,
+} from "./record-transcript";
 
 const SESSION = "5e551011-0000-4000-8000-00000000000a";
 const URL_PATH = `/api/interview/t/local/sessions/${SESSION}/recording`;
-const FILE = "2026-10-08T09-40-00-5e551011.txt";
+const FILE = "2026-10-08T09-40-00-000-5e551011.txt";
 
 type Recording = { on: boolean; lines: number; file?: string };
 type Asked = {
@@ -54,6 +60,8 @@ const press = async () => {
 };
 const posts = () => asked.filter((each) => each.method === "POST");
 const reads = () => asked.filter((each) => each.method === "GET");
+// The reads made while recording: every one after the read on opening.
+const polls = () => reads().slice(1);
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -99,35 +107,158 @@ describe("Record transcript, off", () => {
     expect(screen.getAllByRole("button")).toHaveLength(1);
   });
 
-  it("starts nothing by itself, and does not read while off", async () => {
+  it("starts nothing by itself, and reads once on opening and not again while off", async () => {
     render(<RecordTranscriptButton sessionId={SESSION} />);
     await advance(10_000);
     expect(posts()).toEqual([]);
+    expect(asked).toEqual([
+      {
+        method: "GET",
+        url: URL_PATH,
+        body: undefined,
+        contentType: null,
+        tenant: null,
+        keepalive: false,
+      },
+    ]);
     expect(button()).toHaveAttribute("data-recording", "off");
-  });
-
-  // DEFECT (record-transcript.tsx:33-37, 68-80): the control starts as off
-  // and never asks the server, and the stop on closing runs only when React
-  // unmounts it. A window that is reloaded (or crashes) while recording
-  // leaves the server recording, and the new window shows "Record
-  // transcript", off, for a session that IS being recorded: the one thing
-  // the control promises not to do ("never left running unseen"). Remove
-  // `.fails` when opening the window reads the state, or stops it.
-  it.fails("DEFECT: a recording still on at the server when the window opens is shown, or stopped", async () => {
-    held = { on: true, lines: 4, file: FILE };
-    render(<RecordTranscriptButton sessionId={SESSION} />);
-    await flush();
-    expect(
-      button().getAttribute("data-recording") === "on" || held.on === false,
-    ).toBe(true);
   });
 
   it("cannot be pressed while the session is paused", async () => {
     render(<RecordTranscriptButton sessionId={SESSION} disabled />);
     expect(button()).toBeDisabled();
     await press();
-    expect(asked).toEqual([]);
+    expect(posts()).toEqual([]);
     expect(button()).toHaveAttribute("data-recording", "off");
+  });
+});
+
+describe("opening the window", () => {
+  it("shows what the server holds of a recording that is off: the file last kept", async () => {
+    held = { on: false, lines: 6, file: FILE };
+    render(<RecordTranscriptButton sessionId={SESSION} />);
+    await flush();
+    expect(asked.map((each) => each.method)).toEqual(["GET"]);
+    expect(button()).toHaveAttribute("data-recording", "off");
+    expect(button()).toHaveAttribute(
+      "title",
+      `Record a transcript. The last one is kept as ${FILE}.`,
+    );
+  });
+
+  it("stops a recording still on at the server, and shows off: it is never resumed", async () => {
+    held = { on: true, lines: 4, file: FILE };
+    render(<RecordTranscriptButton sessionId={SESSION} />);
+    await flush();
+    expect(asked.map((each) => [each.method, each.url, each.body])).toEqual([
+      ["GET", URL_PATH, undefined],
+      ["POST", URL_PATH, { on: false }],
+    ]);
+    expect(posts()[0]).toMatchObject({
+      contentType: "application/json",
+      keepalive: false,
+    });
+    expect(held.on).toBe(false);
+    expect(button()).toHaveAttribute("data-recording", "off");
+    expect(button()).toHaveTextContent("Record transcript");
+    expect(button()).toHaveAttribute(
+      "title",
+      `Record a transcript. The last one is kept as ${FILE}.`,
+    );
+    // Off: nothing more is asked.
+    await advance(30_000);
+    expect(asked).toHaveLength(2);
+  });
+
+  it.each([
+    ["the server breaks", () => new Response("no", { status: 500 })],
+    [
+      "the network fails",
+      () => Promise.reject(new TypeError("Failed to fetch")),
+    ],
+    ["the answer holds no recording", () => json({})],
+  ])(
+    "is off, with no failure shown and nothing sent, when %s on that read",
+    async (_name, how) => {
+      answer = how as typeof answer;
+      render(<RecordTranscriptButton sessionId={SESSION} />);
+      await flush();
+      expect(posts()).toEqual([]);
+      expect(button()).toHaveTextContent("Record transcript");
+      expect(button()).toHaveAttribute("data-recording", "off");
+      // And it can still be pressed.
+      answer = server;
+      await press();
+      expect(button()).toHaveAttribute("data-recording", "on");
+    },
+  );
+
+  it("asks nothing with no session", async () => {
+    const { result, unmount } = renderHook(() => useTranscriptRecording(null));
+    await act(() => result.current.set(true));
+    await advance(10_000);
+    unmount();
+    await flush();
+    expect(asked).toEqual([]);
+    expect(result.current.recording).toEqual({ on: false, lines: 0 });
+  });
+
+  it("a window closed before that read is answered sends nothing more", async () => {
+    let arrive: () => void = () => undefined;
+    answer = (request) =>
+      new Promise<Response>((resolve) => {
+        arrive = () => resolve(server(request));
+      });
+    const { unmount } = render(<RecordTranscriptButton sessionId={SESSION} />);
+    unmount();
+    arrive();
+    await flush();
+    expect(asked.map((each) => each.method)).toEqual(["GET"]);
+  });
+
+  // DEFECT (record-transcript.tsx:45-49): the read on opening is applied
+  // whenever it arrives. When Record is pressed (and answered) before that
+  // read is, the read's older "off" is written over the recording that has
+  // since started: the window shows "Record transcript", off, while the
+  // server records, and closing the window then sends no stop (it reads what
+  // the window showed). Remove `.fails` when a read answered after a press is
+  // dropped, or the recording it hides is stopped.
+  it("DEFECT: the read on opening, answered after a press, does not hide the recording that press started", async () => {
+    let arrive: () => void = () => undefined;
+    answer = (request) => {
+      if (request.method !== "GET") return server(request);
+      // Answered as the server stood when it was read: off.
+      const then = json({ recording: held });
+      return new Promise<Response>((resolve) => {
+        arrive = () => resolve(then);
+      });
+    };
+    render(<RecordTranscriptButton sessionId={SESSION} />);
+    await press();
+    expect(button()).toHaveAttribute("data-recording", "on");
+    arrive();
+    await flush();
+    expect(
+      button().getAttribute("data-recording") === "on" || held.on === false,
+    ).toBe(true);
+  });
+
+  // DEFECT, minor (record-transcript.tsx:50-58): when the recording found on
+  // cannot be stopped (the stop is refused or lost), the window shows off and
+  // does not try again, so the server goes on recording behind a control
+  // that says it is not, and closing the window sends no stop. Remove
+  // `.fails` when it shows the recording as on, or stops it.
+  it("DEFECT: a recording found on that could not be stopped is not shown as off", async () => {
+    held = { on: true, lines: 4, file: FILE };
+    answer = (request) =>
+      request.method === "POST"
+        ? new Response("no", { status: 500 })
+        : server(request);
+    render(<RecordTranscriptButton sessionId={SESSION} />);
+    await flush();
+    expect(
+      button().getAttribute("data-recording") === "on" || held.on === false,
+    ).toBe(true);
   });
 });
 
@@ -135,7 +266,7 @@ describe("pressing Record transcript", () => {
   it("asks the session's recording to start, and says it is recording with its lines", async () => {
     render(<RecordTranscriptButton sessionId={SESSION} />);
     await press();
-    expect(asked).toEqual([
+    expect(posts()).toEqual([
       {
         method: "POST",
         url: URL_PATH,
@@ -156,10 +287,12 @@ describe("pressing Record transcript", () => {
     window.history.pushState({}, "", "/t/harbour%20line/live");
     render(<RecordTranscriptButton sessionId={SESSION} />);
     await press();
-    expect(asked[0]).toMatchObject({
-      url: `/api/interview/t/harbour%20line/sessions/${SESSION}/recording`,
-      tenant: "harbour line",
-    });
+    expect(asked.map((each) => each.method)).toEqual(["GET", "POST"]);
+    for (const each of asked)
+      expect(each).toMatchObject({
+        url: `/api/interview/t/harbour%20line/sessions/${SESSION}/recording`,
+        tenant: "harbour line",
+      });
   });
 
   it.each([
@@ -231,9 +364,11 @@ describe("a start that fails", () => {
       "title",
       "The recording could not be started.",
     );
-    // Nothing is read for a recording that is not on.
+    // Nothing is read for a recording that is not on, after the one read
+    // on opening.
     await advance(10_000);
-    expect(reads()).toEqual([]);
+    expect(polls()).toEqual([]);
+    expect(reads()).toHaveLength(1);
   });
 
   it("can be pressed again, and a start that works clears the failure", async () => {
@@ -266,10 +401,10 @@ describe("while it is on", () => {
     await press();
     held = { ...held, lines: 3 };
     await advance(2_999);
-    expect(reads()).toEqual([]);
+    expect(polls()).toEqual([]);
     expect(button()).toHaveTextContent("Recording · 0 lines");
     await advance(1);
-    expect(reads()).toEqual([
+    expect(polls()).toEqual([
       {
         method: "GET",
         url: URL_PATH,
@@ -282,10 +417,10 @@ describe("while it is on", () => {
     expect(button()).toHaveTextContent("Recording · 3 lines");
     held = { ...held, lines: 7 };
     await advance(3_000);
-    expect(reads()).toHaveLength(2);
+    expect(polls()).toHaveLength(2);
     expect(button()).toHaveTextContent("Recording · 7 lines");
     await advance(9_000);
-    expect(reads()).toHaveLength(5);
+    expect(polls()).toHaveLength(5);
   });
 
   it("turns off here when the session's recording was stopped elsewhere, and stops reading", async () => {
@@ -296,9 +431,9 @@ describe("while it is on", () => {
     await advance(3_000);
     expect(button()).toHaveAttribute("data-recording", "off");
     expect(button()).toHaveTextContent("Record transcript");
-    const before = reads().length;
+    const before = polls().length;
     await advance(30_000);
-    expect(reads()).toHaveLength(before);
+    expect(polls()).toHaveLength(before);
     expect(posts()).toHaveLength(1);
   });
 
@@ -322,7 +457,7 @@ describe("while it is on", () => {
     held = { ...held, lines: 9 };
     await advance(3_000);
     expect(button()).toHaveTextContent("Recording · 9 lines");
-    expect(reads()).toHaveLength(4);
+    expect(polls()).toHaveLength(4);
   });
 
   it("stops reading once it is stopped", async () => {
@@ -330,9 +465,9 @@ describe("while it is on", () => {
     await press();
     await advance(3_000);
     await press();
-    const before = reads().length;
+    const before = polls().length;
     await advance(30_000);
-    expect(reads()).toHaveLength(before);
+    expect(polls()).toHaveLength(before);
   });
 });
 
@@ -361,7 +496,8 @@ describe("closing the window", () => {
     const never = render(<RecordTranscriptButton sessionId={SESSION} />);
     never.unmount();
     await flush();
-    expect(asked).toEqual([]);
+    // The read on opening, and nothing else.
+    expect(asked.map((each) => each.method)).toEqual(["GET"]);
 
     const stopped = render(<RecordTranscriptButton sessionId={SESSION} />);
     await press();
@@ -374,7 +510,10 @@ describe("closing the window", () => {
     ]);
 
     asked = [];
-    answer = () => new Response("no", { status: 500 });
+    answer = (request) =>
+      request.method === "POST"
+        ? new Response("no", { status: 500 })
+        : server(request);
     const failed = render(<RecordTranscriptButton sessionId={SESSION} />);
     await press();
     failed.unmount();
@@ -390,23 +529,40 @@ describe("closing the window", () => {
     await flush();
   });
 
-  // DEFECT (record-transcript.tsx:39-40, 70-73): whether to stop on closing
-  // is read from what the window last SHOWED. A window closed while its
-  // start is still on the way shows off, so it sends no stop, and the server
-  // then starts a recording that no window shows or will stop (until the
-  // session ends). Remove `.fails` when a start in flight is stopped too.
-  it.fails("DEFECT: stops a recording whose start was still on the way when the window closed", async () => {
+  it("stops a recording whose start was still on the way when the window closed", async () => {
     let arrive: () => void = () => undefined;
     answer = (request) =>
-      new Promise<Response>((resolve) => {
-        arrive = () => resolve(server(request));
-      });
+      request.method === "POST" && (request.body as { on: boolean }).on
+        ? new Promise<Response>((resolve) => {
+            arrive = () => resolve(server(request));
+          })
+        : server(request);
     const { unmount } = render(<RecordTranscriptButton sessionId={SESSION} />);
+    await flush();
     fireEvent.click(button());
+    // The start is on its way, unanswered, and the window still shows off.
+    expect(button()).toHaveAttribute("data-recording", "off");
     unmount();
-    answer = server;
+    await flush();
+    // The stop is sent after the start, to outlive the page.
+    expect(posts().map((each) => [each.body, each.keepalive])).toEqual([
+      [{ on: true }, false],
+      [{ on: false }, true],
+    ]);
     arrive();
     await flush();
-    expect(held.on).toBe(false);
+    expect(asked).toHaveLength(3);
+  });
+
+  it("a start that was answered with a failure leaves nothing to stop on closing", async () => {
+    answer = (request) =>
+      request.method === "POST"
+        ? new Response("no", { status: 500 })
+        : server(request);
+    const { unmount } = render(<RecordTranscriptButton sessionId={SESSION} />);
+    await press();
+    unmount();
+    await flush();
+    expect(posts().map((each) => each.body)).toEqual([{ on: true }]);
   });
 });

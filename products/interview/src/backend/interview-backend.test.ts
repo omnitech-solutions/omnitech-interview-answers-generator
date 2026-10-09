@@ -29,6 +29,7 @@ import {
 } from "vitest";
 import { coachTranscript } from "./coach-transcript";
 import { createInterviewBackend } from "./interview-backend";
+import { pngOf } from "./live-session/live-session-fixture";
 
 // The model is the provider boundary: it records what the product asks for
 // and replies with an object that is no answer. A repair turn is the
@@ -447,6 +448,82 @@ describe("Interview Studio's backend as the platform mounts it", () => {
         actorId: member.userId,
         sessionId: remote,
       });
+      expect((await end(remote)).status).toBe(200);
+    } finally {
+      coachTranscript.clear();
+    }
+  });
+
+  // [SAFETY] As with what is heard: the text read from a device-only
+  // session's capture never reaches the coach; a permitted-remote one's is
+  // the coach's screen, as that session's.
+  it("gives the coach what a permitted-remote session's capture shows, and nothing a device-only session's shows", async () => {
+    const app = backend().app;
+    const sessions = "http://studio.test/api/interview/t/local/sessions";
+    const start = async (processingPolicy: string) => {
+      const response = await app.request(
+        sessions,
+        json({ processingPolicy, captureSources: ["microphone", "screen"] }),
+      );
+      expect(response.status).toBe(201);
+      return ((await response.json()) as { session: { id: string } }).session
+        .id;
+    };
+    const capture = (id: string, requestId: string, text?: string) => {
+      const form = new FormData();
+      form.set("requestId", requestId);
+      form.set("operation", "analyze");
+      form.append(
+        "image",
+        new File([pngOf(640, 480) as BlobPart], "shot.png", {
+          type: "image/png",
+        }),
+      );
+      if (text !== undefined)
+        form.set("ocr", JSON.stringify([{ engine: "vision", text }]));
+      return app.request(`${sessions}/${id}/capture`, {
+        method: "POST",
+        body: form,
+      });
+    };
+    const end = (id: string) =>
+      app.request(
+        `${sessions}/${id}/control`,
+        json({ version: 1, kind: "session.control", action: "end" }),
+      );
+    coachTranscript.clear();
+    try {
+      const onDevice = await start("device-only");
+      expect(
+        (await capture(onDevice, "screen-dev-0001", "a screen that stays here"))
+          .status,
+      ).toBe(202);
+      expect(coachTranscript.since()).not.toHaveProperty("screen");
+      // Nor is the coach pointed at that session.
+      expect(coachTranscript.since().session?.sessionId).not.toBe(onDevice);
+      expect((await end(onDevice)).status).toBe(200);
+
+      const remote = await start("permitted-remote");
+      // A capture with no text read from it leaves the coach's screen as it is.
+      expect((await capture(remote, "screen-rem-0000")).status).toBe(202);
+      expect(coachTranscript.since()).not.toHaveProperty("screen");
+      expect(
+        (await capture(remote, "screen-rem-0001", "def available_slots(day):"))
+          .status,
+      ).toBe(202);
+      const read = coachTranscript.since();
+      expect(read.screen).toEqual({
+        text: "def available_slots(day):",
+        at: expect.any(String),
+      });
+      expect(read.space).toBe("live");
+      expect(read.session).toEqual({
+        tenantId: member.tenantId,
+        actorId: member.userId,
+        sessionId: remote,
+      });
+      // Nothing was said: the screen adds no line.
+      expect(read.lines).toEqual([]);
       expect((await end(remote)).status).toBe(200);
     } finally {
       coachTranscript.clear();

@@ -251,7 +251,11 @@ export function createCoach(ports: CoachPorts, options: CoachOptions = {}) {
   let lastTurn: { from: number; key: string; atMs: number } | undefined;
   // A system design in progress: its stage and the arrows drawn so far. One
   // note holds the whole design and is revised as it grows.
-  let design: { stage?: string; edges: DesignEdge[] } = { edges: [] };
+  let design: {
+    stage?: string;
+    edges: DesignEdge[];
+    sections?: CoachNoteInput["sections"];
+  } = { edges: [] };
   // Whose conversation this is, and so where its notes go.
   let space: CoachSpace = "live";
   // What is on the shared screen, and whether the coach has looked at it.
@@ -362,9 +366,15 @@ export function createCoach(ports: CoachPorts, options: CoachOptions = {}) {
           .map((each) => each.text),
       );
       if ((fresh.sections ?? []).length === 0 && !diagram) return;
+      // A design reply that only adds arrows leaves the note's words as
+      // they were: the drawing grew, what to say has not changed.
+      const worded =
+        designing && (fresh.sections ?? []).length === 0 && design.sections
+          ? { ...fresh, sections: design.sections }
+          : fresh;
       const reply = {
         ...parsed,
-        note: nudge ? oneLine(fresh) : fresh,
+        note: nudge ? oneLine(worded) : worded,
       };
       const askId = designing
         ? `${noteKey}-ask`
@@ -420,6 +430,9 @@ export function createCoach(ports: CoachPorts, options: CoachOptions = {}) {
         if (designing)
           design = {
             edges,
+            ...((reply.note.sections ?? []).length > 0
+              ? { sections: reply.note.sections }
+              : {}),
             ...(parsed.stage
               ? { stage: parsed.stage }
               : design.stage

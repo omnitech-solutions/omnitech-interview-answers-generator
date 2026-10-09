@@ -22,7 +22,7 @@ _Last updated: 2026-10-05_
 
 ## Decisions-context (0)
 
-## References (7)
+## References (10)
 
 - [[research/references/adding-a-product]] — steps and required surfaces for a new product vertical — sources: 0 — `last_reviewed: 2026-10-02`
 - [[research/references/ai-execution-boundaries]] — direct model vs agent runtime; on-device profile — sources: 0 — `last_reviewed: 2026-10-02`
@@ -31,6 +31,9 @@ _Last updated: 2026-10-05_
 - [[research/references/technology-references]] — layer-to-reference map: React, Swift, Next.js, Hono, Drizzle, Postgres, AI, review — sources: 9 — `last_reviewed: 2026-10-05`
 - [[research/references/interview-studio]] — Interview Studio views, code locations, assistant model, CLI pushes — sources: 0 — `last_reviewed: 2026-10-02`
 - [[research/references/ui-components]] — one config-driven component set: variants, sizes, states, design tokens, rules — sources: 0 — `last_reviewed: 2026-10-06`
+- [[research/references/walkthroughs]] — what a walkthrough is, the pages written and those to come — sources: 0 — `last_reviewed: 2026-10-09`
+- [[research/references/walkthrough-live-coach]] — the live coach, from a heard sentence to a note on screen: scenarios with real shapes and commands — sources: 0 — `last_reviewed: 2026-10-09`
+- [[research/references/walkthrough-context-pack]] — the context pack, from an experience matrix to the facts a note may cite — sources: 0 — `last_reviewed: 2026-10-09`
 
 ## Ideas (0)
 

@@ -60,8 +60,11 @@ export function createTranscriptRecordings(directory: string) {
       if (!live.has(sessionId)) {
         const now = new Date();
         // One file per press of record: an earlier one is never added to.
-        const file = `${now.toISOString().slice(0, 19).replaceAll(":", "-")}-${sessionId.slice(0, 8)}.txt`;
+        // Named to the millisecond, so stop and record again is a new file.
+        const file = `${now.toISOString().slice(0, 23).replace(/[:.]/g, "-")}-${sessionId.slice(0, 8)}.txt`;
         mkdirSync(directory, { recursive: true });
+        // The file exists from the press, so it can be named at once.
+        appendFileSync(join(directory, file), "", { mode: 0o600 });
         held.set(sessionId, {
           path: join(directory, file),
           file,

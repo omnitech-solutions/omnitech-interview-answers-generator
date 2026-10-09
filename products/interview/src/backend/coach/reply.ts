@@ -72,11 +72,15 @@ export function designDiagram(
   edges: readonly DesignEdge[],
 ): string | undefined {
   if (edges.length === 0) return undefined;
-  const id = (name: string) =>
-    `n_${name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "_")
-      .replace(/^_|_$/g, "")}`;
+  // A box is the same box whenever its name reads the same; its id is its
+  // place among the boxes, so a name in any script gets one of its own.
+  const ids = new Map<string, string>();
+  const id = (name: string) => {
+    const key = name.trim().toLowerCase();
+    const held = ids.get(key) ?? `n${ids.size + 1}`;
+    ids.set(key, held);
+    return held;
+  };
   // Mermaid reads brackets, pipes and parentheses as its own marks.
   const label = (text: string) =>
     cut(
@@ -88,9 +92,11 @@ export function designDiagram(
     );
   const lines = ["flowchart LR"];
   for (const edge of edges) {
-    const line = `  ${id(edge.from)}["${label(edge.from)}"] -->${
-      edge.label ? `|${label(edge.label)}|` : ""
-    } ${id(edge.to)}["${label(edge.to)}"]`;
+    // A label that is nothing once its marks are gone is no label.
+    const said = edge.label ? label(edge.label) : "";
+    const line = `  ${id(edge.from)}["${label(edge.from) || "?"}"] -->${
+      said ? `|${said}|` : ""
+    } ${id(edge.to)}["${label(edge.to) || "?"}"]`;
     // A drawing that would not fit is cut at a whole arrow, never mid-line.
     if (lines.join("\n").length + line.length + 1 > DIAGRAM_LENGTH) break;
     lines.push(line);
@@ -309,9 +315,10 @@ export function parseCoachReply(
       title: cut(ask ?? heard ?? "Coach", 120),
       kind,
       // A note that only warns is drawn as a warning.
-      tone: shown.every((section) => section.kind === "caution")
-        ? "watch"
-        : "say",
+      tone:
+        shown.length > 0 && shown.every((section) => section.kind === "caution")
+          ? "watch"
+          : "say",
       ...(ask ? { ask } : {}),
       ...(heard ? { heard } : {}),
       sections: shown,

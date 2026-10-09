@@ -93,7 +93,7 @@ describe("pressing record", () => {
     expect(state).toEqual({
       on: true,
       startedAt: "2026-10-08T09:40:00.000Z",
-      file: "2026-10-08T09-40-00-5e551011.txt",
+      file: "2026-10-08T09-40-00-000-5e551011.txt",
       lines: 0,
     });
     expect(recordings.state(SESSION)).toEqual(state);
@@ -119,7 +119,7 @@ describe("pressing record", () => {
     expect(second).toEqual({
       on: true,
       startedAt: "2026-10-08T09:41:00.000Z",
-      file: "2026-10-08T09-41-00-5e551011.txt",
+      file: "2026-10-08T09-41-00-000-5e551011.txt",
       lines: 0,
     });
     recordings.heard(heardIn(SESSION, "kept in the second", 62_000));
@@ -133,28 +133,31 @@ describe("pressing record", () => {
     expect(recordings.state(SESSION).lines).toBe(1);
   });
 
-  // DEFECT (transcript-recording.ts:66): the file is named to the second, so
-  // record, stop and record again within one second names the SAME file: the
-  // second recording is appended to the first, whose lines it then counts
-  // from 0. "One file per press of record: an earlier one is never added to"
-  // does not hold. Remove `.fails` when each press has a file of its own.
-  it.fails("DEFECT: a stop and a press within the same second is a new file too", () => {
-    const { recordings } = fresh();
+  // The file is named to the millisecond, so a stop and a press within one
+  // second are two files.
+  it("a stop and a press within the same second is a new file too", () => {
+    const { directory, recordings } = fresh();
     const first = recordings.start(SESSION);
+    recordings.heard(heardIn(SESSION, "kept in the first", 100));
     recordings.stop(SESSION);
     vi.setSystemTime(T0.getTime() + 400);
-    expect(recordings.start(SESSION).file).not.toBe(first.file);
+    const second = recordings.start(SESSION);
+    expect(second.file).toBe("2026-10-08T09-40-00-400-5e551011.txt");
+    expect(second.file).not.toBe(first.file);
+    expect(second.lines).toBe(0);
+    expect(filesIn(directory)).toEqual([first.file, second.file]);
   });
 
-  // DEFECT, minor (transcript-recording.ts:67-75): pressing record makes the
-  // folder and names a file but creates none until a line is heard, so a
-  // recording stopped before anything was said reports a `file` that does not
-  // exist (the window then says "The last one is kept as <file>"). Remove
-  // `.fails` when the file is there from the press, or is not named until it is.
-  it.fails("DEFECT: the file a press names exists", () => {
+  it("the file a press names exists at once, empty and for its owner only", () => {
     const { directory, recordings } = fresh();
     const { file } = recordings.start(SESSION);
-    expect(existsSync(join(directory, file as string))).toBe(true);
+    const path = join(directory, file as string);
+    expect(existsSync(path)).toBe(true);
+    expect(readFileSync(path, "utf8")).toBe("");
+    expect(statSync(path).mode & 0o777).toBe(0o600);
+    // Stopped before anything was said, the file it names is still there.
+    expect(recordings.stop(SESSION).file).toBe(file);
+    expect(existsSync(path)).toBe(true);
   });
 
   it("makes its folder, however deep, on the first press", () => {

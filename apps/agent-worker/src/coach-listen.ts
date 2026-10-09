@@ -20,7 +20,7 @@
 //     "plan": "the plan for the call, if one is set",
 //     "key": "a key for the note, so a second note for this turn replaces the first" }
 // Exit 0 with a moment, 2 when nothing happened in time, 1 on an error.
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import {
   type CoachPorts,
   decide,
@@ -110,14 +110,19 @@ try {
           key: `agent-${state.epoch.slice(0, 8)}-${from}`,
         }),
       );
-      writeFileSync(
-        STATE,
-        JSON.stringify({
-          epoch: state.epoch,
-          readTo: decision.until,
-          actedAtMs: Date.now(),
-        }),
-      );
+      // Where it read to is kept for the next listen; a folder that cannot
+      // be written only means the next one starts from what is held.
+      try {
+        mkdirSync(new URL(".", STATE), { recursive: true });
+        writeFileSync(
+          STATE,
+          JSON.stringify({
+            epoch: state.epoch,
+            readTo: decision.until,
+            actedAtMs: Date.now(),
+          }),
+        );
+      } catch {}
       process.exit(0);
     }
     await new Promise((resolve) => setTimeout(resolve, 300));

@@ -13,7 +13,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createCoachNotes } from "./coach-notes";
+import { createCoachNotes, replayCoachNotes } from "./coach-notes";
 
 let directory = "";
 let file = "";
@@ -749,5 +749,61 @@ describe("a file kept in an earlier shape", () => {
       sections: [{ kind: "say", label: "Say", lines: [spoken("Lead")] }],
     });
     expect(kept[1]).not.toHaveProperty("wants");
+  });
+});
+
+describe("notes with no file: the notes of a replay", () => {
+  it("are held like any others: added newest first, revised by key, refused when stale, cleared", () => {
+    vi.spyOn(Date, "now").mockReturnValue(7_000);
+    const store = createCoachNotes(null);
+    expect(store.get()).toEqual({ revision: 7_000, notes: [] });
+    store.add({ title: "First", at: "2026-10-08T09:00:00.000Z" });
+    const second = taken(
+      store.add({
+        title: "Second",
+        key: "q-2",
+        at: "2026-10-08T09:01:00.000Z",
+      }),
+    );
+    expect(titles(second)).toEqual(["Second", "First"]);
+    expect(second.revision).toBe(7_002);
+    const revised = taken(
+      store.add({ title: "Second, revised", key: "q-2", revision: 2 }),
+    );
+    expect(titles(revised)).toEqual(["Second, revised", "First"]);
+    expect(revised.notes[0]?.id).toBe(second.notes[0]?.id);
+    expect(store.add({ title: "Stale", key: "q-2", revision: 1 })).toBeNull();
+    expect(store.clear()).toEqual({ revision: 7_004, notes: [] });
+    expect(store.clear()).toEqual({ revision: 7_004, notes: [] });
+  });
+
+  it("are in this process only: a new store holds none of them, and nothing is written", () => {
+    const before = readdirSync(directory);
+    const store = createCoachNotes(null);
+    store.add({ title: "Of one replay" });
+    store.clear();
+    store.add({ title: "Of the next" });
+    expect(createCoachNotes(null).get().notes).toEqual([]);
+    expect(readdirSync(directory)).toEqual(before);
+  });
+
+  it("still refuses a note the contract does not allow", () => {
+    const store = createCoachNotes(null);
+    expect(() => store.add({ title: "" })).toThrow();
+    expect(store.get().notes).toEqual([]);
+  });
+
+  it("the replay's notes are such a store, apart from any store over a file", () => {
+    const own = createCoachNotes(file);
+    own.add({ title: "The person's own" });
+    replayCoachNotes.add({ title: "Of the replay" });
+    try {
+      expect(titles(replayCoachNotes.get())).toEqual(["Of the replay"]);
+      expect(titles(own.get())).toEqual(["The person's own"]);
+      expect(readFileSync(file, "utf8")).not.toContain("Of the replay");
+    } finally {
+      replayCoachNotes.clear();
+    }
+    expect(replayCoachNotes.get().notes).toEqual([]);
   });
 });

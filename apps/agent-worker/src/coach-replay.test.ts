@@ -77,7 +77,8 @@ const replay = (...args: string[]) =>
   });
 
 const CAST = ["--interviewer", "Speaker 1", "--me", "Speaker 2"];
-const REASON = "question-finished|pause|speaker-change|answer-check";
+const REASON =
+  "question-finished|pause|speaker-change|answer-check|screen-change";
 const ACT = new RegExp(
   `^\\d\\d:\\d\\d:\\d\\d {2}ACT {4}(${REASON}) +\\+\\d+\\.\\ds after "(.*)"$`,
 );
@@ -87,6 +88,29 @@ const acts = (ran: Ran) =>
     const found = ACT.exec(line);
     return found ? [[found[1] as string, found[2] as string] as const] : [];
   });
+// The calls made again, as the AGAIN lines tell of them.
+const agains = (ran: Ran) =>
+  ran.stdout
+    .split("\n")
+    .filter((line) => /^\d\d:\d\d:\d\d {2}AGAIN {2}/.test(line));
+// The summary line: how many actions, and each reason beside its count.
+const summary = (ran: Ran) => {
+  const found =
+    /^(\d+) actions in (\d+\.\d) minutes \(one every (\d+) s\): (.+)\.$/m.exec(
+      ran.stdout,
+    );
+  return {
+    actions: Number(found?.[1]),
+    minutes: Number(found?.[2]),
+    every: Number(found?.[3]),
+    counts: Object.fromEntries(
+      (found?.[4] ?? "").split(", ").map((each) => {
+        const [count, reason] = each.split(" ");
+        return [reason, Number(count)];
+      }),
+    ) as Record<string, number>,
+  };
+};
 const pieces = (ran: Ran) =>
   Number(/^Replaying .*: (\d+) pieces\./m.exec(ran.stdout)?.[1]);
 
@@ -98,7 +122,12 @@ const runs = {} as Record<
   | "hideMe"
   | "stretch"
   | "noFile"
-  | "nobody",
+  | "nobody"
+  | "atOnce"
+  | "slow"
+  | "plan"
+  | "missing"
+  | "missingPlan",
   Ran
 >;
 
@@ -106,6 +135,11 @@ beforeAll(async () => {
   directory = await mkdtemp(join(tmpdir(), "coach-replay-"));
   file = join(directory, "practice-round.txt");
   await writeFile(file, TRANSCRIPT);
+  const plan = join(directory, "plan.txt");
+  await writeFile(
+    plan,
+    "mode: system-design\nA booking system for a clinic.\n",
+  );
   const made = await Promise.all([
     replay(file, "--speakers"),
     replay(file, ...CAST, "--timing"),
@@ -114,6 +148,18 @@ beforeAll(async () => {
     replay(file, ...CAST, "--from", "00:00:41", "--to", "00:00:59", "--timing"),
     replay("--timing"),
     replay(file, "--leave-out", "Speaker 1,Speaker 2,Speaker 3,Unknown"),
+    replay(file, ...CAST, "--timing", "--latency", "0"),
+    replay(file, ...CAST, "--timing", "--latency", "9"),
+    // The plan's file is named before the transcript's.
+    replay("--plan", plan, file, ...CAST, "--timing"),
+    replay(join(directory, "no-such-file.txt"), ...CAST, "--timing"),
+    replay(
+      file,
+      ...CAST,
+      "--timing",
+      "--plan",
+      join(directory, "no-such-plan.txt"),
+    ),
   ]);
   const names = Object.keys({
     speakers: 0,
@@ -123,6 +169,11 @@ beforeAll(async () => {
     stretch: 0,
     noFile: 0,
     nobody: 0,
+    atOnce: 0,
+    slow: 0,
+    plan: 0,
+    missing: 0,
+    missingPlan: 0,
   } satisfies Record<keyof typeof runs, 0>) as (keyof typeof runs)[];
   names.forEach((name, at) => {
     runs[name] = made[at] as Ran;
@@ -196,6 +247,9 @@ describe("pnpm coach:replay", () => {
     expect(ran.stdout).toMatch(
       /^\d+ actions in 1\.\d minutes \(one every \d+ s\): (\d+ [a-z-]+(, )?)+\.$/m,
     );
+    expect(ran.stdout).toContain(
+      "\n6 actions in 1.3 minutes (one every 13 s): 2 pause, 2 recall, 3 question-finished, 1 answer-check.\n",
+    );
     expect(ran.stdout).toMatch(
       /^From the end of the interviewer's turn to acting: median \d+\.\d s\.$/m,
     );
@@ -205,26 +259,121 @@ describe("pnpm coach:replay", () => {
         expect(Number(/\+(\d+\.\d)s after/.exec(line)?.[1])).toBeLessThan(1.5);
   });
 
-  // DEFECT (coach-replay.ts:288 `acted.set(event.key, …)` and :416): what
-  // was acted on is kept by its note's key, so a call made again (and a
-  // sentence added to a turn already answered) replaces the action before it.
-  // The summary then counts fewer "actions" than the ACT lines above it and
-  // than the reasons it lists beside the count ("3 actions …: 1 pause,
-  // 2 recall, 4 question-finished"), and "one every N s" is worked from that.
-  it("DEFECT: the summary counts the actions it printed", () => {
-    const { stdout } = runs.timing;
-    const counted = Number(/^(\d+) actions in /m.exec(stdout)?.[1]);
-    expect(counted).toBe(acts(runs.timing).length);
+  it("lists every act in the order it was made, a turn answered again as another act", () => {
+    expect(acts(runs.timing)).toEqual([
+      ["pause", "Thanks for joining us today, Marisol."],
+      [
+        "question-finished",
+        "Thanks for joining us today, Marisol. So how would you shard the booking table?",
+      ],
+      [
+        "answer-check",
+        expect.stringMatching(/^I would start with the region .*…$/),
+      ],
+      ["question-finished", "Tell me about a time you led a migration."],
+      [
+        "pause",
+        "Tell me about a time you led a migration. The projector in room nine needs a new bulb today.",
+      ],
+      [
+        "question-finished",
+        "And what would you do about hot regions, and how would you roll that back safely?",
+      ],
+    ]);
   });
 
-  it("tells of a call made again when the interviewer's side goes on, as an unnamed speaker's sentence does", () => {
+  it.each([
+    "timing",
+    "leaveOut",
+    "hideMe",
+    "stretch",
+    "atOnce",
+    "slow",
+  ] as const)(
+    "the summary of the %s run counts each act it printed, once, and each call made again",
+    (name) => {
+      const ran = runs[name];
+      const { actions, minutes, every, counts } = summary(ran);
+      const acted = acts(ran);
+      expect(actions).toBe(acted.length);
+      const { recall = 0, ...reasons } = counts;
+      expect(recall).toBe(agains(ran).length);
+      // Each reason beside the count is the ACT lines of that reason.
+      for (const [reason, count] of Object.entries(reasons))
+        expect(acted.filter(([each]) => each === reason)).toHaveLength(count);
+      expect(Object.values(reasons).reduce((sum, each) => sum + each, 0)).toBe(
+        actions,
+      );
+      // "One every N s" is worked from the acts.
+      expect(
+        Math.abs(every - (minutes * 60) / Math.max(1, actions)),
+      ).toBeLessThan(4);
+    },
+  );
+
+  it("tells of a call made again when the interviewer's side goes on while it runs, as an unnamed speaker's sentence does", () => {
     // Speaker 3 has no part, so is unknown, and a sentence from an unknown
     // speaker is read as the interviewer's: it joins the question before it.
-    expect(runs.timing.stdout).toMatch(/^\d\d:\d\d:\d\d {2}AGAIN {2}/m);
-    expect(acts(runs.timing)).toContainEqual([
-      "question-finished",
-      "Tell me about a time you led a migration. The projector in room nine needs a new bulb today.",
-    ]);
+    // The absent model takes 4 s, so the call for the question is still
+    // running when that sentence is heard, and is made again with both.
+    const lines = runs.timing.stdout.split("\n");
+    const at = lines.findIndex((line) =>
+      line.endsWith('after "Tell me about a time you led a migration."'),
+    );
+    expect(lines[at + 1]).toMatch(
+      /^00:00:49 {2}AGAIN {2}the interviewer went on: the call is made again with the whole turn$/,
+    );
+    expect(lines[at + 2]).toMatch(
+      /^00:00:51 {2}ACT {4}pause +\+\d\.\ds after "Tell me about a time you led a migration\. The projector in room nine needs a new bulb today\."$/,
+    );
+    expect(agains(runs.timing)).toHaveLength(2);
+  });
+
+  it("--latency says how long the absent model takes: at 0 no call is still running to be made again, and the same acts are made", () => {
+    const ran = runs.atOnce;
+    expect(ran.code).toBe(0);
+    expect(agains(ran)).toEqual([]);
+    expect(summary(ran).counts).not.toHaveProperty("recall");
+    expect(acts(ran)).toEqual(acts(runs.timing));
+    // The default is 4 s; a slower model is caught out by the same turns.
+    expect(agains(runs.slow)).toHaveLength(agains(runs.timing).length);
+    expect(runs.slow.stdout).toBe(runs.timing.stdout);
+  });
+
+  it("--plan names the plan's file, which is never taken for the transcript", () => {
+    const ran = runs.plan;
+    expect(ran.code).toBe(0);
+    expect(ran.stderr).toBe("");
+    expect(ran.stdout).toMatch(
+      /^Replaying 00:00:06 to 00:01:20: 12 pieces\. Speaker 1 = interviewer, Speaker 2 = me\.$/m,
+    );
+    // The kind of round changes what is written, not when the coach acts.
+    expect(acts(ran)).toEqual(acts(runs.timing));
+  });
+
+  it("exits 1 and names the file when the transcript cannot be read", () => {
+    const { code, stdout, stderr } = runs.missing;
+    expect(code).toBe(1);
+    expect(stderr).toBe(
+      `That file could not be read: ${join(directory, "no-such-file.txt")}\n`,
+    );
+    expect(stdout).toBe("");
+  });
+
+  it("exits 1 when the plan's file cannot be read, acting on nothing", () => {
+    const { code, stdout } = runs.missingPlan;
+    expect(code).toBe(1);
+    expect(stdout).not.toContain("ACT");
+  });
+
+  // DEFECT, minor (coach-replay.ts:341-343): the plan's file is read with no
+  // guard, so a wrong path ends the run with Node's own stack trace
+  // ("Error: ENOENT … at readFileSync") instead of the plain line a missing
+  // transcript gets. Remove `.fails` when it says which file could not be read.
+  it("DEFECT: a plan that cannot be read is said plainly, without a stack trace", () => {
+    const { stderr } = runs.missingPlan;
+    expect(stderr).toContain("could not be read");
+    expect(stderr).not.toContain("at readFileSync");
   });
 
   it("--leave-out removes a speaker from what the coach hears", () => {

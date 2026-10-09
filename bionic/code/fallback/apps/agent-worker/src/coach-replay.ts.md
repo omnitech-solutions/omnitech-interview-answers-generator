@@ -1,0 +1,33 @@
+# apps/agent-worker/src/coach-replay.ts
+
+_Source: `apps/agent-worker/src/coach-replay.ts` (header-comment fallback)_
+
+Replays a recorded conversation through the live coach, to see when it
+acts, why, and what it writes.
+
+pnpm coach:replay <file> --speakers
+who is in the file: each label, how much they said, a first sentence
+pnpm coach:replay <file> --interviewer "Speaker 1" --me "Speaker 2" --timing
+when the coach would act and why; no model is called, it takes a second
+pnpm coach:replay <file> --interviewer "Speaker 1" --me "Speaker 2" \
+--from 10:39:50 --to 10:47:00 --runtime claude
+the same stretch with Claude Code writing the notes, at the speed it
+was said
+
+Options
+--interviewer L   --me L   --leave-out L     a label's part; repeat, or a,b
+--unknown-is interviewer|me|leave-out        what unnamed labels are
+--plan FILE       the plan for the call, given to the coach with every stretch
+--hide-me         the coach does not hear the person being coached
+--from T --to T   the stretch to replay (HH:MM:SS of the file's clock)
+--timing          decisions only, no model
+--latency S       with --timing: how long the absent model takes (default 4)
+--runtime claude|codex    who writes the notes (default claude)
+--speed N         N times faster than it was said (default 1). Above 1 a
+model's delay looks N times longer than it is.
+--studio          also show the notes in the running Studio's notes pane,
+as replay notes: kept apart from your own, in memory
+
+Nothing is kept: the transcript and the notes of a replay live in this
+process, unless --studio is given. With no part named for any label and a
+terminal to ask in, it asks.

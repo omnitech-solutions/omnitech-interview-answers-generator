@@ -1,7 +1,7 @@
 ---
 title: "The live coach, from a heard sentence to a note on screen"
-slug: live-coach
-type: walkthroughs
+slug: walkthrough-live-coach
+type: references
 tags: [coach, engine, walkthrough, transcript, grounding]
 sources: []
 last_reviewed: 2026-10-09
@@ -141,7 +141,7 @@ INTERVIEWER: And I mean in practice, not in theory.
 WHY NOW: the interviewer has stopped talking. If they asked or invited something, give the answer to say; …
 ```
 
-Where the record comes from is the context pack: [[research/walkthroughs/context-pack]]. The conversation window is the last 12,000 characters.
+Where the record comes from is the context pack: [[research/references/walkthrough-context-pack]]. The conversation window is the last 12,000 characters.
 
 ## Step 4: the model's reply, and the note
 

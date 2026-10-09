@@ -2,7 +2,8 @@
 // and a revision older than the one held is refused with 409 and changes
 // nothing. The store here is the real one over a temporary file, never the
 // data directory.
-import { rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
+import { join } from "node:path";
 import {
   afterAll,
   afterEach,
@@ -48,8 +49,9 @@ const app = () =>
     resolveScope: async () => null,
     verifySession: async () => true,
   });
-const send = (method: string, body?: unknown) =>
-  app().request(URL, {
+const REPLAY = `${URL}?space=replay`;
+const send = (method: string, body?: unknown, url = URL) =>
+  app().request(url, {
     method,
     headers: { "content-type": "application/json" },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -69,6 +71,7 @@ describe("the coach notes API", () => {
   beforeEach(async () => {
     delete process.env["INTERVIEW_API_TOKEN"];
     await send("DELETE");
+    await send("DELETE", undefined, REPLAY);
   });
   afterEach(() => {
     if (originalToken === undefined) delete process.env["INTERVIEW_API_TOKEN"];
@@ -282,6 +285,123 @@ describe("the coach notes API", () => {
     // A cleared key is free again: its first revision is not stale.
     expect((await send("POST", { title: "Again", key: "q-1" })).status).toBe(
       201,
+    );
+  });
+
+  describe("the notes of a replay (?space=replay)", () => {
+    const file = () => join(held.directory, "coach-notes.json");
+    const onDisk = () =>
+      existsSync(file()) ? readFileSync(file(), "utf8") : null;
+
+    it("are taken and listed apart: the person's own are neither shown nor changed", async () => {
+      await send("POST", {
+        title: "The person's own",
+        key: "q-1",
+        sections: [say("Start from the outbox")],
+      });
+      const own = await listed(await send("GET"));
+      const kept = onDisk();
+      expect(kept).toContain("The person's own");
+
+      const posted = await send(
+        "POST",
+        { title: "Of the replay", key: "q-1", sections: [say("A trial")] },
+        REPLAY,
+      );
+      expect(posted.status).toBe(201);
+      expect((await listed(posted)).notes.map((note) => note.title)).toEqual([
+        "Of the replay",
+      ]);
+      expect(
+        (await listed(await send("GET", undefined, REPLAY))).notes.map(
+          (note) => note.title,
+        ),
+      ).toEqual(["Of the replay"]);
+      // The person's own: the same notes, the same revision, the same file.
+      expect(await listed(await send("GET"))).toEqual(own);
+      expect(onDisk()).toBe(kept);
+      expect(kept).not.toContain("Of the replay");
+    });
+
+    it("the person's own notes never reach the replay's", async () => {
+      await send("POST", { title: "The person's own", key: "q-1" });
+      expect(
+        (await listed(await send("GET", undefined, REPLAY))).notes,
+      ).toEqual([]);
+    });
+
+    it("are cleared alone: the person's own stay, on show and on disk", async () => {
+      await send("POST", { title: "The person's own", key: "q-1" });
+      await send("POST", { title: "Of the replay" }, REPLAY);
+      const own = await listed(await send("GET"));
+      const kept = onDisk();
+      const cleared = await send("DELETE", undefined, REPLAY);
+      expect(cleared.status).toBe(200);
+      expect((await listed(cleared)).notes).toEqual([]);
+      expect(
+        (await listed(await send("GET", undefined, REPLAY))).notes,
+      ).toEqual([]);
+      expect(await listed(await send("GET"))).toEqual(own);
+      expect(onDisk()).toBe(kept);
+    });
+
+    it("clearing the person's own leaves the replay's", async () => {
+      await send("POST", { title: "Of the replay" }, REPLAY);
+      await send("DELETE");
+      expect(
+        (await listed(await send("GET", undefined, REPLAY))).notes.map(
+          (note) => note.title,
+        ),
+      ).toEqual(["Of the replay"]);
+    });
+
+    it("refuse an older revision with 409 by the replay's own keys, and an invalid note with 400", async () => {
+      await send("POST", { title: "Own", key: "q-1", revision: 5 });
+      // The same key at a lower revision is new to the replay.
+      expect(
+        (
+          await send(
+            "POST",
+            { title: "Replay", key: "q-1", revision: 2 },
+            REPLAY,
+          )
+        ).status,
+      ).toBe(201);
+      const stale = await send(
+        "POST",
+        { title: "Replay", key: "q-1", revision: 1 },
+        REPLAY,
+      );
+      expect(stale.status).toBe(409);
+      expect(
+        ((await stale.json()) as { error: { code: string } }).error.code,
+      ).toBe("stale_coach_note");
+      expect((await send("POST", { title: "" }, REPLAY)).status).toBe(400);
+    });
+
+    it("answer 204 to a reader that names the replay's revision, which is not the person's", async () => {
+      const replay = await listed(
+        await send("POST", { title: "Of the replay" }, REPLAY),
+      );
+      const current = await app().request(
+        `${REPLAY}&revision=${replay.revision}`,
+      );
+      expect(current.status).toBe(204);
+      const own = await listed(await send("GET"));
+      expect(own.notes).toEqual([]);
+    });
+
+    it.each(["live", "", "REPLAY", "other"])(
+      "any other space (%j) is the person's own",
+      async (space) => {
+        await send("POST", { title: "Own" }, `${URL}?space=${space}`);
+        expect(
+          (await listed(await send("GET"))).notes.map((note) => note.title),
+        ).toEqual(["Own"]);
+        expect(
+          (await listed(await send("GET", undefined, REPLAY))).notes,
+        ).toEqual([]);
+      },
     );
   });
 });

@@ -120,7 +120,15 @@ describe("the coach's facts for a live session", () => {
       expect(
         facts.map((fact) => [fact.pointer, fact.about]),
         question,
-      ).toEqual(selected.map((fact) => [fact.pointer, fact.about]));
+      ).toEqual(
+        selected.map((fact) => [
+          // A looked-up field is addressed under its record.
+          fact.exact
+            ? `${fact.pointer}/${fact.slot.split(".").at(-1)}`
+            : fact.pointer,
+          fact.about,
+        ]),
+      );
       // A ranked fact is given in its own words.
       expect(
         facts.filter((_, index) => !selected[index]?.exact),
@@ -142,24 +150,34 @@ describe("the coach's facts for a live session", () => {
     load.mockResolvedValue(contextOf());
     const facts = await clocked().context.facts(SESSION, GO);
     expect(facts.slice(0, 5)).toEqual([
-      { pointer: "/candidate", text: "Name: Mira Okonjo", about: "candidate" },
       {
-        pointer: "/candidate",
+        pointer: "/candidate/name",
+        text: "Name: Mira Okonjo",
+        about: "candidate",
+      },
+      {
+        pointer: "/candidate/headline",
         text: "Headline: Platform engineer",
         about: "candidate",
       },
-      { pointer: "/candidate", text: "Location: Lisbon", about: "candidate" },
       {
-        pointer: "/context/employerBrief",
+        pointer: "/candidate/location",
+        text: "Location: Lisbon",
+        about: "candidate",
+      },
+      {
+        pointer: "/context/employerBrief/company",
         text: "Company: Larkspur Analytics",
         about: "employer",
       },
       {
-        pointer: "/context/employerBrief",
+        pointer: "/context/employerBrief/role",
         text: "Role: Principal Engineer",
         about: "employer",
       },
     ]);
+    // Two fields of one record are two facts: no pointer is given twice.
+    expect(new Set(facts.map((fact) => fact.pointer)).size).toBe(facts.length);
     // Nothing ranked is labelled.
     for (const fact of facts.slice(5))
       expect(fact.text).not.toMatch(/^(Name|Headline|Location|Company|Role): /);

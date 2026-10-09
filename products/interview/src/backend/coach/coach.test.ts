@@ -6,7 +6,9 @@
 import type { Failure } from "@omnitech/ai-engine";
 import {
   type CoachNoteInput,
+  type CoachSpace,
   type CoachSpeaker,
+  type CoachTranscriptResponse,
   type CoachTranscriptSession,
   coachNoteInputSchema,
 } from "@omnitech/interview-contracts";
@@ -112,6 +114,8 @@ function world(
     ) => Promise<CoachFact[]>;
     plan?: () => Promise<string | undefined>;
     post?: (note: CoachNoteInput) => Promise<void>;
+    // What the coach is answered, made from what the transcript holds.
+    read?: (answer: CoachTranscriptResponse) => CoachTranscriptResponse;
   } = {},
 ) {
   let clock = T0;
@@ -119,6 +123,8 @@ function world(
   const script: Scripted[] = [];
   const calls: Open[] = [];
   const posts: CoachNoteInput[] = [];
+  // The space each post was made to, beside `posts`.
+  const spaces: (CoachSpace | undefined)[] = [];
   const events: CoachEvent[] = [];
   const reads: number[] = [];
   const asked: { session: CoachTranscriptSession; query: string }[] = [];
@@ -196,13 +202,15 @@ function world(
       transcript: {
         since: async (after) => {
           reads.push(after);
-          return transcript.since(after);
+          const answer = transcript.since(after);
+          return live.read ? live.read(answer) : answer;
         },
       },
       notes: {
-        post: async (note) => {
+        post: async (note, _signal, space) => {
           await live.post?.(note);
           posts.push(note);
+          spaces.push(space);
         },
       },
       ...(context ? { context } : {}),
@@ -230,6 +238,7 @@ function world(
     transcript,
     calls,
     posts,
+    spaces,
     events,
     reads,
     asked,
@@ -1776,6 +1785,26 @@ describe("the plan for the call and what the coach remembers of it", () => {
     expect(reads).toBe(2);
   });
 
+  it("reads the plan as it starts to listen, before any call is made, and not again for the first call", async () => {
+    let reads = 0;
+    const w = world(
+      {},
+      {
+        plan: async () => {
+          reads += 1;
+          return PLAN;
+        },
+      },
+    );
+    expect(await w.tick()).toBe(false);
+    expect(reads).toBe(1);
+    expect(w.calls).toEqual([]);
+    w.reply({ chunks: [SILENT_REPLY] });
+    await w.heard("interviewer", QUESTION);
+    expect(under(w.calls[0]?.prompt ?? "", PLAN_HEAD)).toEqual([PLAN]);
+    expect(reads).toBe(1);
+  });
+
   it.each([
     ["there is none", async () => undefined],
     ["it is empty", async () => "  \n"],
@@ -2333,22 +2362,45 @@ describe("a system design", () => {
     expect(w.events.some((event) => event.what === "silent")).toBe(false);
   });
 
-  // DEFECT (coach.ts:332-333, 356-359): the note is posted whole each time,
-  // from THIS reply's lines and the design's arrows. A reply that adds one
-  // arrow and one line therefore replaces everything the one design note
-  // said before it (the five questions, the sentence that introduced the
-  // design) though the note is said to hold "the whole design". Remove
-  // `.fails` if the note is meant to keep what it said; delete this test if
-  // each revision is meant to show only the latest lines.
-  it.fails("DEFECT: a later reply does not wipe what the design's one note already said", async () => {
+  it("a later reply that only draws keeps what the design's one note already said: the drawing grows, the words stay", async () => {
     const w = design();
-    w.reply({ chunks: [HIGH_LEVEL] }, { chunks: ["DRAW: API -> Cache\n"] });
+    w.reply(
+      { chunks: [HIGH_LEVEL] },
+      { chunks: ["DRAW: API -> Cache\n"] },
+      { chunks: ["DRAW: Cache -> Store\n"] },
+    );
     await w.heard("interviewer", "How would you lay it out?");
+    const words = w.posts.at(-1)?.sections;
+    expect(said(w.posts.at(-1))).toEqual([
+      ["say", ["Start with one API in front of a store."]],
+    ]);
     w.later();
     await w.heard("interviewer", "And would you cache the slots?");
-    expect(JSON.stringify(w.posts.at(-1)?.sections)).toContain(
-      "in front of a store",
+    expect(w.posts.at(-1)?.sections).toEqual(words);
+    expect(w.posts.at(-1)?.diagram).toBe(
+      designDiagram([
+        { from: "Client", to: "API", label: "book a slot" },
+        { from: "API", to: "Store" },
+        { from: "API", to: "Cache" },
+      ]),
     );
+    // And again: the words kept are still the last ones written.
+    w.later();
+    await w.heard("interviewer", "And where does the cache read from?");
+    expect(w.posts.at(-1)?.sections).toEqual(words);
+    expect(w.posts.at(-1)?.diagram).toContain('["Cache"] --> ');
+    expect(w.posts.at(-1)?.key).toBe(designKey(w));
+  });
+
+  it("a later reply with words of its own replaces the note's words", async () => {
+    const w = design();
+    w.reply({ chunks: [HIGH_LEVEL] }, { chunks: [DETAIL] });
+    await w.heard("interviewer", "How would you lay it out?");
+    w.later();
+    await w.heard("interviewer", "And how are the reminders sent?");
+    expect(said(w.posts.at(-1))).toEqual([
+      ["say", ["A queue takes the reminders off the request."]],
+    ]);
   });
 
   it("holds forty arrows at most: the first forty", async () => {
@@ -2688,5 +2740,312 @@ describe("how much the coach remembers of a call", () => {
     expect(under(w.calls[1]?.prompt ?? "", LOG_HEAD)).toEqual([
       "- The panel is three engineers",
     ]);
+  });
+});
+
+describe("whose notes the coach writes", () => {
+  it("posts a live session's notes as the person's own", async () => {
+    const w = world({}, { session: SESSION });
+    w.reply({ chunks: ["SAY: one.\n", "SAY: two.\n"], gapMs: 600 });
+    await w.heard("interviewer", QUESTION);
+    expect(w.posts.length).toBeGreaterThan(1);
+    expect(w.spaces).toEqual(w.posts.map(() => "live"));
+  });
+
+  it("posts the notes of an attached transcript to the replay, every revision of them", async () => {
+    const w = world();
+    w.reply({ chunks: ["SAY: one.\n", "SAY: two.\n"], gapMs: 600 });
+    await w.heard("interviewer", QUESTION);
+    expect(w.posts.length).toBeGreaterThan(1);
+    expect(w.spaces).toEqual(w.posts.map(() => "replay"));
+  });
+
+  it("reads an answer that names no space as live", async () => {
+    const w = world({}, { read: ({ space: _space, ...answer }) => answer });
+    w.reply({ chunks: [NOTE] });
+    await w.heard("interviewer", QUESTION);
+    expect(w.spaces).toEqual(["live"]);
+  });
+
+  it("follows the transcript: a replay attached after a live session is posted apart, and the live one after it is the person's own again", async () => {
+    const w = world();
+    const live = (text: string) =>
+      w.transcript.add(
+        [{ speaker: "interviewer", text, at: new Date(w.now()).toISOString() }],
+        SESSION,
+      );
+    w.reply({ chunks: [NOTE] }, { chunks: [NOTE] }, { chunks: [NOTE] });
+    live(QUESTION);
+    await w.tick();
+    w.advance(pauseMs);
+    await w.act();
+    expect(w.spaces).toEqual(["live"]);
+    // Attached with no session: another conversation, under a new epoch.
+    w.say("interviewer", HOT);
+    await w.tick();
+    await w.tick();
+    w.advance(pauseMs);
+    await w.act();
+    expect(w.spaces).toEqual(["live", "replay"]);
+    expect(w.posts[1]?.key).toBe(w.key(1));
+    expect(w.posts[1]?.key).not.toBe(w.posts[0]?.key);
+    live(ROLLBACK);
+    await w.tick();
+    await w.tick();
+    w.advance(pauseMs);
+    await w.act();
+    expect(w.spaces).toEqual(["live", "replay", "live"]);
+  });
+
+  it("a design's one note goes where the transcript's notes go", async () => {
+    const w = world(
+      {},
+      { plan: async () => "mode: system-design\nBooking system." },
+    );
+    w.reply({ chunks: ["SAY: One API.\nDRAW: Client -> API\n"] });
+    await w.heard("interviewer", "How would you lay it out?");
+    expect(w.spaces).toEqual(["replay"]);
+  });
+});
+
+describe("the shared screen", () => {
+  const SCREEN_HEAD =
+    "ON THE SHARED SCREEN (text read from the latest capture; it may be cut or misread):";
+  const WHY_SCREEN = "WHY NOW: what is on the shared screen has changed.";
+  const TASK = "def available_slots(day): # TODO return the free slots";
+  const FAILING = "FAILED test_slots.py::test_overlap - AssertionError";
+  const CODING_PLAN = "mode: coding\nFix the booking service.";
+  const SCREEN_NOTE = [
+    "ASK: The failing slot test",
+    "ANCHOR: The overlap check in available_slots",
+    "CAUTION: Write the failing test first.",
+  ].join("\n");
+  const coding = (plan = CODING_PLAN) =>
+    world({}, { session: SESSION, plan: async () => plan });
+  const screenKey = (w: ReturnType<typeof world>, from: number) =>
+    `coach-${w.transcript.since().epoch.slice(0, 8)}-screen-${from}`;
+  const screenActs = (w: ReturnType<typeof world>) =>
+    w.events.filter(
+      (event) => event.what === "act" && event.reason === "screen-change",
+    );
+
+  it("is put before the new lines of every call while it is held, and left out when there is none", async () => {
+    const w = world({}, { session: SESSION });
+    w.reply({ chunks: [SILENT_REPLY] }, { chunks: [SILENT_REPLY] });
+    await w.heard("interviewer", QUESTION);
+    expect(w.calls[0]?.prompt).not.toContain("ON THE SHARED SCREEN");
+    w.transcript.setScreen(TASK, SESSION);
+    w.later();
+    await w.heard("interviewer", HOT);
+    const prompt = w.calls[1]?.prompt ?? "";
+    expect(under(prompt, SCREEN_HEAD)).toEqual([TASK]);
+    expect(prompt.indexOf(SCREEN_HEAD)).toBeGreaterThan(
+      prompt.indexOf("THE CONVERSATION SO FAR:"),
+    );
+    expect(prompt.indexOf(SCREEN_HEAD)).toBeLessThan(
+      prompt.indexOf("NEW LINES (decide on these):"),
+    );
+  });
+
+  it.each([
+    ["a conversation (no plan)", undefined],
+    ["a conversation (a plan that names no mode)", "Land the ledger story."],
+    ["a system design", "mode: system-design\nBooking system."],
+  ])(
+    "is only context in %s: a changed screen alone starts no call",
+    async (_name, plan) => {
+      const w = world(
+        {},
+        { session: SESSION, ...(plan ? { plan: async () => plan } : {}) },
+      );
+      w.reply({ chunks: [SILENT_REPLY] });
+      await w.heard("interviewer", QUESTION);
+      w.transcript.setScreen(TASK, SESSION);
+      w.advance(120_000);
+      expect(await w.tick()).toBe(false);
+      expect(w.calls).toHaveLength(1);
+      expect(screenActs(w)).toEqual([]);
+    },
+  );
+
+  it("in live coding a changed screen is looked at once 15 s have passed since the coach last acted, under a key of its own", async () => {
+    const w = coding();
+    w.reply({ chunks: [SILENT_REPLY] }, { chunks: [SCREEN_NOTE] });
+    await w.heard("interviewer", QUESTION);
+    w.transcript.setScreen(TASK, SESSION);
+    expect(await w.tick()).toBe(false);
+    w.advance(14_999);
+    expect(await w.tick()).toBe(false);
+    expect(w.calls).toHaveLength(1);
+    w.advance(1);
+    expect(await w.act()).toBe(true);
+
+    expect(w.calls).toHaveLength(2);
+    const prompt = w.calls[1]?.prompt ?? "";
+    expect(under(prompt, SCREEN_HEAD)).toEqual([TASK]);
+    // Nothing new was said: the screen is what there is to decide on.
+    expect(newLines(prompt)).toEqual(["(nothing new was said)"]);
+    expect(prompt).toContain(WHY_SCREEN);
+    expect(prompt).toContain("MODE: LIVE CODING.");
+    // The note is told as it is written, and again as it is finished.
+    expect(w.told().slice(-3)).toEqual([
+      ["act", "screen-change", 1, 1],
+      ["note", "screen-change", 1, 1],
+      ["note", "screen-change", 1, 1],
+    ]);
+    expect(w.events.at(-1)?.key).toBe(screenKey(w, 1));
+    expect(w.posts.length).toBeGreaterThan(0);
+    for (const post of w.posts)
+      expect(post).toMatchObject({
+        key: screenKey(w, 1),
+        askId: `${screenKey(w, 1)}-ask`,
+      });
+    expect(said(w.posts.at(-1))).toEqual([
+      ["anchors", ["The overlap check in available_slots"]],
+      ["caution", ["Write the failing test first."]],
+    ]);
+    expect(w.spaces).toEqual(w.posts.map(() => "live"));
+    expect(() => coachNoteInputSchema.parse(w.posts.at(-1))).not.toThrow();
+  });
+
+  it("is looked at once: the same screen read again is not a change, a screen that reads differently is", async () => {
+    const w = coding();
+    w.reply(
+      { chunks: [SILENT_REPLY] },
+      { chunks: [SILENT_REPLY] },
+      { chunks: [SILENT_REPLY] },
+    );
+    await w.heard("interviewer", QUESTION);
+    w.transcript.setScreen(TASK, SESSION);
+    w.advance(15_000);
+    expect(await w.act()).toBe(true);
+    expect(screenActs(w)).toHaveLength(1);
+    w.advance(60_000);
+    expect(await w.tick()).toBe(false);
+    // The next capture reads the same.
+    w.transcript.setScreen(`  ${TASK}  `, SESSION);
+    w.advance(60_000);
+    expect(await w.tick()).toBe(false);
+    expect(w.calls).toHaveLength(2);
+
+    w.transcript.setScreen(FAILING, SESSION);
+    expect(await w.act()).toBe(true);
+    expect(screenActs(w)).toHaveLength(2);
+    expect(under(w.calls[2]?.prompt ?? "", SCREEN_HEAD)).toEqual([FAILING]);
+  });
+
+  it("two changes within 15 s are one more look, at the latest screen", async () => {
+    const w = coding();
+    w.reply(
+      { chunks: [SILENT_REPLY] },
+      { chunks: [SILENT_REPLY] },
+      { chunks: [SILENT_REPLY] },
+    );
+    await w.heard("interviewer", QUESTION);
+    w.transcript.setScreen(TASK, SESSION);
+    w.advance(15_000);
+    await w.act();
+    w.transcript.setScreen("an edit in between", SESSION);
+    w.advance(5_000);
+    expect(await w.tick()).toBe(false);
+    w.transcript.setScreen(FAILING, SESSION);
+    w.advance(9_999);
+    expect(await w.tick()).toBe(false);
+    w.advance(1);
+    expect(await w.act()).toBe(true);
+    expect(w.calls).toHaveLength(3);
+    expect(under(w.calls[2]?.prompt ?? "", SCREEN_HEAD)).toEqual([FAILING]);
+  });
+
+  it("waits until nothing was said for 1.5 s, then reads what was said with it; the mode is known before the first call", async () => {
+    const w = coding();
+    w.reply({ chunks: [SCREEN_NOTE] }, { chunks: [SILENT_REPLY] });
+    expect(await w.hear("candidate", "Let me read the test first.")).toBe(
+      false,
+    );
+    w.transcript.setScreen(TASK, SESSION);
+    w.advance(1_499);
+    expect(await w.tick()).toBe(false);
+    // Something more is said: the quiet is counted again from it.
+    expect(await w.hear("candidate", "It builds the slots per day.")).toBe(
+      false,
+    );
+    w.advance(1_499);
+    expect(await w.tick()).toBe(false);
+    expect(w.calls).toEqual([]);
+    w.advance(1);
+    expect(await w.act()).toBe(true);
+    expect(w.told()).toEqual([
+      ["act", "screen-change", 1, 2],
+      ["note", "screen-change", 1, 2],
+      ["note", "screen-change", 1, 2],
+    ]);
+    expect(w.posts[0]?.key).toBe(screenKey(w, 1));
+    expect(newLines(w.calls[0]?.prompt ?? "")).toEqual([
+      "CANDIDATE: Let me read the test first.",
+      "CANDIDATE: It builds the slots per day.",
+    ]);
+    // What it read with the screen is decided on: it is not new again.
+    w.later();
+    await w.heard("interviewer", QUESTION);
+    expect(newLines(w.calls[1]?.prompt ?? "")).toEqual([
+      `INTERVIEWER: ${QUESTION}`,
+    ]);
+  });
+
+  it("is not looked at while nothing has been said at all", async () => {
+    const w = coding();
+    w.transcript.setScreen(TASK, SESSION);
+    w.advance(120_000);
+    expect(await w.tick()).toBe(false);
+    expect(w.calls).toEqual([]);
+    expect(w.events).toEqual([]);
+  });
+
+  it("is not looked at while a call is in hand", async () => {
+    const w = coding();
+    w.say("interviewer", QUESTION);
+    await w.tick();
+    w.advance(finishedMs);
+    const call = await w.opens();
+    w.transcript.setScreen(TASK, SESSION);
+    w.advance(60_000);
+    expect(await w.tick()).toBe(false);
+    expect(w.calls).toHaveLength(1);
+    call.text(SILENT_REPLY);
+    call.done();
+    await w.idle();
+    expect(await w.tick()).toBe(true);
+    w.reply({ chunks: [SILENT_REPLY] });
+    expect(await w.act()).toBe(true);
+    expect(screenActs(w)).toHaveLength(1);
+  });
+
+  it("is forgotten with the conversation when the transcript is cleared", async () => {
+    const w = coding();
+    w.reply({ chunks: [SILENT_REPLY] }, { chunks: [SILENT_REPLY] });
+    await w.heard("interviewer", QUESTION);
+    w.transcript.setScreen(TASK, SESSION);
+    await w.tick();
+    w.transcript.clear();
+    await w.tick();
+    w.advance(60_000);
+    w.say("interviewer", HOT);
+    await w.tick();
+    w.advance(pauseMs);
+    await w.act();
+    expect(w.calls).toHaveLength(2);
+    expect(w.calls[1]?.prompt).not.toContain("ON THE SHARED SCREEN");
+    expect(screenActs(w)).toEqual([]);
+  });
+
+  it("is never read for a replay: a transcript attached with no session holds no screen", async () => {
+    const w = world({}, { plan: async () => CODING_PLAN });
+    w.reply({ chunks: [SILENT_REPLY] });
+    await w.heard("interviewer", QUESTION);
+    w.transcript.setScreen(TASK, SESSION);
+    w.advance(60_000);
+    expect(await w.tick()).toBe(false);
+    expect(w.calls).toHaveLength(1);
   });
 });

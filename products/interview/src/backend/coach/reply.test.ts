@@ -794,11 +794,7 @@ describe("the arrows of a design", () => {
     ).toEqual([{ from: "Client", to: "API" }]);
   });
 
-  // DEFECT (reply.ts:312-314, `tone`): `shown.every(...)` is true of no
-  // sections at all, so a reply that only draws is given the tone "watch":
-  // the design's own note is drawn as a warning, though it warns of nothing.
-  // Remove `.fails` when that is fixed.
-  it.fails("DEFECT: a reply that only draws is not drawn as a warning", () => {
+  it("a reply that only draws is not drawn as a warning", () => {
     expect(drawn("DRAW: Client -> API")?.note.tone).toBe("say");
   });
 
@@ -868,26 +864,35 @@ describe("the design as a diagram", () => {
     ).toBe(
       [
         "flowchart LR",
-        '  n_client["Client"] -->|place order| n_api_gateway["API Gateway"]',
-        '  n_api_gateway["API Gateway"] --> n_order_queue["Order queue"]',
+        '  n1["Client"] -->|place order| n2["API Gateway"]',
+        '  n2["API Gateway"] --> n3["Order queue"]',
       ].join("\n"),
     );
   });
 
-  it("names a box by what it is called, so the same name is one box however it is written", () => {
+  it("numbers a box by where it first appears, so the same name, in any case, is one box", () => {
     const diagram = designDiagram([
       { from: "Client", to: "API gateway" },
-      { from: "api-gateway", to: "Store" },
-      { from: " API  Gateway ", to: "Cache" },
+      { from: "API GATEWAY", to: "Store" },
+      { from: " api gateway ", to: "Cache" },
+      { from: "client", to: "Store" },
     ]) as string;
-    const ids = [...diagram.matchAll(/\b(n_\w*)\["/g)].map((match) => match[1]);
-    expect(ids).toEqual([
-      "n_client",
-      "n_api_gateway",
-      "n_api_gateway",
-      "n_store",
-      "n_api_gateway",
-      "n_cache",
+    const ids = [...diagram.matchAll(/\b(n\d+)\["/g)].map((match) => match[1]);
+    expect(ids).toEqual(["n1", "n2", "n2", "n3", "n2", "n4", "n1", "n3"]);
+    // Each arrow shows the name as that arrow wrote it.
+    expect(diagram.split("\n")[2]).toBe('  n2["API GATEWAY"] --> n3["Store"]');
+  });
+
+  it("a name written with other spacing or marks is another box", () => {
+    const diagram = designDiagram([
+      { from: "API gateway", to: "api-gateway" },
+      { from: "API  gateway", to: "Store" },
+    ]) as string;
+    expect([...diagram.matchAll(/\b(n\d+)\["/g)].map((m) => m[1])).toEqual([
+      "n1",
+      "n2",
+      "n3",
+      "n4",
     ]);
   });
 
@@ -900,7 +905,7 @@ describe("the design as a diagram", () => {
       },
     ]) as string;
     expect(diagram.split("\n")[1]).toBe(
-      '  n_orders_primary_eu_db["Orders primary eu db"] -->|read cached write sync| n_cache_hot_keys_ttl["Cache hot keys ttl"]',
+      '  n1["Orders primary eu db"] -->|read cached write sync| n2["Cache hot keys ttl"]',
     );
   });
 
@@ -926,7 +931,7 @@ describe("the design as a diagram", () => {
     expect(lines[0]).toBe("flowchart LR");
     for (const line of lines.slice(1))
       expect(line).toMatch(
-        /^ {2}n_\w+\["[^"]+"\] -->\|[^|]+\| n_\w+\["[^"]+"\]$/,
+        /^ {2}n\d+\["[^"]+"\] -->\|[^|]+\| n\d+\["[^"]+"\]$/,
       );
     expect(lines[1]).toContain("Service number 0");
     // One more whole arrow would not have fitted.
@@ -944,30 +949,36 @@ describe("the design as a diagram", () => {
     expect(diagram.split("\n")).toHaveLength(2);
   });
 
-  // DEFECT (reply.ts:91-93): an arrow's label that is nothing but marks
-  // Mermaid reads as its own ("()", "[]") is stripped to nothing and still
-  // written, as `-->||`, which Mermaid cannot read: the one arrow loses the
-  // whole drawing. Remove `.fails` when it is drawn as an arrow with no label.
-  it.fails("DEFECT: an arrow whose label is only marks is drawn unlabelled", () => {
-    const diagram = designDiagram([
-      { from: "Client", to: "API", label: "()" },
-    ]) as string;
-    expect(diagram).not.toContain("||");
+  it.each(["()", "[]", "{ }", "<>", '"|"', "   "])(
+    "an arrow whose label is only marks (%j) is drawn unlabelled",
+    (label) => {
+      expect(designDiagram([{ from: "Client", to: "API", label }])).toBe(
+        'flowchart LR\n  n1["Client"] --> n2["API"]',
+      );
+    },
+  );
+
+  it("a box whose name is only marks is drawn as a question mark", () => {
+    expect(designDiagram([{ from: "()", to: "API" }])).toBe(
+      'flowchart LR\n  n1["?"] --> n2["API"]',
+    );
   });
 
-  // DEFECT (reply.ts:75-79, `id`): a box's id is its name's ASCII letters and
-  // digits, so two boxes named without any (in another script, or by a mark)
-  // both get the id "n_" and are drawn as ONE box, under the first one's name.
-  // Remove `.fails` when distinct names are distinct boxes.
-  it.fails("DEFECT: two boxes named without an ASCII letter or digit are two boxes", () => {
-    const diagram = designDiagram([
-      { from: "Client", to: "数据库" },
-      { from: "Client", to: "缓存" },
-    ]) as string;
-    const [first, second] = [...diagram.matchAll(/--> (n_\w*)\["/g)].map(
-      (match) => match[1],
+  it("two boxes named in another script are two boxes, each with its name", () => {
+    expect(
+      designDiagram([
+        { from: "Client", to: "数据库" },
+        { from: "Client", to: "缓存" },
+        { from: "数据库", to: "缓存" },
+      ]),
+    ).toBe(
+      [
+        "flowchart LR",
+        '  n1["Client"] --> n2["数据库"]',
+        '  n1["Client"] --> n3["缓存"]',
+        '  n2["数据库"] --> n3["缓存"]',
+      ].join("\n"),
     );
-    expect(first).not.toBe(second);
   });
 });
 

@@ -2,7 +2,14 @@
 // where a dragged panel snaps, and that the panel stands down in a coach view
 // (the coach layout draws the notes itself, under their questions).
 import type { CoachNote } from "@omnitech/interview-contracts";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  render,
+  renderHook,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   CoachNotes,
@@ -13,6 +20,7 @@ import {
   noteMarkdown,
   Prompter,
   talkingPoints,
+  useCoachNotes,
 } from "./coach-notes";
 
 const note = (extra: Partial<CoachNote> = {}): CoachNote => ({
@@ -658,5 +666,110 @@ describe("the coach panel and the chat view", () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(container).toBeEmptyDOMElement();
     expect(fetched).not.toHaveBeenCalled();
+  });
+});
+
+describe("reading the notes of a space", () => {
+  // The notes API held by the test: each space's notes and revision apart.
+  const serve = () => {
+    const held = {
+      live: { revision: 4, notes: [note({ title: "The person's own" })] },
+      replay: { revision: 9, notes: [note({ title: "Of the replay" })] },
+    };
+    const asked: [string, string][] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        asked.push([init?.method ?? "GET", url]);
+        const space = url.includes("space=replay") ? held.replay : held.live;
+        if (init?.method === "DELETE") {
+          space.notes = [];
+          space.revision += 1;
+        }
+        return new URL(url, "http://localhost").searchParams.get("revision") ===
+          String(space.revision)
+          ? new Response(null, { status: 204 })
+          : new Response(JSON.stringify(space));
+      }),
+    );
+    return { held, asked };
+  };
+  const titles = (notes: readonly CoachNote[]) =>
+    notes.map((each) => each.title);
+  const settle = () => act(() => vi.advanceTimersByTimeAsync(0));
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("the person's own, with no space named, when none is asked for", async () => {
+    vi.useFakeTimers();
+    const { asked } = serve();
+    const { result } = renderHook(() => useCoachNotes(true));
+    await settle();
+    expect(titles(result.current.notes)).toEqual(["The person's own"]);
+    await act(() => vi.advanceTimersByTimeAsync(500));
+    expect(asked).toEqual([
+      ["GET", "/api/v1/coach-notes"],
+      ["GET", "/api/v1/coach-notes?revision=4"],
+    ]);
+    expect(asked.join()).not.toContain("space");
+  });
+
+  it("the replay's, with `?space=replay` on every read, beside the revision on show", async () => {
+    vi.useFakeTimers();
+    const { held, asked } = serve();
+    const { result } = renderHook(() => useCoachNotes(true, "replay"));
+    await settle();
+    expect(titles(result.current.notes)).toEqual(["Of the replay"]);
+    await act(() => vi.advanceTimersByTimeAsync(500));
+    expect(asked).toEqual([
+      ["GET", "/api/v1/coach-notes?space=replay"],
+      ["GET", "/api/v1/coach-notes?space=replay&revision=9"],
+    ]);
+    // A change in the replay is read; the person's own are never shown here.
+    held.replay = {
+      revision: 10,
+      notes: [note({ title: "Of the replay, revised" })],
+    };
+    await act(() => vi.advanceTimersByTimeAsync(500));
+    expect(titles(result.current.notes)).toEqual(["Of the replay, revised"]);
+  });
+
+  it("clearing the replay empties it at once and deletes `?space=replay`, never the person's own", async () => {
+    vi.useFakeTimers();
+    const { held, asked } = serve();
+    const { result } = renderHook(() => useCoachNotes(true, "replay"));
+    await settle();
+    act(() => result.current.clear());
+    expect(result.current.notes).toEqual([]);
+    await settle();
+    expect(asked.filter(([method]) => method === "DELETE")).toEqual([
+      ["DELETE", "/api/v1/coach-notes?space=replay"],
+    ]);
+    expect(titles(held.live.notes)).toEqual(["The person's own"]);
+  });
+
+  it("clearing the person's own deletes with no space named", async () => {
+    vi.useFakeTimers();
+    const { held, asked } = serve();
+    const { result } = renderHook(() => useCoachNotes(true));
+    await settle();
+    act(() => result.current.clear());
+    await settle();
+    expect(asked.filter(([method]) => method === "DELETE")).toEqual([
+      ["DELETE", "/api/v1/coach-notes"],
+    ]);
+    expect(titles(held.replay.notes)).toEqual(["Of the replay"]);
+  });
+
+  it("reads nothing while it is not enabled, in either space", async () => {
+    vi.useFakeTimers();
+    const { asked } = serve();
+    renderHook(() => useCoachNotes(false, "replay"));
+    renderHook(() => useCoachNotes(false));
+    await act(() => vi.advanceTimersByTimeAsync(5_000));
+    expect(asked).toEqual([]);
   });
 });
