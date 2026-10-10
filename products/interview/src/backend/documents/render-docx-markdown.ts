@@ -1,3 +1,4 @@
+import type { LineLayout } from "./render-blank";
 import { renderDocxTemplate } from "./render-docx";
 import { escapeMarkdownValue } from "./render-markdown";
 import {
@@ -10,9 +11,11 @@ import {
 export async function renderDocxAsMarkdown(
   source: Buffer,
   values: Record<string, string>,
+  layout?: LineLayout,
 ): Promise<string> {
   const rendered = await renderDocxTemplate(source, values, {
     missing: "blank",
+    ...(layout ? { layout } : {}),
   });
   const { parts } = await loadDocxTemplate(rendered);
   const xml = parts.get("word/document.xml");

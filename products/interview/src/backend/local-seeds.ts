@@ -1,6 +1,6 @@
 import { access, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import {
   type BuiltInKey,
   builtInTemplates,
@@ -48,4 +48,68 @@ export async function loadLocalTemplates({
     if (bytes) found[template.key] = bytes;
   }
   return Object.keys(found).length ? found : null;
+}
+
+// The development default: `.dev-local/profile/contact.json` of the checkout
+// the server runs in (gitignored), found from the working directory upwards
+// because a server may start in `apps/web`.
+function devContactPath(from: string): string[] {
+  const paths: string[] = [];
+  for (let directory = from, depth = 0; depth < 5; depth++) {
+    paths.push(join(directory, ".dev-local/profile/contact.json"));
+    const parent = dirname(directory);
+    if (parent === directory) break;
+    directory = parent;
+  }
+  return paths;
+}
+
+/**
+ * The person's contact details (email, phone, portfolio), kept on this machine
+ * and out of git. The first file that exists is read: `INTERVIEW_CONTACT_PATH`,
+ * `profile/contact.json` under the data directory, then the development
+ * default. Production never loads a workstation's file. The values are never
+ * logged; a file that is not a JSON object of strings is ignored.
+ */
+export async function loadLocalContact({
+  env = process.env,
+  directory = process.cwd(),
+  production = process.env["NODE_ENV"] === "production",
+}: {
+  env?: NodeJS.ProcessEnv;
+  directory?: string;
+  production?: boolean;
+} = {}): Promise<{
+  email?: string;
+  phone?: string;
+  portfolio?: string;
+} | null> {
+  if (production) return null;
+  for (const path of [
+    env["INTERVIEW_CONTACT_PATH"],
+    env["INTERVIEW_DATA_DIR"]
+      ? join(env["INTERVIEW_DATA_DIR"], "profile/contact.json")
+      : undefined,
+    ...devContactPath(directory),
+  ]) {
+    if (!path) continue;
+    const raw = await readFile(path, "utf8").catch(() => null);
+    if (raw === null) continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+      return null;
+    const value = (key: string) => {
+      const found = (parsed as Record<string, unknown>)[key];
+      return typeof found === "string" && found.trim()
+        ? { [key]: found.trim().slice(0, 320) }
+        : {};
+    };
+    return { ...value("email"), ...value("phone"), ...value("portfolio") };
+  }
+  return null;
 }

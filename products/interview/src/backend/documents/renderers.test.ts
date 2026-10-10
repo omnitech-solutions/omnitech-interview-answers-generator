@@ -1,6 +1,17 @@
 import { readFileSync } from "node:fs";
+import {
+  documentLayout,
+  withFieldGroups as withGroups,
+} from "@omnitech/interview-contracts";
 import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
+import { castValues, planCast } from "./cast";
+import {
+  resumeRunDocx,
+  resumeRunFields,
+  SYNTHETIC_MATRIX,
+} from "./fixtures/resume-run";
+import { blankLine, writeBlankLine } from "./render-blank";
 import {
   FIELD_END,
   FIELD_SPLIT,
@@ -473,5 +484,347 @@ describe("template intake and renderers", () => {
     await expect(
       inspectTemplate({ format: "md", bytes: Buffer.from([0xff]) }),
     ).rejects.toThrow("UTF-8");
+  });
+});
+
+// The lines of a rendered DOCX, one per paragraph, as a reader sees them.
+async function linesOf(bytes: Buffer): Promise<string[]> {
+  const zip = await JSZip.loadAsync(bytes);
+  const xml = (await zip.file("word/document.xml")?.async("string")) ?? "";
+  return Array.from(xml.matchAll(/<w:p\b[^>]*>([\s\S]*?)<\/w:p>/g), (match) =>
+    Array.from((match[1] ?? "").matchAll(/<w:t\b[^>]*>([\s\S]*?)<\/w:t>/g))
+      .map((run) => (run[1] ?? "").replaceAll("&amp;", "&"))
+      .join(""),
+  );
+}
+
+describe("a finished document shows no scaffolding around a value that is not there", () => {
+  const fields = resumeRunFields();
+  const cast = planCast(fields, SYNTHETIC_MATRIX);
+  // Every field written, as a complete document would be.
+  const complete: Record<string, string> = {
+    ...Object.fromEntries(fields.map((field) => [field.key, `V ${field.key}`])),
+    ...castValues(fields, cast, SYNTHETIC_MATRIX),
+    heading_name: "Rowan Ashby",
+    heading_phone_number: "555 0100",
+    email_address: "rowan@example.invalid",
+    portfolio: "example.invalid/rowan",
+    city: "Calgary",
+    province: "AB",
+  };
+  const render = async (values: Record<string, string>) =>
+    linesOf(
+      await renderDocxTemplate(await resumeRunDocx(), values, {
+        missing: "blank",
+        layout: documentLayout(fields, values),
+      }),
+    );
+
+  it("leaves a complete document exactly as the template lays it out", async () => {
+    const lines = await render(complete);
+    expect(lines).toContain(
+      " 555 0100   |    rowan@example.invalid   |    example.invalid/rowan   |    Calgary, AB",
+    );
+    expect(lines).toContain(
+      "Larkspur Works ~ Lead Full Stack Developer / Architect / Contractor (July 2020- September 2024)",
+    );
+    expect(lines).toContain(
+      "Northbeam Payments ~ Senior Software Developer / Architect ~ 2024 – Present",
+    );
+    expect(lines).toContain(
+      "Plotline (Senior Software Developer / Architect): ",
+    );
+    expect(lines).toContain("Earlier Experience (2014 – 2018)");
+    expect(lines).toHaveLength(37);
+  });
+
+  it("drops the separators of contact details that are not there (runs inside one paragraph)", async () => {
+    // The original run: no phone, email or portfolio.
+    const lines = await render({
+      ...complete,
+      heading_phone_number: "",
+      email_address: "",
+      portfolio: "",
+    });
+    expect(lines).toContain("Calgary, AB");
+    expect(
+      lines.some((line) => /\|\s*\|/.test(line) || /^\s*\|/.test(line)),
+    ).toBe(false);
+    // One missing in the middle keeps one separator between its neighbours.
+    expect(await render({ ...complete, email_address: "" })).toContain(
+      " 555 0100   |    example.invalid/rowan   |    Calgary, AB",
+    );
+    // The last part missing leaves no trailing separator or comma.
+    expect(await render({ ...complete, city: "", province: "" })).toContain(
+      " 555 0100   |    rowan@example.invalid   |    example.invalid/rowan",
+    );
+    expect(await render({ ...complete, province: "" })).toContain(
+      " 555 0100   |    rowan@example.invalid   |    example.invalid/rowan   |    Calgary",
+    );
+  });
+
+  it("removes a consultancy block that does not apply, with its contracts and its skills line", async () => {
+    // The original run: a matrix with no consultancy.
+    const { contracting_companies: _none, ...rest } = SYNTHETIC_MATRIX;
+    const matrix = {
+      ...rest,
+      roles: rest.roles.map(({ engaged_through: _through, ...role }) => role),
+    };
+    const plain = planCast(fields, matrix);
+    const values = { ...complete, ...castValues(fields, plain, matrix) };
+    const lines = await render(values);
+    expect(lines.join("\n")).not.toMatch(/~\s*\(|\(-\s*\)|\(\s*\)/);
+    expect(lines.join("\n")).not.toContain("V contract2_bullet1");
+    expect(lines.join("\n")).not.toContain("Acquired Skills (V contracts");
+    // 37 lines less the consultancy line, four contract blocks of three and
+    // the shared skills line.
+    expect(lines).toHaveLength(37 - 1 - 12 - 1);
+    expect(lines).toContain(
+      "Tidewater Learning ~ Lead Software Developer / Architect ~ 2023 – 2023",
+    );
+  });
+
+  it("removes an empty list item and an empty label, and keeps the rest of the list", async () => {
+    const lines = await render({
+      ...complete,
+      architecture_skills: "",
+      current_experience_bullet2: "",
+      current_acquired_skill: "",
+      summary_paragraph2: "",
+    });
+    expect(lines).not.toContain("Architecture: ");
+    expect(lines).toContain("Leadership: V leadership_skills");
+    expect(lines).toContain("V current_experience_bullet1");
+    expect(lines.some((line) => line.startsWith("Acquired Skills ()"))).toBe(
+      false,
+    );
+    expect(lines.filter((line) => line.trim() === "")).toEqual([]);
+    expect(lines).toHaveLength(37 - 4);
+  });
+
+  it("keeps a block's heading when only its dates or its title are missing", async () => {
+    const lines = await render({
+      ...complete,
+      earlier_exp_from: "",
+      earlier_exp_to: "",
+      my_company_from: "",
+      my_company_to: "",
+      contract_role1: "",
+      prior_my_company1_to: "",
+      current_from: "",
+    });
+    expect(lines).toContain("Earlier Experience");
+    expect(lines).toContain(
+      "Larkspur Works ~ Lead Full Stack Developer / Architect / Contractor",
+    );
+    expect(lines).toContain("Tidewater Learning: ");
+    expect(lines).toContain(
+      "Ostrava Insurance Tech ~ Lead Senior Software Developer / Architect ~ 2018",
+    );
+    expect(lines).toContain(
+      "Northbeam Payments ~ Senior Software Developer / Architect ~ Present",
+    );
+  });
+
+  it("gives the Markdown of a DOCX the same tidy lines", async () => {
+    const values = {
+      ...complete,
+      heading_phone_number: "",
+      email_address: "",
+      portfolio: "",
+      my_company_name: "",
+      architecture_skills: "",
+    };
+    const markdown = await renderDocxAsMarkdown(
+      await resumeRunDocx(),
+      values,
+      documentLayout(fields, values),
+    );
+    expect(markdown).toContain("\n\nCalgary, AB\n\n");
+    expect(markdown).not.toMatch(/\\\|/);
+    expect(markdown).not.toContain("Architecture");
+    expect(markdown).not.toContain("Lead Full Stack Developer");
+    expect(markdown).toContain("- Leadership: V leadership\\_skills");
+  });
+
+  it("draws the preview without a block that does not apply, and keeps every other empty value to click", async () => {
+    const values = { ...complete, my_company_name: "", email_address: "" };
+    const zip = await JSZip.loadAsync(
+      await renderDocxTemplate(await resumeRunDocx(), values, {
+        missing: "tagged",
+        layout: documentLayout(fields, values),
+      }),
+    );
+    const xml = (await zip.file("word/document.xml")?.async("string")) ?? "";
+    expect(xml).not.toContain(`${FIELD_START}my_company_role`);
+    expect(xml).not.toContain(`${FIELD_START}contracts_acquired_skills`);
+    expect(xml).toContain(
+      `${FIELD_START}email_address${FIELD_SPLIT}${FIELD_END}`,
+    );
+    expect(xml).toContain(`${FIELD_START}contract_company1${FIELD_SPLIT}`);
+  });
+
+  it("keeps a table cell valid when its only line is removed", async () => {
+    const bytes = await docx({
+      "word/document.xml":
+        '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:tbl><w:tr><w:tc><w:p><w:r><w:t>Phone: {phone}</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>{city}</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p><w:pPr><w:sectPr/></w:pPr><w:r><w:t>{notes}</w:t></w:r></w:p></w:body></w:document>',
+    });
+    const zip = await JSZip.loadAsync(
+      await renderDocxTemplate(
+        bytes,
+        { phone: "", city: "Calgary", notes: "" },
+        { missing: "blank" },
+      ),
+    );
+    const xml = (await zip.file("word/document.xml")?.async("string")) ?? "";
+    expect(xml).toContain("<w:tc><w:p/></w:tc>");
+    expect(xml).toContain("Calgary");
+    expect(xml).not.toContain("Phone");
+    // The paragraph that carries the page setup stays, emptied.
+    expect(xml).toContain("<w:sectPr/>");
+  });
+
+  it("applies the same rules to a Markdown template", () => {
+    const source = [
+      "# {full_name}",
+      "",
+      "{email} | {phone} | {city}, {region}",
+      "",
+      "## Skills",
+      "",
+      "- Architecture: {architecture}",
+      "- Leadership: {leadership}",
+      "- {strength}",
+      "",
+      "## {experience_1_company} ~ {experience_1_role} ({experience_1_dates})",
+      "",
+      "- {experience_1_bullet_1}",
+      "",
+      "## {experience_2_company} ~ {experience_2_role} ({experience_2_dates})",
+      "",
+      "- {experience_2_bullet_1}",
+      "",
+      "Thanks, {signature}",
+      "",
+    ].join("\n");
+    const fields = (
+      [
+        "full_name",
+        "email",
+        "phone",
+        "city",
+        "region",
+        "architecture",
+        "leadership",
+        "strength",
+        "experience_1_company",
+        "experience_1_role",
+        "experience_1_dates",
+        "experience_1_bullet_1",
+        "experience_2_company",
+        "experience_2_role",
+        "experience_2_dates",
+        "experience_2_bullet_1",
+        "signature",
+      ] as const
+    ).map((key) => ({
+      key,
+      label: key,
+      source: "candidate-profile" as const,
+      required: true,
+      maxLength: null,
+    }));
+    const values = {
+      full_name: "Rowan Ashby",
+      email: "",
+      phone: "",
+      city: "Calgary",
+      region: "AB",
+      architecture: "",
+      leadership: "Mentorship",
+      strength: "",
+      experience_1_company: "Plotline",
+      experience_1_role: "Lead",
+      experience_1_dates: "",
+      experience_1_bullet_1: "Rebuilt search",
+      experience_2_company: "",
+      experience_2_role: "",
+      experience_2_dates: "",
+      experience_2_bullet_1: "A bullet with no employer",
+      signature: "",
+    };
+    expect(
+      renderMarkdownTemplate(source, values, {
+        missing: "blank",
+        layout: documentLayout(withGroups(fields), values),
+      }),
+    ).toBe(
+      [
+        "# Rowan Ashby",
+        "",
+        "Calgary, AB",
+        "",
+        "## Skills",
+        "",
+        "- Leadership: Mentorship",
+        "",
+        "## Plotline ~ Lead",
+        "",
+        "- Rebuilt search",
+        "",
+        "Thanks",
+        "",
+      ].join("\n"),
+    );
+    // The preview leaves out the block that does not apply and nothing else.
+    const preview = renderMarkdownPreview(
+      source,
+      values,
+      documentLayout(withGroups(fields), values).absent,
+    );
+    expect(preview).not.toContain('data-field="experience_2_bullet_1"');
+    expect(preview).toContain('data-field="email"');
+    // With no layout given, only empty values are tidied.
+    expect(
+      renderMarkdownTemplate(
+        "{a} | {b}\n- {c}\nLabel: {d}\n",
+        {
+          a: "",
+          b: "B",
+          c: "",
+          d: "",
+        },
+        { missing: "blank" },
+      ),
+    ).toBe("B\n");
+    // The marker mode is unchanged: it shows what is missing.
+    expect(renderMarkdownTemplate("{a} | {b}", { a: "", b: "B" })).toBe(
+      "[[MISSING_DATA]] | B",
+    );
+  });
+
+  it("decides one line at a time", () => {
+    const text = "{a} ~ {b} ({c}- {d})";
+    const at = (key: string, empty: boolean) => {
+      const start = text.indexOf(`{${key}}`);
+      return { start, end: start + key.length + 2, key, empty };
+    };
+    const decide = (empties: string) => {
+      const placeholders = ["a", "b", "c", "d"].map((key) =>
+        at(key, empties.includes(key)),
+      );
+      const decided = blankLine(text, placeholders);
+      return decided === "remove"
+        ? decided
+        : writeBlankLine(text, placeholders, decided, (item) =>
+            item.empty ? "" : item.key.toUpperCase(),
+          );
+    };
+    expect(decide("")).toBe("A ~ B (C- D)");
+    expect(decide("cd")).toBe("A ~ B");
+    expect(decide("d")).toBe("A ~ B (C)");
+    expect(decide("b")).toBe("A ~ (C- D)");
+    expect(decide("a")).toBe("B (C- D)");
+    expect(decide("abcd")).toBe("remove");
   });
 });

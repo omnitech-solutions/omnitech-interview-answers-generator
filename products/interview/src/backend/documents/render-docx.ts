@@ -1,3 +1,4 @@
+import { blankLine, type LineLayout } from "./render-blank";
 import { MISSING_DOCUMENT_FIELD } from "./render-markdown";
 import {
   canonicalDocumentField,
@@ -48,6 +49,7 @@ function replaceParagraph(
   values: Record<string, string>,
   missingValue = MISSING_DOCUMENT_FIELD,
   tagged = false,
+  layout?: LineLayout,
 ): string {
   const nodes = Array.from(paragraph.matchAll(TEXT_RUN), (match) => ({
     start: match.index,
@@ -63,6 +65,45 @@ function replaceParagraph(
     key: match[1] ?? "",
   }));
   if (matches.length === 0) return paragraph;
+
+  // [DOMAIN] A finished document shows no scaffolding around a value that is
+  // not there, and no block that does not apply. The preview (tagged) keeps
+  // empty values so they can be clicked, and loses only the absent blocks.
+  const textOf = (source: string): string => {
+    const key = canonicalDocumentField(source);
+    const field = Object.hasOwn(values, key) ? values[key] : undefined;
+    return typeof field === "string" ? field : "";
+  };
+  let deleted: boolean[] | null = null;
+  if (missingValue === "" || tagged) {
+    const placeholders = matches.map((match) => {
+      const key = canonicalDocumentField(match.key);
+      return {
+        start: match.start,
+        end: match.end,
+        key,
+        // The preview drops a line only for a block that does not apply.
+        empty: tagged
+          ? (layout?.absent.has(key) ?? false)
+          : textOf(match.key).trim() === "",
+      };
+    });
+    const decided = blankLine(
+      text,
+      placeholders,
+      tagged
+        ? { layout: { absent: layout?.absent ?? new Set(), header: new Set() } }
+        : {
+            listItem: /<w:numPr\b/.test(paragraph),
+            ...(layout ? { layout } : {}),
+          },
+    );
+    if (decided === "remove") {
+      // A paragraph that carries the section's page setup stays, emptied.
+      if (!/<w:sectPr\b/.test(paragraph)) return "";
+      deleted = Array.from({ length: text.length }, () => true);
+    } else if (!tagged) deleted = decided;
+  }
 
   let position = 0;
   let matchIndex = 0;
@@ -82,10 +123,10 @@ function replaceParagraph(
       const placeholder =
         next && next.start <= cursor && cursor < next.end ? next : undefined;
       if (!placeholder) {
-        value += text[cursor];
+        if (!deleted?.[cursor]) value += text[cursor];
         continue;
       }
-      if (cursor === placeholder.start) {
+      if (cursor === placeholder.start && !deleted?.[cursor]) {
         const key = canonicalDocumentField(placeholder.key);
         const field = Object.hasOwn(values, key) ? values[key] : undefined;
         if (field !== undefined && typeof field !== "string") {
@@ -117,9 +158,20 @@ function replacePart(
   values: Record<string, string>,
   missingValue = MISSING_DOCUMENT_FIELD,
   tagged = false,
+  layout?: LineLayout,
 ): string {
-  return xml.replace(/<w:p\b[^>]*>[\s\S]*?<\/w:p>/g, (paragraph) =>
-    replaceParagraph(paragraph, values, missingValue, tagged),
+  return (
+    xml
+      .replace(/<w:p\b[^>]*>[\s\S]*?<\/w:p>/g, (paragraph) =>
+        replaceParagraph(paragraph, values, missingValue, tagged, layout),
+      )
+      // [GUARD] A table cell must hold a paragraph: one emptied by a removed
+      // line gets an empty paragraph back, or Word refuses the file.
+      .replace(
+        /(<w:tc>(?:(?!<\/?w:tc>)[\s\S])*?)(<\/w:tc>)/g,
+        (cell: string, body: string, close: string) =>
+          /<w:p[\s>/]/.test(body) ? cell : `${body}<w:p/>${close}`,
+      )
   );
 }
 
@@ -129,6 +181,9 @@ export async function renderDocxTemplate(
   options: {
     missing?: "marker" | "blank" | "tagged";
     draftLabel?: string;
+    // Which blocks do not apply and which fields head one that does
+    // (`documentLayout`); without it only empty values are tidied.
+    layout?: LineLayout;
   } = {},
 ): Promise<Buffer> {
   const { zip, parts } = await loadDocxTemplate(source);
@@ -139,6 +194,7 @@ export async function renderDocxTemplate(
       values,
       options.missing === "blank" ? "" : MISSING_DOCUMENT_FIELD,
       options.missing === "tagged",
+      options.layout,
     );
     zip.file(
       name,

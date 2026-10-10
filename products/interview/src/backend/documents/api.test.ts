@@ -12,9 +12,24 @@ import {
 import { documentCreateSchema } from "@omnitech/interview-contracts";
 import type { PlatformContext } from "@omnitech/platform-contracts";
 import JSZip from "jszip";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { createDocumentsApi, resolveDocumentsScope } from "./api";
+import { DEFAULT_DOCUMENTS_CONFIG } from "./config";
+import {
+  FULLSTACK_POSTING,
+  resumeRunDocx,
+  SYNTHETIC_MATRIX,
+} from "./fixtures/resume-run";
 import { InterviewDocumentRepository } from "./repository";
+import { documentSourceDigest } from "./source-digest";
 
 let pg: DisposablePostgres;
 let database: PlatformDatabase;
@@ -31,6 +46,14 @@ let concurrentGate: {
 } | null = null;
 let saveGenerationGate: { entered: () => void; release: Promise<void> } | null =
   null;
+// A scripted model, for the tests that need the model to say particular
+// things: it is given the keys it was asked for and the whole request.
+type Scripted = {
+  keys: string[];
+  prompt: string;
+  system: string;
+};
+let script: ((asked: Scripted) => unknown | Promise<unknown>) | null = null;
 // The model is the provider boundary: it records what the product asked for
 // and answers every field of the schema it was given.
 const model: ModelPort = {
@@ -45,6 +68,29 @@ const model: ModelPort = {
         .join(""),
       signal,
     });
+    if (script) {
+      const schema = input.schema as { properties?: Record<string, unknown> };
+      const said = (role: string) =>
+        input.messages
+          .filter((message) => message.role === role)
+          .flatMap((message) =>
+            message.parts.map((part) =>
+              part.type === "text" ? part.text : "",
+            ),
+          )
+          .join("");
+      yield {
+        type: "text",
+        text: JSON.stringify(
+          await script({
+            keys: Object.keys(schema.properties ?? {}),
+            prompt: said("user"),
+            system: said("system"),
+          }),
+        ),
+      };
+      return;
+    }
     if (concurrentGate) {
       const gate = concurrentGate;
       gate.entered++;
@@ -437,7 +483,13 @@ describe("Documents private API", () => {
     expect(output).toHaveLength(1);
     const edit = await mine.request(
       `${url}/${result.document.id}/revisions`,
-      post({ baseRevision: 1, values: { about: "Ada Lovelace" } }),
+      // A hand edit that names something the matrix does not ("Lovelace")
+      // is the person's to vouch for: "confirmed by me".
+      post({
+        baseRevision: 1,
+        values: { about: "Ada Lovelace" },
+        confirm: ["about"],
+      }),
     );
     expect(edit.status).toBe(201);
     const preview = await mine.request(
@@ -923,7 +975,7 @@ describe("Documents private API", () => {
       `${url}/${made.document.id}/preview`,
       post({
         baseRevision: 1,
-        values: { ...made.revision.values, about: "A".repeat(41) },
+        values: { ...made.revision.values, about: "a".repeat(41) },
       }),
     );
     expect(tooLong.status).toBe(200);
@@ -1889,5 +1941,740 @@ describe("Documents private API", () => {
       lockRelease();
       saveGenerationGate = null;
     }
+  }, 30_000);
+});
+
+// The real run of 2026-10-10 (bionic/briefs/BRIEF-document-generation-quality-
+// and-ai-logging.md): two parallel calls, a model that put one employer's work
+// under another's name and used an employer twice, empty contact details and
+// an empty consultancy block. The fixture is that run's shape with a synthetic
+// matrix; the model here still misbehaves, and it can no longer matter.
+describe("a resume written under a cast and verified", () => {
+  const canonical = (value: unknown): string =>
+    Array.isArray(value)
+      ? `[${value.map(canonical).join(",")}]`
+      : value && typeof value === "object"
+        ? `{${Object.entries(value)
+            .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+            .map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`)
+            .join(",")}}`
+        : JSON.stringify(value);
+  const CONTACT = {
+    email: "rowan@example.invalid",
+    phone: "555 0100",
+    portfolio: "example.invalid/rowan",
+  };
+  const mine = () =>
+    createDocumentsApi({
+      database,
+      engine,
+      localContact: async () => CONTACT,
+      // The fixture template is shorter than the real one; at this size per
+      // call it is written in two calls, as the real one is.
+      config: {
+        ...DEFAULT_DOCUMENTS_CONFIG,
+        generation: { maxCalls: 4, fieldsPerCall: 12, attempts: 2 },
+      },
+      resolveScope: async (request) =>
+        resolveDocumentsScope(
+          context(ownerId),
+          request.headers.get("x-omnitech-tenant") ?? "",
+          request.method,
+        ),
+    });
+  type Issue = {
+    key: string;
+    code: string;
+    against?: string;
+    missing?: Array<{ text: string; kind: string; foundIn?: string }>;
+  };
+  type Saved = {
+    document: { id: string; status: string; currentRevision: number };
+    revision: {
+      revision: number;
+      values: Record<string, string>;
+      validation: Issue[];
+      provenance: {
+        modelOwnedKeys: string[];
+        cast?: {
+          slots: Record<string, string[]>;
+          leftOut: string[];
+          ranking: string;
+        };
+        confirmedFields?: Record<string, string>;
+      };
+    };
+    review?: {
+      confirmedFields: string[];
+      cast: {
+        consultancy: string | null;
+        ranking: string;
+        leftOut: Array<{ id: string; company: string }>;
+        contracts: Array<{ block: string; company: string }>;
+      } | null;
+    };
+  };
+  const SAFE = "delivered steady improvements with the team";
+  const OTHER_EMPLOYERS_WORK =
+    "Integrated Tidewater Learning into the Compass platform in 6 weeks";
+  // Left to choose, this model names an employer that is already used
+  // elsewhere, and writes one client's work under another client.
+  const misbehaving = (keys: string[]) =>
+    Object.fromEntries(
+      keys.map((key) => [
+        key,
+        SERVER_FILLED.test(key)
+          ? "Ostrava Insurance Tech"
+          : key === "contract3_bullet1"
+            ? OTHER_EMPLOYERS_WORK
+            : key === "contracts_acquired_skills"
+              ? "React, GraphQL"
+              : SAFE,
+      ]),
+    );
+  const RANKED = ["/roles/5", "/roles/1", "/roles/2", "/roles/3", "/roles/4"];
+  // A field the server fills from the cast: an employer, a title or a date.
+  const SERVER_FILLED =
+    /^(?:current_(?:company|role|from)|my_company_\w+|contract_(?:company|role)\d|prior_my_company\d(?:_(?:role|from|to))?|earlier_exp_(?:from|to))$/;
+  let templateId = "";
+  let candidacyId = "";
+  let documentId = "";
+  const asked: Scripted[] = [];
+  const linesOf = async (response: Response) => {
+    const zip = await JSZip.loadAsync(await response.arrayBuffer());
+    const xml = (await zip.file("word/document.xml")?.async("string")) ?? "";
+    return Array.from(xml.matchAll(/<w:p\b[^>]*>([\s\S]*?)<\/w:p>/g), (match) =>
+      Array.from((match[1] ?? "").matchAll(/<w:t\b[^>]*>([\s\S]*?)<\/w:t>/g))
+        .map((run) => (run[1] ?? "").replaceAll("&amp;", "&"))
+        .join(""),
+    );
+  };
+  const download = async (id: string, revision: number) => {
+    const exported = await mine().request(
+      `${url}/${id}/exports`,
+      post({ revision, format: "docx" }),
+    );
+    expect(exported.status, await exported.clone().text()).toBe(201);
+    const exportId = ((await exported.json()) as { id: string }).id;
+    return linesOf(
+      await mine().request(`${url}/${id}/exports/${exportId}/download`, {
+        headers,
+      }),
+    );
+  };
+  const read = async (id: string) =>
+    (await (await mine().request(`${url}/${id}`, { headers })).json()) as Saved;
+
+  beforeAll(async () => {
+    const digest = createHash("sha256")
+      .update(canonical(SYNTHETIC_MATRIX))
+      .digest("hex");
+    await pg.owner.query(
+      `INSERT INTO interview.candidate_profiles(tenant_id,actor_id,product_id,id,name,revision)
+       VALUES($1,$2,'omnitech.interview','run-matrix','Run matrix',1)`,
+      [tenantId, ownerId],
+    );
+    await pg.owner.query(
+      `INSERT INTO interview.candidate_profile_revisions
+       (tenant_id,actor_id,product_id,id,revision,name,sha256,matrix)
+       VALUES($1,$2,'omnitech.interview','run-matrix',1,'Run matrix',$3,$4::jsonb)`,
+      [tenantId, ownerId, digest, JSON.stringify(SYNTHETIC_MATRIX)],
+    );
+    const form = new FormData();
+    form.set("name", "Run resume");
+    form.set("kind", "resume");
+    form.set("format", "docx");
+    form.set("instructions", "Write only from the evidence.");
+    form.set(
+      "file",
+      new File([new Uint8Array(await resumeRunDocx())], "resume.docx"),
+    );
+    const uploaded = await mine().request(`${url}/templates`, {
+      method: "POST",
+      headers,
+      body: form,
+    });
+    expect(uploaded.status, await uploaded.clone().text()).toBe(201);
+    templateId = ((await uploaded.json()) as { template: { id: string } })
+      .template.id;
+    const candidacy = await mine().request(
+      `${url}/candidacies`,
+      post({
+        companyName: "FullStack",
+        title: "Principal Full Stack Engineer (React & AI-Driven)",
+        jobDescription: FULLSTACK_POSTING,
+      }),
+    );
+    expect(candidacy.status).toBe(201);
+    candidacyId = ((await candidacy.json()) as { candidacyId: string })
+      .candidacyId;
+  });
+  afterEach(() => {
+    script = null;
+    asked.length = 0;
+  });
+
+  it("derives the blocks of an uploaded template from its field keys", async () => {
+    const detail = (await (
+      await mine().request(`${url}/templates/${templateId}`, { headers })
+    ).json()) as {
+      fields: Array<{
+        key: string;
+        group?: { id: string; part: string; optional?: boolean };
+      }>;
+    };
+    const group = (key: string) =>
+      detail.fields.find((field) => field.key === key)?.group;
+    expect(group("contract_company2")).toEqual({
+      id: "contract-2",
+      kind: "contract",
+      part: "company",
+      optional: true,
+    });
+    expect(group("contract2_bullet1")?.id).toBe("contract-2");
+    expect(group("my_company_name")?.id).toBe("consultancy");
+    expect(group("summary_paragraph1")).toBeUndefined();
+    expect(group("email_address")).toBeUndefined();
+  });
+
+  it("writes in parallel calls yet takes every employer from the cast, flags another employer's work, and blocks export until it is put right", async () => {
+    // Two writing calls must be in flight together, as in the original run.
+    let arrived = 0;
+    let open: () => void = () => undefined;
+    const together = new Promise<void>((resolve) => {
+      open = resolve;
+    });
+    script = async (call) => {
+      asked.push(call);
+      if (call.keys.includes("order")) return { order: RANKED };
+      if (++arrived === 2) open();
+      await together;
+      return misbehaving(call.keys);
+    };
+    const created = await mine().request(
+      url,
+      post({
+        title: "Resume | FullStack",
+        templateId,
+        templateRevision: 1,
+        profileId: "run-matrix",
+        profileRevision: 1,
+        candidacyId,
+        interviewId: null,
+        aiTargetId: "test-model",
+      }),
+    );
+    expect(created.status, await created.clone().text()).toBe(201);
+    const made = (await created.json()) as Saved & { errors: Issue[] };
+    documentId = made.document.id;
+    const values = made.revision.values;
+
+    // One small ranking call, then two writing calls.
+    const [ranking, ...writing] = asked;
+    expect(ranking?.keys).toEqual(["order"]);
+    expect(ranking?.prompt).not.toContain("Compass");
+    expect(writing).toHaveLength(2);
+
+    // [1] No call was asked for an employer, a title or a date: the model's
+    // "Ostrava Insurance Tech" for every company never had a place to land.
+    const written = writing.flatMap((call) => call.keys);
+    expect(written.filter((key) => SERVER_FILLED.test(key))).toEqual([]);
+    expect(new Set(written).size).toBe(written.length);
+    // Every employer is the cast's: the four most relevant clients under the
+    // consultancy, each once, and the prior employer its own.
+    expect(
+      [1, 2, 3, 4].map((slot) => values[`contract_company${slot}`]),
+    ).toEqual(["Signalpath", "Tidewater Learning", "Plotline", "Fleetmark"]);
+    expect(values["contract_role3"]).toBe(
+      "Senior Software Developer / Architect",
+    );
+    expect(values["my_company_name"]).toBe("Larkspur Works");
+    expect(values["my_company_from"]).toBe("July 2020");
+    expect(values["current_company"]).toBe("Northbeam Payments");
+    expect(values["prior_my_company1"]).toBe("Ostrava Insurance Tech");
+    expect(values["earlier_exp_from"]).toBe("2014");
+    const employers = [
+      "current_company",
+      "contract_company1",
+      "contract_company2",
+      "contract_company3",
+      "contract_company4",
+      "prior_my_company1",
+    ].map((key) => values[key]);
+    expect(new Set(employers).size).toBe(employers.length);
+    // [2] The fifth client is left out: not a prior employer, not in a prompt.
+    expect(made.revision.provenance.cast?.ranking).toBe("model");
+    expect(made.revision.provenance.cast?.leftOut).toEqual(["/roles/4"]);
+    expect(Object.values(values)).not.toContain("Backerly");
+    for (const call of writing) expect(call.prompt).not.toContain("Backerly");
+
+    // Each call was given its own blocks' roles, and the block of a company
+    // holds that company's role and no other.
+    for (const call of writing) {
+      const prompt = JSON.parse(call.prompt) as {
+        blocks: Array<{ block: string; roles: Array<{ company: string }> }>;
+        candidateProfile?: unknown;
+      };
+      expect(prompt.candidateProfile).toBeUndefined();
+      for (const block of prompt.blocks) {
+        const slot = /^contract-(\d)$/.exec(block.block)?.[1];
+        if (slot)
+          expect(block.roles.map((role) => role.company)).toEqual([
+            values[`contract_company${slot}`],
+          ]);
+      }
+      // Contact details are the document's, never a prompt's.
+      expect(call.prompt).not.toContain(CONTACT.email);
+      expect(call.prompt).not.toContain(CONTACT.phone);
+    }
+
+    // [3] The contact fields are filled from this machine's contact details.
+    expect(values["email_address"]).toBe(CONTACT.email);
+    expect(values["heading_phone_number"]).toBe(CONTACT.phone);
+    expect(values["portfolio"]).toBe(CONTACT.portfolio);
+
+    // The model still wrote Tidewater's work under Plotline. It is caught:
+    // the field fails, with what was not found and where it belongs.
+    expect(values["contract3_bullet1"]).toBe(OTHER_EMPLOYERS_WORK);
+    expect(made.errors).toEqual([
+      {
+        key: "contract3_bullet1",
+        code: "unsupported",
+        against: "Plotline",
+        missing: [
+          { text: "6 weeks", kind: "figure", foundIn: "Tidewater Learning" },
+          { text: "Tidewater", kind: "name", foundIn: "Tidewater Learning" },
+          { text: "Learning", kind: "name", foundIn: "Tidewater Learning" },
+          { text: "Compass", kind: "name", foundIn: "Tidewater Learning" },
+        ],
+      },
+    ]);
+    expect(made.revision.validation).toEqual(made.errors);
+    expect(made.document.status).toBe("invalid");
+
+    // The page is told the same, and which client was left out.
+    const shown = await read(documentId);
+    expect(shown.revision.validation).toEqual(made.errors);
+    expect(shown.review?.cast).toMatchObject({
+      consultancy: "Larkspur Works",
+      ranking: "model",
+      leftOut: [{ id: "/roles/4", company: "Backerly" }],
+    });
+    expect(shown.review?.cast?.contracts.map((role) => role.company)).toEqual([
+      "Signalpath",
+      "Tidewater Learning",
+      "Plotline",
+      "Fleetmark",
+    ]);
+
+    // Export is refused, in both formats, and nothing is recorded.
+    for (const format of ["docx", "md"]) {
+      const refused = await mine().request(
+        `${url}/${documentId}/exports`,
+        post({ revision: 1, format }),
+      );
+      expect(refused.status).toBe(409);
+      expect(await refused.json()).toEqual({
+        error: {
+          code: "verification-failed",
+          fields: [{ ...made.errors[0], label: "Contract3 bullet1" }],
+        },
+      });
+    }
+    expect(
+      (
+        (await (
+          await mine().request(`${url}/${documentId}/exports`, { headers })
+        ).json()) as { exports: unknown[] }
+      ).exports,
+    ).toEqual([]);
+  }, 30_000);
+
+  it("regenerates the one failing field from its own role, which clears the block on export", async () => {
+    script = (call) => {
+      asked.push(call);
+      return Object.fromEntries(
+        call.keys.map((key) => [
+          key,
+          "Rebuilt listing search for commercial property, cutting latency to 45ms",
+        ]),
+      );
+    };
+    const regenerated = await mine().request(
+      `${url}/${documentId}/regenerate`,
+      post({
+        baseRevision: 1,
+        fieldKey: "contract3_bullet1",
+        aiTargetId: "test-model",
+      }),
+    );
+    expect(regenerated.status, await regenerated.clone().text()).toBe(201);
+    // One call, for the one field, given Plotline's role and no other's.
+    expect(asked).toHaveLength(1);
+    expect(asked[0]?.keys).toEqual(["contract3_bullet1"]);
+    const prompt = JSON.parse(asked[0]?.prompt ?? "{}") as {
+      blocks: Array<{ block: string; roles: Array<{ company: string }> }>;
+      otherRoles: string[];
+    };
+    expect(prompt.blocks).toEqual([
+      {
+        block: "contract-3",
+        fields: ["contract3_bullet1"],
+        roles: [SYNTHETIC_MATRIX.roles[2]],
+      },
+    ]);
+    expect(
+      prompt.otherRoles.some((line) => line.startsWith("Tidewater Learning")),
+    ).toBe(true);
+    // The text that failed is not shown back to the model to rephrase, and
+    // the general facts repeat no employer.
+    expect(asked[0]?.prompt).not.toContain("Compass");
+    expect(
+      (JSON.parse(asked[0]?.prompt ?? "{}") as { fields: unknown[] }).fields,
+    ).toEqual([
+      {
+        key: "contract3_bullet1",
+        label: "Contract3 bullet1",
+        maxLength: null,
+        block: "contract-3",
+        rejected: true,
+        targetWords: 10,
+        maxWords: 15,
+      },
+    ]);
+    expect(
+      Object.keys(
+        (JSON.parse(asked[0]?.prompt ?? "{}") as { facts: object }).facts,
+      ).filter((key) => SERVER_FILLED.test(key)),
+    ).toEqual([]);
+
+    const shown = await read(documentId);
+    expect(shown.revision.revision).toBe(2);
+    expect(shown.revision.validation).toEqual([]);
+    expect(shown.document.status).toBe("ready");
+    // The cast is the same one: regenerating a field does not recast.
+    expect(shown.review?.cast?.leftOut).toEqual([
+      {
+        id: "/roles/4",
+        company: "Backerly",
+        title: "Senior Software Developer / Architect",
+      },
+    ]);
+
+    // [4] The export is the template's layout with nothing dangling.
+    const lines = await download(documentId, 2);
+    expect(lines).toContain(
+      ` ${CONTACT.phone}   |    ${CONTACT.email}   |    ${CONTACT.portfolio}   |    Calgary, AB`,
+    );
+    expect(lines).toContain(
+      "Larkspur Works ~ Lead Full Stack Developer / Architect / Contractor (July 2020- September 2024)",
+    );
+    expect(lines).toContain(
+      "Plotline (Senior Software Developer / Architect): ",
+    );
+    expect(lines.join("\n")).not.toContain("Compass");
+    expect(lines.join("\n")).not.toContain("Backerly");
+  }, 30_000);
+
+  it("holds a hand edit to the same check until the person confirms it, and again when the text changes", async () => {
+    const before = (await read(documentId)).revision.values;
+    const claim = "Rebuilt the quoting platform on Kubernetes";
+    const edited = await mine().request(
+      `${url}/${documentId}/revisions`,
+      post({
+        baseRevision: 2,
+        values: { ...before, contract1_bullet1: claim },
+      }),
+    );
+    expect(edited.status).toBe(201);
+    const unsupported = [
+      {
+        key: "contract1_bullet1",
+        code: "unsupported",
+        against: "Signalpath",
+        missing: [{ text: "Kubernetes", kind: "name" }],
+      },
+    ];
+    expect((await read(documentId)).revision.validation).toEqual(unsupported);
+    // A draft is checked before it is saved, too.
+    const draft = await mine().request(
+      `${url}/${documentId}/preview`,
+      post({
+        baseRevision: 3,
+        values: { ...before, contract1_bullet1: `${claim} and Kafka` },
+      }),
+    );
+    expect(
+      ((await draft.json()) as { validation: Issue[] }).validation[0]?.missing,
+    ).toEqual([
+      { text: "Kubernetes", kind: "name" },
+      { text: "Kafka", kind: "name", foundIn: "Fleetmark" },
+    ]);
+    expect(
+      (
+        await mine().request(
+          `${url}/${documentId}/exports`,
+          post({ revision: 3, format: "docx" }),
+        )
+      ).status,
+    ).toBe(409);
+    // "Confirmed by me": the person is the authority on their own history.
+    const confirmed = await mine().request(
+      `${url}/${documentId}/revisions`,
+      post({
+        baseRevision: 3,
+        values: { ...before, contract1_bullet1: claim },
+        confirm: ["contract1_bullet1"],
+      }),
+    );
+    expect(confirmed.status).toBe(201);
+    const standing = await read(documentId);
+    expect(standing.revision.validation).toEqual([]);
+    expect(standing.review?.confirmedFields).toEqual(["contract1_bullet1"]);
+    expect(standing.document.status).toBe("ready");
+    expect(await download(documentId, 4)).toContain(claim);
+    // The confirmation is of that text: changing it asks again.
+    const changed = await mine().request(
+      `${url}/${documentId}/revisions`,
+      post({
+        baseRevision: 4,
+        values: { ...before, contract1_bullet1: `${claim} and Terraform` },
+      }),
+    );
+    expect(changed.status).toBe(201);
+    const lapsed = await read(documentId);
+    expect(lapsed.review?.confirmedFields).toEqual([]);
+    expect(lapsed.revision.validation[0]?.missing).toEqual([
+      { text: "Kubernetes", kind: "name" },
+      { text: "Terraform", kind: "name" },
+    ]);
+    // A field that is not the template's cannot be confirmed.
+    expect(
+      (
+        await mine().request(
+          `${url}/${documentId}/revisions`,
+          post({ baseRevision: 5, values: before, confirm: ["no_such_field"] }),
+        )
+      ).status,
+    ).toBe(400);
+    // Restoring the confirmed revision brings its confirmation back with it.
+    const restored = await mine().request(
+      `${url}/${documentId}/restore`,
+      post({ baseRevision: 5, sourceRevision: 4 }),
+    );
+    expect(restored.status).toBe(201);
+    expect((await read(documentId)).revision.validation).toEqual([]);
+  }, 30_000);
+
+  it("swaps the client that was left out into a contract block, rewriting that block from its own role", async () => {
+    script = (call) => {
+      asked.push(call);
+      return Object.fromEntries(
+        call.keys.map((key) => [
+          key,
+          /skills?$/.test(key)
+            ? "React, Elixir"
+            : "Built referral payouts for crowdfunding campaigns",
+        ]),
+      );
+    };
+    const swap = (body: Record<string, unknown>) =>
+      mine().request(
+        `${url}/${documentId}/cast`,
+        post({ baseRevision: 6, aiTargetId: "test-model", ...body }),
+      );
+    // Only a client that was left out, into a block that holds a client.
+    expect(
+      (await swap({ block: "contract-4", roleId: "/roles/6" })).status,
+    ).toBe(400);
+    expect(
+      (await swap({ block: "contract-4", roleId: "/roles/1" })).status,
+    ).toBe(400);
+    expect((await swap({ block: "prior-1", roleId: "/roles/4" })).status).toBe(
+      400,
+    );
+    expect(asked).toHaveLength(0);
+    const swapped = await swap({ block: "contract-4", roleId: "/roles/4" });
+    expect(swapped.status, await swapped.clone().text()).toBe(201);
+    // The block's prose and the shared skills line, from Backerly's role.
+    expect(asked).toHaveLength(1);
+    expect([...(asked[0]?.keys ?? [])].sort()).toEqual([
+      "contract4_bullet1",
+      "contract4_bullet2",
+      "contracts_acquired_skills",
+    ]);
+    const prompt = JSON.parse(asked[0]?.prompt ?? "{}") as {
+      blocks: Array<{ block: string; roles: Array<{ company: string }> }>;
+    };
+    expect(
+      prompt.blocks.find((block) => block.block === "contract-4")?.roles,
+    ).toEqual([SYNTHETIC_MATRIX.roles[4]]);
+    const shown = await read(documentId);
+    expect(shown.revision.values["contract_company4"]).toBe("Backerly");
+    expect(shown.revision.values["contract_role4"]).toBe(
+      "Senior Software Developer / Architect",
+    );
+    expect(shown.revision.values["contract4_bullet1"]).toBe(
+      "Built referral payouts for crowdfunding campaigns",
+    );
+    expect(shown.review?.cast?.leftOut.map((role) => role.company)).toEqual([
+      "Fleetmark",
+    ]);
+    expect(shown.review?.cast?.contracts.map((role) => role.company)).toEqual([
+      "Signalpath",
+      "Tidewater Learning",
+      "Plotline",
+      "Backerly",
+    ]);
+    expect(shown.revision.validation).toEqual([]);
+    expect(Object.values(shown.revision.values)).not.toContain("Fleetmark");
+  }, 30_000);
+
+  it("holds a document made before this change to the same check, and brings it under a cast when every field is rewritten", async () => {
+    // The original run, as it was saved: the model chose the employers. One
+    // is used twice, one block shows another employer's work, there is no
+    // consultancy, no contact details and no cast.
+    const repo = new InterviewDocumentRepository(database);
+    const template = await repo.getTemplateRevision(
+      { tenantId, actorId: ownerId },
+      templateId,
+      1,
+    );
+    const keys = template?.fields.map((field) => field.key) ?? [];
+    const old: Record<string, string> = {
+      ...Object.fromEntries(keys.map((key) => [key, SAFE])),
+      heading_name: "Rowan Ashby",
+      city: "Calgary",
+      province: "AB",
+      heading_phone_number: "",
+      email_address: "",
+      portfolio: "",
+      current_company: "Northbeam Payments",
+      my_company_name: "",
+      my_company_role: "",
+      my_company_from: "",
+      my_company_to: "",
+      contract_company1: "Signalpath",
+      contract_company2: "Ostrava Insurance Tech",
+      contract2_bullet1: OTHER_EMPLOYERS_WORK,
+      contract_company3: "Plotline",
+      contract_company4: "Signalpath",
+      prior_my_company1: "Ostrava Insurance Tech",
+      contracts_acquired_skills: "React, GraphQL",
+    };
+    const modelOwnedKeys = keys.filter(
+      (key) =>
+        ![
+          "heading_name",
+          "city",
+          "province",
+          "heading_phone_number",
+          "email_address",
+          "portfolio",
+        ].includes(key),
+    );
+    const { document } = await repo.createDocument(
+      { tenantId, actorId: ownerId },
+      {
+        title: "Old resume",
+        templateId,
+        templateRevision: 1,
+        profileId: "run-matrix",
+        profileRevision: 1,
+        candidacyId: null,
+        interviewId: null,
+        values: old,
+        provenance: {
+          kind: "generated",
+          targetId: "test-model",
+          sourceDigest: documentSourceDigest({ target_role: "" }, {}),
+          modelOwnedKeys,
+          claimState: "unverified",
+        },
+      },
+    );
+    // As saved it reads "ready"; opened, it is checked as it stands now.
+    const shown = await read(document.id);
+    expect(shown.review?.cast).toBeNull();
+    expect(
+      shown.revision.validation.filter((issue) => issue.code === "unsupported"),
+    ).toEqual([
+      {
+        key: "contract2_bullet1",
+        code: "unsupported",
+        against: "Ostrava Insurance Tech",
+        missing: [
+          { text: "6 weeks", kind: "figure", foundIn: "Tidewater Learning" },
+          { text: "Tidewater", kind: "name", foundIn: "Tidewater Learning" },
+          { text: "Learning", kind: "name", foundIn: "Tidewater Learning" },
+          { text: "Compass", kind: "name", foundIn: "Tidewater Learning" },
+        ],
+      },
+    ]);
+    // The empty consultancy block does not apply: nothing of it is missing.
+    // The contact details are (they are the person's to supply).
+    expect(
+      shown.revision.validation
+        .filter((issue) => issue.code === "missing")
+        .map((issue) => issue.key),
+    ).toEqual(["heading_phone_number", "email_address", "portfolio"]);
+    // The employers it shows are no longer the model's to rewrite one by one.
+    expect(shown.revision.provenance.modelOwnedKeys).not.toContain(
+      "contract_company2",
+    );
+    expect(
+      (
+        await mine().request(
+          `${url}/${document.id}/exports`,
+          post({ revision: 1, format: "docx" }),
+        )
+      ).status,
+    ).toBe(409);
+
+    // "Refresh source facts" fills the contact details stored since.
+    const refreshed = await mine().request(
+      `${url}/${document.id}/refresh-sources`,
+      post({ baseRevision: 1 }),
+    );
+    expect(refreshed.status).toBe(201);
+    expect((await read(document.id)).revision.values["email_address"]).toBe(
+      CONTACT.email,
+    );
+
+    // "Regenerate every field" decides a cast: employers become the server's.
+    script = (call) => {
+      asked.push(call);
+      return misbehaving(call.keys);
+    };
+    const rewritten = await mine().request(
+      `${url}/${document.id}/regenerate`,
+      post({ baseRevision: 2, mode: "all", aiTargetId: "test-model" }),
+    );
+    expect(rewritten.status, await rewritten.clone().text()).toBe(201);
+    const after = await read(document.id);
+    // No posting on a general document: the four most recent clients.
+    expect(after.review?.cast).toMatchObject({
+      consultancy: "Larkspur Works",
+      ranking: "recency",
+      leftOut: [{ company: "Signalpath" }],
+    });
+    expect(
+      [1, 2, 3, 4].map(
+        (slot) => after.revision.values[`contract_company${slot}`],
+      ),
+    ).toEqual(["Tidewater Learning", "Plotline", "Fleetmark", "Backerly"]);
+    expect(after.revision.values["my_company_name"]).toBe("Larkspur Works");
+    expect(after.revision.values["prior_my_company1"]).toBe(
+      "Ostrava Insurance Tech",
+    );
+    expect(
+      asked
+        .flatMap((call) => call.keys)
+        .filter((key) => SERVER_FILLED.test(key)),
+    ).toEqual([]);
+    // The misbehaving model wrote Tidewater's work under Fleetmark this time.
+    expect(after.revision.validation).toMatchObject([
+      { key: "contract3_bullet1", code: "unsupported", against: "Fleetmark" },
+    ]);
   }, 30_000);
 });

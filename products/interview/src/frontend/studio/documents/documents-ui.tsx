@@ -21,6 +21,10 @@ export function message(error: unknown): string {
       return "The selected model is unavailable. Choose another model.";
     if (error.code === "server-error")
       return "The Documents service returned an error. Check the server and database migrations.";
+    if (error.code === "verification-failed")
+      return "Export is blocked: a field says something your experience matrix does not. The Export control lists each one.";
+    if (error.code === "source-refresh-required")
+      return "The application changed since this document was written. Refresh source facts, then try again.";
     if (error.code === "body-too-large")
       return "The template file is too large.";
     if (error.code === "invalid-field-or-template")

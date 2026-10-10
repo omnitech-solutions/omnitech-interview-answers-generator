@@ -503,8 +503,10 @@ export const rawAllowList: readonly AllowEntry[] = [
   {
     file: `${FRONTEND}/studio/documents/`,
     // 35, down from 36: the New document dialog's "Generate" is the library
-    // SplitButton (generate with AI or create manually).
-    max: { button: 35, textarea: 4, input: 5, select: 1 },
+    // SplitButton (generate with AI or create manually). 34, down from 35:
+    // the editor's Export is the library Button, so that when export is
+    // blocked it can be the library Popover's trigger and say why.
+    max: { button: 34, textarea: 4, input: 5, select: 1 },
     reason: STUDIO_WEB,
   },
   {

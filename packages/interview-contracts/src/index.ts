@@ -136,22 +136,27 @@ export {
   contextViewSchema,
 } from "./context-view";
 export {
+  type DocumentBlock,
   type DocumentField,
   type DocumentFieldError,
   type DocumentFormat,
   type DocumentTemplateKind,
   type DocumentValues,
+  documentBlocks,
   documentCreateSchema,
   documentEditSchema,
   documentExportSchema,
   documentFieldSchema,
   documentFieldsSchema,
   documentFormatSchema,
+  documentLayout,
   documentRegenerateSchema,
   documentTemplateCreateSchema,
   documentTemplateKindSchema,
   documentValuesSchema,
+  type UnsupportedClaim,
   validateDocumentValues,
+  withFieldGroups,
 } from "./documents";
 export {
   type AnswerGuide,

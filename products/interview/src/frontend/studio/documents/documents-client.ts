@@ -58,6 +58,22 @@ export type DocumentDetail = {
   };
   template: Template;
   fields: DocumentField[];
+  // How the document stands now, computed by the server from the matrix.
+  review?: DocumentReview;
+};
+export type CastRoleName = { id: string; company: string; title: string };
+export type DocumentReview = {
+  // Fields the person vouched for as written; they are not held to the matrix.
+  confirmedFields: string[];
+  // Fields that hold a contact detail, which only the person can supply.
+  contactKeys: string[];
+  // The client contracts the document shows and the ones it left out.
+  cast: {
+    consultancy: string | null;
+    ranking: "none" | "model" | "recency" | "refused" | "unavailable";
+    leftOut: CastRoleName[];
+    contracts: Array<CastRoleName & { block: string }>;
+  } | null;
 };
 export type DocumentContext = {
   profiles: Array<{ id: string; name: string; revision: number }>;

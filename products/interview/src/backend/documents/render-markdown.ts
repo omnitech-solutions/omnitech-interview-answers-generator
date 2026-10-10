@@ -1,4 +1,10 @@
 import {
+  blankLine,
+  type LineLayout,
+  type LinePlaceholder,
+  writeBlankLine,
+} from "./render-blank";
+import {
   canonicalDocumentField,
   MARKDOWN_FIELD as FIELD,
   InvalidDocumentTemplateError,
@@ -40,35 +46,96 @@ export function escapeMarkdownValue(value: string): string {
     .replace(/&(?!(?:lt|gt|amp|quot|#\d+);)/g, "&amp;");
 }
 
+// The placeholders of one line, with whether each will be empty.
+function linePlaceholders(
+  line: string,
+  values: Record<string, string>,
+): LinePlaceholder[] {
+  return Array.from(line.matchAll(FIELD), (match) => {
+    const key = canonicalDocumentField(match[1] ?? match[2] ?? "");
+    const value = Object.hasOwn(values, key) ? values[key] : undefined;
+    if (value !== undefined && typeof value !== "string")
+      throw new InvalidDocumentTemplateError(
+        "Document field values must be text.",
+      );
+    return {
+      start: match.index,
+      end: match.index + match[0].length,
+      key,
+      empty: !(value ?? "").trim(),
+    };
+  });
+}
+
+const LIST_ITEM = /^\s*(?:[-*+]|\d+[.)])\s+/;
+
 export function renderMarkdownTemplate(
   source: string,
   values: Record<string, string>,
-  options: { missing?: "marker" | "blank" } = {},
+  options: { missing?: "marker" | "blank"; layout?: LineLayout } = {},
 ): string {
-  return source.replace(
-    FIELD,
-    (_whole, doubleKey: string | undefined, singleKey: string | undefined) => {
-      const key = canonicalDocumentField(doubleKey ?? singleKey!);
-      if (!Object.hasOwn(values, key))
-        return options.missing === "blank" ? "" : MISSING_DOCUMENT_FIELD;
-      const value = values[key];
-      if (typeof value !== "string") {
-        throw new InvalidDocumentTemplateError(
-          "Document field values must be text.",
-        );
-      }
-      return value.length === 0
-        ? options.missing === "blank"
-          ? ""
-          : MISSING_DOCUMENT_FIELD
-        : escapeMarkdownValue(value);
-    },
-  );
+  if (options.missing !== "blank")
+    return source.replace(
+      FIELD,
+      (
+        _whole,
+        doubleKey: string | undefined,
+        singleKey: string | undefined,
+      ) => {
+        const key = canonicalDocumentField(doubleKey ?? singleKey!);
+        if (!Object.hasOwn(values, key)) return MISSING_DOCUMENT_FIELD;
+        const value = values[key];
+        if (typeof value !== "string") {
+          throw new InvalidDocumentTemplateError(
+            "Document field values must be text.",
+          );
+        }
+        return value.length === 0
+          ? MISSING_DOCUMENT_FIELD
+          : escapeMarkdownValue(value);
+      },
+    );
+  // [DOMAIN] A finished document: a line is written without the scaffolding
+  // of a value that is not there, and not at all when nothing is left of it.
+  const lines: string[] = [];
+  for (const line of source.split(/(?<=\n)/)) {
+    const ending = /\r?\n$/.exec(line)?.[0] ?? "";
+    const body = ending ? line.slice(0, -ending.length) : line;
+    const placeholders = linePlaceholders(body, values);
+    if (placeholders.length === 0) {
+      lines.push(line);
+      continue;
+    }
+    // A list marker is the line's own, not a value's scaffolding.
+    const marker = LIST_ITEM.exec(body)?.[0] ?? "";
+    const text = body.slice(marker.length);
+    const shifted = placeholders.map((item) => ({
+      ...item,
+      start: item.start - marker.length,
+      end: item.end - marker.length,
+    }));
+    const decided = blankLine(text, shifted, {
+      listItem: marker !== "",
+      ...(options.layout ? { layout: options.layout } : {}),
+    });
+    if (decided === "remove") continue;
+    lines.push(
+      marker +
+        writeBlankLine(text, shifted, decided, (item) =>
+          escapeMarkdownValue(values[item.key] ?? ""),
+        ) +
+        ending,
+    );
+  }
+  // A removed line leaves no stack of empty lines behind.
+  return lines.join("").replace(/\n{3,}/g, "\n\n");
 }
 
 export function renderMarkdownPreview(
   source: string,
   values: Record<string, string>,
+  // Fields of a block that does not apply: their lines are not drawn.
+  absent: ReadonlySet<string> = new Set(),
 ): string {
   const inline = (text: string): string => {
     let result = "";
@@ -111,6 +178,14 @@ export function renderMarkdownPreview(
     code = null;
   };
   for (const line of source.split(/\r\n?|\n/)) {
+    const keys = Array.from(line.matchAll(FIELD), (match) =>
+      canonicalDocumentField(match[1] ?? match[2] ?? ""),
+    );
+    if (
+      keys.some((key) => absent.has(key)) &&
+      keys.every((key) => absent.has(key) || !values[key])
+    )
+      continue;
     if (/^\s*```/.test(line)) {
       flushParagraph();
       flushList();

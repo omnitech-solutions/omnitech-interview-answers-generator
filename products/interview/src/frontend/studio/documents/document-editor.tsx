@@ -1,8 +1,21 @@
 "use client";
 
-import type {
-  DocumentFieldError,
-  DocumentFormat,
+import {
+  Alert,
+  Button,
+  Collapse,
+  List,
+  ListItem,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Tag,
+  Typography,
+} from "@oc-tech/omni-ui-components";
+import {
+  type DocumentFieldError,
+  type DocumentFormat,
+  documentLayout,
 } from "@omnitech/interview-contracts";
 import { useEffect, useRef, useState } from "react";
 import { Icon, type IconName } from "../icon";
@@ -17,6 +30,11 @@ import {
   postJson,
 } from "./documents-client";
 import {
+  CONTACT_HINT,
+  claimReason,
+  exportBlockers,
+  FIELD_STATE_TEXT,
+  fieldState,
   groupFields,
   groupIdOf,
   issueFor,
@@ -49,6 +67,7 @@ const payloadOf = (value: PreviewPayload): PreviewPayload =>
 type Menu = "revs" | "regen" | "export" | null;
 type Working =
   | "save"
+  | "swap"
   | "all"
   | "fix"
   | "field"
@@ -94,6 +113,7 @@ export function DocumentEditor({
   const [focus, setFocus] = useState(false);
   const [working, setWorking] = useState<Working>(null);
   const [workingField, setWorkingField] = useState<string | null>(null);
+  const [blockedOpen, setBlockedOpen] = useState(false);
   const [error, setError] = useState("");
   const pending = useRef<AbortController | null>(null);
   const bar = useRef<HTMLDivElement>(null);
@@ -371,6 +391,32 @@ export function DocumentEditor({
     detail.revision.provenance.modelOwnedKeys ?? [],
   );
   const fixable = attention.filter((field) => modelOwnedKeys.has(field.key));
+  // Blocks this document does not use: left out of the lists and the counts.
+  const { absent } = documentLayout(detail.fields, values);
+  const applies = detail.fields.filter((field) => !absent.has(field.key));
+  const notApplying = detail.fields.filter((field) => absent.has(field.key));
+  // [SAFETY] Export is refused while a field says something the experience
+  // matrix does not; the server refuses too. Each such field is named here.
+  const blockers = exportBlockers(validation, detail.fields);
+  const confirmedFields = new Set(detail.review?.confirmedFields ?? []);
+  const contactKeys = new Set(detail.review?.contactKeys ?? []);
+  const cast = detail.review?.cast ?? null;
+  const regenerateField = (key: string) =>
+    void mutate(
+      "field",
+      `${base}/regenerate`,
+      { baseRevision: current, fieldKey: key, aiTargetId: targetId },
+      `Saved as rev ${current + 1}`,
+      key,
+    );
+  // "Confirmed by me": the person vouches for the field as it is written.
+  const confirmField = (key: string) =>
+    void mutate(
+      "save",
+      `${base}/revisions`,
+      { baseRevision: current, values, confirm: [key] },
+      `Confirmed as rev ${current + 1}`,
+    );
   const generating = working === "all" || working === "fix";
   const busy = working !== null;
   const canRegenerate = !older && !!targetId && modelOwnedKeys.size > 0;
@@ -408,7 +454,9 @@ export function DocumentEditor({
             ? "Saving…"
             : working === "export"
               ? "Exporting…"
-              : "Regenerating…",
+              : working === "swap"
+                ? "Swapping…"
+                : "Regenerating…",
         live: true,
       }
     : dirty
@@ -509,17 +557,107 @@ export function DocumentEditor({
           <Icon name="auto_awesome" size={17} />
           Regenerate
         </button>
-        <button
-          type="button"
-          className="dx-button dx-button-primary"
-          aria-haspopup="menu"
-          aria-expanded={menu === "export"}
-          disabled={busy}
-          onClick={() => setMenu(menu === "export" ? null : "export")}
-        >
-          <Icon name="download" size={17} />
-          Export
-        </button>
+        {blockers.length > 0 ? (
+          // Blocked: Export is disabled, and the popover on it says why, with
+          // each field it names a link to that field. The library disables a
+          // button by taking pointer events from it, so a wrapper is what
+          // the popover opens from: a press on the disabled control lands
+          // there, and the keyboard reaches it.
+          <Popover open={blockedOpen} onOpenChange={setBlockedOpen}>
+            <PopoverTrigger asChild>
+              {/* biome-ignore lint/a11y/useSemanticElements: it wraps the disabled Export button, and a button cannot hold a button */}
+              <span
+                role="button"
+                tabIndex={0}
+                aria-label="Export is blocked: see why"
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter" && event.key !== " ") return;
+                  event.preventDefault();
+                  setBlockedOpen(true);
+                }}
+              >
+                <Button
+                  variant="default"
+                  disabled
+                  icon={<Icon name="download" size={17} />}
+                >
+                  Export
+                </Button>
+              </span>
+            </PopoverTrigger>
+            <PopoverContent
+              align="end"
+              aria-label="Why export is blocked"
+              // A link in here moves focus to its field: closing must not
+              // take focus back to the Export control.
+              onCloseAutoFocus={(event) => event.preventDefault()}
+            >
+              <Typography.Paragraph>
+                Export is blocked: {blockers.length}{" "}
+                {blockers.length === 1 ? "field says" : "fields say"} something
+                your experience matrix does not. Regenerate or edit each one, or
+                confirm it yourself.
+              </Typography.Paragraph>
+              <List>
+                {blockers.map((blocker) => (
+                  <ListItem key={blocker.key}>
+                    <Button
+                      variant="link"
+                      onClick={() => {
+                        setBlockedOpen(false);
+                        selectField(blocker.key);
+                      }}
+                    >
+                      {blocker.label}
+                    </Button>
+                    {/* The first few reasons; the field itself lists them all. */}
+                    {blocker.reasons.slice(0, 3).map((reason) => (
+                      <Typography.Paragraph
+                        key={reason}
+                        type="secondary"
+                        size="compact"
+                      >
+                        {reason}
+                      </Typography.Paragraph>
+                    ))}
+                    {blocker.reasons.length > 3 && (
+                      <Typography.Paragraph type="secondary" size="compact">
+                        and {blocker.reasons.length - 3} more, listed on the
+                        field.
+                      </Typography.Paragraph>
+                    )}
+                    {!older &&
+                      canRegenerate &&
+                      modelOwnedKeys.has(blocker.key) && (
+                        <Button
+                          variant="outline"
+                          buttonSize="sm"
+                          disabled={busy}
+                          onClick={() => {
+                            setBlockedOpen(false);
+                            regenerateField(blocker.key);
+                          }}
+                        >
+                          Regenerate {blocker.label}
+                        </Button>
+                      )}
+                  </ListItem>
+                ))}
+              </List>
+            </PopoverContent>
+          </Popover>
+        ) : (
+          <Button
+            variant="default"
+            aria-haspopup="menu"
+            aria-expanded={menu === "export"}
+            disabled={busy}
+            icon={<Icon name="download" size={17} />}
+            onClick={() => setMenu(menu === "export" ? null : "export")}
+          >
+            Export
+          </Button>
+        )}
 
         {menu === "revs" && (
           <div className="dx-menu dx-menu-revs" role="menu">
@@ -851,12 +989,59 @@ export function DocumentEditor({
                     size={15}
                   />
                   {attention.length
-                    ? `${attention.length} / ${detail.fields.length} need attention`
-                    : `All ${detail.fields.length} valid`}
+                    ? `${attention.length} / ${applies.length} need attention`
+                    : `All ${applies.length} valid`}
                 </span>
               </div>
+              {cast && cast.leftOut.length > 0 && !older && (
+                <Alert
+                  variant="info"
+                  size="sm"
+                  title={`Left out: ${cast.leftOut
+                    .map((role) => role.company)
+                    .join(", ")}`}
+                >
+                  <Typography.Paragraph size="compact">
+                    {cast.consultancy ?? "Your consultancy"} has{" "}
+                    {cast.contracts.length + cast.leftOut.length} clients and
+                    this template has {cast.contracts.length} contract blocks.{" "}
+                    {cast.ranking === "model"
+                      ? "The most relevant to the posting were chosen."
+                      : "The most recent were chosen."}{" "}
+                    A client left out is not written anywhere in the document.
+                    Swapping one in rewrites that block from its own record.
+                  </Typography.Paragraph>
+                  {canRegenerate &&
+                    !dirty &&
+                    cast.leftOut.flatMap((out) =>
+                      cast.contracts.map((held) => (
+                        <Button
+                          key={`${out.id}:${held.block}`}
+                          variant="outline"
+                          buttonSize="sm"
+                          disabled={busy}
+                          onClick={() =>
+                            void mutate(
+                              "swap",
+                              `${base}/cast`,
+                              {
+                                baseRevision: current,
+                                block: held.block,
+                                roleId: out.id,
+                                aiTargetId: targetId,
+                              },
+                              `${out.company} swapped in as rev ${current + 1}`,
+                            )
+                          }
+                        >
+                          Swap {out.company} in for {held.company}
+                        </Button>
+                      )),
+                    )}
+                </Alert>
+              )}
               <div className="dx-sections">
-                {groupFields(detail.fields).map((group) => {
+                {groupFields(applies).map((group) => {
                   const fields = group.fields.filter(
                     (field) =>
                       filter === "all" || !!issueFor(validation, field.key),
@@ -895,6 +1080,18 @@ export function DocumentEditor({
                         fields.map((field) => {
                           const issue = issueFor(validation, field.key);
                           const text = values[field.key] ?? "";
+                          const state = fieldState(field, issue, {
+                            absent,
+                            modelOwned: modelOwnedKeys,
+                          });
+                          const unsupported =
+                            state === "unsupported"
+                              ? validation.find(
+                                  (item) =>
+                                    item.key === field.key &&
+                                    item.code === "unsupported",
+                                )
+                              : undefined;
                           const locked =
                             older ||
                             (field.source === "candidacy" &&
@@ -911,7 +1108,8 @@ export function DocumentEditor({
                               data-state={
                                 isFocused
                                   ? "focus"
-                                  : issue === "too-long"
+                                  : issue === "too-long" ||
+                                      issue === "unsupported"
                                     ? "invalid"
                                     : issue
                                       ? "missing"
@@ -930,6 +1128,9 @@ export function DocumentEditor({
                                     optional
                                   </span>
                                 )}
+                                {confirmedFields.has(field.key) && !dirty && (
+                                  <Tag variant="filled">Confirmed by you</Tag>
+                                )}
                                 <span className="dx-field-key">
                                   {field.key}
                                 </span>
@@ -943,19 +1144,7 @@ export function DocumentEditor({
                                       icon="auto_awesome"
                                       label={`Regenerate ${field.label}`}
                                       disabled={busy}
-                                      onClick={() =>
-                                        void mutate(
-                                          "field",
-                                          `${base}/regenerate`,
-                                          {
-                                            baseRevision: current,
-                                            fieldKey: field.key,
-                                            aiTargetId: targetId,
-                                          },
-                                          `Saved as rev ${current + 1}`,
-                                          field.key,
-                                        )
-                                      }
+                                      onClick={() => regenerateField(field.key)}
                                     />
                                   )
                                 )}
@@ -992,7 +1181,73 @@ export function DocumentEditor({
                                   commit();
                                 }}
                               />
-                              {(issue ||
+                              {(state === "type-it" ||
+                                state === "no-evidence") && (
+                                <Alert
+                                  variant="warning"
+                                  size="sm"
+                                  id={`document-error-${field.key}`}
+                                  title={FIELD_STATE_TEXT[state].title}
+                                >
+                                  {state === "type-it" &&
+                                  contactKeys.has(field.key)
+                                    ? CONTACT_HINT
+                                    : FIELD_STATE_TEXT[state].body}
+                                </Alert>
+                              )}
+                              {unsupported && (
+                                <Alert
+                                  variant="error"
+                                  size="sm"
+                                  id={`document-error-${field.key}`}
+                                  title="Not in your experience matrix"
+                                >
+                                  <List>
+                                    {(unsupported.missing ?? []).map(
+                                      (claim) => (
+                                        <ListItem
+                                          key={`${claim.kind}:${claim.text}`}
+                                        >
+                                          {claimReason(
+                                            claim,
+                                            unsupported.against ??
+                                              "your experience matrix",
+                                          )}
+                                        </ListItem>
+                                      ),
+                                    )}
+                                  </List>
+                                  {!older && (
+                                    <>
+                                      {canRegenerate &&
+                                        modelOwnedKeys.has(field.key) && (
+                                          <Button
+                                            variant="outline"
+                                            buttonSize="sm"
+                                            disabled={busy}
+                                            onClick={() =>
+                                              regenerateField(field.key)
+                                            }
+                                          >
+                                            Regenerate this field
+                                          </Button>
+                                        )}
+                                      <Button
+                                        variant="outline"
+                                        buttonSize="sm"
+                                        disabled={busy}
+                                        onClick={() => confirmField(field.key)}
+                                      >
+                                        Confirmed by me
+                                      </Button>
+                                    </>
+                                  )}
+                                </Alert>
+                              )}
+                              {((issue &&
+                                state !== "type-it" &&
+                                state !== "no-evidence" &&
+                                state !== "unsupported") ||
                                 (isFocused && field.maxLength) ||
                                 locked) && (
                                 <div
@@ -1007,10 +1262,8 @@ export function DocumentEditor({
                                   id={`document-error-${field.key}`}
                                 >
                                   <span className="dx-grow">
-                                    {issue === "missing"
-                                      ? field.source === "candidate-profile"
-                                        ? "Not in your experience matrix. Type it here, or add it to the matrix so every document gets it."
-                                        : "Required by the template."
+                                    {state === "required"
+                                      ? "Required by the template."
                                       : issue === "too-long"
                                         ? "Too long for the template."
                                         : issue
@@ -1032,6 +1285,27 @@ export function DocumentEditor({
                     </div>
                   );
                 })}
+                {filter === "all" && notApplying.length > 0 && (
+                  <Collapse
+                    size="small"
+                    items={[
+                      {
+                        key: "does-not-apply",
+                        label: `${FIELD_STATE_TEXT["does-not-apply"].title} · ${notApplying.length} ${
+                          notApplying.length === 1 ? "field" : "fields"
+                        }`,
+                        description: FIELD_STATE_TEXT["does-not-apply"].body,
+                        children: (
+                          <List>
+                            {notApplying.map((field) => (
+                              <ListItem key={field.key}>{field.label}</ListItem>
+                            ))}
+                          </List>
+                        ),
+                      },
+                    ]}
+                  />
+                )}
                 {filter === "attention" && attention.length === 0 && (
                   <div className="dx-all-clear">
                     <Icon name="task_alt" size={26} />

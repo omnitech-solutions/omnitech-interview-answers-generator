@@ -1,3 +1,4 @@
+import type { DocumentFieldError } from "@omnitech/interview-contracts";
 import {
   fireEvent,
   render,
@@ -10,6 +11,7 @@ import type { StudioActions } from "../config/commands";
 import { keyOpen, pointerOpen } from "../live/overlay/panels/toolbar-test-kit";
 import type {
   DocumentContext,
+  DocumentReview,
   Template,
   TemplateListItem,
 } from "./documents-client";
@@ -83,10 +85,18 @@ let calls: Call[];
 let currentRevision: number;
 let revisionValues: Record<number, Record<string, string>>;
 let exports: (typeof exportRow)[];
-let validationIssues: Array<{ key: string; code: "missing" }>;
+let validationIssues: DocumentFieldError[];
+// How the server says the document stands (confirmations, the cast), and
+// which fields are the model's.
+let review: DocumentReview | undefined;
+let modelOwnedKeys: string[];
 let saveConflict: boolean;
 let templateCatalog: TemplateListItem[];
-let editorFields: typeof fields;
+let editorFields: Array<
+  (typeof fields)[number] & {
+    group?: { id: string; kind: string; part: string; optional?: boolean };
+  }
+>;
 let documentCandidacyId: string | null;
 let documentInterviewId: string | null;
 let claimState: "unverified" | "confirmed";
@@ -110,6 +120,8 @@ function mockApi() {
   revisionValues = { 1: { full_name: "Ada", company_name: "Northwind" } };
   exports = [];
   validationIssues = [];
+  review = undefined;
+  modelOwnedKeys = ["full_name"];
   claimState = "unverified";
   firstRevisionKind = "generated";
   saveConflict = false;
@@ -284,6 +296,18 @@ function mockApi() {
         revisionValues[currentRevision] = (
           body as { values: Record<string, string> }
         ).values;
+        // "Confirmed by me" clears that field's failure, as the server does.
+        const confirmed = (body as { confirm?: string[] }).confirm ?? [];
+        if (confirmed.length) {
+          validationIssues = validationIssues.filter(
+            (issue) => !confirmed.includes(issue.key),
+          );
+          review = {
+            contactKeys: review?.contactKeys ?? [],
+            cast: review?.cast ?? null,
+            confirmedFields: confirmed,
+          };
+        }
         return Response.json({ revision: currentRevision }, { status: 201 });
       }
       if (path.endsWith(`/${DOCUMENT_ID}/restore`) && method === "POST") {
@@ -299,6 +323,13 @@ function mockApi() {
         revisionValues[currentRevision] = {
           ...revisionValues[currentRevision - 1]!,
           full_name: "Ada Regenerated",
+        };
+        return Response.json({ revision: currentRevision }, { status: 201 });
+      }
+      if (path.endsWith(`/${DOCUMENT_ID}/cast`) && method === "POST") {
+        currentRevision++;
+        revisionValues[currentRevision] = {
+          ...revisionValues[currentRevision - 1]!,
         };
         return Response.json({ revision: currentRevision }, { status: 201 });
       }
@@ -359,13 +390,14 @@ function mockApi() {
             validation: validationIssues,
             provenance: {
               kind: revision === 1 ? firstRevisionKind : "edited",
-              modelOwnedKeys: ["full_name"],
+              modelOwnedKeys,
               claimState,
             },
             createdAt: "2026-10-02",
           },
           template,
           fields: editorFields,
+          ...(review ? { review } : {}),
         });
       }
       return Response.json({ error: { code: "not-found" } }, { status: 404 });
@@ -1622,6 +1654,284 @@ describe("Document editor", () => {
       await screen.findByRole("heading", { name: "Document could not load" }),
     ).toBeVisible();
     expect(screen.getByRole("button", { name: "Retry" })).toBeEnabled();
+  });
+});
+
+describe("Document editor: verification, the three kinds of empty, and the cast", () => {
+  const profileField = (
+    key: string,
+    label: string,
+    group?: { id: string; kind: string; part: string; optional?: boolean },
+  ) => ({
+    key,
+    label,
+    source: "candidate-profile",
+    required: true,
+    maxLength: null,
+    ...(group ? { group } : {}),
+  });
+  const unsupported: DocumentFieldError = {
+    key: "contract1_bullet1",
+    code: "unsupported",
+    against: "Plotline",
+    missing: [
+      { text: "Compass", kind: "name", foundIn: "Tidewater Learning" },
+      { text: "70%", kind: "figure" },
+    ],
+  };
+  function resume() {
+    editorFields = [
+      profileField("email_address", "Email address"),
+      profileField("summary", "Summary"),
+      profileField("my_company_name", "My company name", {
+        id: "consultancy",
+        kind: "consultancy",
+        part: "company",
+        optional: true,
+      }),
+      profileField("my_company_role", "My company role", {
+        id: "consultancy",
+        kind: "consultancy",
+        part: "title",
+        optional: true,
+      }),
+      profileField("contract_company1", "Contract company1", {
+        id: "contract-1",
+        kind: "contract",
+        part: "company",
+        optional: true,
+      }),
+      profileField("contract1_bullet1", "Contract1 bullet1", {
+        id: "contract-1",
+        kind: "contract",
+        part: "bullet",
+        optional: true,
+      }),
+    ];
+    modelOwnedKeys = ["summary", "contract1_bullet1"];
+    revisionValues = {
+      1: {
+        email_address: "",
+        summary: "",
+        my_company_name: "",
+        my_company_role: "",
+        contract_company1: "Plotline",
+        contract1_bullet1: "Integrated Tidewater into Compass, up 70%",
+      },
+    };
+    review = {
+      confirmedFields: [],
+      contactKeys: ["email_address"],
+      cast: null,
+    };
+  }
+
+  it("disables Export while a field is unsupported, and its popover names each field with the reason and a link to it", async () => {
+    resume();
+    validationIssues = [unsupported];
+    renderAt([DOCUMENT_ID]);
+    await screen.findByRole("textbox", { name: "Contract1 bullet1" });
+    // Export itself is disabled; the popover opens from the control around it.
+    expect(screen.getByRole("button", { name: "Export" })).toBeDisabled();
+    const control = screen.getByRole("button", {
+      name: "Export is blocked: see why",
+    });
+    // The popover explains; the export menu never opens and nothing is sent.
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.click(control);
+    const why = await screen.findByRole("dialog", {
+      name: "Why export is blocked",
+    });
+    expect(
+      within(why).getByText(/Export is blocked: 1 field says/),
+    ).toBeVisible();
+    expect(
+      within(why).getByText(
+        "“Compass” is from Tidewater Learning, not Plotline.",
+      ),
+    ).toBeVisible();
+    expect(
+      within(why).getByText("“70%” is not in the matrix entry for Plotline."),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("menuitem", { name: /Word document/ }),
+    ).toBeNull();
+    expect(posted(`/${DOCUMENT_ID}/exports`)).toBeUndefined();
+    // The field's name is a link to the field.
+    fireEvent.click(
+      within(why).getByRole("button", { name: "Contract1 bullet1" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Why export is blocked" }),
+      ).toBeNull(),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("textbox", { name: "Contract1 bullet1" }),
+      ).toHaveFocus(),
+    );
+  });
+
+  it("regenerates a single failing field in one click from the popover", async () => {
+    resume();
+    validationIssues = [unsupported];
+    renderAt([DOCUMENT_ID]);
+    await screen.findByRole("textbox", { name: "Contract1 bullet1" });
+    // From the keyboard, too.
+    const blocked = screen.getByRole("button", {
+      name: "Export is blocked: see why",
+    });
+    blocked.focus();
+    fireEvent.keyDown(blocked, { key: "Enter" });
+    const why = await screen.findByRole("dialog", {
+      name: "Why export is blocked",
+    });
+    fireEvent.click(
+      within(why).getByRole("button", { name: "Regenerate Contract1 bullet1" }),
+    );
+    await waitFor(() =>
+      expect(posted(`/${DOCUMENT_ID}/regenerate`)?.body).toEqual({
+        baseRevision: 1,
+        fieldKey: "contract1_bullet1",
+        aiTargetId: "target-1",
+      }),
+    );
+    // Fixed: Export is an ordinary control again.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Export" })).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Export" }));
+    expect(
+      screen.getByRole("menuitem", { name: /Word document/ }),
+    ).toBeVisible();
+  });
+
+  it("says on the field what was not found, and lets the person confirm it themselves", async () => {
+    resume();
+    validationIssues = [unsupported];
+    renderAt([DOCUMENT_ID]);
+    const bullet = await screen.findByRole("textbox", {
+      name: "Contract1 bullet1",
+    });
+    expect(bullet).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByText("Not in your experience matrix")).toBeVisible();
+    expect(
+      screen.getByText("“Compass” is from Tidewater Learning, not Plotline."),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Regenerate this field" }),
+    ).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Confirmed by me" }));
+    await waitFor(() => expect(currentRevision).toBe(2));
+    expect(posted(`/${DOCUMENT_ID}/revisions`)?.body).toMatchObject({
+      baseRevision: 1,
+      confirm: ["contract1_bullet1"],
+      values: {
+        contract1_bullet1: "Integrated Tidewater into Compass, up 70%",
+      },
+    });
+    // The failure is cleared and the field says who vouched for it.
+    expect(await screen.findByText("Confirmed by you")).toBeVisible();
+    expect(screen.queryByText("Not in your experience matrix")).toBeNull();
+    expect(screen.getByRole("button", { name: "Export" })).toBeEnabled();
+  });
+
+  it("tells three kinds of empty field apart, and counts only the two that need something", async () => {
+    resume();
+    validationIssues = [
+      { key: "email_address", code: "missing" },
+      { key: "summary", code: "missing" },
+    ];
+    renderAt([DOCUMENT_ID]);
+    await screen.findByRole("textbox", { name: "Email address" });
+    // Missing, type it: a contact detail with no stored value.
+    expect(screen.getByText("Missing: type it")).toBeVisible();
+    expect(
+      screen.getByText(/keep it in your contact details file on this machine/),
+    ).toBeVisible();
+    // No evidence: the model left it empty.
+    expect(screen.getByText("No evidence")).toBeVisible();
+    expect(
+      screen.getByText(/your experience matrix has nothing to support it/),
+    ).toBeVisible();
+    // Does not apply: the consultancy block, quiet and collapsed, not a field
+    // to fill and not counted.
+    expect(
+      screen.queryByRole("textbox", { name: "My company name" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("textbox", { name: "My company role" }),
+    ).toBeNull();
+    expect(screen.getByText("2 / 4 need attention")).toBeVisible();
+    const quiet = screen.getByRole("button", {
+      name: /Does not apply · 2 fields/,
+    });
+    expect(quiet).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(quiet);
+    expect(await screen.findByText("My company name")).toBeVisible();
+    expect(screen.getByText("My company role")).toBeVisible();
+    // Only what needs attention is listed under that filter.
+    fireEvent.click(screen.getByRole("button", { name: /Needs attention/ }));
+    expect(
+      screen.getByRole("textbox", { name: "Email address" }),
+    ).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "Summary" })).toBeVisible();
+    expect(
+      screen.queryByRole("textbox", { name: "Contract1 bullet1" }),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: /Does not apply/ })).toBeNull();
+    // Nothing blocks export: an empty field is not an unsupported claim.
+    expect(screen.getByRole("button", { name: "Export" })).toBeEnabled();
+  });
+
+  it("says which client was left out and swaps it into a contract block", async () => {
+    resume();
+    review = {
+      confirmedFields: [],
+      contactKeys: ["email_address"],
+      cast: {
+        consultancy: "Larkspur Works",
+        ranking: "model",
+        leftOut: [{ id: "/roles/4", company: "Backerly", title: "Senior" }],
+        contracts: [
+          {
+            block: "contract-1",
+            id: "/roles/2",
+            company: "Plotline",
+            title: "Senior",
+          },
+          {
+            block: "contract-2",
+            id: "/roles/3",
+            company: "Fleetmark",
+            title: "Senior",
+          },
+        ],
+      },
+    };
+    renderAt([DOCUMENT_ID]);
+    await screen.findByRole("textbox", { name: "Contract1 bullet1" });
+    expect(screen.getByText("Left out: Backerly")).toBeVisible();
+    expect(
+      screen.getByText(
+        /Larkspur Works has 3 clients and this template has 2 contract blocks\. The most relevant to the posting were chosen\./,
+      ),
+    ).toBeVisible();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Swap Backerly in for Fleetmark" }),
+    );
+    await waitFor(() =>
+      expect(posted(`/${DOCUMENT_ID}/cast`)?.body).toEqual({
+        baseRevision: 1,
+        block: "contract-2",
+        roleId: "/roles/4",
+        aiTargetId: "target-1",
+      }),
+    );
+    expect(
+      await screen.findByText("Backerly swapped in as rev 2"),
+    ).toBeVisible();
   });
 });
 

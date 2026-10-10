@@ -9,15 +9,19 @@ import { type PlatformDatabase, withTenant } from "@omnitech/database";
 import {
   candidacyContextSchema,
   type DocumentField,
+  type DocumentFieldError,
+  documentBlocks,
   documentCreateSchema,
   documentEditSchema,
   documentExportSchema,
   documentFieldsSchema,
+  documentLayout,
   documentRegenerateSchema,
   documentTemplateCreateSchema,
   documentValuesSchema,
   employerBriefSchema,
   validateDocumentValues,
+  withFieldGroups,
 } from "@omnitech/interview-contracts";
 import type { PlatformContext } from "@omnitech/platform-contracts";
 import { DocumentArtifactRepository } from "@omnitech/platform-storage";
@@ -29,9 +33,24 @@ import { promptMessages } from "../ai-messages";
 import { createInFlight, linkedAbort, ndjsonResponse } from "../work-guards";
 import { builtInAssetUrl } from "./built-in-assets";
 import { type BuiltInKey, builtInTemplates } from "./built-in-templates";
+import {
+  castFromValues,
+  castRoles,
+  castValues,
+  type DocumentCast,
+  decideCast,
+  planCast,
+  revisionCast,
+} from "./cast";
 import { DEFAULT_DOCUMENTS_CONFIG, type DocumentsConfig } from "./config";
-import { DocumentContextNotFound, resolveDocumentContext } from "./context";
+import {
+  type ContactDetails,
+  type DocumentContext,
+  DocumentContextNotFound,
+  resolveDocumentContext,
+} from "./context";
 import { documentFieldOwnership, generateDocumentValues } from "./generate";
+import type { LineLayout } from "./render-blank";
 import { renderDocxTemplate } from "./render-docx";
 import { renderDocxAsMarkdown } from "./render-docx-markdown";
 import {
@@ -56,6 +75,12 @@ import {
   InvalidDocumentTemplateError,
   inspectTemplate,
 } from "./template-intake";
+import {
+  fieldHash,
+  revisionConfirmations,
+  standingConfirmations,
+  verifyDocumentFields,
+} from "./verify";
 
 export type DocumentScope = {
   tenantId: string;
@@ -99,6 +124,13 @@ class TargetUnavailable extends Error {}
 class GenerationFailed extends Error {}
 class RequestCancelled extends Error {}
 class DocumentSourceChanged extends Error {}
+// [SAFETY] A document that says something its evidence does not is not
+// exported: the refusal names each field and what was not found.
+class DocumentVerificationFailed extends Error {
+  constructor(readonly fields: Array<DocumentFieldError & { label: string }>) {
+    super("Document has unsupported claims");
+  }
+}
 
 export function resolveDocumentsScope(
   context: PlatformContext | null,
@@ -183,17 +215,25 @@ async function previewOf(
   format: string,
   bytes: Buffer,
   values: Record<string, string>,
+  layout?: LineLayout,
 ) {
   return format === "docx"
     ? {
         kind: "docx" as const,
         docx: (
-          await renderDocxTemplate(bytes, values, { missing: "tagged" })
+          await renderDocxTemplate(bytes, values, {
+            missing: "tagged",
+            ...(layout ? { layout } : {}),
+          })
         ).toString("base64"),
       }
     : {
         kind: "html" as const,
-        html: renderMarkdownPreview(bytes.toString("utf8"), values),
+        html: renderMarkdownPreview(
+          bytes.toString("utf8"),
+          values,
+          layout?.absent,
+        ),
       };
 }
 // "experience_1_bullet_2" reads as "Experience 1 bullet 2".
@@ -218,8 +258,12 @@ function fieldsFor(
     maxLength: null,
     ...(sections[key] ? { section: sections[key] } : {}),
   }));
-  const fields = documentFieldsSchema.parse(
-    typeof raw === "string" ? JSON.parse(raw) : defaults,
+  // A field's block is made explicit here, from its key, so a template
+  // revision states which fields are one employer's.
+  const fields = withFieldGroups(
+    documentFieldsSchema.parse(
+      typeof raw === "string" ? JSON.parse(raw) : defaults,
+    ),
   );
   if (
     fields.length !== keys.length ||
@@ -315,6 +359,9 @@ export function createDocumentsApi(options: {
     scope: DocumentScope,
   ) => Promise<Partial<Record<BuiltInKey, Buffer>> | null>;
   ensureProfile?: (scope: DocumentScope) => Promise<void>;
+  // The local member's contact details, kept on this machine (never in git
+  // or the matrix), for the documents' contact fields.
+  localContact?: (scope: DocumentScope) => Promise<ContactDetails | null>;
   // How documents are written; defaults suit a long template.
   config?: DocumentsConfig;
 }) {
@@ -391,6 +438,11 @@ export function createDocumentsApi(options: {
       return c.json({ error: { code: "retry-key-conflict" } }, 409);
     if (error instanceof DocumentSourceChanged)
       return c.json({ error: { code: "source-refresh-required" } }, 409);
+    if (error instanceof DocumentVerificationFailed)
+      return c.json(
+        { error: { code: "verification-failed", fields: error.fields } },
+        409,
+      );
     if (error instanceof RequestTooLarge)
       return c.json({ error: { code: "body-too-large" } }, 413);
     if (error instanceof TargetUnavailable)
@@ -422,14 +474,26 @@ export function createDocumentsApi(options: {
       return c.json({ error: { code: "invalid-request" } }, 400);
     throw error;
   });
-  async function load(scope: DocumentScope, id: string, revision?: number) {
+  async function contextFor(
+    scope: DocumentScope,
+    input: Parameters<typeof resolveDocumentContext>[1],
+  ) {
+    const contact =
+      (await options.localContact?.(scope).catch(() => null)) ?? null;
+    return resolveDocumentContext(options.database, input, { contact });
+  }
+  async function loadWithContext(
+    scope: DocumentScope,
+    id: string,
+    revision?: number,
+  ) {
     const item = await repo.getDocument(
       scopeKey(scope),
       uuid.parse(id),
       revision,
     );
     if (!item) throw new DocumentNotFound();
-    await resolveDocumentContext(options.database, {
+    const candidate = await contextFor(scope, {
       tenantId: scope.tenantId,
       actorId: scope.actorId,
       profileId: item.document.profileId,
@@ -437,7 +501,155 @@ export function createDocumentsApi(options: {
       candidacyId: item.document.candidacyId,
       interviewId: item.document.interviewId,
     });
-    return item;
+    return { item, candidate };
+  }
+  async function load(scope: DocumentScope, id: string, revision?: number) {
+    return (await loadWithContext(scope, id, revision)).item;
+  }
+  /**
+   * How a document stands with these values: its cast, who owns each field,
+   * which confirmations still hold, and which fields say something their
+   * evidence does not. Computed from the pinned matrix every time, so a
+   * document made before verification existed is held to the same check.
+   */
+  function standing(
+    item: { fields: DocumentField[]; template: { kind: string } },
+    candidate: DocumentContext,
+    values: Record<string, string>,
+    provenance: unknown,
+    change: { cast?: DocumentCast | null; confirm?: readonly string[] } = {},
+  ) {
+    const matrix = candidate.candidateProfile;
+    const hasBlocks = documentBlocks(item.fields).length > 0;
+    // The cast the revision keeps; a document older than casts implies one
+    // by the employer each block names.
+    const storedCast =
+      change.cast !== undefined ? change.cast : revisionCast(provenance);
+    const cast =
+      storedCast ??
+      (hasBlocks ? castFromValues(item.fields, values, matrix) : null);
+    const facts = {
+      ...candidate.profileValues,
+      ...(cast && hasBlocks ? castValues(item.fields, cast, matrix) : {}),
+    };
+    const modelOwned = (field: DocumentField) =>
+      field.source === "candidate-profile" &&
+      !Object.hasOwn(facts, field.key) &&
+      !candidate.missingProfileKeys.includes(field.key);
+    const modelOwnedKeys = item.fields
+      .filter(modelOwned)
+      .map((field) => field.key);
+    const confirmed = standingConfirmations(
+      {
+        ...revisionConfirmations(provenance),
+        ...Object.fromEntries(
+          (change.confirm ?? []).map((key) => [
+            key,
+            fieldHash(values[key] ?? ""),
+          ]),
+        ),
+      },
+      values,
+    );
+    // A resume claims only what the matrix holds. A letter or a prep sheet
+    // also speaks about the employer, so the posting's own words are theirs.
+    const about = [
+      candidate.candidacyValues["company_name"] ?? "",
+      candidate.candidacyValues["role_title"] ?? "",
+      ...(item.template.kind === "resume"
+        ? []
+        : [
+            candidate.candidacyValues["job_description"] ?? "",
+            ...Object.values(candidate.interviewValues),
+          ]),
+    ];
+    const unsupported = verifyDocumentFields({
+      fields: item.fields,
+      values,
+      // Prose is checked whoever wrote it: the model's fields, and every
+      // bullet or skills line of a block (in a document older than casts a
+      // block may show an employer that matches no role).
+      checkedKeys: [
+        ...modelOwnedKeys,
+        ...item.fields
+          .filter(
+            (field) =>
+              field.group?.part === "bullet" || field.group?.part === "skills",
+          )
+          .map((field) => field.key),
+      ],
+      matrix,
+      cast,
+      allowed: about,
+      confirmed,
+    });
+    return {
+      cast,
+      facts,
+      modelOwned,
+      modelOwnedKeys,
+      confirmed,
+      unsupported,
+      // What the next revision's provenance carries forward.
+      kept: {
+        ...(storedCast ? { cast: storedCast } : {}),
+        ...(Object.keys(confirmed).length
+          ? { confirmedFields: confirmed }
+          : {}),
+      },
+    };
+  }
+  // A document as the page reads it: field problems and ownership as they
+  // stand now, and what the cast left out.
+  function viewOf(
+    item: Awaited<ReturnType<typeof load>>,
+    candidate: DocumentContext,
+  ) {
+    const values = item.revision.values as Record<string, string>;
+    const state = standing(item, candidate, values, item.revision.provenance);
+    const roles = new Map(
+      castRoles(candidate.candidateProfile).map((role) => [role.id, role]),
+    );
+    const named = (ids: readonly string[]) =>
+      ids.flatMap((id) => {
+        const role = roles.get(id);
+        return role ? [{ id, company: role.company, title: role.title }] : [];
+      });
+    const stored = revisionCast(item.revision.provenance);
+    return {
+      ...item,
+      revision: {
+        ...item.revision,
+        validation: [
+          ...validateDocumentValues(item.fields, values),
+          ...state.unsupported,
+        ],
+        provenance: {
+          ...(item.revision.provenance as Record<string, unknown>),
+          modelOwnedKeys: state.modelOwnedKeys,
+        },
+      },
+      review: {
+        confirmedFields: Object.keys(state.confirmed),
+        // Fields with no stored value that only the person can supply.
+        contactKeys: candidate.privateKeys,
+        cast: stored
+          ? {
+              consultancy: stored.consultancy,
+              ranking: stored.ranking,
+              leftOut: named(stored.leftOut),
+              contracts: documentBlocks(item.fields)
+                .filter((block) => block.kind === "contract")
+                .flatMap((block) =>
+                  named(stored.slots[block.id] ?? []).map((role) => ({
+                    block: block.id,
+                    ...role,
+                  })),
+                ),
+            }
+          : null,
+      },
+    };
   }
   async function source(
     scope: DocumentScope,
@@ -932,7 +1144,7 @@ export function createDocumentsApi(options: {
     }
     // A document made by hand names no model, so there is none to authorise.
     if ("aiTargetId" in input) await authorizedTarget(scope, input.aiTargetId);
-    const candidate = await resolveDocumentContext(options.database, {
+    const candidate = await contextFor(scope, {
       tenantId: scope.tenantId,
       actorId: scope.actorId,
       profileId: input.profileId,
@@ -946,6 +1158,7 @@ export function createDocumentsApi(options: {
       candidate.candidacyValues,
       candidate.interviewValues,
     );
+    const hasBlocks = documentBlocks(template.fields).length > 0;
     const existing = await repo.findMatchingDocument(scopeKey(scope), input);
     if (existing)
       return c.json({ existingDocumentId: existing.id, offer: "open-it" }, 409);
@@ -953,7 +1166,7 @@ export function createDocumentsApi(options: {
     // document that won.
     const orExisting = async (error: unknown) => {
       if (error instanceof DocumentAlreadyExists) {
-        await resolveDocumentContext(options.database, {
+        await contextFor(scope, {
           tenantId: scope.tenantId,
           actorId: scope.actorId,
           profileId: input.profileId,
@@ -973,11 +1186,21 @@ export function createDocumentsApi(options: {
       // blank for the person, so nothing is invented. Blank required fields
       // fail validation, which keeps the document at "invalid" (Needs
       // attention) until they are written.
+      // The cast is decided in code alone here (no model is called): each
+      // block's employer, title and dates are filled in for the person.
+      const cast = hasBlocks
+        ? planCast(template.fields, candidate.candidateProfile)
+        : null;
       const { modelFields, fixed } = documentFieldOwnership({
         fields: template.fields,
         candidacyValues: candidate.candidacyValues,
         interviewValues: candidate.interviewValues,
-        profileValues: candidate.profileValues,
+        profileValues: {
+          ...candidate.profileValues,
+          ...(cast
+            ? castValues(template.fields, cast, candidate.candidateProfile)
+            : {}),
+        },
         missingProfileKeys: candidate.missingProfileKeys,
       });
       const values = {
@@ -996,6 +1219,7 @@ export function createDocumentsApi(options: {
             // The fields a model may still be asked to write from the editor.
             modelOwnedKeys: modelFields.map((field) => field.key),
             claimState: "unverified",
+            ...(cast ? { cast } : {}),
           },
         })
         .catch(orExisting);
@@ -1032,13 +1256,63 @@ export function createDocumentsApi(options: {
     if (!release) return c.json({ inProgress: true, offer: "wait" }, 409);
     // The work ends with the request, or with the reader of its stream.
     const { signal, readerGone } = linkedAbort(c.req.raw.signal);
-    const generate = (hooks?: Parameters<typeof generateDocumentValues>[2]) =>
-      generateDocumentValues(
+    const generate = async (
+      hooks?: Parameters<typeof generateDocumentValues>[2],
+    ) => {
+      // [STRATEGY] The cast comes first: which role fills which block. Code
+      // decides it; a small ranking call is made only when the matrix cannot
+      // (more clients than contract blocks). A ranking an earlier try of
+      // this request kept is replayed, so its kept batches still fit.
+      const keptRanking = completedBatches?.["cast"]?.values["order"];
+      const cast = hasBlocks
+        ? await decideCast(
+            options.engine,
+            {
+              ...scopeKey(scope),
+              profileId: input.aiTargetId,
+              request: executionFromHeaders(c.req.raw.headers),
+              fields: template.fields,
+              matrix: candidate.candidateProfile,
+              candidacyValues: candidate.candidacyValues,
+              ...(keptRanking
+                ? { kept: JSON.parse(keptRanking) as string[] }
+                : {}),
+              signal,
+            },
+            async (order) => {
+              if (requestIdentity)
+                await repo.saveGenerationBatch(
+                  scopeKey(scope),
+                  requestIdentity,
+                  {
+                    id: "cast",
+                    fieldsHash: "cast",
+                    values: { order: JSON.stringify(order) },
+                    usage: null,
+                  },
+                );
+            },
+          )
+        : null;
+      const facts = {
+        ...candidate.profileValues,
+        ...(cast
+          ? castValues(template.fields, cast, candidate.candidateProfile)
+          : {}),
+      };
+      const generated = await generateDocumentValues(
         options.engine,
         {
           ...scopeKey(scope),
           profileId: input.aiTargetId,
           request: executionFromHeaders(c.req.raw.headers),
+          // No document exists yet: the call is for the application, or for
+          // the template when the document is for no application.
+          for: input.candidacyId
+            ? { kind: "candidacy", id: input.candidacyId }
+            : { kind: "document-template", id: input.templateId },
+          cast,
+          privateKeys: candidate.privateKeys,
           templateId: input.templateId,
           templateRevision: input.templateRevision,
           candidateProfileRevisionId: `${input.profileId}:${input.profileRevision}`,
@@ -1047,7 +1321,7 @@ export function createDocumentsApi(options: {
           candidateProfile: candidate.candidateProfile,
           candidacyValues: candidate.candidacyValues,
           interviewValues: candidate.interviewValues,
-          profileValues: candidate.profileValues,
+          profileValues: facts,
           missingProfileKeys: candidate.missingProfileKeys,
           generation: config.generation,
           ...(completedBatches ? { completedBatches } : {}),
@@ -1065,11 +1339,28 @@ export function createDocumentsApi(options: {
             await hooks?.onBatch?.(update);
           },
         },
-      ).catch(() => {
+      );
+      return { ...generated, cast };
+    };
+    const generateOrFail = (
+      hooks?: Parameters<typeof generateDocumentValues>[2],
+    ) =>
+      generate(hooks).catch(() => {
         throw signal.aborted ? new RequestCancelled() : new GenerationFailed();
       });
-    const save = async (generated: Awaited<ReturnType<typeof generate>>) => {
+    const save = async (
+      generated: Awaited<ReturnType<typeof generateOrFail>>,
+    ) => {
       if (signal.aborted) throw new RequestCancelled();
+      // What the model wrote is checked against the matrix before it is
+      // saved; a field that fails is recorded on the revision.
+      const state = standing(
+        { fields: template.fields, template: template.template },
+        candidate,
+        generated.values,
+        {},
+        { cast: generated.cast },
+      );
       return repo
         .createDocument(scopeKey(scope), {
           ...input,
@@ -1079,24 +1370,19 @@ export function createDocumentsApi(options: {
             kind: "generated",
             targetId: input.aiTargetId,
             sourceDigest,
-            modelOwnedKeys: template.fields
-              .filter(
-                (field) =>
-                  field.source === "candidate-profile" &&
-                  !Object.hasOwn(candidate.profileValues, field.key) &&
-                  !candidate.missingProfileKeys.includes(field.key),
-              )
-              .map((field) => field.key),
+            modelOwnedKeys: state.modelOwnedKeys,
             claimState: "unverified",
+            ...state.kept,
           },
           aiUsage: generated.usage,
+          unsupported: state.unsupported,
           ...(requestIdentity ? { requestIdentity } : {}),
         })
         .catch(orExisting);
     };
     if (!(c.req.header("accept") ?? "").includes("application/x-ndjson")) {
       try {
-        const generated = await generate();
+        const generated = await generateOrFail();
         const created = await save(generated);
         if ("existingDocumentId" in created)
           return c.json(
@@ -1106,7 +1392,7 @@ export function createDocumentsApi(options: {
             },
             409,
           );
-        return c.json({ ...created, errors: generated.errors }, 201);
+        return c.json({ ...created, errors: created.revision.validation }, 201);
       } finally {
         release();
       }
@@ -1116,7 +1402,7 @@ export function createDocumentsApi(options: {
     return ndjsonResponse(
       async (send) => {
         try {
-          const generated = await generate({
+          const generated = await generateOrFail({
             onPlan: (plan) => send({ t: "plan", ...plan }),
             onBatch: (update) => send({ t: "batch", ...update }),
           });
@@ -1127,7 +1413,7 @@ export function createDocumentsApi(options: {
               : {
                   t: "done",
                   document: created.document,
-                  errors: generated.errors,
+                  errors: created.revision.validation,
                 },
           );
         } catch (error) {
@@ -1148,19 +1434,18 @@ export function createDocumentsApi(options: {
   });
   app.get(`${prefix}/:id`, async (c) => {
     const selected = c.req.query("revision");
-    return c.json(
-      await load(
-        c.get("documentScope"),
-        c.req.param("id"),
-        selected ? positive.parse(selected) : undefined,
-      ),
+    const { item, candidate } = await loadWithContext(
+      c.get("documentScope"),
+      c.req.param("id"),
+      selected ? positive.parse(selected) : undefined,
     );
+    return c.json(viewOf(item, candidate));
   });
   app.post(`${prefix}/:id/revisions`, async (c) => {
     const scope = c.get("documentScope");
     const id = uuid.parse(c.req.param("id"));
     const input = documentEditSchema.parse(await jsonBody(c.req.raw));
-    const current = await load(scope, id);
+    const { item: current, candidate } = await loadWithContext(scope, id);
     if (input.baseRevision !== current.document.currentRevision)
       throw new DocumentRevisionConflict();
     for (const field of current.fields)
@@ -1171,17 +1456,35 @@ export function createDocumentsApi(options: {
           (current.revision.values as Record<string, string>)[field.key]
       )
         throw new InvalidField();
+    if (
+      input.confirm?.some(
+        (key) => !current.fields.some((field) => field.key === key),
+      )
+    )
+      throw new InvalidField();
+    // An edit is checked like the model's text; a field the person marks
+    // "confirmed by me" is theirs to state, and stays so until it changes.
+    const state = standing(
+      current,
+      candidate,
+      input.values,
+      current.revision.provenance,
+      input.confirm ? { confirm: input.confirm } : {},
+    );
     return c.json(
       await repo.appendRevision(scopeKey(scope), {
         documentId: id,
         baseRevision: input.baseRevision,
         values: input.values,
         provenance: {
-          kind: "edited",
+          kind: input.confirm?.length ? "field-confirmed" : "edited",
+          ...(input.confirm?.length ? { fieldKeys: input.confirm } : {}),
           sourceDigest: revisionSourceDigest(current.revision.provenance),
           modelOwnedKeys: revisionModelOwnedKeys(current.revision.provenance),
           claimState: "unverified",
+          ...state.kept,
         },
+        unsupported: state.unsupported,
       }),
       201,
     );
@@ -1230,7 +1533,7 @@ export function createDocumentsApi(options: {
       throw new DocumentRevisionConflict();
     // A document made by hand names no model, so there is none to authorise.
     if ("aiTargetId" in input) await authorizedTarget(scope, input.aiTargetId);
-    const candidate = await resolveDocumentContext(options.database, {
+    const candidate = await contextFor(scope, {
       tenantId: scope.tenantId,
       actorId: scope.actorId,
       profileId: current.document.profileId,
@@ -1238,30 +1541,33 @@ export function createDocumentsApi(options: {
       candidacyId: current.document.candidacyId,
       interviewId: current.document.interviewId,
     });
-    const modelOwned = (item: DocumentField) =>
-      item.source === "candidate-profile" &&
-      !Object.hasOwn(candidate.profileValues, item.key) &&
-      !candidate.missingProfileKeys.includes(item.key);
-    const fields =
+    const before = current.revision.values as Record<string, string>;
+    const everything = !("fieldKey" in input) && input.mode === "all";
+    let state = standing(
+      current,
+      candidate,
+      before,
+      current.revision.provenance,
+    );
+    const problems = new Set(
+      [
+        ...validateDocumentValues(current.fields, before),
+        ...state.unsupported,
+      ].map((issue) => issue.key),
+    );
+    // Which fields are rewritten: one, all the model's, or the model's with
+    // a problem (missing, too long, or saying something unsupported).
+    const chosen = (owned: (field: DocumentField) => boolean) =>
       "fieldKey" in input
         ? current.fields.filter(
-            (item) => item.key === input.fieldKey && modelOwned(item),
+            (item) => item.key === input.fieldKey && owned(item),
           )
         : input.mode === "all"
-          ? current.fields.filter(modelOwned)
+          ? current.fields.filter(owned)
           : current.fields.filter(
-              (item) =>
-                modelOwned(item) &&
-                Array.isArray(current.revision.validation) &&
-                current.revision.validation.some(
-                  (issue) =>
-                    typeof issue === "object" &&
-                    issue !== null &&
-                    "key" in issue &&
-                    issue.key === item.key,
-                ),
+              (item) => owned(item) && problems.has(item.key),
             );
-    if (!fields.length) throw new InvalidField();
+    if (!chosen(state.modelOwned).length) throw new InvalidField();
     candidate.candidacyValues["target_role"] =
       candidate.candidacyValues["role_title"] ?? "";
     const sourceDigest = documentSourceDigest(
@@ -1280,10 +1586,208 @@ export function createDocumentsApi(options: {
       JSON.stringify(["regenerate", scope.tenantId, id, input.baseRevision]),
     );
     if (!release) return c.json({ inProgress: true, offer: "wait" }, 409);
+    const rewrite = async () => {
+      // [STRATEGY] Rewriting every field decides the cast afresh, which also
+      // brings a document made before casts under one: its employers, titles
+      // and dates become the server's. Rewriting some fields keeps the cast.
+      if (everything && documentBlocks(current.fields).length > 0)
+        state = standing(
+          current,
+          candidate,
+          before,
+          current.revision.provenance,
+          {
+            cast: await decideCast(options.engine, {
+              ...scopeKey(scope),
+              profileId: input.aiTargetId,
+              request: executionFromHeaders(c.req.raw.headers),
+              fields: current.fields,
+              matrix: candidate.candidateProfile,
+              candidacyValues: candidate.candidacyValues,
+              signal: c.req.raw.signal,
+            }),
+          },
+        );
+      const fields = chosen(state.modelOwned);
+      const generated = await generateDocumentValues(options.engine, {
+        ...scopeKey(scope),
+        profileId: input.aiTargetId,
+        request: executionFromHeaders(c.req.raw.headers),
+        for: { kind: "document", id },
+        cast: state.cast,
+        privateKeys: candidate.privateKeys,
+        blockKeys: current.fields
+          .filter((field) => field.group)
+          .map((field) => field.key),
+        // Text that failed verification is not shown back to the model.
+        rejectedKeys: state.unsupported.map((issue) => issue.key),
+        templateId: current.document.templateId,
+        templateRevision: current.document.templateRevision,
+        candidateProfileRevisionId: `${current.document.profileId}:${current.document.profileRevision}`,
+        fields,
+        instructions: current.templateRevision.instructions,
+        candidateProfile: candidate.candidateProfile,
+        candidacyValues: candidate.candidacyValues,
+        interviewValues: candidate.interviewValues,
+        profileValues: state.facts,
+        missingProfileKeys: candidate.missingProfileKeys,
+        // Regenerating one field keeps the kind and length of what it replaces. A whole
+        // document rewrite does not pay for second tries, and "fix" mode replaces the
+        // very value that failed validation (often too long).
+        ...("fieldKey" in input
+          ? {
+              replacing: Object.fromEntries(
+                fields.map((item) => [item.key, before[item.key] ?? ""]),
+              ),
+            }
+          : {}),
+        generation: config.generation,
+        signal: c.req.raw.signal,
+      });
+      return { fields, generated };
+    };
+    const { fields, generated } = await rewrite()
+      .catch(() => {
+        throw c.req.raw.signal.aborted
+          ? new RequestCancelled()
+          : new GenerationFailed();
+      })
+      .finally(release);
+    if (c.req.raw.signal.aborted) throw new RequestCancelled();
+    const values = {
+      ...before,
+      // A fresh cast's employers, titles and dates replace the old ones.
+      ...(everything
+        ? Object.fromEntries(
+            current.fields
+              .filter(
+                (field) => field.group && Object.hasOwn(state.facts, field.key),
+              )
+              .map((field) => [field.key, state.facts[field.key] ?? ""]),
+          )
+        : {}),
+      ...generated.values,
+    };
+    // The new text is checked like the first; a field rewritten no longer
+    // carries the person's confirmation of its old text.
+    const after = standing(
+      current,
+      candidate,
+      values,
+      current.revision.provenance,
+      {
+        cast: everything
+          ? state.cast
+          : revisionCast(current.revision.provenance),
+      },
+    );
+    return c.json(
+      await repo.appendRevision(scopeKey(scope), {
+        documentId: id,
+        baseRevision: input.baseRevision,
+        values,
+        provenance: {
+          kind: "regenerated",
+          fieldKeys: fields.map((field) => field.key),
+          targetId: input.aiTargetId,
+          sourceDigest,
+          modelOwnedKeys: after.modelOwnedKeys,
+          claimState: "unverified",
+          ...after.kept,
+        },
+        aiUsage: generated.usage,
+        unsupported: after.unsupported,
+        ...(requestIdentity ? { requestIdentity } : {}),
+      }),
+      201,
+    );
+  });
+  // [DOMAIN] A consultancy with more clients than the template has contract
+  // blocks leaves one out. The person may put it in a block instead of the
+  // client there: the block's employer and title become the server's from the
+  // new role, and its prose (and the shared skills line) is written again
+  // from that role alone, so nothing of the replaced client stays behind.
+  app.post(`${prefix}/:id/cast`, async (c) => {
+    const scope = c.get("documentScope");
+    const id = uuid.parse(c.req.param("id"));
+    const input = z
+      .strictObject({
+        baseRevision: z.number().int().positive(),
+        block: z.string().min(1).max(40),
+        roleId: z.string().regex(/^\/roles\/\d+$/),
+        aiTargetId: z.string().min(1).max(256),
+      })
+      .parse(await jsonBody(c.req.raw));
+    const { item: current, candidate } = await loadWithContext(scope, id);
+    if (input.baseRevision !== current.document.currentRevision)
+      throw new DocumentRevisionConflict();
+    const stored = revisionCast(current.revision.provenance);
+    const blocks = documentBlocks(current.fields);
+    const block = blocks.find(
+      (item) => item.id === input.block && item.kind === "contract",
+    );
+    // Only a client that was left out may be swapped in, and only for a
+    // client that holds a block: the cast stays one of the matrix's roles
+    // each used once.
+    const replaced = stored?.slots[input.block]?.[0];
+    if (
+      !stored ||
+      !block ||
+      !replaced ||
+      !stored.leftOut.includes(input.roleId)
+    )
+      throw new InvalidField();
+    await authorizedTarget(scope, input.aiTargetId);
+    candidate.candidacyValues["target_role"] =
+      candidate.candidacyValues["role_title"] ?? "";
+    const sourceDigest = documentSourceDigest(
+      candidate.candidacyValues,
+      candidate.interviewValues,
+    );
+    if (sourceDigest !== revisionSourceDigest(current.revision.provenance))
+      throw new DocumentSourceChanged();
+    const slots = { ...stored.slots, [input.block]: [input.roleId] };
+    const consultancyBlock = blocks.find((item) => item.kind === "consultancy");
+    if (consultancyBlock)
+      slots[consultancyBlock.id] = blocks
+        .filter((item) => item.kind === "contract")
+        .flatMap((item) => slots[item.id] ?? []);
+    const cast: DocumentCast = {
+      ...stored,
+      slots,
+      leftOut: [
+        ...stored.leftOut.filter((role) => role !== input.roleId),
+        replaced,
+      ],
+    };
+    const before = current.revision.values as Record<string, string>;
+    const state = standing(
+      current,
+      candidate,
+      before,
+      current.revision.provenance,
+      { cast },
+    );
+    const fields = current.fields.filter(
+      (field) =>
+        state.modelOwned(field) &&
+        (field.group?.id === input.block ||
+          field.group?.id === consultancyBlock?.id),
+    );
+    const release = writing.claim(
+      JSON.stringify(["regenerate", scope.tenantId, id, input.baseRevision]),
+    );
+    if (!release) return c.json({ inProgress: true, offer: "wait" }, 409);
     const generated = await generateDocumentValues(options.engine, {
       ...scopeKey(scope),
       profileId: input.aiTargetId,
       request: executionFromHeaders(c.req.raw.headers),
+      for: { kind: "document", id },
+      cast,
+      privateKeys: candidate.privateKeys,
+      blockKeys: current.fields
+        .filter((field) => field.group)
+        .map((field) => field.key),
       templateId: current.document.templateId,
       templateRevision: current.document.templateRevision,
       candidateProfileRevisionId: `${current.document.profileId}:${current.document.profileRevision}`,
@@ -1292,22 +1796,8 @@ export function createDocumentsApi(options: {
       candidateProfile: candidate.candidateProfile,
       candidacyValues: candidate.candidacyValues,
       interviewValues: candidate.interviewValues,
-      profileValues: candidate.profileValues,
+      profileValues: state.facts,
       missingProfileKeys: candidate.missingProfileKeys,
-      // Regenerating one field keeps the kind and length of what it replaces. A whole
-      // document rewrite does not pay for second tries, and "fix" mode replaces the
-      // very value that failed validation (often too long).
-      ...("fieldKey" in input
-        ? {
-            replacing: Object.fromEntries(
-              fields.map((item) => [
-                item.key,
-                (current.revision.values as Record<string, string>)[item.key] ??
-                  "",
-              ]),
-            ),
-          }
-        : {}),
       generation: config.generation,
       signal: c.req.raw.signal,
     })
@@ -1318,26 +1808,38 @@ export function createDocumentsApi(options: {
       })
       .finally(release);
     if (c.req.raw.signal.aborted) throw new RequestCancelled();
+    const values = {
+      ...before,
+      ...Object.fromEntries(
+        block.fields
+          .filter((field) => Object.hasOwn(state.facts, field.key))
+          .map((field) => [field.key, state.facts[field.key] ?? ""]),
+      ),
+      ...generated.values,
+    };
+    const after = standing(
+      current,
+      candidate,
+      values,
+      current.revision.provenance,
+      { cast },
+    );
     return c.json(
       await repo.appendRevision(scopeKey(scope), {
         documentId: id,
         baseRevision: input.baseRevision,
-        values: {
-          ...(current.revision.values as Record<string, string>),
-          ...generated.values,
-        },
+        values,
         provenance: {
-          kind: "regenerated",
+          kind: "recast",
           fieldKeys: fields.map((field) => field.key),
           targetId: input.aiTargetId,
           sourceDigest,
-          modelOwnedKeys: current.fields
-            .filter(modelOwned)
-            .map((field) => field.key),
+          modelOwnedKeys: after.modelOwnedKeys,
           claimState: "unverified",
+          ...after.kept,
         },
         aiUsage: generated.usage,
-        ...(requestIdentity ? { requestIdentity } : {}),
+        unsupported: after.unsupported,
       }),
       201,
     );
@@ -1351,7 +1853,7 @@ export function createDocumentsApi(options: {
     const current = await load(scope, id);
     if (input.baseRevision !== current.document.currentRevision)
       throw new DocumentRevisionConflict();
-    const candidate = await resolveDocumentContext(options.database, {
+    const candidate = await contextFor(scope, {
       tenantId: scope.tenantId,
       actorId: scope.actorId,
       profileId: current.document.profileId,
@@ -1369,7 +1871,21 @@ export function createDocumentsApi(options: {
         values[field.key] = candidate.candidacyValues[field.key] ?? "";
       if (field.source === "interview")
         values[field.key] = candidate.interviewValues[field.key] ?? "";
+      // A fact stored since the document was made (a contact detail) fills
+      // its field when that is still blank; what the person typed stays.
+      if (
+        field.source === "candidate-profile" &&
+        !(values[field.key] ?? "").trim() &&
+        candidate.profileValues[field.key]
+      )
+        values[field.key] = candidate.profileValues[field.key] ?? "";
     }
+    const state = standing(
+      current,
+      candidate,
+      values,
+      current.revision.provenance,
+    );
     return c.json(
       await repo.appendRevision(scopeKey(scope), {
         documentId: id,
@@ -1381,16 +1897,11 @@ export function createDocumentsApi(options: {
             candidate.candidacyValues,
             candidate.interviewValues,
           ),
-          modelOwnedKeys: current.fields
-            .filter(
-              (field) =>
-                field.source === "candidate-profile" &&
-                !Object.hasOwn(candidate.profileValues, field.key) &&
-                !candidate.missingProfileKeys.includes(field.key),
-            )
-            .map((field) => field.key),
+          modelOwnedKeys: state.modelOwnedKeys,
           claimState: "unverified",
+          ...state.kept,
         },
+        unsupported: state.unsupported,
       }),
       201,
     );
@@ -1401,9 +1912,15 @@ export function createDocumentsApi(options: {
     const input = z
       .strictObject({ baseRevision: z.number().int().positive() })
       .parse(await jsonBody(c.req.raw));
-    const current = await load(scope, id);
+    const { item: current, candidate } = await loadWithContext(scope, id);
     if (input.baseRevision !== current.document.currentRevision)
       throw new DocumentRevisionConflict();
+    const state = standing(
+      current,
+      candidate,
+      current.revision.values as Record<string, string>,
+      current.revision.provenance,
+    );
     return c.json(
       await repo.appendRevision(scopeKey(scope), {
         documentId: id,
@@ -1414,7 +1931,9 @@ export function createDocumentsApi(options: {
           sourceDigest: revisionSourceDigest(current.revision.provenance),
           modelOwnedKeys: revisionModelOwnedKeys(current.revision.provenance),
           claimState: "confirmed",
+          ...state.kept,
         },
+        unsupported: state.unsupported,
       }),
       201,
     );
@@ -1437,7 +1956,7 @@ export function createDocumentsApi(options: {
   app.get(`${prefix}/:id/preview`, async (c) => {
     const scope = c.get("documentScope");
     const selected = c.req.query("revision");
-    const item = await load(
+    const { item, candidate } = await loadWithContext(
       scope,
       c.req.param("id"),
       selected ? positive.parse(selected) : undefined,
@@ -1451,16 +1970,21 @@ export function createDocumentsApi(options: {
     const bytes = await source(scope, template);
     const values = item.revision.values as Record<string, string>;
     return c.json({
-      ...(await previewOf(item.template.format, bytes, values)),
+      ...(await previewOf(
+        item.template.format,
+        bytes,
+        values,
+        documentLayout(item.fields, values),
+      )),
       revision: item.revision.revision,
-      validation: item.revision.validation,
+      validation: viewOf(item, candidate).revision.validation,
       claimState: revisionClaimState(item.revision.provenance),
     });
   });
   app.post(`${prefix}/:id/preview`, async (c) => {
     const scope = c.get("documentScope");
     const input = documentEditSchema.parse(await jsonBody(c.req.raw));
-    const item = await load(scope, c.req.param("id"));
+    const { item, candidate } = await loadWithContext(scope, c.req.param("id"));
     if (input.baseRevision !== item.document.currentRevision)
       throw new DocumentRevisionConflict();
     for (const field of item.fields)
@@ -1478,16 +2002,30 @@ export function createDocumentsApi(options: {
     );
     if (!template) throw new DocumentNotFound();
     const bytes = await source(scope, template);
+    // A draft is drawn and checked as it would be saved, without saving it.
     return c.json({
-      ...(await previewOf(item.template.format, bytes, input.values)),
-      validation: validateDocumentValues(item.fields, input.values),
+      ...(await previewOf(
+        item.template.format,
+        bytes,
+        input.values,
+        documentLayout(item.fields, input.values),
+      )),
+      validation: [
+        ...validateDocumentValues(item.fields, input.values),
+        ...standing(item, candidate, input.values, item.revision.provenance)
+          .unsupported,
+      ],
     });
   });
   app.post(`${prefix}/:id/exports`, async (c) => {
     const scope = c.get("documentScope");
     const id = uuid.parse(c.req.param("id"));
     const input = documentExportSchema.parse(await jsonBody(c.req.raw));
-    const item = await load(scope, id, input.revision);
+    const { item, candidate } = await loadWithContext(
+      scope,
+      id,
+      input.revision,
+    );
     if (item.template.format === "md" && input.format !== "md")
       return c.json({ error: { code: "unsupported-format" } }, 400);
     const template = await repo.getTemplateRevision(
@@ -1498,6 +2036,25 @@ export function createDocumentsApi(options: {
     if (!template) throw new DocumentNotFound();
     const bytes = await source(scope, template);
     const values = item.revision.values as Record<string, string>;
+    // [SAFETY] Export is refused while any field says something its evidence
+    // does not and the person has not confirmed it. Checked here, now, so a
+    // document saved before verification existed is held to it as well.
+    const unsupported = standing(
+      item,
+      candidate,
+      values,
+      item.revision.provenance,
+    ).unsupported;
+    if (unsupported.length)
+      throw new DocumentVerificationFailed(
+        unsupported.map((issue) => ({
+          ...issue,
+          label:
+            item.fields.find((field) => field.key === issue.key)?.label ??
+            issue.key,
+        })),
+      );
+    const layout = documentLayout(item.fields, values);
     const draft =
       revisionClaimState(item.revision.provenance) !== "confirmed" ||
       (Array.isArray(item.revision.validation) &&
@@ -1507,14 +2064,16 @@ export function createDocumentsApi(options: {
       input.format === "docx"
         ? await renderDocxTemplate(bytes, values, {
             missing: "blank",
+            layout,
             ...(draft ? { draftLabel } : {}),
           })
         : Buffer.from(
             (draft ? `# ${draftLabel}\n\n` : "") +
               (item.template.format === "docx"
-                ? await renderDocxAsMarkdown(bytes, values)
+                ? await renderDocxAsMarkdown(bytes, values, layout)
                 : renderMarkdownTemplate(bytes.toString("utf8"), values, {
                     missing: "blank",
+                    layout,
                   })),
             "utf8",
           );

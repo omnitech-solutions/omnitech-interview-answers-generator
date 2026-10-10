@@ -3,9 +3,18 @@ import {
   type ModelInput,
   type Usage,
 } from "@omnitech/ai-engine";
-import type { DocumentField } from "@omnitech/interview-contracts";
-import { describe, expect, it } from "vitest";
 import {
+  type DocumentField,
+  withFieldGroups,
+} from "@omnitech/interview-contracts";
+import { createLogger } from "@omnitech/logging";
+import { engineLog } from "@omnitech/platform-runtime/ai-log";
+import { describe, expect, it, vi } from "vitest";
+import { castValues, planCast } from "./cast";
+import { resumeRunFields, SYNTHETIC_MATRIX } from "./fixtures/resume-run";
+import {
+  batchEvidence,
+  batchFingerprint,
   documentFieldOwnership,
   generateDocumentValues,
   outputWeight,
@@ -769,5 +778,372 @@ describe("regenerating one field", () => {
       replacing: { strength_1: "" },
     });
     expect(empty.calls).toHaveLength(1);
+  });
+});
+
+describe("blocks and the cast", () => {
+  const blockFields = resumeRunFields();
+  const cast = planCast(blockFields, SYNTHETIC_MATRIX);
+  const facts = {
+    heading_name: "Rowan Ashby",
+    city: "Calgary",
+    province: "AB",
+    ...castValues(blockFields, cast, SYNTHETIC_MATRIX),
+  };
+  const contact = ["heading_phone_number", "email_address", "portfolio"];
+  const run = (engine: Parameters<typeof generateDocumentValues>[0]) =>
+    generateDocumentValues(engine, {
+      ...input,
+      fields: blockFields,
+      candidateProfile: SYNTHETIC_MATRIX,
+      candidacyValues: {},
+      profileValues: { ...facts, email_address: "rowan@example.invalid" },
+      missingProfileKeys: ["heading_phone_number", "portfolio"],
+      privateKeys: contact,
+      cast,
+      generation: { maxCalls: 4, fieldsPerCall: 6, attempts: 1 },
+    });
+
+  it("never cuts a batch inside a block, however the calls are shared out", () => {
+    const { modelFields } = documentFieldOwnership({
+      fields: blockFields,
+      candidacyValues: {},
+      interviewValues: {},
+      profileValues: facts,
+      missingProfileKeys: contact,
+    });
+    for (const maxCalls of [1, 2, 3, 4, 8])
+      for (const fieldsPerCall of [5, 6, 8, 12, 24]) {
+        const batches = planBatches(modelFields, {
+          maxCalls,
+          fieldsPerCall,
+          attempts: 1,
+        });
+        // Every model field is written once, in template order.
+        expect(batches.flatMap((batch) => batch.fields)).toEqual(modelFields);
+        // A block's fields are all in one batch.
+        const home = new Map<string, string>();
+        for (const batch of batches)
+          for (const item of batch.fields) {
+            const id = item.group?.id;
+            if (!id) continue;
+            expect(home.get(id) ?? batch.id, `${id} in ${batch.id}`).toBe(
+              batch.id,
+            );
+            home.set(id, batch.id);
+          }
+      }
+  });
+
+  it("keeps a block whole even when it is larger than an even share", () => {
+    const one = withFieldGroups(
+      [
+        "contract_company1",
+        "contract_role1",
+        "contract1_bullet1",
+        "contract1_bullet2",
+        "contract1_bullet3",
+        "contract1_bullet4",
+      ].map((key) => ({
+        key,
+        label: key,
+        source: "candidate-profile" as const,
+        required: true,
+        maxLength: null,
+      })),
+    );
+    const batches = planBatches(one, {
+      maxCalls: 4,
+      fieldsPerCall: 2,
+      attempts: 1,
+    });
+    expect(batches).toHaveLength(1);
+    expect(batches[0]?.fields).toHaveLength(6);
+  });
+
+  it("asks the model for prose only: never an employer, a title or a date, and never a block the cast left empty", async () => {
+    const { engine, calls } = scripted(echo);
+    const result = await run(engine);
+    const asked = calls.flatMap((call) => Object.keys(call.schema.properties));
+    const headers = blockFields
+      .filter(
+        (item) =>
+          item.group &&
+          item.group.part !== "bullet" &&
+          item.group.part !== "skills",
+      )
+      .map((item) => item.key);
+    expect(headers).toHaveLength(21);
+    expect(asked.filter((key) => headers.includes(key))).toEqual([]);
+    expect(asked).toContain("contract2_bullet1");
+    // The server's values stand, whatever the model would have written.
+    expect(result.values["contract_company2"]).toBe("Plotline");
+    expect(result.values["prior_my_company1"]).toBe("Ostrava Insurance Tech");
+    expect(result.values["my_company_name"]).toBe("Larkspur Works");
+    expect(result.values["current_from"]).toBe("2024");
+  });
+
+  it("gives each call its own blocks' roles in full, a line about the others, and never the whole matrix", async () => {
+    const { engine, calls } = scripted(echo);
+    await run(engine);
+    expect(calls.length).toBeGreaterThan(1);
+    for (const call of calls) {
+      const prompt = JSON.parse(call.prompt) as {
+        blocks: Array<{
+          block: string;
+          fields: string[];
+          roles: Array<{ company: string; proof_points?: string[] }>;
+        }>;
+        otherRoles: string[];
+        candidateProfile?: unknown;
+        document?: { roles: Array<Record<string, unknown>> };
+        fields: Array<{ key: string; block?: string }>;
+      };
+      expect(prompt.candidateProfile).toBeUndefined();
+      const own = new Set(
+        prompt.blocks.flatMap((block) =>
+          block.roles.map((role) => role.company),
+        ),
+      );
+      for (const block of prompt.blocks) {
+        // The block's fields are this call's, and its role is the cast's.
+        expect(
+          block.fields.every((key) =>
+            Object.hasOwn(call.schema.properties, key),
+          ),
+        ).toBe(true);
+        expect(block.roles.length).toBeGreaterThan(0);
+      }
+      // Another call's role is one line: named, never its proof points.
+      for (const line of prompt.otherRoles) {
+        expect(own.has(line.split(" — ")[0] ?? "")).toBe(false);
+        expect(line).not.toMatch(/Compass|Rebuilt|Scaled|Launched/);
+      }
+      // A role is either this call's in full or another's in one line.
+      const elsewhere = prompt.otherRoles.map((line) => line.split(" — ")[0]);
+      expect(elsewhere.filter((company) => own.has(company ?? ""))).toEqual([]);
+      // A field of a block says which block it is.
+      for (const spec of prompt.fields)
+        expect(spec.block).toBe(
+          blockFields.find((item) => item.key === spec.key)?.group?.id,
+        );
+    }
+    const plotline = calls
+      .map(
+        (call) =>
+          JSON.parse(call.prompt) as {
+            blocks: Array<{
+              block: string;
+              roles: Array<{ company: string; proof_points?: string[] }>;
+            }>;
+          },
+      )
+      .flatMap((prompt) => prompt.blocks)
+      .find((block) => block.block === "contract-2");
+    expect(plotline?.roles).toEqual([SYNTHETIC_MATRIX.roles[2]]);
+  });
+
+  it("gives a block of several roles and the whole-career fields highlights, not every detail", () => {
+    const batch = {
+      id: "batch-1",
+      title: "x",
+      fields: blockFields.filter(
+        (item) =>
+          item.key === "summary_paragraph1" || item.group?.id === "earlier",
+      ),
+    };
+    const evidence = batchEvidence(batch, cast, {
+      ...SYNTHETIC_MATRIX,
+      roles: SYNTHETIC_MATRIX.roles.map((role) => ({
+        ...role,
+        tags: ["a-tag"],
+      })),
+    });
+    expect(evidence.blocks).toHaveLength(1);
+    expect(evidence.blocks[0]?.roles.map((role) => role["company"])).toEqual([
+      "Meridian Hours",
+      "Quillon Networks",
+      "Harrow & Finch",
+    ]);
+    expect(evidence.blocks[0]?.roles[0]).not.toHaveProperty("tags");
+    expect(evidence.document?.candidate).toEqual(SYNTHETIC_MATRIX.candidate);
+    // Every role in the document, and not the client that was left out.
+    expect(evidence.document?.roles).toHaveLength(9);
+    expect(JSON.stringify(evidence.document)).not.toContain("Signalpath");
+    expect(evidence.document?.roles[0]).not.toHaveProperty("tags");
+    expect(evidence.otherRoles).toHaveLength(6);
+  });
+
+  it("never puts a contact detail in a prompt, though the document holds it", async () => {
+    const { engine, calls } = scripted(echo);
+    const result = await run(engine);
+    expect(result.values["email_address"]).toBe("rowan@example.invalid");
+    for (const call of calls) {
+      expect(call.prompt).not.toContain("rowan@example.invalid");
+      const prompt = JSON.parse(call.prompt) as {
+        facts: Record<string, string>;
+      };
+      expect(prompt.facts).toEqual({
+        heading_name: "Rowan Ashby",
+        city: "Calgary",
+        province: "AB",
+      });
+    }
+  });
+
+  it("replays a kept batch only for the same roles", () => {
+    const batch = {
+      id: "batch-1",
+      title: "x",
+      fields: blockFields.filter((item) => item.group?.id === "contract-2"),
+    };
+    const plain = batchFingerprint(batch);
+    const held = batchFingerprint(batch, [["contract-2", ["/roles/2"]]]);
+    expect(held).not.toBe(plain);
+    expect(batchFingerprint(batch, [["contract-2", ["/roles/2"]]])).toBe(held);
+    expect(batchFingerprint(batch, [["contract-2", ["/roles/5"]]])).not.toBe(
+      held,
+    );
+  });
+
+  it("writes from the whole matrix when a template has no blocks", async () => {
+    const { engine, calls } = scripted(echo);
+    await generateDocumentValues(engine, {
+      ...input,
+      candidateProfile: SYNTHETIC_MATRIX,
+      cast: planCast(fields, SYNTHETIC_MATRIX),
+    });
+    const prompt = JSON.parse(calls[0]?.prompt ?? "{}") as Record<
+      string,
+      unknown
+    >;
+    expect(prompt["candidateProfile"]).toEqual(SYNTHETIC_MATRIX);
+    expect(prompt["blocks"]).toBeUndefined();
+  });
+});
+
+// Every AI call is in the server's log (the brief on document generation and
+// AI logging, section 6): the engine's own logger, given the Studio's logger
+// as its sink by `engineLog`, as the web server and the worker do.
+describe("a generated document in the server's log", () => {
+  const DOCUMENT = "a21331b6-b301-4c18-aed9-678b62d928d7";
+  // One generation through a real engine over a scripted model, logging as
+  // the given environment would.
+  async function generate(env: Record<string, string | undefined>) {
+    const lines: string[] = [];
+    const engine = createAiEngine({
+      profiles: [
+        { id: "document-profile", provider: "scripted", model: "scripted-1" },
+      ],
+      providers: {
+        scripted: {
+          async *stream() {
+            yield {
+              type: "text",
+              text: JSON.stringify({ summary: "SECRET-ANSWER" }),
+            };
+            yield { type: "usage", usage: totalTokens(12) };
+          },
+        },
+      },
+      log: engineLog({
+        service: "interview-web",
+        env,
+        logger: createLogger({
+          service: "interview-web",
+          env,
+          write: (line) => lines.push(line),
+          now: () => new Date("2026-10-10T18:00:00.000Z"),
+        }),
+      }),
+    });
+    const generated = await generateDocumentValues(engine, {
+      ...input,
+      instructions: "SECRET-INSTRUCTIONS",
+      for: { kind: "document", id: DOCUMENT },
+      request: { correlationId: "req-42" },
+    });
+    expect(generated.values["summary"]).toBe("SECRET-ANSWER");
+    return lines;
+  }
+
+  it("writes a start line and an end line that name the document the call is for", async () => {
+    const lines = await generate({
+      NODE_ENV: "development",
+      LOG_FORMAT: "json",
+    });
+    const said = lines.map(
+      (line) => JSON.parse(line) as Record<string, unknown>,
+    );
+    const of = (event: string) => said.find((line) => line["event"] === event);
+    expect(of("ai.call.started")).toMatchObject({
+      level: "debug",
+      service: "interview-web",
+      message: `generate document-profile started for document ${DOCUMENT}`,
+      operation: "generate",
+      profileId: "document-profile",
+      provider: "scripted",
+      model: "scripted-1",
+      forKind: "document",
+      forId: DOCUMENT,
+      tenantId: "tenant",
+      actorId: "member",
+      correlationId: "req-42",
+      hasSchema: true,
+    });
+    expect(of("ai.call.ended")).toMatchObject({
+      level: "info",
+      message: expect.stringMatching(
+        new RegExp(
+          `^generate document-profile done for document ${DOCUMENT} in \\d+ ms$`,
+        ),
+      ),
+      forKind: "document",
+      forId: DOCUMENT,
+      outcome: "done",
+      attempts: 1,
+      durationMs: expect.any(Number),
+    });
+    // The Studio's content switch is off: nothing that was said is written.
+    expect(lines.join("\n")).not.toContain("SECRET");
+  });
+
+  it("in the story of a local `pnpm dev`, the whole prompt and answer are shown; in production nothing is", async () => {
+    // The story's colours are for a terminal; a test reads plain text.
+    vi.stubEnv("NO_COLOR", "1");
+    const story = (
+      await generate({
+        NODE_ENV: "development",
+        LOG_FORMAT: "story",
+        LOG_CONTENT: "true",
+        LOG_LEVEL: "trace",
+      })
+    ).join("\n");
+    expect(story).toMatch(
+      new RegExp(
+        `AI {8}generate document-profile done for document ${DOCUMENT} in \\d+ ms`,
+      ),
+    );
+    expect(story).toMatch(
+      /PROMPT {4}prompt of generate document-profile, attempt 1/,
+    );
+    expect(story).toContain("SECRET-INSTRUCTIONS");
+    expect(story).toMatch(
+      /REPLY {5}answer of generate document-profile, attempt 1/,
+    );
+    expect(story).toContain('{"summary":"SECRET-ANSWER"}');
+
+    expect(await generate({ NODE_ENV: "production" })).toEqual([]);
+    const asked = (
+      await generate({
+        NODE_ENV: "production",
+        AI_ENGINE_LOG_LEVEL: "info",
+        // The switch alone writes nothing in production: a person must also
+        // have chosen to read content (LOG_LEVEL=trace).
+        LOG_CONTENT: "true",
+      })
+    ).join("\n");
+    expect(asked).toContain("ai.call.ended");
+    expect(asked).not.toContain("SECRET");
   });
 });

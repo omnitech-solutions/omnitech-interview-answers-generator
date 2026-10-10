@@ -106,6 +106,40 @@ it("attaches only the member's intact active profile and candidacy", async () =>
     ]),
   );
   expect(alice.missingProfileKeys).not.toContain("heading_name");
+  expect(alice.privateKeys).toEqual(
+    expect.arrayContaining(["email_address", "heading_phone_number"]),
+  );
+
+  // Contact details kept on this machine fill what the matrix does not state.
+  const withContact = await resolveDocumentContext(
+    member,
+    {
+      tenantId: ids.tenant,
+      actorId: ids.alice,
+      profileId: "profile",
+      profileRevision: 1,
+      candidacyId: ids.candidacy,
+      interviewId: null,
+    },
+    {
+      contact: {
+        email: " synthetic@example.invalid ",
+        phone: "555 0100",
+      },
+    },
+  );
+  expect(withContact.profileValues).toMatchObject({
+    email_address: "synthetic@example.invalid",
+    email: "synthetic@example.invalid",
+    heading_phone_number: "555 0100",
+    phone_number: "555 0100",
+  });
+  expect(withContact.missingProfileKeys).not.toContain("email_address");
+  expect(withContact.missingProfileKeys).not.toContain("heading_phone_number");
+  // Still nothing stored for the portfolio: it stays blank for the person.
+  expect(withContact.missingProfileKeys).toContain("portfolio");
+  // The matrix is unchanged: contact details never enter it.
+  expect(withContact.candidateProfile).toEqual(matrix);
   await expect(context(ids.bob)).rejects.toBeInstanceOf(
     DocumentContextNotFound,
   );

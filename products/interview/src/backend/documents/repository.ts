@@ -4,12 +4,14 @@ import type { PlatformDatabase, TenantDatabase } from "@omnitech/database";
 import { withTenant } from "@omnitech/database";
 import {
   type DocumentField,
+  type DocumentFieldError,
   type DocumentFormat,
   type DocumentTemplateKind,
   documentFieldsSchema,
   documentTemplateCreateSchema,
   documentValuesSchema,
   validateDocumentValues,
+  withFieldGroups,
 } from "@omnitech/interview-contracts";
 import { DocumentArtifactRepository } from "@omnitech/platform-storage";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
@@ -155,6 +157,10 @@ export type RevisionContent = {
   provenance: Record<string, unknown>;
   aiUsage?: unknown;
   requestIdentity?: DocumentRequestIdentity;
+  // Fields whose text says something its evidence does not (`verify.ts`),
+  // found by the caller, which holds the matrix. They are kept with the
+  // revision's other field problems and make the document "invalid".
+  unsupported?: readonly DocumentFieldError[];
 };
 
 export type CreateDocumentInput = RevisionContent & {
@@ -181,8 +187,10 @@ const documentKey = (scope: DocumentScope, documentId: string) =>
     eq(documents.id, documentId),
   );
 
+// A template's fields with their blocks made explicit: a revision stored
+// before blocks existed gets the ones its field keys name.
 function fieldsOf(revision: TemplateRevisionRow): DocumentField[] {
-  return documentFieldsSchema.parse(revision.fields);
+  return withFieldGroups(documentFieldsSchema.parse(revision.fields));
 }
 
 function checkedContent(
@@ -193,7 +201,10 @@ function checkedContent(
   return {
     values,
     provenance: content.provenance,
-    validation: validateDocumentValues(fields, values),
+    validation: [
+      ...validateDocumentValues(fields, values),
+      ...(content.unsupported ?? []),
+    ],
     aiUsage: content.aiUsage ?? null,
   };
 }
@@ -1092,6 +1103,11 @@ export class InterviewDocumentRepository {
           claimState: "unverified",
         },
         aiUsage: null,
+        // The same text against the same matrix: what was unsupported still is.
+        unsupported: (Array.isArray(source.validation)
+          ? (source.validation as DocumentFieldError[])
+          : []
+        ).filter((issue) => issue?.code === "unsupported"),
       });
     });
   }

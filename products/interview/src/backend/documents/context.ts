@@ -17,7 +17,28 @@ export type DocumentContext = {
   interviewValues: Record<string, string>;
   profileValues: Record<string, string>;
   missingProfileKeys: string[];
+  // The fields that hold contact details: the document's, never a prompt's.
+  privateKeys: string[];
 };
+
+// [SAFETY] Contact details are deliberately not in the experience matrix (it
+// is shared with models and may be committed). They are kept on this machine
+// and read here, into the document only: never logged, never sent to a model.
+export type ContactDetails = {
+  email?: string;
+  phone?: string;
+  portfolio?: string;
+};
+
+const CONTACT_KEYS = [
+  "email",
+  "email_address",
+  "phone",
+  "phone_number",
+  "heading_phone_number",
+  "portfolio",
+  "portfolio_url",
+];
 
 function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
@@ -40,6 +61,7 @@ export async function resolveDocumentContext(
     candidacyId: string | null;
     interviewId: string | null;
   },
+  local: { contact?: ContactDetails | null } = {},
 ): Promise<DocumentContext> {
   if (input.interviewId && !input.candidacyId)
     throw new DocumentContextNotFound();
@@ -126,9 +148,15 @@ export async function resolveDocumentContext(
       const [city = "", province = ""] = text("location")
         .split(",")
         .map((part) => part.trim());
-      const email = text("email", "email_address");
-      const phone = text("phone", "phone_number");
-      const portfolio = text("portfolio", "website", "portfolio_url");
+      // What the matrix states wins; the local contact details fill the rest.
+      const stored = (value: string | undefined) => (value ?? "").trim();
+      const email =
+        text("email", "email_address") || stored(local.contact?.email);
+      const phone =
+        text("phone", "phone_number") || stored(local.contact?.phone);
+      const portfolio =
+        text("portfolio", "website", "portfolio_url") ||
+        stored(local.contact?.portfolio);
       const name = text("name");
       const candidates: Record<string, string> = {
         heading_name: name,
@@ -165,6 +193,7 @@ export async function resolveDocumentContext(
         interviewValues,
         profileValues,
         missingProfileKeys,
+        privateKeys: CONTACT_KEYS,
       };
     },
     { database },
