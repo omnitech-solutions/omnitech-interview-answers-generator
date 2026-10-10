@@ -4,7 +4,7 @@ slug: walkthrough-live-coach
 type: references
 tags: [coach, engine, walkthrough, transcript, grounding]
 sources: []
-last_reviewed: 2026-10-09
+last_reviewed: 2026-10-10
 ---
 
 # The live coach, from a heard sentence to a note on screen
@@ -99,7 +99,7 @@ Which engine method: `engine.stream` (promise: the execution as it happens, endi
 engine.stream(
   { profileId: "interview-live-coach",
     messages: [
-      { role: "system", parts: [{ type: "text", text: COACH_SYSTEM /* prompt version live-coach-9 */ }] },
+      { role: "system", parts: [{ type: "text", text: coachSystem(grounding) /* prompt version live-coach-10; "plain" is live-coach-9 word for word */ }] },
       { role: "user",   parts: [{ type: "text", text: coachPrompt({...}) }] } ] },
   { scope: { tenantId, actorId, productId: "omnitech.interview" },
     permissions: ["interview.read"],
@@ -110,7 +110,7 @@ engine.stream(
     signal })
 ```
 
-`tenantId`/`actorId` are the live session's owner when the transcript carries a `session`, otherwise `local`/`coach`. The system message states the rules (reply `NONE` or labelled lines `KIND`, `SAME`, `ASK`, `HEARD`, `SAY`, `ANCHOR`, `QUESTION`, `CAUTION`, optional `LOG`). The user message holds these sections, in order, omitted when empty: `THE PLAN FOR THIS CALL:`, `WHAT YOU HAVE NOTED SO FAR IN THIS CALL (oldest first):`, `THE CANDIDATE'S RECORD (cite a fact by its [pointer]):`, `EMPLOYER MATERIAL (not the candidate's experience):`, `NOTES YOU HAVE ALREADY GIVEN (oldest first):`, `THE CONVERSATION SO FAR:`, `ON THE SHARED SCREEN …`, `NEW LINES (decide on these):`, a `WHY NOW:` sentence per reason, and for a design or coding round a `MODE:` block. Real output for this call:
+`tenantId`/`actorId` are the live session's owner when the transcript carries a `session`, otherwise `local`/`coach`. The system message states the rules (reply `NONE` or labelled lines `KIND`, `SAME`, `ASK`, `HEARD`, `SAY`, `ANCHOR`, `QUESTION`, `CAUTION`, optional `LOG`). The user message holds these sections, in order, omitted when empty: `THE PLAN FOR THIS CALL:`, `WHAT YOU HAVE NOTED SO FAR IN THIS CALL (oldest first):`, `THE CANDIDATE'S RECORD (cite a fact by its [pointer]):`, `THE CANDIDATE'S OWN NOTES (…)` (only with grounding on: see "Grounding" below), `EMPLOYER MATERIAL (not the candidate's experience):`, `NOTES YOU HAVE ALREADY GIVEN (oldest first):`, `THE CONVERSATION SO FAR:`, `ON THE SHARED SCREEN …`, `NEW LINES (decide on these):`, a `WHY NOW:` sentence per reason, and for a design or coding round a `MODE:` block. Real output for this call:
 
 ```text
 THE CANDIDATE'S RECORD (cite a fact by its [pointer]):
@@ -141,7 +141,7 @@ INTERVIEWER: And I mean in practice, not in theory.
 WHY NOW: the interviewer has stopped talking. If they asked or invited something, give the answer to say; …
 ```
 
-Where the record comes from is the context pack: [[research/references/walkthrough-context-pack]]. The conversation window is the last 12,000 characters.
+Where the record comes from is the context pack: [[research/references/walkthrough-context-pack]]. The conversation window is the last 12,000 characters. The output above is the coach with grounding off (`INTERVIEW_COACH_GROUNDING=off`, or `--grounding plain` in a replay); what grounding on changes is in "Grounding: what a note may claim".
 
 ## Step 4: the model's reply, and the note
 
@@ -181,6 +181,35 @@ Studio side (`coach-notes.ts`): the same `key` with a higher `revision` takes th
 ## Step 5: what the window draws
 
 `useCoachNotes` (`panels/coach-notes.tsx`) polls `GET /api/v1/coach-notes?revision=<last>` every 500 ms; Studio answers 204 with no body while the revision is unchanged, else `{ "revision": 1760004000123, "notes": [...] }`. The revision starts at the clock, so a restart shows as a change. `coach-layout.tsx` lists questions (grouped by `askId`, newest first, "Questions · N") and draws the notes pane for the picked one, with a "Preparing response…" line while a question is waiting. `coach-note-view.tsx` draws each section by kind (`say` = "Say this", `anchors` = "Anchors", `ask` = "Ask", `caution` = "Careful") and passes each segment's `grounding` through to the library's `CueCard`; how an inferred claim is marked on screen is not determined here.
+
+## Grounding: what a note may claim
+
+One switch, `INTERVIEW_COACH_GROUNDING` (a behaviour flag: Settings, "Behaviour"; on unless turned off; read by the agent worker in `coach-loop.ts`). It sets two options of `createCoach`, which a replay can set one at a time (`--grounding strict|plain`, `--cite words|pointer`). Measured in [[briefs/BRIEF-interview-brief-and-context-pack]], section 15.
+
+| Option | Off (the coach as it was) | On |
+|---|---|---|
+| `grounding` (`prompt.ts`) | `plain`: the standing instructions of `live-coach-9`. The person's prep notes, and what they answered and promised in an earlier stage, are listed under `EMPLOYER MATERIAL (not the candidate's experience)` with a pointer | `strict` (`live-coach-10`): those facts (`about: "notes"`, set in `context.ts`) are listed under `THE CANDIDATE'S OWN NOTES (what they prepared to say, and said before: theirs, no pointer):` as `- text`. The standing instructions change in four rules and gain four (below). A turn that carries facts of the record ends, straight before `NEW LINES`, with one `RECORD: …` line that repeats the rule for citing |
+| `cite` (`reply.ts`) | `pointer`: a cited claim verifies when its pointer is one of this turn's facts and its figures are that fact's. Its words are not looked at | `words`: also, at least half of the words that carry the claim are the cited fact's (a hyphen separates; a long word is compared by its first five letters). A pointer written after a few more words belongs to the nearest bold phrase before it that cites nothing. And the facts given EARLIER in the conversation verify too: a model kept in one session still cites them |
+
+What `strict` says that `plain` does not: a line built on a fact says where ("At Northwind, …"), never "on one project"; a pointer stands on words its fact says, and a figure or a technology stays with the employer whose fact states it; when a fact bears on a question about what the person did, one `SAY` line is that proof; the person's own notes are theirs, to be preferred, and are not the verified record; general knowledge is worded as what they would do, never as what they did; what is not shown is never said to be absent (asked whether they have used something nothing shows, the note is a `CAUTION` to answer it themselves plus the nearest fact); pay with no preference on record is one `CAUTION` and no figure, not even the employer's range; the first `SAY` line is short; the log holds what was said, never a conclusion about the person.
+
+In every mode a claim is verified only against the person's record and preferences. Their own notes never verify a claim (`known` in `coach.ts`), so a line taken from a prep note shows as inferred in the window.
+
+Measured on two stretches of the invented Tidewell panel (26 questions, Claude Code, one run each; the brief's section 15 has every arm, what was dropped and what is not proven):
+
+| | Coach as it was | Grounding on |
+|---|---|---|
+| Notes right (a verified claim of an accepted employer, none of another) | 8 of 26 | 18 of 26 |
+| Notes whose claims are all the model's own | 8 | 3 |
+| Claims resting on nothing given or said | 17 | 10 |
+| Claims verified against the record | 14 | 31 |
+| Acting to first line, median and slowest | 3.1 s, 4.6 s | 3.5 s, 8.1 s |
+
+The cost is the last row: the median is the same, and on two or three questions the model's first word comes several seconds later. The live panel benchmark with grounding on, twice: 15 of 15 questions acted on whole, 15 of 15 askers right, median first line 3.2 s and 3.3 s (2.1 to 3.3 s before), its slowest question 8.0 s and 7.6 s (4.7 s before).
+
+A replay scores what the notes say (`coach-notes-score.ts`): per question, the verified claims by employer, the claims that rest on the person's own notes or plan, on a fact of the record it did not cite, or on nothing; the employers named; and whether the note is `right`, `grounded`, of the wrong employer, or inference only. A stretch (`--from`, `--to`) is scored on the questions said in it. A replay with `--stage N` leaves the replayed stage's own transcript and outcome out of the material: a live coach has no transcript of the call it is listening to.
+
+Whatever the model writes: a pointer in bold (`**[/roles/0/metrics/1]**`), a pointer between two bold phrases, or a bracket after a bold phrase that is no pointer (`[posting]`) is never shown as words (`lineOf` in `reply.ts`).
 
 ## Scenario 2: an answer-check nudge
 
@@ -328,7 +357,7 @@ pnpm -s coach:replay talk.txt --interviewer "Speaker 1" --me "Speaker 2" --runti
 # real model: notes print at the end as "<time>  <kind>: <ask>" then one line per section; ✓ marks a verified claim
 ```
 
-Other commands: `--runtime codex`, `--hide-me`, `--from`/`--to HH:MM:SS`, `--studio` (also shows the replay's notes in the running Studio, kept apart from yours).
+Other commands: `--runtime codex`, `--hide-me`, `--from`/`--to HH:MM:SS`, `--studio` (also shows the replay's notes in the running Studio, kept apart from yours), `--grounding plain` and `--cite pointer` (the coach as it was before grounding; a replay has both on, as the live coach does). `--trace` prints each prompt, the model's raw reply and each revision of each note.
 
 ```bash
 printf 'mode: system-design\nRound with the head of platform.\n' > plan.md

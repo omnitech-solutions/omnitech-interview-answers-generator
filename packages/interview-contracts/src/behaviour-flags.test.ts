@@ -19,13 +19,15 @@ import {
 const VOICE = "ACTIVE_SESSION_VOICE_ACTIVITY";
 const COACH = "INTERVIEW_COACH";
 const RETAIN = "INTERVIEW_COACH_RETAIN";
+const GROUNDING = "INTERVIEW_COACH_GROUNDING";
 
 describe("the registry", () => {
-  it("names the three flags, each once, by its environment variable", () => {
+  it("names the four flags, each once, by its environment variable", () => {
     expect(BEHAVIOUR_FLAGS.map((flag) => flag.env)).toEqual([
       VOICE,
       COACH,
       RETAIN,
+      GROUNDING,
     ]);
   });
 
@@ -52,6 +54,19 @@ describe("the registry", () => {
     expect(behaviourFlagValue({}, VOICE)).toBe("off");
     expect(behaviourFlagValue({}, COACH)).toBe("off");
     expect(behaviourFlagValue({}, RETAIN)).toBe("on");
+  });
+
+  it("holds the coach to the record and the person's notes unless it is turned off, by the host or in Settings", () => {
+    expect(behaviourFlag(GROUNDING)).toMatchObject({
+      process: "agent-worker",
+      type: "switch",
+      values: ["on", "off"],
+      default: "on",
+    });
+    expect(behaviourFlagValue({}, GROUNDING)).toBe("on");
+    expect(behaviourFlagValue({ [GROUNDING]: " OFF " }, GROUNDING)).toBe("off");
+    // Anything else the host writes is the default, never a third state.
+    expect(behaviourFlagValue({ [GROUNDING]: "plain" }, GROUNDING)).toBe("on");
   });
 
   it("finds a flag by its key and nothing by any other name", () => {
@@ -171,6 +186,7 @@ describe("all flags at once", () => {
       [VOICE, "on", "setting"],
       [COACH, "claude", "environment"],
       [RETAIN, "on", "default"],
+      [GROUNDING, "on", "default"],
     ]);
     expect(behaviourFlagsResponseSchema.parse({ flags })).toEqual({ flags });
     expect(storedBehaviourFlags({ flags })).toEqual({ [VOICE]: "on" });
@@ -200,6 +216,7 @@ describe("the environment a process's readers see", () => {
       OTHER: "x",
       [COACH]: "codex",
       [RETAIN]: "off",
+      [GROUNDING]: "on",
     });
     expect(withBehaviourFlags({}, stored, "studio")).toEqual({ [VOICE]: "on" });
   });
@@ -211,7 +228,7 @@ describe("the environment a process's readers see", () => {
         { [COACH]: "claude" },
         "agent-worker",
       ),
-    ).toEqual({ [COACH]: "gemini", [RETAIN]: "on" });
+    ).toEqual({ [COACH]: "gemini", [RETAIN]: "on", [GROUNDING]: "on" });
   });
 
   it("fills in the defaults when nothing is stored", () => {
@@ -225,6 +242,7 @@ describe("the environment a process's readers see", () => {
       INTERVIEW_COACH_DEFAULT: "claude",
       [COACH]: "claude",
       [RETAIN]: "on",
+      [GROUNDING]: "on",
     });
   });
 });

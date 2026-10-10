@@ -20,6 +20,7 @@ import { createBehaviourFlagStore } from "./behaviour-flags";
 const VOICE = "ACTIVE_SESSION_VOICE_ACTIVITY";
 const COACH = "INTERVIEW_COACH";
 const RETAIN = "INTERVIEW_COACH_RETAIN";
+const GROUNDING = "INTERVIEW_COACH_GROUNDING";
 
 const directory = mkdtempSync(join(tmpdir(), "behaviour-flags-"));
 afterAll(() => rmSync(directory, { recursive: true, force: true }));
@@ -57,6 +58,13 @@ describe("the stored behaviour flags", () => {
         stored: null,
         default: "on",
       },
+      {
+        key: GROUNDING,
+        value: "on",
+        source: "default",
+        stored: null,
+        default: "on",
+      },
     ]);
     expect(store.value(VOICE)).toBe("off");
     expect(existsSync(file)).toBe(false);
@@ -71,6 +79,7 @@ describe("the stored behaviour flags", () => {
       [VOICE]: "on",
       [COACH]: "codex",
       [RETAIN]: "on",
+      [GROUNDING]: "on",
     });
     expect(store.set(VOICE, "off")).toBe("stored");
     expect(store.value(VOICE)).toBe("off");
@@ -111,6 +120,7 @@ describe("the stored behaviour flags", () => {
       [VOICE]: "on",
       [COACH]: "off",
       [RETAIN]: "on",
+      [GROUNDING]: "on",
     });
   });
 
@@ -145,7 +155,12 @@ describe("the stored behaviour flags", () => {
       }),
     );
     const store = createBehaviourFlagStore(file, {});
-    expect(store.list().map((flag) => flag.stored)).toEqual(["on", null, null]);
+    expect(store.list().map((flag) => flag.stored)).toEqual([
+      "on",
+      null,
+      null,
+      null,
+    ]);
     store.set(RETAIN, "off");
     expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({
       [VOICE]: "on",
@@ -165,6 +180,7 @@ describe("the stored behaviour flags", () => {
       [VOICE]: "off",
       [COACH]: "off",
       [RETAIN]: "on",
+      [GROUNDING]: "on",
     });
   });
 

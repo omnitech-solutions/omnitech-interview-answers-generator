@@ -9,6 +9,7 @@ import { FLAG_POLL_MS, flaggedLoop, readStoredFlags } from "./flagged-loop";
 const TOKEN = "worker-flags-token";
 const COACH = "INTERVIEW_COACH";
 const RETAIN = "INTERVIEW_COACH_RETAIN";
+const GROUNDING = "INTERVIEW_COACH_GROUNDING";
 const VOICE = "ACTIVE_SESSION_VOICE_ACTIVITY";
 type Environment = Readonly<Record<string, string | undefined>>;
 
@@ -18,6 +19,7 @@ const answer = (stored: Record<string, string | null>) => ({
     [VOICE, "off"],
     [COACH, "off"],
     [RETAIN, "on"],
+    [GROUNDING, "on"],
   ].map(([key, fallback]) => ({
     key,
     value: stored[key as string] ?? fallback,
@@ -174,6 +176,7 @@ describe("when Settings cannot change anything", () => {
       INTERVIEW_API_TOKEN: TOKEN,
       [COACH]: "codex",
       [RETAIN]: "on",
+      [GROUNDING]: "on",
     };
     const loop = flaggedLoop("coach", env, made.build, () => undefined, {
       fetcher: server.fetcher,
@@ -209,7 +212,7 @@ describe("following what Settings stored", () => {
     const run = await following(env, { [COACH]: "codex", [RETAIN]: "off" });
     expect(run.built).toEqual([
       {
-        env: { ...env, [COACH]: "codex", [RETAIN]: "off" },
+        env: { ...env, [COACH]: "codex", [RETAIN]: "off", [GROUNDING]: "on" },
         state: "running",
       },
     ]);
@@ -222,7 +225,10 @@ describe("following what Settings stored", () => {
   it("builds from the defaults when nothing is stored: no coach, one session kept", async () => {
     const run = await following(env);
     expect(run.built).toEqual([
-      { env: { ...env, [COACH]: "off", [RETAIN]: "on" }, state: "none" },
+      {
+        env: { ...env, [COACH]: "off", [RETAIN]: "on", [GROUNDING]: "on" },
+        state: "none",
+      },
     ]);
     run.controller.abort();
     await run.done;
@@ -250,7 +256,7 @@ describe("following what Settings stored", () => {
       ["codex", "running"],
     ]);
     expect(run.lines).toEqual([
-      `coach: settings changed (${COACH}=codex ${RETAIN}=on)`,
+      `coach: settings changed (${COACH}=codex ${RETAIN}=on ${GROUNDING}=on)`,
     ]);
     run.state.stored = { [COACH]: "codex", [RETAIN]: "off" };
     await run.time.next();
@@ -446,7 +452,7 @@ describe("the real coach, built from what Settings stored", () => {
     run.server.state.stored = { [COACH]: "claude" };
     await run.time.next();
     expect(run.lines.slice(1)).toEqual([
-      `coach: settings changed (${COACH}=claude ${RETAIN}=on)`,
+      `coach: settings changed (${COACH}=claude ${RETAIN}=on ${GROUNDING}=on)`,
       "coach disabled: the claude-code runtime is not available",
     ]);
     run.controller.abort();

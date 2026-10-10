@@ -1223,3 +1223,185 @@ describe("who asked", () => {
     }
   });
 });
+
+describe("a cited claim checked by its words as well as its pointer", () => {
+  const worded = (say: string) =>
+    parseCoachReply(
+      reply("ASK: Evidence", `SAY: ${say}`),
+      true,
+      KNOWN,
+      "conversation",
+      [],
+      "words",
+    )?.note.sections?.[0]?.lines[0]?.segments;
+  const claimOf = (say: string) =>
+    worded(say)?.find((segment) => segment.role === "evidence");
+
+  it("verifies a cited claim that says what its fact says, as before", () => {
+    expect(
+      claimOf("I **cut checkout latency 40%**[/roles/0/proof_points/0] there."),
+    ).toEqual({
+      text: "cut checkout latency 40%",
+      role: "evidence",
+      grounding: "verified",
+      source: "/roles/0/proof_points/0",
+    });
+  });
+
+  it("does NOT verify a claim under a pointer whose fact says none of it: a pointer alone proves nothing", () => {
+    // Under the pointer-only check this verifies as Kafka (the test above,
+    // "by its pointer alone, whatever its words").
+    expect(
+      claimOf("I used **event streaming**[/roles/1/technologies/0]."),
+    ).toEqual({
+      text: "event streaming",
+      role: "evidence",
+      grounding: "inferred",
+    });
+    // Another role's pointer on words that are a different fact's own.
+    expect(
+      claimOf("I **cut checkout latency**[/roles/1/responsibilities/2]."),
+    ).toEqual({
+      text: "cut checkout latency",
+      role: "evidence",
+      grounding: "inferred",
+    });
+  });
+
+  it.each([
+    // An inflection of the fact's word, and a word of its hyphenated one.
+    ["running the on-call rota", "/roles/1/responsibilities/2"],
+    ["moved reads to replicas", "/roles/0/proof_points/0"],
+    // Half of the words that carry the claim are enough.
+    ["checkout latency at peak", "/roles/0/proof_points/0"],
+  ])("verifies a rephrasing of its fact: %s", (claim, pointer) => {
+    expect(claimOf(`I was **${claim}**[${pointer}].`)).toEqual({
+      text: claim,
+      role: "evidence",
+      grounding: "verified",
+      source: pointer,
+    });
+  });
+
+  it("still holds a figure to its fact: the right words with another figure are inferred", () => {
+    expect(
+      claimOf("I **cut checkout latency 60%**[/roles/0/proof_points/0]."),
+    ).toMatchObject({ grounding: "inferred" });
+  });
+
+  it("gives a pointer written a few words later to the bold phrase before it, and never shows it", () => {
+    expect(
+      worded(
+        "I **cut checkout latency 40%** on the storefront[/roles/0/proof_points/0], then left.",
+      ),
+    ).toEqual([
+      { text: "I ", role: "spoken" },
+      {
+        text: "cut checkout latency 40%",
+        role: "evidence",
+        grounding: "verified",
+        source: "/roles/0/proof_points/0",
+      },
+      { text: " on the storefront, then left.", role: "spoken" },
+    ]);
+  });
+
+  it("leaves a phrase its own pointer: a later pointer belongs only to a phrase that cites nothing", () => {
+    const segments = worded(
+      "I ran **Kafka**[/roles/1/technologies/0] and the **on-call rota** for the team[/roles/1/responsibilities/2].",
+    );
+    expect(segments?.filter((segment) => segment.role === "evidence")).toEqual([
+      {
+        text: "Kafka",
+        role: "evidence",
+        grounding: "verified",
+        source: "/roles/1/technologies/0",
+      },
+      {
+        text: "on-call rota",
+        role: "evidence",
+        grounding: "verified",
+        source: "/roles/1/responsibilities/2",
+      },
+    ]);
+    expect(segments?.map((segment) => segment.text).join("")).toBe(
+      "I ran Kafka and the on-call rota for the team.",
+    );
+  });
+
+  it("takes the first of two pointers that holds the claim", () => {
+    expect(
+      claimOf(
+        "I ran the **on-call rota for 12 engineers**[/roles/1/technologies/0][/roles/1/responsibilities/2].",
+      ),
+    ).toMatchObject({
+      grounding: "verified",
+      source: "/roles/1/responsibilities/2",
+    });
+  });
+
+  it("reads a pointer the model wrote in bold as a pointer, never as a claim, and never shows it", () => {
+    for (const cite of ["words", "pointer"] as const) {
+      const segments = parseCoachReply(
+        reply(
+          "ASK: Evidence",
+          "SAY: I ran the **on-call rota** for the team**[/roles/1/responsibilities/2]**.",
+        ),
+        true,
+        KNOWN,
+        "conversation",
+        [],
+        cite,
+      )?.note.sections?.[0]?.lines[0]?.segments;
+      expect(segments?.map((segment) => segment.text).join("")).toBe(
+        "I ran the on-call rota for the team.",
+      );
+      expect(
+        segments?.filter((segment) => segment.role === "evidence"),
+      ).toHaveLength(1);
+    }
+    // Checked by its words, the pointer is the phrase's before it.
+    expect(
+      claimOf(
+        "I ran the **on-call rota** for the team**[/roles/1/responsibilities/2]**.",
+      ),
+    ).toMatchObject({
+      grounding: "verified",
+      source: "/roles/1/responsibilities/2",
+    });
+  });
+
+  it("drops a bracket after a bold phrase that is no pointer, and verifies nothing by it", () => {
+    expect(worded("That **$150K to $170K**[posting] range works.")).toEqual([
+      { text: "That ", role: "spoken" },
+      { text: "$150K to $170K", role: "evidence", grounding: "inferred" },
+      { text: " range works.", role: "spoken" },
+    ]);
+  });
+
+  it("under the pointer-only check a pointer written later verifies nothing, and is not shown either", () => {
+    expect(
+      segmentsOf(
+        "I **cut checkout latency** on the storefront[/roles/0/proof_points/0] and **Kafka** came later.",
+        KNOWN,
+      ),
+    ).toEqual([
+      { text: "I ", role: "spoken" },
+      // All its words are one fact's: verified as an uncited claim is.
+      {
+        text: "cut checkout latency",
+        role: "evidence",
+        grounding: "verified",
+        source: "/roles/0/proof_points/0",
+      },
+      { text: " on the storefront and ", role: "spoken" },
+      {
+        text: "Kafka",
+        role: "evidence",
+        grounding: "verified",
+        source: "/roles/1/technologies/0",
+      },
+      { text: " came later.", role: "spoken" },
+    ]);
+  });
+});

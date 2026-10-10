@@ -135,11 +135,93 @@ describe("the evidence a note draws on", () => {
       wrong: 1,
       other: 0,
       inferred: 1,
+      // "a team of nine" is in nothing the coach was given.
+      own: 0,
+      unbacked: 1,
+      uncited: { accepted: 0, wrong: 0 },
+      // The note's words name the accepted employer and no other.
+      named: { accepted: 1, other: 0 },
       sources: ["/roles/0/proof_points/0", "/roles/1/proof_points/0"],
       offeredAccepted: 1,
       offeredOther: 1,
       offered: true,
     });
+  });
+
+  it("tells whose an unverified claim is: the person's own notes or plan, a fact of the record it did not cite, or nobody's", () => {
+    const facts = [
+      ...FACTS.map((fact) => ({ ...fact, about: "candidate" })),
+      {
+        pointer: "brief:prepNotes:a1",
+        text: "Service boundaries: logical boundary first; extract only for independent deployment or scaling.",
+        about: "notes",
+      },
+      {
+        pointer: "brief:mustHaves:b2",
+        text: "Experience with event sourcing is required.",
+        about: "employer",
+      },
+    ];
+    const built = note(
+      // The person's own prepared words.
+      [inferred("logical boundary first")],
+      // The record's, said without a pointer (the window shows it inferred).
+      [spoken("We "), inferred("cut tide-table query latency to 120ms")],
+      // The employer's requirement, and something said in the call.
+      [inferred("event sourcing"), inferred("the harbour pilots")],
+      // The plan for the call is the person's own too.
+      [inferred("ledger story")],
+      // Nobody's.
+      [inferred("a saga orchestrator")],
+    );
+    const score = scoreEvidence(
+      built,
+      facts,
+      { kind: "employers", accepted: ["Harbourline"] },
+      EMPLOYERS,
+      {
+        plan: "Lead with the ledger story.",
+        conversation: ["How do the harbour pilots book?"],
+      },
+    );
+    expect(score).toMatchObject({
+      accepted: 0,
+      wrong: 0,
+      inferred: 6,
+      own: 2,
+      uncited: { accepted: 1, wrong: 0 },
+      unbacked: 1,
+    });
+  });
+
+  it("counts a claim that rests on a fact given EARLIER in the call, which a kept session still holds", () => {
+    const later = note([inferred("42,000 invoices a day")]);
+    const wanted = {
+      kind: "employers",
+      accepted: ["Quayside Freight"],
+    } as const;
+    const now = [{ pointer: "/candidate/name", text: "Name: Marisol" }];
+    expect(scoreEvidence(later, now, wanted, EMPLOYERS).uncited).toEqual({
+      accepted: 0,
+      wrong: 0,
+    });
+    expect(
+      scoreEvidence(later, now, wanted, EMPLOYERS, { earlier: FACTS }).uncited,
+    ).toEqual({ accepted: 1, wrong: 0 });
+  });
+
+  it("names the employers a note's words name, accepted and other", () => {
+    const told = note([
+      spoken("At Quayside Freight we shipped it; Harbourline came later."),
+    ]);
+    expect(
+      scoreEvidence(
+        told,
+        FACTS,
+        { kind: "employers", accepted: ["Quayside Freight"] },
+        EMPLOYERS,
+      ).named,
+    ).toEqual({ accepted: 1, other: 1 });
   });
 
   it("tells a pack that never offered the right employer from a note that ignored it", () => {
@@ -241,10 +323,24 @@ describe("what a note states that nobody gave the coach", () => {
     ).toEqual({ figures: [], employers: [] });
   });
 
-  it("flags a figure the note worked out for itself, though it follows from what was given", () => {
+  it("does not flag a figure plainly worked out from two that were given: their difference or their sum", () => {
+    // 900ms to 120ms was given: 780 is their difference, 1020 their sum.
     expect(
       inventedIn("That is 780ms saved.", given, EMPLOYERS).figures,
-    ).toEqual(["780"]);
+    ).toEqual([]);
+    expect(inventedIn("Together 1020ms.", given, EMPLOYERS).figures).toEqual(
+      [],
+    );
+  });
+
+  it("still flags what follows from nothing given, and never reads small numbers as sums: 65% is not forty and twenty five", () => {
+    expect(
+      inventedIn(
+        "In 2019 we cut it 65%, to 4.5 seconds, across 3 regions.",
+        given,
+        EMPLOYERS,
+      ).figures,
+    ).toEqual(["2019", "65", "4.5", "3"]);
   });
 });
 
@@ -314,6 +410,108 @@ describe("one question's note", () => {
     expect(invented.inventedItems).toEqual({ figures: ["70"], employers: [] });
   });
 
+  it("is GROUNDED, though not right, when it rests on the person's own notes and cites no other employer", () => {
+    const wanted = { kind: "employers", accepted: ["Harbourline"] } as const;
+    const prepared = scoreNote({
+      ...base,
+      facts: [
+        ...FACTS,
+        {
+          pointer: "brief:prepNotes:a1",
+          text: "Boundaries: logical boundary first, a modular monolith otherwise.",
+          about: "notes",
+        },
+      ],
+      note: note([inferred("logical boundary first")]),
+      expectation: wanted,
+    });
+    expect([prepared.right, prepared.grounded, prepared.inferenceOnly]).toEqual(
+      [false, true, false],
+    );
+    // The same words with no note of theirs behind them are the model's own.
+    const bare = scoreNote({
+      ...base,
+      note: note([inferred("logical boundary first")]),
+      expectation: wanted,
+    });
+    expect([bare.right, bare.grounded, bare.inferenceOnly]).toEqual([
+      false,
+      false,
+      true,
+    ]);
+  });
+
+  it("is grounded when it says an accepted employer's fact without citing it", () => {
+    const score = scoreNote({
+      ...base,
+      note: note([
+        spoken("At Harbourline we "),
+        inferred("cut tide-table query latency to 120ms"),
+      ]),
+      expectation: { kind: "employers", accepted: ["Harbourline"] },
+    });
+    expect([score.right, score.grounded, score.wrongEmployer]).toEqual([
+      false,
+      true,
+      false,
+    ]);
+  });
+
+  it("tells a second employer's story beside the right one from the wrong employer alone", () => {
+    const wanted = { kind: "employers", accepted: ["Harbourline"] } as const;
+    const both = scoreNote({
+      ...base,
+      note: note([
+        verified("900ms to 120ms", "/roles/0/proof_points/0"),
+        verified("42,000 invoices a day", "/roles/1/proof_points/0"),
+      ]),
+      expectation: wanted,
+    });
+    expect([both.right, both.mixed, both.wrongEmployer, both.grounded]).toEqual(
+      [false, true, false, true],
+    );
+    const other = scoreNote({
+      ...base,
+      note: note([
+        verified("42,000 invoices a day", "/roles/1/proof_points/0"),
+      ]),
+      expectation: wanted,
+    });
+    expect([other.mixed, other.wrongEmployer, other.grounded]).toEqual([
+      false,
+      true,
+      false,
+    ]);
+    // With nothing verified, the only employer it names decides.
+    const named = scoreNote({
+      ...base,
+      note: note([spoken("At Quayside Freight I owned the reporting.")]),
+      expectation: wanted,
+    });
+    expect([named.wrongEmployer, named.grounded]).toEqual([true, false]);
+    // A question with no employer expected is never the wrong employer.
+    expect(
+      scoreNote({
+        ...base,
+        note:
+          other.right === false
+            ? note([
+                verified("42,000 invoices a day", "/roles/1/proof_points/0"),
+              ])
+            : undefined,
+        expectation: null,
+      }).wrongEmployer,
+    ).toBe(false);
+  });
+
+  it("counts a figure of a fact given earlier in the call as given, not invented", () => {
+    const later = note([spoken("That was 42,000 invoices a day.")]);
+    const now = [{ pointer: "/candidate/name", text: "Name: Marisol" }];
+    const asked = { ...base, facts: now, note: later, expectation: null };
+    expect(scoreNote(asked).invented.figures).toBe(1);
+    expect(scoreNote({ ...asked, earlier: FACTS }).invented.figures).toBe(0);
+  });
+
   it("counts a figure from the plan for the call as given, not invented", () => {
     const planned = note([spoken("Ask for the range before naming 140.")]);
     const without = scoreNote({ ...base, note: planned, expectation: null });
@@ -335,17 +533,30 @@ describe("the run's totals", () => {
     right: boolean | null,
     wrong: number,
     figures: number,
+    more: {
+      grounded?: boolean;
+      inferenceOnly?: boolean;
+      offered?: boolean;
+    } = {},
   ): Parameters<typeof totalsOf>[0][number]["note"] => ({
     right,
+    grounded: right === null ? null : (more.grounded ?? right),
+    mixed: wrong > 0 && right === true,
+    wrongEmployer: wrong > 0 && right !== true,
+    inferenceOnly: more.inferenceOnly ?? false,
     evidence: {
       accepted: right ? 1 : 0,
       wrong,
       other: 0,
       inferred: 0,
+      own: 0,
+      unbacked: 0,
+      uncited: { accepted: 0, wrong: 0 },
+      named: { accepted: 0, other: 0 },
       sources: [],
       offeredAccepted: 0,
       offeredOther: 0,
-      offered: null,
+      offered: more.offered ?? null,
     },
     invented: { figures, employers: 0 },
   });
@@ -356,19 +567,35 @@ describe("the run's totals", () => {
       { optional: false, inTime: false, note: scored(false, 2, 1) },
       // No expectation: its invention counts, its evidence is not judged.
       { optional: false, inTime: true, note: scored(null, 0, 2) },
-      // Optional: not owed a note in time; its evidence is still judged.
-      { optional: true, inTime: null, note: scored(false, 0, 0) },
+      // Optional: not owed a note in time; its evidence is still judged. It
+      // rests on the person's own notes: grounded, though not right, and
+      // the pack had offered the right employer's fact.
+      {
+        optional: true,
+        inTime: null,
+        note: scored(false, 0, 0, { grounded: true, offered: true }),
+      },
+      // All its claims are the model's own, and the pack offered nothing.
+      {
+        optional: false,
+        inTime: true,
+        note: scored(false, 0, 0, { inferenceOnly: true, offered: false }),
+      },
       // Timing only: nothing was written.
       { optional: false, inTime: null, note: null },
     ]);
     expect(totals).toEqual({
-      rightEvidence: { right: 1, of: 3 },
+      rightEvidence: { right: 1, of: 4 },
+      grounded: { right: 2, of: 4 },
+      inferenceOnly: 1,
+      offered: { right: 1, of: 2 },
       wrongEmployer: 1,
+      mixed: 0,
       invented: 3,
-      inTime: { right: 2, of: 4 },
+      inTime: { right: 3, of: 5 },
     });
     expect(totalsLine(totals)).toBe(
-      "right evidence 1 of 3, wrong employer 1, invented 3, in time 2 of 4",
+      "right evidence 1 of 4, grounded 2 of 4, offered 1 of 2, inference only 1, wrong employer 1, two employers 0, invented 3, in time 3 of 5",
     );
   });
 });
@@ -402,6 +629,20 @@ describe("the scripted note-writer", () => {
         "SAY: From the record: **At Harbourline: cut p95 latency from 900ms to 120ms**[/roles/0/proof_points/0]",
       ].join("\n"),
     );
+  });
+
+  it("never cites the person's own notes either: they are theirs to say and no part of the record", () => {
+    const withNotes = [
+      {
+        pointer: "brief:prepNotes:a1",
+        text: "Lead with the ledger story.",
+        about: "notes",
+      },
+      ...facts.slice(1, 2),
+    ];
+    const reply = scriptedReply({ reason: "pause", facts: withNotes });
+    expect(reply).toContain("CAUTION: ");
+    expect(reply).not.toContain("ledger");
   });
 
   it("falls back to the role, then to the person's own first fact, and never cites the employer's material", () => {

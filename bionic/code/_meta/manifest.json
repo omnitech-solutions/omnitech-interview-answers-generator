@@ -75,7 +75,7 @@
       "doc_path": "fallback/apps/agent-worker/src/coach-replay.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "1b0d05cc02b04ae723255600a1c3cd5262bf9f694112ba6f0b1b551c55462f27",
+      "sha256": "b98d0b902876fd33021aa01e2160af66530bc002a47f2648649dd711e1d27ff5",
       "source_path": "apps/agent-worker/src/coach-replay.ts"
     },
     {
@@ -2632,6 +2632,13 @@
       "owner": "typescript",
       "sha256": "d554406c4e2fd53d259026dd8f52b5737ae560f59313fe1f8aaefbb23b449d36",
       "source_path": "products/interview/src/backend/context-pack/eval/render-call.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/context-pack/eval/replay-material.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "5979ee0c5a702a80630485304014348b44bfc4b93cfd26ad8c0f17f8e6a092bd",
+      "source_path": "products/interview/src/backend/context-pack/eval/replay-material.test.ts"
     },
     {
       "doc_path": "fallback/products/interview/src/backend/context-pack/eval/replay-material.ts.md",

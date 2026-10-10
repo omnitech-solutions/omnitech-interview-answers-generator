@@ -53,6 +53,7 @@ const URL = "http://localhost/api/v1/behaviour-flags";
 const VOICE = "ACTIVE_SESSION_VOICE_ACTIVITY";
 const COACH = "INTERVIEW_COACH";
 const RETAIN = "INTERVIEW_COACH_RETAIN";
+const GROUNDING = "INTERVIEW_COACH_GROUNDING";
 const TOKEN = "behaviour-flags-test-token";
 
 let signedIn = true;
@@ -82,6 +83,13 @@ const DEFAULTS: Flag[] = [
   { key: VOICE, value: "off", source: "default", stored: null, default: "off" },
   { key: COACH, value: "off", source: "default", stored: null, default: "off" },
   { key: RETAIN, value: "on", source: "default", stored: null, default: "on" },
+  {
+    key: GROUNDING,
+    value: "on",
+    source: "default",
+    stored: null,
+    default: "on",
+  },
 ];
 
 describe("the behaviour flags API", () => {
@@ -122,7 +130,7 @@ describe("the behaviour flags API", () => {
       stored: "on",
       default: "off",
     });
-    expect(after).toHaveLength(3);
+    expect(after).toHaveLength(4);
     expect(await flags(await read())).toEqual(after);
   });
 
@@ -135,6 +143,7 @@ describe("the behaviour flags API", () => {
       [VOICE, "off"],
       [COACH, "codex"],
       [RETAIN, "off"],
+      [GROUNDING, "on"],
     ]);
   });
 
@@ -201,6 +210,13 @@ describe("the behaviour flags API", () => {
       },
       {
         key: RETAIN,
+        value: "on",
+        source: "setting",
+        stored: "on",
+        default: "on",
+      },
+      {
+        key: GROUNDING,
         value: "on",
         source: "setting",
         stored: "on",

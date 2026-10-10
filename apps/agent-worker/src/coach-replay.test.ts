@@ -805,6 +805,39 @@ describe("pnpm coach:replay on a panel", () => {
     expect(runs.panel.stdout).not.toContain("the note says");
   });
 
+  it("scores a stretch of a call on the questions said in it: one asked outside the stretch is neither unanswered nor counted", async () => {
+    // The first eighteen seconds hold the first question and not the second.
+    const stretch = await replay(
+      join(directory, "panel-practice.txt"),
+      ...PANEL_CAST,
+      "--timing",
+      "--expect",
+      join(directory, "panel-practice.expected.json"),
+      "--from",
+      "00:00:01",
+      "--to",
+      "00:00:18",
+      "--results",
+      join(directory, "stretched"),
+    );
+    expect(stretch.code).toBe(0);
+    expect(stretch.stdout).toContain(
+      "1 of 3 expected questions are said in this stretch; the others are not scored.",
+    );
+    const { result } = await keptIn(join(directory, "stretched"));
+    expect(
+      result.questions.map((question) => [question.id, question.answeredWhole]),
+    ).toEqual([["charged-once", true]]);
+    expect(stretch.stdout).toContain(
+      "IN SHORT: 1 of 1 questions acted on whole",
+    );
+    // The whole call is scored on every question, as it always was.
+    expect(runs.panel.stdout).not.toContain("are said in this stretch");
+    expect(
+      (await keptIn(join(directory, "named"))).result.questions,
+    ).toHaveLength(3);
+  });
+
   it("keeps a run without names as a benchmark of its own, so it is never compared with a named one", async () => {
     const named = await keptIn(join(directory, "named"));
     const unnamed = await keptIn(join(directory, "unnamed"));
@@ -1394,17 +1427,17 @@ describe("pnpm coach:replay with the person's material", () => {
     it("prints a row for each question and the totals on the last line", () => {
       const lines = ran.scripted.stdout.split("\n");
       const head = lines.findIndex((line) =>
-        /^ {2}question +acted +first s +in time +evidence +wrong +inferred +offered +invented +right$/.test(
+        /^ {2}question +acted +first s +in time +evidence +wrong +inferred +own +unbacked +offered +invented +right +grounded$/.test(
           line,
         ),
       );
       expect(head).toBeGreaterThan(0);
       expect(lines[head + 1]).toMatch(
-        /^ {2}service-or-monolith +yes +\d+(\.\d)? +yes +- +- +0 +- +0 +-$/,
+        /^ {2}service-or-monolith +yes +\d+(\.\d)? +yes +- +- +0 +0 +0 +- +0 +- +-$/,
       );
       expect(lines[head + 2]).toMatch(/^ {4}verified against \/roles\/\d+/);
       expect(totalsLine(ran.scripted)).toBe(
-        "TOTALS: right evidence 0 of 0, wrong employer 0, invented 0, in time 13 of 13",
+        "TOTALS: right evidence 0 of 0, grounded 0 of 0, offered 0 of 0, inference only 0, wrong employer 0, two employers 0, invented 0, in time 13 of 13",
       );
     });
 
@@ -1453,12 +1486,17 @@ describe("pnpm coach:replay with the person's material", () => {
       expect(question(result, "data-ownership").note?.right).toBeNull();
       expect(result.totals).toEqual({
         rightEvidence: { right: 1, of: 4 },
+        grounded: { right: 1, of: 4 },
+        inferenceOnly: 0,
+        // Two of the four name an employer; the pack offered one of them.
+        offered: { right: 1, of: 2 },
         wrongEmployer: 3,
+        mixed: 0,
         invented: 0,
         inTime: { right: 13, of: 13 },
       });
       expect(totalsLine(ran.scored)).toBe(
-        "TOTALS: right evidence 1 of 4, wrong employer 3, invented 0, in time 13 of 13",
+        "TOTALS: right evidence 1 of 4, grounded 1 of 4, offered 1 of 2, inference only 0, wrong employer 3, two employers 0, invented 0, in time 13 of 13",
       );
     });
 
@@ -1524,12 +1562,16 @@ describe("pnpm coach:replay with the person's material", () => {
       // Four seconds of model on top of the wait to act is not within three.
       expect(result.totals).toEqual({
         rightEvidence: { right: 1, of: 2 },
+        grounded: { right: 1, of: 2 },
+        inferenceOnly: 0,
+        offered: { right: 1, of: 1 },
         wrongEmployer: 1,
+        mixed: 0,
         invented: 0,
         inTime: { right: 0, of: 2 },
       });
       expect(totalsLine(run)).toBe(
-        "TOTALS: right evidence 1 of 2, wrong employer 1, invented 0, in time 0 of 2",
+        "TOTALS: right evidence 1 of 2, grounded 1 of 2, offered 1 of 1, inference only 0, wrong employer 1, two employers 0, invented 0, in time 0 of 2",
       );
     });
 
@@ -1561,7 +1603,7 @@ describe("pnpm coach:replay with the person's material", () => {
             : [];
       for (const each of strings(result))
         expect(each).toMatch(
-          /^(|call\+pack|scripted|ideal|q[12]|k1|[0-9a-f]{7,40}|unknown|\d{4}-\d\d-\d\dT[\d:.]+Z|\/roles\/\d+(\/[\w-]+)*)$/,
+          /^(|call\+pack|scripted|ideal|strict|words|q[12]|k1|[0-9a-f]{7,40}|unknown|\d{4}-\d\d-\d\dT[\d:.]+Z|\/roles\/\d+(\/[\w-]+)*)$/,
         );
     });
 
@@ -1593,6 +1635,9 @@ describe("pnpm coach:replay with the person's material", () => {
       expect(stdout).toMatch(
         /^ {5}note coach-replay-\d+ revision 1: \[say\] From the record: /m,
       );
+      // The model's raw reply, which a call that finished used never to show.
+      expect(stdout).toMatch(/^──── call 1: reply \(first text /m);
+      expect(stdout).toMatch(/^SAY: From the record: \*\*.+\*\*\[\/roles\//m);
       // The coach was given the plan and the material it was replayed with.
       expect(stdout).toContain(
         "Lead with the ledger story from Larchmont Pay.",

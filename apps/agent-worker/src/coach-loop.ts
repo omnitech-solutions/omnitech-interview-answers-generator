@@ -278,6 +278,14 @@ export function coachLoop(
           retain:
             (env["INTERVIEW_COACH_RETAIN"] ?? "").trim().toLowerCase() !==
             "off",
+          // [DOMAIN] What a note may claim (INTERVIEW_COACH_GROUNDING, on
+          // unless turned off): the grounding rules with the person's own
+          // notes told apart, and a cited claim checked by its words. One
+          // switch for both, because the second checks what the first asks
+          // for; a replay can turn each alone (coach-replay.ts).
+          ...(grounded(env)
+            ? { grounding: "strict" as const, cite: "words" as const }
+            : { grounding: "plain" as const, cite: "pointer" as const }),
         },
       );
       log(`coach listening (${choice.runtime}, ${agent.model})`);
@@ -337,3 +345,7 @@ export function coachLoop(
     },
   };
 }
+
+// Whether the coach holds its notes to the record and the person's notes.
+const grounded = (env: Readonly<Record<string, string | undefined>>) =>
+  (env["INTERVIEW_COACH_GROUNDING"] ?? "").trim().toLowerCase() !== "off";

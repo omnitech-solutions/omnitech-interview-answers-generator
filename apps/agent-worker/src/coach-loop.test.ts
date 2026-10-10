@@ -1159,11 +1159,19 @@ describe("one session of the runtime for the call (INTERVIEW_COACH_RETAIN)", () 
       }
       return json({ revision: 1, notes: [] }, 201);
     }) as typeof fetch);
-    const calls: { how: "run" | "resume"; request: string; prompt: string }[] =
-      [];
+    const calls: {
+      how: "run" | "resume";
+      request: string;
+      prompt: string;
+      system: string;
+    }[] = [];
     const held = new Set<string>();
     const answer = (how: "run" | "resume") =>
-      async function* (request: { prompt?: string; conversation?: string }) {
+      async function* (request: {
+        prompt?: string;
+        conversation?: string;
+        systemPrompt?: string;
+      }) {
         if (request.conversation) held.add(request.conversation);
         calls.push({
           how,
@@ -1171,6 +1179,7 @@ describe("one session of the runtime for the call (INTERVIEW_COACH_RETAIN)", () 
             key === "signal" || key === "systemPrompt" ? undefined : value,
           ),
           prompt: request.prompt ?? "",
+          system: request.systemPrompt ?? "",
         });
         yield { type: "started", sessionId: "runtime-session-1" };
         yield { type: "text-delta", text: REPLY };
@@ -1350,6 +1359,26 @@ describe("one session of the runtime for the call (INTERVIEW_COACH_RETAIN)", () 
     expect(calls[1]?.prompt).toContain(QUESTION);
     expect(calls[1]?.request).not.toContain("conversation");
   });
+
+  // INTERVIEW_COACH_GROUNDING: what a note may claim. On unless turned off.
+  it.each<[string, Record<string, string>, boolean]>([
+    ["by default", {}, true],
+    ["when said to be on", { INTERVIEW_COACH_GROUNDING: "on" }, true],
+    ["when turned off", { INTERVIEW_COACH_GROUNDING: " Off " }, false],
+  ])(
+    "%s the coach is asked under the grounding rules, or as it was before",
+    async (_name, env, strict) => {
+      const calls = await coached(env);
+      // The runtime is given the standing instructions with its prompt.
+      const asked = calls[0]?.system || calls[0]?.prompt || "";
+      expect(asked.includes("Never say or imply that they have NOT")).toBe(
+        strict,
+      );
+      expect(asked.includes("Without a pointer you may only use")).toBe(
+        !strict,
+      );
+    },
+  );
 });
 
 describe("whether the worker runs the coach", () => {

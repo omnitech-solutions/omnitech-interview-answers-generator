@@ -1975,11 +1975,18 @@ describe("the live coach, on a stage-2 session of a prepared application whose e
       prepared.store,
     );
     const facts = await coach.facts(SESSION, SPOKEN);
+    // As the coach keeps them (coach.ts): the person's record and what they
+    // want. Neither the employer's material nor the person's own notes for
+    // the interview (a prep note, what they said in an earlier stage) can
+    // make a claim theirs.
     const known = new Map(
       facts
-        .filter((fact) => fact.about !== "employer")
+        .filter(
+          (fact) => fact.about === "candidate" || fact.about === "preference",
+        )
         .map((fact) => [fact.pointer, fact.text]),
     );
+    expect(facts.some((fact) => fact.about === "notes")).toBe(true);
     // One of the person's own achievements the coach was given.
     const own = facts.find(
       (fact) => fact.about === "candidate" && fact.text.startsWith("At "),

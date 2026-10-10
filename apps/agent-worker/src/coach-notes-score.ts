@@ -13,8 +13,9 @@ import type { CoachPorts } from "@omnitech/product-interview/session-worker";
 
 type CoachNote = Parameters<CoachPorts["notes"]["post"]>[0];
 
-// A fact the coach was given for one turn: where it is, and what it says.
-export type GivenFact = { pointer: string; text: string };
+// A fact the coach was given for one turn: where it is, what it says, and
+// whose it is (the person's record, their own notes, the employer's).
+export type GivenFact = { pointer: string; text: string; about?: string };
 
 // What `expected.json` says of one question's evidence. "employers": a right
 // note may draw on these employers' records. "nothing": the material has
@@ -82,21 +83,50 @@ export function verifiedSources(note: CoachNote): string[] {
   );
   return [...new Set(sources)];
 }
-const inferredClaims = (note: CoachNote): number =>
-  (note.sections ?? []).reduce(
-    (sum, section) =>
-      sum +
-      section.lines.reduce(
-        (count, line) =>
-          count +
-          line.segments.filter(
-            (segment) =>
-              segment.role === "evidence" && segment.grounding !== "verified",
-          ).length,
-        0,
+// The bold claims the coach's verifier could NOT tie to a fact of the record.
+const inferredClaims = (note: CoachNote): string[] =>
+  (note.sections ?? []).flatMap((section) =>
+    section.lines.flatMap((line) =>
+      line.segments.flatMap((segment) =>
+        segment.role === "evidence" && segment.grounding !== "verified"
+          ? [segment.text]
+          : [],
       ),
-    0,
+    ),
   );
+
+// [DOMAIN] Whether a claim RESTS ON a text: the text says every figure of the
+// claim and most of the words that carry it. A word is compared by how it
+// begins and a hyphen separates, so "mentoring" is "mentored" and
+// "adapter-based" holds "adapter"; small words tell nothing apart. This is a
+// score's reading of a note, forgiving on purpose: the coach's own verifier
+// (reply.ts) is what marks a claim verified in the window, and it is not
+// changed by anything here.
+const RESTS_ON_SHARE = 0.6;
+const SMALL = new Set(
+  "a an and are as at be but by for from in is it its of on or so that the this to was we were with i my our".split(
+    " ",
+  ),
+);
+const carried = (text: string): string[] =>
+  (text.toLowerCase().match(/[a-z0-9][a-z0-9.%+#]*/g) ?? [])
+    .map((word) => word.replace(/\.+$/, ""))
+    .filter((word) => word !== "" && !SMALL.has(word))
+    .map((word) => (/^[a-z]+$/.test(word) ? word.slice(0, 5) : word));
+export function restsOn(claim: string, texts: readonly string[]): boolean {
+  const wanted = carried(claim);
+  if (wanted.length === 0) return false;
+  const numbers = figuresIn(claim);
+  return texts.some((text) => {
+    const held = new Set(carried(text));
+    const said = new Set(figuresIn(text));
+    return (
+      numbers.every((figure) => said.has(figure)) &&
+      wanted.filter((word) => held.has(word)).length / wanted.length >=
+        RESTS_ON_SHARE
+    );
+  });
+}
 
 export type EvidenceScore = {
   // Verified claims' sources under an accepted employer's role, under any
@@ -105,8 +135,25 @@ export type EvidenceScore = {
   accepted: number;
   wrong: number;
   other: number;
-  // Bold claims the verifier could not tie to a fact it was given.
+  // Bold claims the verifier could not tie to a fact of the record.
   inferred: number;
+  // Of those: how many rest on the person's OWN notes given for the turn
+  // (what they prepared to say, what they said in an earlier stage) or on
+  // the plan for the call. Theirs to say, though no part of the record.
+  own: number;
+  // And how many rest on nothing the coach was given and nothing said in the
+  // call: the model's own.
+  unbacked: number;
+  // [DOMAIN] Claims the model did not cite (or cited in a way the verifier
+  // does not take) that nonetheless REST ON a fact of the record it was
+  // given in this call: under an accepted employer's role, and under
+  // another's. The window shows them as inferred; a reader of the note would
+  // call them the person's own.
+  uncited: { accepted: number; wrong: number };
+  // The employers of the record the note NAMES in its words: accepted ones,
+  // and others. A note may name another employer for contrast; one that
+  // names only others has told the wrong story.
+  named: { accepted: number; other: number };
   // The pointers themselves, for whoever reads the result: where, never what.
   sources: string[];
   // Of the facts the coach was given for the turn: how many are an accepted
@@ -124,7 +171,40 @@ export function scoreEvidence(
   facts: readonly GivenFact[],
   expectation: EvidenceExpectation | null,
   employers: readonly string[],
+  // What else the coach had: the plan for the call (the person's own), and
+  // everything heard up to the turn.
+  beside: {
+    plan?: string | undefined;
+    conversation?: readonly string[];
+    // The facts given for earlier turns of the call: a model kept in one
+    // session for the call still holds them.
+    earlier?: readonly GivenFact[];
+  } = {},
 ): EvidenceScore {
+  const unverified = note ? inferredClaims(note) : [];
+  const ownTexts = [
+    ...facts.filter((fact) => fact.about === "notes").map((fact) => fact.text),
+    ...(beside.plan ? beside.plan.split(/\n+/) : []),
+  ];
+  const otherTexts = [
+    ...facts.filter((fact) => fact.about !== "notes").map((fact) => fact.text),
+    ...(beside.conversation ?? []),
+  ];
+  const own = unverified.filter((claim) => restsOn(claim, ownTexts));
+  // The record as the model holds it: this turn's facts, then the earlier.
+  const record = [...facts, ...(beside.earlier ?? [])].filter(
+    (fact) => fact.about === undefined || fact.about === "candidate",
+  );
+  const rested = unverified.flatMap((claim) => {
+    const fact = record.find(
+      (each) =>
+        employerOf(each.pointer, employers) !== undefined &&
+        restsOn(claim, [each.text]),
+    );
+    return fact ? [employerOf(fact.pointer, employers) as string] : [];
+  });
+  const text = note ? noteText(note) : "";
+  const namedHere = [...new Set(employers)].filter((each) => names(text, each));
   // An employer is accepted when the expectation names it. With nothing
   // expected, every employer is a wrong one.
   const accepts = (employer: string) =>
@@ -144,7 +224,25 @@ export function scoreEvidence(
       .length,
     wrong: owners.filter((each) => each !== undefined && !accepts(each)).length,
     other: owners.filter((each) => each === undefined).length,
-    inferred: note ? inferredClaims(note) : 0,
+    inferred: unverified.length,
+    own: own.length,
+    unbacked: unverified.filter(
+      (claim) =>
+        !own.includes(claim) &&
+        !restsOn(claim, otherTexts) &&
+        !restsOn(
+          claim,
+          record.map((fact) => fact.text),
+        ),
+    ).length,
+    uncited: {
+      accepted: rested.filter(accepts).length,
+      wrong: rested.filter((each) => !accepts(each)).length,
+    },
+    named: {
+      accepted: namedHere.filter(accepts).length,
+      other: namedHere.filter((each) => !accepts(each)).length,
+    },
     sources,
     offeredAccepted,
     offeredOther: offered.length - offeredAccepted,
@@ -234,6 +332,25 @@ function names(text: string, employer: string): boolean {
 
 export type Invented = { figures: string[]; employers: string[] };
 
+// [DOMAIN] A figure nobody gave is not invented when it is plainly worked out
+// from two that were: their difference or their sum ("780ms saved" from
+// "900ms to 120ms"). Only between figures of a hundred or more: among small
+// numbers almost any figure is the sum of two others, and a made-up "65%"
+// would pass as "40 and 25". A year, a percentage and a small count stay
+// flagged, and each still needs reading.
+const DERIVED_FROM = 100;
+function derived(figure: string, known: ReadonlySet<string>): boolean {
+  const value = Number(figure);
+  if (!Number.isInteger(value) || value <= 0) return false;
+  const given = [...known]
+    .map(Number)
+    .filter((each) => Number.isInteger(each) && each >= DERIVED_FROM);
+  for (const a of given)
+    for (const b of given)
+      if (a < b && (a + b === value || b - a === value)) return true;
+  return false;
+}
+
 // [SAFETY] What a note states that nobody gave the coach: figures and
 // employer names that are in NEITHER the text it was given for the turn (the
 // facts, and the plan for the call) NOR anything said in the conversation so
@@ -248,8 +365,9 @@ export type Invented = { figures: string[]; employers: string[] };
 //   - a figure the note writes in words ("forty percent"), or one above
 //     ninety-nine that was only ever said in words;
 //   - a wrong unit or scale ("45 ms" for "45 s", "2.1M" for "2.1k").
-// What it may flag wrongly: a figure the note derives from given ones (a sum,
-// "twice"), a list number, or a year the note states on its own.
+// What it may flag wrongly: a figure the note derives from given ones in a
+// way `derived` does not look for ("twice", a percentage worked out), a list
+// number, or a year the note states on its own.
 export function inventedIn(
   note: string,
   given: readonly string[],
@@ -258,7 +376,9 @@ export function inventedIn(
   const held = given.join("\n");
   const known = new Set([...figuresIn(held), ...spokenFigures(held)]);
   return {
-    figures: figuresIn(note).filter((figure) => !known.has(figure)),
+    figures: figuresIn(note).filter(
+      (figure) => !known.has(figure) && !derived(figure, known),
+    ),
     employers: [...new Set(employers.map((employer) => employer.trim()))]
       .filter((employer) => names(note, employer) && !names(held, employer))
       .sort(),
@@ -275,6 +395,21 @@ export type NoteScore = {
   // is another employer's. With nothing expected: no verified claim is any
   // employer's and nothing was invented (no note at all is right too).
   right: boolean | null;
+  // [DOMAIN] The wider reading, for a note built on the person's own notes:
+  // no verified claim is another employer's, and the note rests on something
+  // of theirs (a verified claim of an accepted employer, or a claim that
+  // rests on their own notes or plan, or on an accepted employer's fact it
+  // did not cite). A note whose only employer is another's is not grounded.
+  // With nothing expected: as `right`.
+  grounded: boolean | null;
+  // Verified claims of an accepted employer AND of another: a second story
+  // told beside the right one. Not counted as the wrong employer.
+  mixed: boolean;
+  // The note is of ANOTHER employer only: by what it verified, or, with
+  // nothing verified, by the only employers it names or rests on.
+  wrongEmployer: boolean;
+  // The note makes claims and none of them is verified or the person's own.
+  inferenceOnly: boolean;
 };
 
 export function scoreNote(input: {
@@ -284,16 +419,25 @@ export function scoreNote(input: {
   // Every line heard up to that turn's last, and the plan for the call.
   conversation: readonly string[];
   plan?: string | undefined;
+  // The facts given for earlier turns of the call (a kept session holds them).
+  earlier?: readonly GivenFact[] | undefined;
   expectation: EvidenceExpectation | null;
   employers: readonly string[];
 }): NoteScore & { inventedItems: Invented } {
   const { note, facts, expectation, employers } = input;
-  const evidence = scoreEvidence(note, facts, expectation, employers);
+  const earlier = input.earlier ?? [];
+  const evidence = scoreEvidence(note, facts, expectation, employers, {
+    plan: input.plan,
+    conversation: input.conversation,
+    earlier,
+  });
   const inventedItems = note
     ? inventedIn(
         noteText(note),
         [
           ...facts.map((fact) => fact.text),
+          // A figure of a fact given earlier in the call was given.
+          ...earlier.map((fact) => fact.text),
           ...input.conversation,
           ...(input.plan ? [input.plan] : []),
         ],
@@ -304,24 +448,61 @@ export function scoreNote(input: {
     figures: inventedItems.figures.length,
     employers: inventedItems.employers.length,
   };
+  const right =
+    expectation === null
+      ? null
+      : expectation.kind === "employers"
+        ? evidence.accepted > 0 && evidence.wrong === 0
+        : evidence.wrong === 0 && invented.figures + invented.employers === 0;
+  // [DOMAIN] Whose story the note tells, when an employer is expected. What
+  // the verifier marked decides; with nothing verified under a role, what the
+  // note rests on and names does.
+  const expecting = expectation?.kind === "employers";
+  const ofAccepted =
+    evidence.accepted + evidence.uncited.accepted + evidence.named.accepted > 0;
+  const ofOther =
+    evidence.wrong + evidence.uncited.wrong + evidence.named.other > 0;
+  const wrongEmployer = expecting
+    ? evidence.accepted + evidence.wrong > 0
+      ? evidence.wrong > 0 && evidence.accepted === 0
+      : ofOther && !ofAccepted
+    : // Where the material has nothing, any employer's fact cited is wrong.
+      expectation?.kind === "nothing" && evidence.wrong > 0;
   return {
     evidence,
     invented,
     inventedItems,
-    right:
-      expectation === null
-        ? null
-        : expectation.kind === "employers"
-          ? evidence.accepted > 0 && evidence.wrong === 0
-          : evidence.wrong === 0 && invented.figures + invented.employers === 0,
+    right,
+    grounded: expecting
+      ? !wrongEmployer &&
+        (evidence.accepted > 0 ||
+          evidence.uncited.accepted > 0 ||
+          evidence.own > 0)
+      : right,
+    mixed: expecting && evidence.accepted > 0 && evidence.wrong > 0,
+    wrongEmployer,
+    inferenceOnly:
+      evidence.inferred > 0 &&
+      evidence.own === 0 &&
+      evidence.uncited.accepted + evidence.uncited.wrong === 0 &&
+      evidence.accepted + evidence.wrong + evidence.other === 0,
   };
 }
 
 export type NoteTotals = {
   // Questions with an evidence expectation, and how many notes were right.
   rightEvidence: { right: number; of: number };
-  // Questions whose note has a verified claim under a wrong employer's role.
+  // Of the same questions: notes that rest on something of the person's own
+  // (the record, or their own notes) and cite no other employer.
+  grounded: { right: number; of: number };
+  // Notes, of every question scored, whose claims are all the model's own.
+  inferenceOnly: number;
+  // Questions with an employer expected: the pack offered one of its facts.
+  offered: { right: number; of: number };
+  // Questions whose note is of another employer ONLY (see NoteScore), and
+  // those that tell a second employer's story beside the right one.
   wrongEmployer: number;
+  mixed: number;
   // Figures and employer names invented, over every note scored.
   invented: number;
   // Questions that must be answered, and how many had their note's first
@@ -346,7 +527,17 @@ export function totalsOf(
       right: expected.filter((note) => note.right === true).length,
       of: expected.length,
     },
-    wrongEmployer: expected.filter((note) => note.evidence.wrong > 0).length,
+    grounded: {
+      right: expected.filter((note) => note.grounded === true).length,
+      of: expected.length,
+    },
+    inferenceOnly: scored.filter((note) => note.inferenceOnly).length,
+    offered: {
+      right: scored.filter((note) => note.evidence.offered === true).length,
+      of: scored.filter((note) => note.evidence.offered !== null).length,
+    },
+    wrongEmployer: expected.filter((note) => note.wrongEmployer).length,
+    mixed: expected.filter((note) => note.mixed).length,
     invented: scored.reduce(
       (sum, note) => sum + note.invented.figures + note.invented.employers,
       0,
@@ -360,7 +551,7 @@ export function totalsOf(
 
 // The run in one line, the last a replay prints.
 export const totalsLine = (totals: NoteTotals): string =>
-  `right evidence ${totals.rightEvidence.right} of ${totals.rightEvidence.of}, wrong employer ${totals.wrongEmployer}, invented ${totals.invented}, in time ${totals.inTime.right} of ${totals.inTime.of}`;
+  `right evidence ${totals.rightEvidence.right} of ${totals.rightEvidence.of}, grounded ${totals.grounded.right} of ${totals.grounded.of}, offered ${totals.offered.right} of ${totals.offered.of}, inference only ${totals.inferenceOnly}, wrong employer ${totals.wrongEmployer}, two employers ${totals.mixed}, invented ${totals.invented}, in time ${totals.inTime.right} of ${totals.inTime.of}`;
 
 // ---- A note written without a model -----------------------------------------
 
@@ -376,7 +567,9 @@ export function scriptedReply(input: {
 }): string {
   if (input.reason === "answer-check" || input.reason === "screen-change")
     return "NONE";
-  const own = input.facts.filter((fact) => fact.about !== "employer");
+  const own = input.facts.filter(
+    (fact) => fact.about === "candidate" || fact.about === "preference",
+  );
   const fact =
     own.find((each) => /^\/roles\/\d+\/./.test(each.pointer)) ??
     own.find((each) => each.pointer.startsWith("/roles/")) ??

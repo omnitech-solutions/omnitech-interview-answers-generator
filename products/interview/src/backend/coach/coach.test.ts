@@ -25,7 +25,7 @@ import {
   createCoach,
 } from "./coach";
 import type { CoachContextPort, CoachFact } from "./context";
-import { COACH_SYSTEM } from "./prompt";
+import { COACH_SYSTEM, coachSystem } from "./prompt";
 import { designDiagram } from "./reply";
 import { TURN_TIMING } from "./turns";
 
@@ -1720,6 +1720,145 @@ describe("the person's record", () => {
       "inferred",
     ]);
     expect(w.calls[1]?.prompt).not.toContain("RECORD");
+  });
+
+  describe("the person's own notes, and how closely a note is held to what was given", () => {
+    const NOTED: CoachFact[] = [
+      ...FACTS,
+      {
+        pointer: "brief:prepNotes:a1",
+        text: "Sharding: by region first; proof is the 40% at Harbourline.",
+        about: "notes",
+      },
+    ];
+    const FROM_NOTES = [
+      "ASK: Sharding",
+      "SAY: I shard **by region first**[brief:prepNotes:a1], which **cut booking latency 40%**[/roles/0/proof_points/0].",
+      "SAY: The **proof is the 40% at Harbourline**.",
+      "",
+    ].join("\n");
+
+    it("never verifies a claim against the person's own notes: theirs to say, and no part of the record", async () => {
+      for (const grounding of ["plain", "strict"] as const) {
+        const w = world(
+          { grounding },
+          { session: SESSION, facts: async () => NOTED },
+        );
+        w.reply({ chunks: [FROM_NOTES] });
+        await w.heard("interviewer", QUESTION);
+        expect(evidence(w.posts[0])).toEqual([
+          ["by region first", "inferred", undefined],
+          ["cut booking latency 40%", "verified", "/roles/0/proof_points/0"],
+          ["proof is the 40% at Harbourline", "inferred", undefined],
+        ]);
+      }
+    });
+
+    it("plainly, lists them with the employer's material and asks as it always did", async () => {
+      const w = world({}, { session: SESSION, facts: async () => NOTED });
+      w.reply({ chunks: [NOTE] });
+      await w.heard("interviewer", QUESTION);
+      expect(w.calls[0]?.system).toBe(COACH_SYSTEM);
+      expect(w.calls[0]?.prompt).toContain(
+        "[brief:prepNotes:a1] Sharding: by region first; proof is the 40% at Harbourline.",
+      );
+      expect(w.calls[0]?.prompt).not.toContain("OWN NOTES");
+    });
+
+    it("strictly, tells them apart, with the grounding rules as the standing instructions and the citing rule with the turn", async () => {
+      const w = world(
+        { grounding: "strict" },
+        { session: SESSION, facts: async () => NOTED },
+      );
+      w.reply({ chunks: [NOTE] });
+      await w.heard("interviewer", QUESTION);
+      expect(w.calls[0]?.system).toBe(coachSystem("strict"));
+      expect(w.calls[0]?.system).not.toBe(COACH_SYSTEM);
+      const prompt = w.calls[0]?.prompt.split("\n") ?? [];
+      const own = prompt.findIndex((each) =>
+        each.startsWith("THE CANDIDATE'S OWN NOTES"),
+      );
+      expect(prompt.slice(own + 1, own + 3)).toEqual([
+        "- Sharding: by region first; proof is the 40% at Harbourline.",
+        "",
+      ]);
+      expect(w.calls[0]?.prompt).not.toContain("brief:prepNotes:a1");
+      expect(
+        prompt.some((each) => each.startsWith("RECORD: a SAY line built on")),
+      ).toBe(true);
+    });
+  });
+
+  describe("a cited claim checked by its words (cite: words)", () => {
+    it("does not verify a claim under a pointer whose fact does not say it, which the pointer-only check does", async () => {
+      const mis =
+        "ASK: Latency\nSAY: I ran **the on-call rota**[/roles/0/proof_points/0].\n";
+      const marks = async (cite: "pointer" | "words") => {
+        const w = world(
+          { cite },
+          { session: SESSION, facts: async () => FACTS },
+        );
+        w.reply({ chunks: [mis] });
+        await w.heard("interviewer", QUESTION);
+        return evidence(w.posts[0]);
+      };
+      expect(await marks("pointer")).toEqual([
+        ["the on-call rota", "verified", "/roles/0/proof_points/0"],
+      ]);
+      expect(await marks("words")).toEqual([
+        ["the on-call rota", "inferred", undefined],
+      ]);
+    });
+
+    it("verifies against a fact given EARLIER in the conversation, which a model kept in one session still cites", async () => {
+      let round = 0;
+      const w = world(
+        { cite: "words" },
+        {
+          session: SESSION,
+          facts: async () => {
+            round += 1;
+            return round === 1 ? FACTS : [];
+          },
+        },
+      );
+      const claim =
+        "ASK: Latency\nSAY: I **cut booking latency 40%**[/roles/0/proof_points/0].";
+      w.reply({ chunks: [claim] }, { chunks: [claim] });
+      await w.heard("interviewer", QUESTION);
+      await w.heard("interviewer", "And what about hot regions?");
+      expect(w.posts.map((post) => evidence(post)[0]?.[1])).toEqual([
+        "verified",
+        "verified",
+      ]);
+      // It is verified, not given again: the prompt carries no record.
+      expect(w.calls[1]?.prompt).not.toContain("THE CANDIDATE'S RECORD");
+    });
+
+    it("forgets the facts of a conversation that is over", async () => {
+      let round = 0;
+      const w = world(
+        { cite: "words" },
+        {
+          session: SESSION,
+          facts: async () => {
+            round += 1;
+            return round === 1 ? FACTS : [];
+          },
+        },
+      );
+      const claim =
+        "ASK: Latency\nSAY: I **cut booking latency 40%**[/roles/0/proof_points/0].";
+      w.reply({ chunks: [claim] }, { chunks: [claim] });
+      await w.heard("interviewer", QUESTION);
+      w.transcript.clear();
+      await w.tick();
+      await w.heard("interviewer", "And what about hot regions?");
+      expect(w.posts.map((post) => evidence(post)[0]?.[1])).toEqual([
+        "verified",
+        "inferred",
+      ]);
+    });
   });
 
   it("keeps working, with no facts, when the record cannot be read", async () => {

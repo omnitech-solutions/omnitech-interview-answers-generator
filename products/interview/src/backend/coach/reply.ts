@@ -156,17 +156,54 @@ const SMALL = new Set([
 ]);
 // How much of a figure-bearing claim must be the fact's own words.
 const REPHRASED_SHARE = 0.6;
+
+// [DOMAIN] How a claim that CITES a fact is checked (`cite`):
+//   "pointer": the pointer is one of the facts given and every figure in the
+//     claim is that fact's. The words are not looked at, so a claim with no
+//     figure verifies under ANY pointer the model wrote, and a pointer written
+//     a few words after the bold phrase verifies nothing. The coach as it was.
+//   "words": as "pointer", and at least half of the words that carry the claim
+//     are the cited fact's, so a pointer on words the fact does not say
+//     verifies nothing; and a pointer written later in the line belongs to the
+//     nearest bold phrase before it that cites nothing.
+// Measured on replayed calls (BRIEF-interview-brief-and-context-pack, 15).
+export type CiteCheck = "pointer" | "words";
+// How much of a cited claim's words must be the cited fact's.
+const CITED_SHARE = 0.5;
+// A word as it is compared between a claim and the fact it cites: a hyphen
+// separates ("adapter-based" holds "adapter"), and a long word is compared by
+// how it begins, so "mentoring" is "mentored" and "migration" is "migrated".
+const STEM = 5;
+const carried = (text: string): string[] =>
+  (text.toLowerCase().match(/[a-z0-9][a-z0-9.%+#]*/g) ?? [])
+    .map((word) => word.replace(/\.+$/, ""))
+    .filter((word) => word !== "" && !SMALL.has(word))
+    .map((word) => (/^[a-z]+$/.test(word) ? word.slice(0, STEM) : word));
+function saysEnough(claim: string, fact: string): boolean {
+  const wanted = carried(claim);
+  if (wanted.length === 0) return true;
+  const held = new Set(carried(fact));
+  const found = wanted.filter((word) => held.has(word)).length;
+  return found / wanted.length >= CITED_SHARE;
+}
+
 function sourceOf(
   claim: string,
-  cited: string | undefined,
+  cited: readonly string[],
   known: KnownFacts,
+  cite: CiteCheck,
 ): string | undefined {
-  const citedText = cited ? known.get(cited) : undefined;
-  if (cited && citedText !== undefined) {
-    const held = new Set(tokens(citedText));
-    return figures(claim).every((figure) => held.has(figure))
-      ? cited
-      : undefined;
+  const given = cited.filter((pointer) => known.has(pointer));
+  if (given.length > 0) {
+    // The first cited fact that holds the claim; none, and it is inferred.
+    return given.find((pointer) => {
+      const text = known.get(pointer) as string;
+      const held = new Set(tokens(text));
+      return (
+        figures(claim).every((figure) => held.has(figure)) &&
+        (cite === "pointer" || saysEnough(claim, text))
+      );
+    });
   }
   const wanted = tokens(claim).filter((token) => !SMALL.has(token));
   if (wanted.length === 0) return undefined;
@@ -187,8 +224,18 @@ function sourceOf(
 
 // The pointers the note contract accepts as a claim's source.
 const SHOWABLE = /^\/(?:roles\/\d+(?:\/[\w-]+)*|context\/\w+(?:\/\d+)?)$/;
-const CITED = /\*\*([^*]+)\*\*(?:\[(\/[\w/-]+)\])?/g;
-function lineOf(text: string, known: KnownFacts): Line | null {
+// A bold phrase with what is written in brackets straight after it: its
+// pointers, and anything else a model puts there as though it were one
+// ("**the posted range**[posting]"), which is read as no pointer and never
+// shown.
+const CITED = /\*\*([^*]+)\*\*((?:\[[^\]\s*]+\])*)/g;
+// A pointer the model wrote in bold ("stack**[/roles/5/metrics/0]**") is a
+// pointer all the same, not a claim whose words are a pointer.
+const BOLD_POINTER = /\*\*((?:\[\/[\w/-]+\])+)\*\*/g;
+const POINTER = /\[(\/[\w/-]+)\]/g;
+const pointersIn = (text: string): string[] =>
+  [...text.matchAll(POINTER)].map((found) => found[1] as string);
+function lineOf(text: string, known: KnownFacts, cite: CiteCheck): Line | null {
   const segments: Line["segments"] = [];
   let length = 0;
   // [GUARD] A line is one sentence: a piece that does not fit is cut where it
@@ -200,14 +247,32 @@ function lineOf(text: string, known: KnownFacts): Line | null {
     segments.push({ ...segment, text: kept });
     length += kept.length;
   };
+  const whole = text.trim().replace(BOLD_POINTER, "$1");
+  const claims = [...whole.matchAll(CITED)].map((match) => ({
+    at: match.index,
+    end: match.index + match[0].length,
+    claim: match[1] as string,
+    cited: pointersIn(match[2] ?? ""),
+  }));
+  // [DOMAIN] A pointer written after a few more words ("**35%** on the
+  // quoting UI[/roles/5/metrics/2]") is the model citing the phrase before
+  // it: it belongs to the nearest bold phrase before it that cites nothing.
+  if (cite === "words")
+    for (const [at, each] of claims.entries()) {
+      const next = claims[at + 1];
+      const stray = pointersIn(whole.slice(each.end, next?.at ?? whole.length));
+      if (each.cited.length === 0 && stray.length > 0) each.cited = stray;
+    }
   let from = 0;
-  const whole = text.trim();
-  for (const match of whole.matchAll(CITED)) {
-    add({ text: whole.slice(from, match.index), role: "spoken" });
-    const claim = match[1] as string;
-    const source = sourceOf(claim, match[2], known);
+  for (const each of claims) {
+    // A pointer between two bold phrases is never shown as words.
     add({
-      text: claim,
+      text: whole.slice(from, each.at).replace(POINTER, ""),
+      role: "spoken",
+    });
+    const source = sourceOf(each.claim, each.cited, known, cite);
+    add({
+      text: each.claim,
       role: "evidence",
       ...(source
         ? {
@@ -219,7 +284,7 @@ function lineOf(text: string, known: KnownFacts): Line | null {
           }
         : { grounding: "inferred" }),
     });
-    from = match.index + match[0].length;
+    from = each.end;
   }
   // A stray marker or an unfinished pointer never reaches the window as text.
   add({
@@ -269,6 +334,8 @@ export function parseCoachReply(
   // those the turn's lines named, or else the plan's roster. A name that is
   // not one of them is dropped, never shown. None given: no note names anyone.
   voices: readonly string[] = [],
+  // How a cited claim is checked against its fact (CiteCheck, above).
+  cite: CiteCheck = "pointer",
 ): CoachReply | null {
   const lines = text.split(/\r?\n/);
   if (!final) lines.pop();
@@ -296,7 +363,7 @@ export function parseCoachReply(
       fields[label] ??= value;
       continue;
     }
-    const line = lineOf(value, known);
+    const line = lineOf(value, known, cite);
     if (line) sections.set(kind, [...(sections.get(kind) ?? []), line]);
   }
   const shown = SECTIONS[mode].flatMap(([kind, most]) => {

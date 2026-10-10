@@ -102,6 +102,34 @@ describe("the coach's facts for a live session", () => {
     expect(execution?.signal).toBeInstanceOf(AbortSignal);
   });
 
+  // The person's own notes for the interview are told apart from the
+  // employer's material, which is where the pack files them.
+  const whose = (fact: { kind: string; about: string }) =>
+    ["prep-note", "stage-answer", "stage-commitment"].includes(fact.kind)
+      ? "notes"
+      : fact.about;
+
+  it("tells the coach which facts are the person's own notes: a prep note is theirs, never the employer's and never the record", async () => {
+    load.mockResolvedValue(contextOf());
+    const { context } = clocked();
+    const facts = await context.facts(
+      SESSION,
+      "Is this round with the head of platform, and is it NestJS in production?",
+    );
+    const notes = facts.filter((fact) =>
+      fact.pointer.startsWith("brief:prepNotes:"),
+    );
+    expect(notes.length).toBeGreaterThan(0);
+    expect(notes.every((fact) => fact.about === "notes")).toBe(true);
+    // What the employer asks for stays the employer's.
+    expect(
+      facts
+        .filter((fact) => fact.pointer.startsWith("brief:mustHaves:"))
+        .map((fact) => fact.about),
+    ).toContain("employer");
+    expect(facts.map((fact) => fact.about)).not.toContain(undefined);
+  });
+
   it("gives exactly what the pack's coach projection selects, in its order", async () => {
     const held = contextOf();
     load.mockResolvedValue(held);
@@ -129,7 +157,7 @@ describe("the coach's facts for a live session", () => {
           fact.exact
             ? `${fact.pointer}/${fact.slot.split(".").at(-1)}`
             : fact.pointer,
-          fact.about,
+          whose(fact),
         ]),
       );
       // A ranked fact is given in its own words.
@@ -139,7 +167,11 @@ describe("the coach's facts for a live session", () => {
       ).toEqual(
         selected
           .filter((fact) => !fact.exact)
-          .map(({ pointer, text, about }) => ({ pointer, text, about })),
+          .map((fact) => ({
+            pointer: fact.pointer,
+            text: fact.text,
+            about: whose(fact),
+          })),
       );
       // The answer and inspect projections select more; the coach is not
       // given them.

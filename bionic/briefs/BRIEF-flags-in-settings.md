@@ -82,6 +82,7 @@ the shell and companion is a test's hardware gate), so nothing needed `UserDefau
 | `ACTIVE_SESSION_VOICE_ACTIVITY` | Studio web process (`live-session/ingest.ts`, through `interview-backend.ts`) | `on`, `off` | `off` | once at start | at every voice-activity report | on the next report. A companion already told `voice_activity_off` sends nothing more for that run: stop and start listening (or start a new session) after turning it on |
 | `INTERVIEW_COACH` | agent worker (`coach-loop.ts`, through `flagged-loop.ts`) | `off`, `claude`, `codex` | `off` (`pnpm dev`: `claude`) | once at start | followed while the worker runs | within about 5 s. During a call the coach is restarted and carries on from its ledger |
 | `INTERVIEW_COACH_RETAIN` | agent worker (same) | `on`, `off` | `on` | once when the coach started | followed while the worker runs | within about 5 s; the coach is restarted, so a kept model session is given up |
+| `INTERVIEW_COACH_GROUNDING` (added 2026-10-10; [[briefs/BRIEF-interview-brief-and-context-pack]] section 15) | agent worker (same) | `on`, `off` | `on` | not read before | followed while the worker runs | within about 5 s; the coach is restarted. `on` is prompt `live-coach-10` with the word check on cited claims; `off` is the coach as it was |
 
 Safety that did not move: a voice-activity report is still told to the coach only for a
 `permitted-remote` session (the check in `voiceActivityLocked` is unchanged, and tested with the

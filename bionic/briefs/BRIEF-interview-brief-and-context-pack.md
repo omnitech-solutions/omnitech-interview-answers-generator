@@ -1162,3 +1162,174 @@ three listed free on the day; two were rate-limited at once and the third after 
   the reasons `cut`, `cap`, `min-score` and `excluded-term`, nor the hole reason `deferred`
   (the product did not typecheck), and one preparation test compared prompts that now carry
   the engine's source marks.
+
+## 15. Why the coach's notes were wrong, and what was changed (2026-10-10)
+
+Section 14.7 left one finding open: on the long call the pack offered an accepted employer's
+fact for 11 of 12 questions and only 5 notes were scored right. This section is what was found
+when every note was read, and what was changed. Everything here is the invented Tidewell call.
+The same reading was done on a person's own calls outside the repository; nothing of that is
+kept here.
+
+**The short answer.**
+
+1. **Half of the gap was the benchmark, not the coach.** Five faults in how a replay was fed and
+   scored (15.1). Fixed first, with tests.
+2. **The rest was real, in three classes** (15.3): the model stated as the person's own what
+   nothing it was given says; it told a right story without the pointer that verifies it, or
+   with one the check could not read; and the check marked a claim verified under a pointer
+   whose fact says none of it.
+3. **One change is adopted, behind one switch** (`INTERVIEW_COACH_GROUNDING`, on): the prompt
+   `live-coach-10` (grounding rules, the person's own notes told apart from the employer's
+   material, the rule for citing repeated with each turn) and a check of a cited claim's WORDS.
+   On the two stretches below: notes scored right 8 of 26 before, 18 of 26 after; claims resting
+   on nothing the coach was given 17 before, 10 after; median time to a first line unchanged.
+4. **It costs about three seconds on the slowest note.** The median is the same; the worst first
+   line went from 4.6 s to 8.1 s after acting (15.5). Said plainly, because the rule set for this
+   work was that nothing may regress.
+5. **Two variants were tried and dropped** (15.4).
+
+### 15.1 The benchmark, corrected first
+
+| Fault | What it did | Fix | Test |
+|---|---|---|---|
+| The coach was given the call it was listening to. `--stage 2` replays the stage-2 call with the application's material, and that material holds a transcript of stage 2 and the outcome written after it; the kept pack holds what a model extracted from them. So the coach was handed, as "EMPLOYER MATERIAL", the person's own later answers | Every note on the long call was written with the answer key in the prompt | `readReplayMaterial` leaves out the replayed stage's transcripts, outcome and next steps. Earlier stages stay | `eval/replay-material.test.ts` |
+| A stretch (`--from`, `--to`) was scored on all 61 questions: those never said counted as unanswered, and a question the material has nothing for counted as right though nobody heard it | "right evidence 13 of 61" for a stretch of 12 questions | A stretch is scored on the questions whose completing words are said in it; a whole call on every question | `coach-replay.test.ts` |
+| A note was "right" only if a claim was verified against a role's fact. A claim resting on the person's own notes or plan, a fact said without its pointer, and a figure of a fact given two questions earlier (which a model kept in one session still holds) all counted as the model's inference or as invented | Right notes scored wrong; "4 figures invented" that were the record's | `coach-notes-score.ts` now also says, per note: claims that rest on the person's own notes or plan (`own`), on a fact of the record not cited (`uncited`), on nothing given or said (`unbacked`); the employers the words name; `grounded`; `inferenceOnly`; and a second employer told beside the right one (`mixed`) apart from the wrong employer alone. Facts given earlier in the call count as given. The difference or the sum of two given figures of a hundred or more is not invented | `coach-notes-score.test.ts` |
+| `--trace` never printed the model's raw reply for a call that finished (the coach stops reading at the terminal part, which ended the tracing generator before its last lines) | Nobody could see which pointers the model wrote | Printed on the way out | `coach-replay.test.ts` |
+| A relative `--results` was read from the package's folder | Results in an untracked folder under `apps/agent-worker/` | Read from the repository's root like every other path | |
+
+`right` keeps its strict meaning (a verified claim of an accepted employer and none of another).
+`grounded` is the wider one: no wrong employer, and a claim of an accepted employer's or of the
+person's own notes. Neither is a reader: a note can be grounded and still not answer the
+question asked, and nothing here judges that.
+
+The scripted writer on the whole call, under the corrected benchmark (no model; it cites the
+first evidence fact it is given): 61 of 61 in time, the pack offered an accepted employer's fact
+for 47 of 54, 36 of 61 right, 25 the wrong employer. It was 48 of 54, 37 and 17 with the leak: what
+a model had extracted from the call itself had been tying the right employer's achievements to
+the questions.
+
+### 15.2 Before: the coach as it was, read note by note
+
+Two stretches of the Tidewell panel, replayed at the speed they were said, Claude Code (Sonnet),
+one session kept: 14:02 to 14:20 (12 questions) and 14:23:30 to 14:42 (14 questions).
+
+| Arm | Notes | Right | Grounded | Pack offered an accepted employer's fact | Inference only | Wrong employer | Claims resting on nothing given | Claims verified |
+|---|---|---|---|---|---|---|---|---|
+| No pack (the plan only) | 26 | 0 of 26: nothing to verify against | not scored | none | | | | 0 |
+| Pack, coach as it was (`--grounding plain --cite pointer`) | 26 | 8 of 26 | 15 of 26 | 23 of 26 | 8 | 2 (and 1 telling two employers) | 17 | 14 |
+
+Without the pack the notes are fluent and take the plan's stories at face value: the first one
+has the person say they "most recently" led a migration at an employer they left two roles ago.
+
+### 15.3 The failure classes
+
+Read from the 26 notes of the coach as it was, with the pack:
+
+| Class | How often | Where it is |
+|---|---|---|
+| The right employer's story, told with no pointer, so nothing verifies and the window shows it as the coach's inference. Worse in the second stretch: a model kept in one session is told the rule for citing once, and a few questions in it stops | about 8 notes | the prompt |
+| Stated as the person's own what nothing given says: a split of their time, who signed something off, the mechanism of a fix, a habit | 6 notes (17 claims) | the prompt |
+| A right fact cited so the check missed it: the pointer written after a few more words; a fact given for an earlier turn | 3 notes | the check |
+| The person's own prep note or earlier answer listed under "EMPLOYER MATERIAL (not the candidate's experience)". The model used them anyway, and cited them with pointers of its own making | every turn that had one | how facts are presented |
+| A claim marked VERIFIED under a pointer whose fact does not say it (any pointer verified any claim that carried no figure of its own) | 2 of the 19 verified claims of the two stretches, nudges included | the check |
+| The wrong employer only | 2 notes | the pack's selection for those turns, and the model taking what it was given |
+
+Tested and not found: the right fact buried among too many (four to seven facts a turn; the
+right one was used when cited); the pack resolved on half a question (the coach's own turn-taking
+had the whole question in 26 of 26); facts arriving after the note (they are resolved before the
+call is made). The session carrying an earlier wrong statement forward was not seen on this call;
+the rule that the log holds what was said and never a conclusion about the person is in the new
+prompt all the same.
+
+### 15.4 What was tried
+
+Each on the same two stretches, one live run each. The second row needs no model: the same
+replies read again by the check.
+
+| # | Change | Right | Grounded | Inference only | Wrong employer | Claims resting on nothing | Claims verified | Decision |
+|---|---|---|---|---|---|---|---|---|
+| 0 | The coach as it was | 8 of 26 | 15 | 8 | 2 | 17 | 14 | the baseline |
+| 1 | The same replies, a cited claim checked by its words, a later pointer read, earlier facts counted | 11 | 14 | 9 | 3 | 18 | 23 | **adopted** (it is the check: two marks gone that the cited fact did not bear out, nine gained net) |
+| 2 | 1 + prompt `live-coach-10`: the grounding rules, and the person's own notes in a section of their own | 15 | 19 | 6 | 0 | 11 | 29 | **adopted** |
+| 3 | 2 + the rule for citing said with every turn that carries facts | 18 | 19 | 3 | 3 | 10 | 31 | **adopted: the default** |
+| 4 | 3 with the turn's rule reworded ("when none answers, cite none") and a rule that the first line be short | 12 | 16 | 4 | 2 | 6 | 25 | **dropped**: fewer verified notes in both stretches, and the slowest first line no faster |
+
+Of row 3's three "wrong employer" notes, one tells the earlier employer's failure as the lesson
+behind the right one (the plan asks for exactly that; the gold accepts one employer), and two
+cite another employer's fact where the pack offered none of the accepted ones.
+
+The grounding rules, in one line each: a line built on a fact says where ("At X, …"); a pointer
+stands on words its fact says, and a figure or a technology stays with its employer; one line of
+proof from the record when a fact bears on what the person did; their own notes are theirs and
+are not the verified record; general knowledge is worded as what they would do, never as what
+they did; what is not shown is never said to be absent (asked whether they have used something
+nothing shows, a caution to answer it themselves and the nearest fact); pay with no preference on
+record is one caution and no figure; the log holds what was said, not a conclusion.
+
+Not tried, because no failure class pointed there: fewer facts per turn; resolving the pack later
+than the turn decision; any change to turn-taking. No model call was added to a turn.
+
+### 15.5 After, and what it costs
+
+| Measure | Coach as it was | Grounding on (the default) |
+|---|---|---|
+| Notes right | 8 of 26 | 18 of 26 |
+| Notes grounded | 15 of 26 | 19 of 26 |
+| Notes whose claims are all the model's own | 8 | 3 |
+| Claims resting on nothing given or said | 17 | 10 |
+| Claims verified against the record | 14 | 31 |
+| Wrong employer only | 2 | 3 (one by the gold's strictness: above) |
+| A figure nobody gave | 0 | 1 (a range of years, abbreviated) |
+| Question's last word to first line, median | 4.2 s | 4.5 s |
+| the same, slowest | 5.5 s | 10.3 s (25 of 26 within 10 s) |
+| Acting to first line, median | 3.1 s | 3.5 s |
+| the same, slowest | 4.6 s | 8.1 s |
+| Acting to the whole note, median | 6.0 s | 6.2 s |
+
+The slow first lines are a late first word from the model, not a longer first line: on the same
+two or three questions in every grounded run, the model takes five to seven seconds before it
+writes anything. They are the questions where the rules pull against the easy answer (a failure
+to own up to; a story with no record behind it).
+
+**The coach's own benchmarks.** `coach:bench:timing` and `coach:bench:panel:timing`: unchanged
+(4 acts, 2 of 2 whole; 23 acts, 13 of 13 whole, 1 early act, 2 acts on no question). The
+`call fixtures` suite: green. `coach:bench:panel:claude`, live, twice with grounding on: 15 of 15
+questions acted on whole, 15 of 15 notes name the right asker, none the wrong one; acting to
+first line 3.2 s and 3.3 s at the median (the four kept runs before: 2.1 to 3.3 s). The slowest
+question, a behavioural one with no record behind it, took 8.0 s and 7.6 s where it had taken
+4.7 s: with nothing of the person's to tell, the note now says to use their own example instead
+of sketching one, and the model is slower to say so.
+
+### 15.6 The switch
+
+`INTERVIEW_COACH_GROUNDING` in the behaviour flags (Settings, "Behaviour"; the agent worker; on
+unless turned off, by the host's environment or in Settings). On: `grounding: "strict"` and
+`cite: "words"` to `createCoach`. Off: `plain` and `pointer`, the coach as it was, word for word
+(a test holds the plain instructions equal to the old ones). `createCoach` itself defaults to the
+old behaviour; the worker and the replay turn the new one on. A replay sets each alone:
+`--grounding strict|plain`, `--cite words|pointer`.
+
+```
+pnpm pack:eval --coach --runtime claude --retain --from 14:02:00 --to 14:20:00           # grounding on
+pnpm pack:eval --coach --runtime claude --retain --from 14:02:00 --to 14:20:00 \
+  --grounding plain --cite pointer                                                        # as it was
+```
+
+### 15.7 Not proven, and not done
+
+- **Every live number is one run.** Three grounded variants on the second stretch scored 7, 9 and
+  3 notes right: the spread between runs is as large as the difference between variants. That the
+  adopted variant beats the baseline held in both stretches; which of rows 2 and 3 is better is
+  not established.
+- **The slowest note is about three seconds slower**, on the same questions each time. Not fixed.
+- **A claim from the person's own notes still shows as inferred in the window.** Making it show
+  as theirs changes what "verified" means (ADR-0039): not decided here.
+- **Whether a note answers the question asked** is judged by no score here. Two things a reader
+  would still fault are outside what the code sees: a yes-or-no question about experience
+  answered with a principle, and a reason for a past decision that no record holds.
+- **The answer-level score of 14.6** still counts a gold fact worded another way as missing. Not
+  touched: no number of this section rests on it.
+- **Codex** was not run with grounding on.
+- The generated code documentation under `bionic/code/` was not regenerated.

@@ -50,6 +50,15 @@
 //                     compared with its own last run
 //   --retain          keep one session of the model open for the whole replay
 //                     (each turn then sends only what is new)
+//   --grounding strict|plain    how closely a note is held to what the coach
+//                     was given (coach/prompt.ts). strict (the default): the
+//                     person's own notes are told apart from the employer's
+//                     material and the grounding rules are in force. plain:
+//                     the prompt as it was (live-coach-9)
+//   --cite words|pointer    how a claim that cites a fact is checked before it
+//                     is marked verified (coach/reply.ts). words (the
+//                     default): the cited fact must also say the claim.
+//                     pointer: the pointer and its figures alone, as it was
 //   --hide-me         the coach does not hear the person being coached
 //   --from T --to T   the stretch to replay (HH:MM:SS of the file's clock)
 //   --timing          decisions only, no model
@@ -182,6 +191,8 @@ const VALUED = new Set([
   "--kept",
   "--stage",
   "--within",
+  "--grounding",
+  "--cite",
 ]);
 const all = (name: string): string[] =>
   args.flatMap((arg, at) =>
@@ -308,9 +319,9 @@ const guarded =
       "--within",
     ].some(has));
 
-const resultsGiven = all("--results")
-  .at(-1)
-  ?.replace(/^~(?=\/)/, homedir());
+// Where results are kept: named from the repository's root like every other
+// path, never from this package's folder (where the command runs).
+const resultsGiven = pathAt("--results");
 // [SAFETY] A person's own call is scored into .dev-local/ (which is never
 // committed) or somewhere outside the repository: nowhere it could be added
 // to a commit by accident. Refused before anything is replayed.
@@ -760,6 +771,12 @@ const studio = has("--studio")
     )
   : undefined;
 
+// [DOMAIN] The two switches of what a note may claim, as the live coach has
+// them (coach-loop.ts): on unless turned off, so a replay with neither flag
+// is the coach as it runs.
+const grounding = one("--grounding") === "plain" ? "plain" : "strict";
+const cite = one("--cite") === "pointer" ? "pointer" : "words";
+
 // What happened, for the summary.
 type Acted = {
   atMs: number;
@@ -911,20 +928,30 @@ function traced(engine: Pick<AiEngine, "stream">): Pick<AiEngine, "stream"> {
       console.log(prompt);
       let reply = "";
       let first: number | undefined;
-      for await (const part of engine.stream(input, execution, options)) {
-        if (part.type === "text") {
-          first ??= Date.now() - began;
-          reply += part.text;
+      // [GUARD] The coach stops reading at the terminal part, which ends this
+      // generator where it stands: the reply is printed on the way out, or a
+      // call that finished would never show what the model wrote.
+      try {
+        for await (const part of engine.stream(input, execution, options)) {
+          if (part.type === "text") {
+            first ??= Date.now() - began;
+            reply += part.text;
+          }
+          if (part.type === "failed")
+            console.log(
+              `──── call ${call}: failed (${part.failure.code}) ────`,
+            );
+          yield part;
         }
-        if (part.type === "failed")
-          console.log(`──── call ${call}: failed (${part.failure.code}) ────`);
-        yield part;
+      } finally {
+        console.log(
+          `──── call ${call}: reply (first text ${first === undefined ? "none" : `${(first / 1000).toFixed(1)}s`}, whole ${((Date.now() - began) / 1000).toFixed(1)}s) ────`,
+        );
+        console.log(reply.trim() || "(nothing)");
+        console.log(
+          "────────────────────────────────────────────────────────\n",
+        );
       }
-      console.log(
-        `──── call ${call}: reply (first text ${first === undefined ? "none" : `${(first / 1000).toFixed(1)}s`}, whole ${((Date.now() - began) / 1000).toFixed(1)}s) ────`,
-      );
-      console.log(reply.trim() || "(nothing)");
-      console.log("────────────────────────────────────────────────────────\n");
     },
   };
 }
@@ -984,6 +1011,8 @@ const coach = createCoach(
   },
   {
     retain: has("--retain"),
+    grounding,
+    cite,
     // The endpoint alone ends the interviewer's turn: nothing is waited after.
     ...(endpoint && has("--endpoint-owns")
       ? { timing: { finishedMs: 0, pauseMs: 0, trailingMs: 0 } }
@@ -1132,11 +1161,35 @@ if (one("--expect")) {
     // Things said that are no question for the candidate.
     quiet?: { id: string; said: string }[];
   };
-  const expected = JSON.parse(
+  const whole = JSON.parse(
     readFileSync(one("--expect") as string, "utf8"),
   ) as Expected;
   const said = (text: string, phrase: string) =>
     text.toLowerCase().includes(phrase.toLowerCase());
+  // [GUARD] A stretch of a call (--from, --to) is scored on the questions it
+  // HOLDS: one whose completing words were never said in what was replayed
+  // was not there to be answered, and counting it (as unanswered, or as a
+  // question the material has nothing for and so "right") made a stretch's
+  // totals mean nothing. A whole call is scored on every question, so one
+  // that should have been heard and was not still shows.
+  const stretched =
+    clockMs(one("--from")) !== undefined || clockMs(one("--to")) !== undefined;
+  const everySaid = heard
+    .filter((block) => block.speaker !== "candidate")
+    .map((block) => block.text)
+    .join(" ");
+  const expected: Expected = stretched
+    ? {
+        ...whole,
+        questions: whole.questions.filter((question) =>
+          said(everySaid, question.completeWhenSaid),
+        ),
+      }
+    : whole;
+  if (stretched)
+    console.log(
+      `\n${expected.questions.length} of ${whole.questions.length} expected questions are said in this stretch; the others are not scored.`,
+    );
   const interviewerActs = records.filter(
     (record) =>
       record.reason !== "answer-check" && record.reason !== "screen-change",
@@ -1156,7 +1209,7 @@ if (one("--expect")) {
   const questions = expected.questions.map((question, at) => {
     // The acts on this question: those whose turn is about it and that came
     // before the next question was whole.
-    const whole = interviewerActs.find((record) =>
+    const answered = interviewerActs.find((record) =>
       said(record.turn, question.completeWhenSaid),
     );
     const nextWhole = expected.questions[at + 1]
@@ -1170,25 +1223,25 @@ if (one("--expect")) {
       : undefined;
     const before = interviewerActs.filter(
       (record) =>
-        (!whole || record.atMs < whole.atMs) &&
+        (!answered || record.atMs < answered.atMs) &&
         !said(record.turn, question.completeWhenSaid) &&
         (question.about ?? []).some((word) => said(record.turn, word)),
     );
     const after = records.filter(
       (record) =>
-        whole !== undefined &&
-        record.atMs > whole.atMs &&
+        answered !== undefined &&
+        record.atMs > answered.atMs &&
         (!nextWhole || record.atMs < nextWhole.atMs),
     );
     // What the candidate waits, end of question to first line.
     const questionToFirstLineS =
-      whole?.firstLineS === undefined || !whole
+      answered?.firstLineS === undefined || !answered
         ? null
-        : (whole.atMs - whole.endedMs) / 1000 + whole.firstLineS;
+        : (answered.atMs - answered.endedMs) / 1000 + answered.firstLineS;
     // The note for the whole question, with what the coach was given for the
     // call that last wrote it; with no note, what it was given when it acted.
-    const written = whole ? notes.get(whole.key) : undefined;
-    const given = written?.turn ?? whole?.given;
+    const written = answered ? notes.get(answered.key) : undefined;
+    const given = written?.turn ?? answered?.given;
     const scored =
       scoring && !timingOnly
         ? scoreNote({
@@ -1198,6 +1251,15 @@ if (one("--expect")) {
               .filter((line) => line.seq <= (given?.until ?? 0))
               .map((line) => line.text),
             plan: planText,
+            // What the coach was given before this turn, each fact once.
+            earlier: [
+              ...new Map(
+                records
+                  .filter((record) => record.given.until < (given?.until ?? 0))
+                  .flatMap((record) => record.given.facts)
+                  .map((fact) => [fact.pointer, fact] as const),
+              ).values(),
+            ],
             expectation: expectationOf(question),
             employers,
           })
@@ -1207,6 +1269,10 @@ if (one("--expect")) {
         evidence: scored.evidence,
         invented: scored.invented,
         right: scored.right,
+        grounded: scored.grounded,
+        mixed: scored.mixed,
+        wrongEmployer: scored.wrongEmployer,
+        inferenceOnly: scored.inferenceOnly,
       },
     );
     inventedItems.push(
@@ -1222,18 +1288,18 @@ if (one("--expect")) {
       // asked: null when the note names nobody (or there is no note). A note
       // that names nobody is safe; one that names the wrong person is not.
       askedBy: question.from ?? null,
-      notedFrom: (whole && notes.get(whole.key)?.note.from) ?? null,
-      answeredWhole: whole !== undefined,
+      notedFrom: (answered && notes.get(answered.key)?.note.from) ?? null,
+      answeredWhole: answered !== undefined,
       // Acts on part of the question, and how many of those put a note on screen.
       prematureActs: before.length,
       prematureNotesShown: before.filter(
         (record) => record.firstLineS !== undefined,
       ).length,
       // From the question's last word to acting, on the file's clock.
-      toActS: whole ? (whole.atMs - whole.endedMs) / 1000 : null,
+      toActS: answered ? (answered.atMs - answered.endedMs) / 1000 : null,
       // Real seconds from acting to the first and the last line of the note.
-      firstLineS: whole?.firstLineS ?? null,
-      finalS: whole?.finalS ?? null,
+      firstLineS: answered?.firstLineS ?? null,
+      finalS: answered?.finalS ?? null,
       questionToFirstLineS,
       nudgesDuringAnswer: after.filter(
         (record) =>
@@ -1248,7 +1314,7 @@ if (one("--expect")) {
       ).length,
       ...(scoring
         ? {
-            acted: whole !== undefined,
+            acted: answered !== undefined,
             // The note's first line was on screen within the threshold of
             // the question's last word. Null: no model wrote notes.
             inTime: timingOnly
@@ -1322,6 +1388,9 @@ if (one("--expect")) {
     benchmark: name,
     runtime: runtimeName,
     signals: endpoint || activity ? (detected ? "vad" : "ideal") : "none",
+    // What a note may claim, and how a cited claim is checked.
+    grounding,
+    cite,
     endpoint: endpoint
       ? {
           kind: one("--endpoint-kind") ?? "default",
@@ -1544,13 +1613,13 @@ if (one("--expect")) {
       `\n  NOTES (a first line is in time within ${withinS} s of the question's last word)`,
     );
     console.log(
-      `  ${cell("question", width)}${cell("acted", 7)}${cell("first s", 9)}${cell("in time", 9)}${cell("evidence", 10)}${cell("wrong", 7)}${cell("inferred", 10)}${cell("offered", 9)}${cell("invented", 10)}right`,
+      `  ${cell("question", width)}${cell("acted", 7)}${cell("first s", 9)}${cell("in time", 9)}${cell("evidence", 10)}${cell("wrong", 7)}${cell("inferred", 10)}${cell("own", 5)}${cell("unbacked", 10)}${cell("offered", 9)}${cell("invented", 10)}${cell("right", 7)}grounded`,
     );
     for (const [at, question] of questions.entries()) {
       const note = scores[at];
       const judged = note !== null && note !== undefined && note.right !== null;
       console.log(
-        `  ${cell(question.id, width)}${cell(mark(question.answeredWhole), 7)}${cell(show(question.questionToFirstLineS), 9)}${cell(mark("inTime" in question ? question.inTime : null), 9)}${cell(judged ? String(note.evidence.accepted) : "-", 10)}${cell(judged ? String(note.evidence.wrong) : "-", 7)}${cell(note ? String(note.evidence.inferred) : "-", 10)}${cell(judged ? mark(note.evidence.offered) : "-", 9)}${cell(note ? String(note.invented.figures + note.invented.employers) : "-", 10)}${mark(note?.right)}`,
+        `  ${cell(question.id, width)}${cell(mark(question.answeredWhole), 7)}${cell(show(question.questionToFirstLineS), 9)}${cell(mark("inTime" in question ? question.inTime : null), 9)}${cell(judged ? String(note.evidence.accepted) : "-", 10)}${cell(judged ? `${note.evidence.wrong}${note.wrongEmployer ? "!" : ""}` : "-", 7)}${cell(note ? String(note.evidence.inferred) : "-", 10)}${cell(note ? String(note.evidence.own) : "-", 5)}${cell(note ? String(note.evidence.unbacked) : "-", 10)}${cell(judged ? mark(note.evidence.offered) : "-", 9)}${cell(note ? String(note.invented.figures + note.invented.employers) : "-", 10)}${cell(mark(note?.right), 7)}${mark(note?.grounded)}`,
       );
       // Where the note's claims were verified, and (for a fixture of the
       // repository) what it stated that nobody gave it.
@@ -1560,7 +1629,7 @@ if (one("--expect")) {
         console.log(`    invented: ${(inventedItems[at] ?? []).join(", ")}`);
     }
     console.log(
-      "  evidence, wrong: verified claims under an accepted employer's role, and under another's. offered: the facts the coach was given held an accepted employer's.",
+      "  evidence, wrong: verified claims under an accepted employer's role, and under another's. inferred: claims not verified; own: of those, resting on the person's own notes or plan; unbacked: resting on nothing given or said. offered: the facts the coach was given held an accepted employer's. grounded: no wrong employer, and a claim of an accepted employer's or of the person's own notes.",
     );
     if (previous?.totals)
       console.log(`\n  last run: ${totalsLine(previous.totals)}`);

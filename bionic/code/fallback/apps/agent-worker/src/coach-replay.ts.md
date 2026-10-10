@@ -54,6 +54,15 @@ finished: the coach's own waits after a turn are zero
 compared with its own last run
 --retain          keep one session of the model open for the whole replay
 (each turn then sends only what is new)
+--grounding strict|plain    how closely a note is held to what the coach
+was given (coach/prompt.ts). strict (the default): the
+person's own notes are told apart from the employer's
+material and the grounding rules are in force. plain:
+the prompt as it was (live-coach-9)
+--cite words|pointer    how a claim that cites a fact is checked before it
+is marked verified (coach/reply.ts). words (the
+default): the cited fact must also say the claim.
+pointer: the pointer and its figures alone, as it was
 --hide-me         the coach does not hear the person being coached
 --from T --to T   the stretch to replay (HH:MM:SS of the file's clock)
 --timing          decisions only, no model

@@ -2,12 +2,15 @@
 // so far, and the new lines it must decide on, which are never cut.
 import type { CoachTranscriptLine } from "@omnitech/interview-contracts";
 import { describe, expect, it } from "vitest";
+import type { CoachFact } from "./context";
 import {
+  COACH_GROUNDINGS,
   COACH_PROMPT_VERSION,
   COACH_SYSTEM,
   type CoachPromptInput,
   coachPrompt,
   coachPromptParts,
+  coachSystem,
 } from "./prompt";
 import { SILENT } from "./reply";
 import type { ActReason } from "./turns";
@@ -435,8 +438,8 @@ describe("the coach's standing instructions", () => {
     expect(COACH_SYSTEM).not.toContain("FROM:");
   });
 
-  it("carry the version that came with the panel (live-coach-9)", () => {
-    expect(COACH_PROMPT_VERSION).toBe("live-coach-9");
+  it("carry the version that came with the grounding rules (live-coach-10)", () => {
+    expect(COACH_PROMPT_VERSION).toBe("live-coach-10");
   });
 
   it("carry a version that has moved on with the reason line (live-coach-3) and since", () => {
@@ -1152,5 +1155,149 @@ describe("a panel in the prompt", () => {
       ).toEqual([]);
       expect(both.whole).toContain(PANEL_HEAD);
     });
+  });
+});
+
+describe("how closely a note is held to what the coach was given", () => {
+  const FACTS: CoachFact[] = [
+    {
+      pointer: "/roles/0/proof_points/1",
+      text: "At Northwind (2022–Present, Staff Engineer): Cut checkout latency 40%.",
+      about: "candidate",
+    },
+    {
+      pointer: "brief:prepNotes:abc",
+      text: "Migrations: Northwind; by bounded context; one writer.",
+      about: "notes",
+    },
+    {
+      pointer: "brief:mustHaves:def",
+      text: "Experience with PostgreSQL is required.",
+      about: "employer",
+    },
+  ];
+  const asked = (grounding?: "strict" | "plain", facts = FACTS) =>
+    coachPromptParts({
+      lines: [line(1, "interviewer", "Tell me about a migration.")],
+      readTo: 0,
+      notes: [],
+      facts,
+      ...(grounding ? { grounding } : {}),
+    });
+  const OWN_HEAD =
+    "THE CANDIDATE'S OWN NOTES (what they prepared to say, and said before: theirs, no pointer):";
+  const EMPLOYER_HEAD = "EMPLOYER MATERIAL (not the candidate's experience):";
+
+  it("is strict or plain, and plain is the prompt as it was: the same standing instructions, word for word", () => {
+    expect(COACH_GROUNDINGS).toEqual(["strict", "plain"]);
+    expect(coachSystem("plain")).toBe(COACH_SYSTEM);
+    expect(coachSystem()).toBe(COACH_SYSTEM);
+    expect(coachSystem("strict")).not.toBe(COACH_SYSTEM);
+    // Nothing of the strict rules is said plainly.
+    for (const said of ["OWN NOTES", "a selection", "says WHERE"])
+      expect(COACH_SYSTEM).not.toContain(said);
+  });
+
+  it("strict keeps every label and rule of the note's format, and changes only the grounding rules", () => {
+    const strict = coachSystem("strict").split("\n");
+    const plain = COACH_SYSTEM.split("\n");
+    const changed = strict.filter((each) => !plain.includes(each));
+    const dropped = plain.filter((each) => !strict.includes(each));
+    // The record rule, the rule against inventing, the behavioural-and-pay
+    // rule and the log rule are reworded; three rules are new.
+    expect(dropped).toHaveLength(4);
+    expect(changed).toHaveLength(7);
+    for (const label of ["KIND", "SAME", "ASK", "HEARD", "SAY", "ANCHOR"])
+      expect(coachSystem("strict")).toContain(`\n${label}: `);
+  });
+
+  it("strict says the seven things replayed calls showed were missing", () => {
+    const strict = coachSystem("strict");
+    for (const rule of [
+      // A fact used names its employer.
+      'says WHERE it happened: the employer as the fact names it ("At Northwind, …"), never "on one project"',
+      // A pointer stands on the words its fact says.
+      "the pointer of that very fact, on words that fact says",
+      // Nothing moves between employers.
+      "stays with the employer whose fact states it",
+      // A proof line when a fact bears on the question.
+      "one SAY line is that proof from the record",
+      // The person's own notes are theirs, and are not the record.
+      "THE CANDIDATE'S OWN NOTES, when given, are what they prepared to say",
+      "write no pointer for them",
+      // A general answer is not worded as something they did.
+      'never as something they did ("I used…", "we cut…")',
+      // What is not shown is never said to be absent.
+      "Never say or imply that they have NOT done or used something",
+      "do not answer yes or no for them",
+      // Pay is one caution and no figure.
+      "the whole note is ONE CAUTION line",
+      "not even a range the employer has posted or said",
+      // The log holds what was said, not a conclusion.
+      "never a conclusion of your own about what the candidate has or has not done",
+    ])
+      expect(strict).toContain(rule);
+  });
+
+  it("plain lists the person's own notes with the employer's material, each with its pointer, as it always did", () => {
+    for (const parts of [asked("plain"), asked()]) {
+      expect(parts.whole).not.toContain("OWN NOTES");
+      expect(parts.whole).not.toContain("RECORD: a SAY line");
+      const at = parts.whole.split("\n");
+      expect(
+        at.slice(at.indexOf(EMPLOYER_HEAD) + 1, at.indexOf(EMPLOYER_HEAD) + 3),
+      ).toEqual([
+        "[brief:prepNotes:abc] Migrations: Northwind; by bounded context; one writer.",
+        "[brief:mustHaves:def] Experience with PostgreSQL is required.",
+      ]);
+    }
+  });
+
+  it("strict gives the person's own notes a section of their own, with no pointer, between the record and the employer's material", () => {
+    const at = asked("strict").whole.split("\n");
+    const [record, own, employer] = [
+      "THE CANDIDATE'S RECORD (cite a fact by its [pointer]):",
+      OWN_HEAD,
+      EMPLOYER_HEAD,
+    ].map((head) => at.indexOf(head)) as [number, number, number];
+    expect(record).toBeGreaterThanOrEqual(0);
+    expect(own).toBeGreaterThan(record);
+    expect(employer).toBeGreaterThan(own);
+    expect(at.slice(own + 1, own + 3)).toEqual([
+      "- Migrations: Northwind; by bounded context; one writer.",
+      "",
+    ]);
+    // The employer's material no longer holds them.
+    expect(at.slice(employer + 1, employer + 3)).toEqual([
+      "[brief:mustHaves:def] Experience with PostgreSQL is required.",
+      "",
+    ]);
+    expect(asked("strict").whole).not.toContain("brief:prepNotes:abc");
+  });
+
+  it("strict says the rule for citing with every turn that carries facts of the record, straight before the new lines, and never without them", () => {
+    const RULE = "RECORD: a SAY line built on a fact above says where";
+    const parts = asked("strict");
+    for (const text of [parts.whole, parts.turn]) {
+      const at = text.split("\n");
+      const rule = at.findIndex((each) => each.startsWith(RULE));
+      expect(rule).toBeGreaterThanOrEqual(0);
+      expect(at.slice(rule + 1, rule + 3)).toEqual(["", NEW_HEAD]);
+    }
+    // What a kept session is told once does not carry it.
+    expect(parts.background).not.toContain(RULE);
+    // With no fact of the record there is nothing to cite.
+    const none = asked(
+      "strict",
+      FACTS.filter((fact) => fact.about !== "candidate"),
+    );
+    expect(none.whole).not.toContain(RULE);
+    expect(none.whole).toContain(OWN_HEAD);
+  });
+
+  it("a kept session is given the person's own notes with each turn, as it is given the record", () => {
+    const parts = asked("strict");
+    expect(parts.turn).toContain(OWN_HEAD);
+    expect(parts.background).not.toContain(OWN_HEAD);
   });
 });

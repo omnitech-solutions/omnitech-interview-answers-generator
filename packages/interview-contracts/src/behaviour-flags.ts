@@ -84,6 +84,17 @@ export const BEHAVIOUR_FLAGS = [
     help: "On: the model remembers the conversation and each turn sends only what is new. Off: every note starts from nothing. Applies within a few seconds; changing it during a call restarts the coach.",
     options: { on: "On", off: "Off" },
   },
+  {
+    env: "INTERVIEW_COACH_GROUNDING",
+    process: "agent-worker",
+    type: "switch",
+    values: ["on", "off"],
+    default: "on",
+    fromEnv: (raw) => (lower(raw) === "off" ? "off" : "on"),
+    label: "Coach keeps to your record and your notes",
+    help: "On: a note names the employer of each fact it uses, your own prepared notes are told apart from the employer's material, nothing is said to be missing from your experience, and a claim is marked verified only when the fact it cites says it. Off: the coach as it was before. Applies within a few seconds; changing it during a call restarts the coach.",
+    options: { on: "On", off: "Off" },
+  },
 ] as const satisfies readonly FlagShape[];
 
 export type BehaviourFlagDefinition = (typeof BEHAVIOUR_FLAGS)[number];

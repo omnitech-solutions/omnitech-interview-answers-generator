@@ -12,6 +12,7 @@ import type { CoachTranscriptSession } from "@omnitech/interview-contracts";
 import {
   type ContextEngine,
   type ContextPack,
+  KINDS,
   keptFor,
   type PackStore,
   prepareContextPack,
@@ -29,8 +30,21 @@ export type CoachFact = {
   // "candidate": the person's own record, which a note may state as theirs.
   // "employer": about the company and the role, never the person's experience.
   // "preference": what the person wants (notice, pay, how they work).
-  about: "candidate" | "employer" | "preference";
+  // "notes": the person's own notes for this interview and what they said and
+  // promised in an earlier stage. Theirs to say, and never the verified
+  // record: no claim is verified against them.
+  about: "candidate" | "employer" | "preference" | "notes";
 };
+
+// [DOMAIN] The kinds that are the person's own words about this interview:
+// what they prepared to say, and what they answered and promised before. The
+// pack files them with the employer's material (they are not the approved
+// record); the coach is told whose they are.
+const OWN_NOTES: ReadonlySet<string> = new Set([
+  KINDS.prep,
+  KINDS.answered,
+  KINDS.commitment,
+]);
 
 export type CoachContextPort = {
   // The facts for `query`, best first. Empty when the session has no context.
@@ -140,7 +154,7 @@ export function createCoachContextFrom(
         text: fact.exact
           ? `${LABEL[fact.slot] ?? fact.slot}: ${fact.text}`
           : fact.text,
-        about: fact.about,
+        about: OWN_NOTES.has(fact.kind) ? "notes" : fact.about,
       }));
     },
   };

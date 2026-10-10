@@ -19,11 +19,13 @@ import type {
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
 import type { CoachContextPort, CoachFact } from "./context";
 import {
-  COACH_SYSTEM,
+  type CoachGrounding,
   coachPromptParts,
+  coachSystem,
   type GivenNote as Given,
 } from "./prompt";
 import {
+  type CiteCheck,
   COACH_MODES,
   type CoachMode,
   coachLogOf,
@@ -93,6 +95,12 @@ export type CoachOptions = {
   // conversation and its own notes, and each turn sends only what is new.
   // Without it every call is put to a model that starts from nothing.
   retain?: boolean;
+  // How closely a note is held to what the coach was given (prompt.ts):
+  // "strict" tells the person's own notes apart and adds the grounding rules.
+  grounding?: CoachGrounding;
+  // How a claim that cites a fact is checked before it is marked verified
+  // (reply.ts): "words" also asks that the cited fact says the claim.
+  cite?: CiteCheck;
 };
 
 // What the coach did and why, for whoever watches it work (a replay, a log).
@@ -162,6 +170,8 @@ const SCREEN_EVERY_MS = 15_000;
 const PLAN_HELD_MS = 60_000;
 // The most lines of its own log the coach carries.
 const LOG_HELD = 30;
+// The most facts of the person's record held for one conversation.
+const FACTS_HELD = 400;
 // The most times one turn's call is made again because the interviewer went
 // on: after that the call in hand is left to finish.
 const RECALLS = 2;
@@ -281,7 +291,13 @@ type Call = {
 };
 
 export function createCoach(ports: CoachPorts, options: CoachOptions = {}) {
-  const { postEveryMs = 500, timing, retain = false } = options;
+  const {
+    postEveryMs = 500,
+    timing,
+    retain = false,
+    grounding = "plain",
+    cite = "pointer",
+  } = options;
   const now = ports.nowMs ?? Date.now;
   const tell = (event: Omit<CoachEvent, "atMs">) =>
     ports.onEvent?.({ atMs: now(), ...event });
@@ -335,6 +351,9 @@ export function createCoach(ports: CoachPorts, options: CoachOptions = {}) {
   let recallsLeft = RECALLS;
   // The live session the transcript was last heard in, if any.
   let session: CoachTranscriptSession | undefined;
+  // The person's facts given so far in this conversation, by pointer, the
+  // latest last (see `known` in coachOn).
+  let factsGiven = new Map<string, string>();
 
   const forget = (next: string) => {
     epoch = next;
@@ -357,6 +376,7 @@ export function createCoach(ports: CoachPorts, options: CoachOptions = {}) {
     lastAskId = undefined;
     failures = 0;
     calls = 0;
+    factsGiven = new Map();
   };
 
   const ledgerOf = (): CoachLedger => ({
@@ -444,11 +464,28 @@ export function createCoach(ports: CoachPorts, options: CoachOptions = {}) {
         : [];
     // Only what is the person's own (their record, what they want) can make
     // a claim theirs; the employer's material never can.
-    const known = new Map(
-      facts
-        .filter((fact) => fact.about !== "employer")
-        .map((fact) => [fact.pointer, fact.text]),
+    // [SAFETY] Nor can the person's own notes: what they prepared to say, or
+    // said before, is theirs to say and is not their approved record.
+    const own = facts.filter(
+      (fact) => fact.about === "candidate" || fact.about === "preference",
     );
+    // [DOMAIN] A model kept in one session for the call still holds the facts
+    // of its earlier turns, and cites them: "the 212 clinics" two questions
+    // after the fact was given is the record's, not an invention. So, where
+    // a cited claim must also be said by its fact (`cite: "words"`), the
+    // facts given earlier in this conversation verify too, this turn's
+    // first. Under the pointer-only check they do not: a pointer alone, on
+    // any words, against everything given all call, would verify too much.
+    if (cite === "words") {
+      for (const fact of own) factsGiven.delete(fact.pointer);
+      for (const fact of own) factsGiven.set(fact.pointer, fact.text);
+      while (factsGiven.size > FACTS_HELD)
+        factsGiven.delete(factsGiven.keys().next().value as string);
+    }
+    const known =
+      cite === "words"
+        ? new Map([...factsGiven].reverse())
+        : new Map(own.map((fact) => [fact.pointer, fact.text]));
     // The plan is read once a minute at most; a plan that cannot be read is
     // no plan, never a failed call.
     if (ports.plan && (!plan || now() - plan.atMs > PLAN_HELD_MS))
@@ -480,7 +517,7 @@ export function createCoach(ports: CoachPorts, options: CoachOptions = {}) {
         ? inTurn
         : roster.map((panelist) => panelist.name);
     const post = async (final: boolean) => {
-      const parsed = parseCoachReply(text, final, known, mode, voices);
+      const parsed = parseCoachReply(text, final, known, mode, voices, cite);
       if (!parsed) return;
       const edges = designing ? withEdges(design.edges, parsed.draw) : [];
       const diagram = designDiagram(edges);
@@ -607,6 +644,7 @@ export function createCoach(ports: CoachPorts, options: CoachOptions = {}) {
       ...(designing ? { design } : {}),
       ...(screen ? { screen: screen.text } : {}),
       ...(roster.length > 0 ? { roster } : {}),
+      grounding,
     });
     // One session per conversation, begun again every so often so that it
     // does not grow without bound: the background then says where things are.
@@ -615,7 +653,10 @@ export function createCoach(ports: CoachPorts, options: CoachOptions = {}) {
       {
         profileId: ports.profileId,
         messages: [
-          { role: "system", parts: [{ type: "text", text: COACH_SYSTEM }] },
+          {
+            role: "system",
+            parts: [{ type: "text", text: coachSystem(grounding) }],
+          },
           ...(retain
             ? [
                 {

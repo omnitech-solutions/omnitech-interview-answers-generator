@@ -36,7 +36,9 @@ export type ReplayMaterialPaths = {
   // A pack a model prepared earlier: the `Prepared` itself, or an object
   // holding it under `prepared`.
   kept?: string | undefined;
-  // The stage the call is, by its place (1 is the first).
+  // The stage the call is, by its place (1 is the first). The call is not
+  // yet over when it is coached: that stage's own transcripts, outcome and
+  // next steps are left out of the material.
   stage?: number | undefined;
 };
 
@@ -134,9 +136,23 @@ export function readReplayMaterial(paths: ReplayMaterialPaths): ReplayMaterial {
       "The matrix, the employer brief or the preferences could not be read, or is not what its name says.",
     );
   }
-  const application = paths.application
-    ? readApplication(paths.application)
-    : null;
+  const read = paths.application ? readApplication(paths.application) : null;
+  // [SAFETY] The call being replayed IS the stage named: a live coach has no
+  // transcript of the call it is listening to, and nothing written after it
+  // (the outcome, the next steps). Left in, the coach would be handed what
+  // the person went on to answer, and every note would be scored on a leak.
+  // An earlier stage's transcript and outcome stay: those are known.
+  const application =
+    read && paths.stage !== undefined
+      ? {
+          ...read,
+          stages: read.stages.map((stage) =>
+            stage.ordinal === paths.stage
+              ? { ...stage, transcripts: [], outcome: null, nextSteps: null }
+              : stage,
+          ),
+        }
+      : read;
 
   // The session as it holds that material (bench-stages.ts), with no
   // application when none was given.

@@ -1,6 +1,6 @@
 # Module graph
 
-_Static TS/JS import graph of 1311 modules, 3523 edges (resolve-or-drop; static parse, no Node executed)._
+_Static TS/JS import graph of 1312 modules, 3527 edges (resolve-or-drop; static parse, no Node executed)._
 
 ```mermaid
 graph LR
@@ -732,6 +732,7 @@ graph LR
   products_interview_src_backend_coach_index_ts["products/interview/src/backend/coach/index.ts"] --> products_interview_src_backend_coach_roster_ts["products/interview/src/backend/coach/roster.ts"]
   products_interview_src_backend_coach_index_ts["products/interview/src/backend/coach/index.ts"] --> products_interview_src_backend_coach_transcript_file_ts["products/interview/src/backend/coach/transcript-file.ts"]
   products_interview_src_backend_coach_index_ts["products/interview/src/backend/coach/index.ts"] --> products_interview_src_backend_coach_turns_ts["products/interview/src/backend/coach/turns.ts"]
+  products_interview_src_backend_coach_prompt_test_ts["products/interview/src/backend/coach/prompt.test.ts"] --> products_interview_src_backend_coach_context_ts["products/interview/src/backend/coach/context.ts"]
   products_interview_src_backend_coach_prompt_test_ts["products/interview/src/backend/coach/prompt.test.ts"] --> products_interview_src_backend_coach_prompt_ts["products/interview/src/backend/coach/prompt.ts"]
   products_interview_src_backend_coach_prompt_test_ts["products/interview/src/backend/coach/prompt.test.ts"] --> products_interview_src_backend_coach_reply_ts["products/interview/src/backend/coach/reply.ts"]
   products_interview_src_backend_coach_prompt_test_ts["products/interview/src/backend/coach/prompt.test.ts"] --> products_interview_src_backend_coach_turns_ts["products/interview/src/backend/coach/turns.ts"]
@@ -801,6 +802,9 @@ graph LR
   products_interview_src_backend_context_pack_eval_fixture_ts["products/interview/src/backend/context-pack/eval/fixture.ts"] --> products_interview_src_backend_brief_repository_ts["products/interview/src/backend/brief/repository.ts"]
   products_interview_src_backend_context_pack_eval_fixture_ts["products/interview/src/backend/context-pack/eval/fixture.ts"] --> products_interview_src_backend_context_pack_bench_ts["products/interview/src/backend/context-pack/bench.ts"]
   products_interview_src_backend_context_pack_eval_render_call_ts["products/interview/src/backend/context-pack/eval/render-call.ts"] --> products_interview_src_backend_context_pack_eval_call_scenario_ts["products/interview/src/backend/context-pack/eval/call-scenario.ts"]
+  products_interview_src_backend_context_pack_eval_replay_material_test_ts["products/interview/src/backend/context-pack/eval/replay-material.test.ts"] --> products_interview_src_backend_coach_context_ts["products/interview/src/backend/coach/context.ts"]
+  products_interview_src_backend_context_pack_eval_replay_material_test_ts["products/interview/src/backend/context-pack/eval/replay-material.test.ts"] --> products_interview_src_backend_context_pack_bench_ts["products/interview/src/backend/context-pack/bench.ts"]
+  products_interview_src_backend_context_pack_eval_replay_material_test_ts["products/interview/src/backend/context-pack/eval/replay-material.test.ts"] --> products_interview_src_backend_context_pack_eval_replay_material_ts["products/interview/src/backend/context-pack/eval/replay-material.ts"]
   products_interview_src_backend_context_pack_eval_replay_material_ts["products/interview/src/backend/context-pack/eval/replay-material.ts"] --> products_interview_src_backend_brief_repository_ts["products/interview/src/backend/brief/repository.ts"]
   products_interview_src_backend_context_pack_eval_replay_material_ts["products/interview/src/backend/context-pack/eval/replay-material.ts"] --> products_interview_src_backend_context_pack_bench_stages_ts["products/interview/src/backend/context-pack/bench-stages.ts"]
   products_interview_src_backend_context_pack_eval_replay_material_ts["products/interview/src/backend/context-pack/eval/replay-material.ts"] --> products_interview_src_backend_context_pack_bench_ts["products/interview/src/backend/context-pack/bench.ts"]

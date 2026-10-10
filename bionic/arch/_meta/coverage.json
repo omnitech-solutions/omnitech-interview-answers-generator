@@ -487,6 +487,7 @@
         "products/interview/src/backend/context-pack/eval/call-scenario.ts",
         "products/interview/src/backend/context-pack/eval/fixture.ts",
         "products/interview/src/backend/context-pack/eval/render-call.ts",
+        "products/interview/src/backend/context-pack/eval/replay-material.test.ts",
         "products/interview/src/backend/context-pack/eval/replay-material.ts",
         "products/interview/src/backend/context-pack/eval/retrieval.test.ts",
         "products/interview/src/backend/context-pack/eval/retrieval.ts",
@@ -1329,7 +1330,7 @@
         "vitest.package.config.ts"
       ],
       "n_entities": 98,
-      "n_sources": 1311,
+      "n_sources": 1312,
       "verdict": "populated"
     },
     {
@@ -1807,6 +1808,7 @@
         "products/interview/src/backend/context-pack/eval/call-scenario.ts",
         "products/interview/src/backend/context-pack/eval/fixture.ts",
         "products/interview/src/backend/context-pack/eval/render-call.ts",
+        "products/interview/src/backend/context-pack/eval/replay-material.test.ts",
         "products/interview/src/backend/context-pack/eval/replay-material.ts",
         "products/interview/src/backend/context-pack/eval/retrieval.test.ts",
         "products/interview/src/backend/context-pack/eval/retrieval.ts",
@@ -2649,8 +2651,8 @@
         "vitest.config.ts",
         "vitest.package.config.ts"
       ],
-      "n_entities": 3523,
-      "n_sources": 1312,
+      "n_entities": 3527,
+      "n_sources": 1313,
       "verdict": "populated"
     },
     {
