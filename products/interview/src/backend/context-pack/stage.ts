@@ -13,13 +13,14 @@
 // always does (pack.ts); this file adds what a view shows of the stage.
 // COMPLEXITY: one prepare per stage asked for; nothing per question beyond
 // the pack's own.
-import type { Resolved, Source } from "@omnitech/ai-engine";
+import type { Prepared, Resolved, Source } from "@omnitech/ai-engine";
 import type {
   SessionContext,
   SessionStage,
 } from "../live-session/session-context";
 import {
   type BriefSource,
+  remoteSources,
   sessionBriefSources,
   stageOf,
   withStageBrief,
@@ -73,6 +74,13 @@ export async function prepareStagePack(
   context: SessionContext,
   execution: Parameters<typeof prepareContextPack>[2],
   asked?: number | "all",
+  // The application's pack as a model prepared it, when one is kept: what it
+  // extracted is read with the stage's own material (kept.ts).
+  options: {
+    kept?: Prepared | undefined;
+    // Where the pack is read (pack.ts): a remote prompt unless said otherwise.
+    reader?: "device" | "remote" | undefined;
+  } = {},
 ): Promise<StagePack> {
   const stage = stageFor(context, asked);
   const stages = stagesOf(context);
@@ -86,9 +94,19 @@ export async function prepareStagePack(
       : context,
   );
   const brief = sessionBriefSources(context);
-  const { sources, left } = withStageBrief(base, brief, stage?.ordinal);
+  // [SAFETY] A source that may not leave this machine is no part of a remote
+  // reader's pack (pack.ts withholds it), and so none of its records is
+  // listed as left out for its stage either: `left` carries what a record
+  // says. Only the person's own screen is told of them.
+  const readable =
+    options.reader === "device" ? brief : remoteSources(brief).sendable;
+  const { sources, left } = withStageBrief(base, readable, stage?.ordinal);
   const all: readonly Source[] = [...base, ...brief];
-  const pack = await prepareContextPack(engine, sources, execution);
+  const pack = await prepareContextPack(engine, sources, execution, {
+    kept: options.kept,
+    stage: stage?.ordinal,
+    reader: options.reader,
+  });
 
   const stageById = new Map<string, number | undefined>(
     pack.prepared.records.map((record) => [record.id, stageOf(record)]),
@@ -124,6 +142,7 @@ export async function prepareStagePack(
   };
   return {
     prepared: pack.prepared,
+    gaps: pack.gaps,
     stage,
     stages,
     resolve,

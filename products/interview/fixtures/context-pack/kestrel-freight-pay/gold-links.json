@@ -1,0 +1,317 @@
+{
+  "name": "kestrel-freight-pay-links",
+  "note": "What a careful reader ties together, from the requirement or the note and the matrix alone (never from a benchmark question). `from` is the words a record starts with; an achievement is named by its employer and words it says. A fit with strength `gap` names the nearest achievement and what is missing. `forbidden` are ties a model might propose that the recipe does not allow: each must be refused.",
+  "fit": [
+    {
+      "from": "7+ years building complex, scalable APIs",
+      "to": [
+        {
+          "company": "Quotewright",
+          "says": "Built carrier adapters with retries and reconciliation",
+          "strength": "strong"
+        },
+        {
+          "company": "Quotewright",
+          "says": "Onboarded six carrier APIs through one adapter contract",
+          "strength": "strong"
+        },
+        {
+          "company": "Vantage Networks",
+          "says": "Built partner API services on Node.js and MongoDB",
+          "strength": "partial"
+        }
+      ]
+    },
+    {
+      "from": "Strong TypeScript and Node on the server",
+      "to": [
+        {
+          "company": "Quotewright",
+          "says": "Architected multi-carrier quoting behind one quoting contract",
+          "strength": "partial",
+          "note": "TypeScript and Node at Quotewright; no project led on NestJS in the record."
+        },
+        {
+          "company": "Vantage Networks",
+          "says": "Built partner API services on Node.js and MongoDB",
+          "strength": "partial"
+        }
+      ]
+    },
+    {
+      "from": "Relational data modelling in PostgreSQL",
+      "to": [
+        {
+          "company": "Copperleaf Learning",
+          "says": "Moved roster storage onto relational tables with backfill and shadow reads",
+          "strength": "strong"
+        },
+        {
+          "company": "Copperleaf Learning",
+          "says": "Kept roster drift near zero across 3M+ learner accounts",
+          "strength": "strong"
+        }
+      ]
+    },
+    {
+      "from": "Experience leading a team's technical direction",
+      "to": [
+        {
+          "company": "Larchmont Pay",
+          "says": "Mentored engineers and partnered with Product and Security",
+          "strength": "strong"
+        },
+        {
+          "company": "Saffron Mutual Tech",
+          "says": "Led a team of six on the policy self-service portal",
+          "strength": "strong"
+        }
+      ]
+    },
+    {
+      "from": "React for internal and customer-facing tools",
+      "to": [
+        {
+          "company": "Trailmark Telematics",
+          "says": "Built fleet reporting dashboards in React",
+          "strength": "strong"
+        },
+        {
+          "company": "Quotewright",
+          "says": "Designed schema-driven forms rendered from JSON Schema",
+          "strength": "partial"
+        }
+      ]
+    },
+    {
+      "from": "Event-driven design with a message broker",
+      "to": [
+        {
+          "company": "Tallyclock",
+          "says": "Rebuilt the payroll approval workflow as a state machine",
+          "strength": "partial",
+          "note": "Event-driven workflows at Tallyclock; Kafka is in the Vantage Networks stack and no achievement there names it."
+        }
+      ]
+    },
+    {
+      "from": "Working proficiency in French",
+      "to": [
+        {
+          "company": "Tallyclock",
+          "says": "written communication",
+          "strength": "gap",
+          "note": "Nothing in the record says French: written communication in English is the nearest. Say so plainly."
+        }
+      ]
+    },
+    {
+      "from": "Testing strategy across unit, contract",
+      "to": [
+        {
+          "company": "Saffron Mutual Tech",
+          "says": "Rebuilt the test strategy around unit, contract and end-to-end layers",
+          "strength": "strong"
+        }
+      ]
+    },
+    {
+      "from": "Operational ownership: on-call",
+      "to": [
+        {
+          "company": "Vantage Networks",
+          "says": "Took part in the on-call rotation for the gateway service",
+          "strength": "partial"
+        }
+      ]
+    },
+    {
+      "from": "Security-minded design for systems that move money",
+      "to": [
+        {
+          "company": "Saffron Mutual Tech",
+          "says": "Introduced a security review step and automated scanning",
+          "strength": "strong"
+        },
+        {
+          "company": "Stonebridge Equity",
+          "says": "Built transaction processing for equity plan trades",
+          "strength": "partial"
+        }
+      ]
+    },
+    {
+      "from": "Clear written communication",
+      "to": [
+        {
+          "company": "Tallyclock",
+          "says": "written communication",
+          "strength": "partial"
+        }
+      ]
+    },
+    {
+      "from": "Freight, logistics or payments domain experience",
+      "to": [
+        {
+          "company": "Quotewright",
+          "says": "Launched multi-carrier quoting in 9 weeks",
+          "strength": "strong"
+        },
+        {
+          "company": "Larchmont Pay",
+          "says": "Led modernization of the legacy PHP monolith behind service seams",
+          "strength": "partial"
+        }
+      ]
+    },
+    {
+      "from": "Moving a service from MongoDB to PostgreSQL",
+      "to": [
+        {
+          "company": "Copperleaf Learning",
+          "says": "Moved roster storage onto relational tables with backfill and shadow reads",
+          "strength": "partial",
+          "note": "A move onto relational tables with backfill and shadow reads; the record does not say it was from MongoDB."
+        }
+      ]
+    },
+    {
+      "from": "Experience introducing delivery metrics to a team",
+      "to": [
+        {
+          "company": "Tallyclock",
+          "says": "Improved the team's delivery metrics and release cadence",
+          "strength": "strong"
+        }
+      ]
+    },
+    {
+      "from": "Manage third-party carrier and factoring integrations",
+      "to": [
+        {
+          "company": "Quotewright",
+          "says": "Built carrier adapters with retries and reconciliation",
+          "strength": "strong"
+        }
+      ]
+    },
+    {
+      "from": "Own reconciliation correctness between payouts and bank files",
+      "to": [
+        {
+          "company": "Stonebridge Equity",
+          "says": "Wrote batch reconciliation against the custodian's files",
+          "strength": "strong"
+        },
+        {
+          "company": "Quotewright",
+          "says": "Built carrier adapters with retries and reconciliation",
+          "strength": "partial"
+        }
+      ]
+    },
+    {
+      "from": "Plan the move of settlement data from MongoDB to PostgreSQL",
+      "to": [
+        {
+          "company": "Copperleaf Learning",
+          "says": "Moved roster storage onto relational tables with backfill and shadow reads",
+          "strength": "partial"
+        }
+      ]
+    }
+  ],
+  "proof": [
+    {
+      "from": "Why Kestrel",
+      "to": [
+        {
+          "company": "Quotewright",
+          "says": "Architected multi-carrier quoting behind one quoting contract"
+        }
+      ]
+    },
+    {
+      "from": "Third-party integrations, carrier APIs",
+      "to": [
+        {
+          "company": "Quotewright",
+          "says": "Built carrier adapters with retries and reconciliation"
+        }
+      ]
+    },
+    {
+      "from": "Microservices and service boundaries",
+      "to": [
+        {
+          "company": "Larchmont Pay",
+          "says": "Led modernization of the legacy PHP monolith behind service seams"
+        }
+      ]
+    },
+    {
+      "from": "DORA, mentoring, disagreement",
+      "to": [
+        {
+          "company": "Tallyclock",
+          "says": "Improved the team's delivery metrics and release cadence"
+        }
+      ]
+    },
+    {
+      "from": "Data ownership: one writer per table",
+      "to": [
+        {
+          "company": "Quotewright",
+          "says": "Kept quote workflow state on the server"
+        }
+      ]
+    }
+  ],
+  "story": [
+    {
+      "from": "When two teams both need the same payout record",
+      "to": [
+        {
+          "company": "Quotewright",
+          "says": "Kept quote workflow state on the server",
+          "rank": "primary"
+        }
+      ]
+    },
+    {
+      "from": "How would you bring a new engineer into the on-call rota",
+      "to": [
+        {
+          "company": "Larchmont Pay",
+          "says": "Mentored engineers and partnered with Product and Security",
+          "rank": "primary"
+        },
+        {
+          "company": "Vantage Networks",
+          "says": "Took part in the on-call rotation for the gateway service",
+          "rank": "backup"
+        }
+      ]
+    }
+  ],
+  "forbidden": [
+    {
+      "step": "fit",
+      "reversed": true,
+      "from": "7+ years building complex, scalable APIs",
+      "to": {
+        "company": "Quotewright",
+        "says": "Built carrier adapters with retries and reconciliation",
+        "strength": "strong"
+      }
+    },
+    {
+      "step": "fit",
+      "toFirstList": true,
+      "from": "Working proficiency in French",
+      "to": "Strong TypeScript and Node on the server"
+    }
+  ]
+}

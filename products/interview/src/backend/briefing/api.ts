@@ -457,6 +457,15 @@ export function createBriefingApi(options: {
   resolveScope: (request: Request) => Promise<WorkspaceScope | null>;
   generate: StructuredGenerate;
   allowedOrigins?: readonly string[];
+  // What a model prepared for the member's application to this company for
+  // this role, as lines of the stage the briefing is for (context-pack/
+  // application.ts): who is met, what the employer asks for with the evidence
+  // and the gaps, and what earlier stages asked. Empty when no pack was
+  // prepared: the briefing is then written from what it always was.
+  packContext?: (
+    scope: WorkspaceScope,
+    context: BriefingContext,
+  ) => Promise<{ pointer: string; text: string }[]>;
   loadDefaultProfile?: (
     scope: WorkspaceScope,
   ) => Promise<{ name: string; matrix: unknown } | null>;
@@ -522,6 +531,21 @@ export function createBriefingApi(options: {
         profile.revision,
       ),
       ...contextSources(context, draftRevision),
+      // [SAFETY] Employer material, cited by pointer like the rest: a line
+      // of it is never the candidate's experience, and a gap it names is
+      // never written as something the candidate did.
+      ...(
+        (await options.packContext?.(scope, context).catch(() => [])) ?? []
+      ).map(
+        (line): Source => ({
+          pointer: line.pointer,
+          text: line.text,
+          sourceKind: "employer-context",
+          id: sha(`${line.pointer}:${line.text}`),
+          revision: draftRevision,
+          sha256: sha(line.text),
+        }),
+      ),
     ];
     return { profile, sources };
   }

@@ -1,5 +1,13 @@
 import { createHash } from "node:crypto";
-import { afterAll, beforeAll, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import type {
   WorkspaceDatabasePort,
   WorkspaceScope,
@@ -77,6 +85,14 @@ let generated: unknown = {
   ],
 };
 const prompts: { system: string; prompt: string }[] = [];
+// What the application's prepared context pack gives a briefing, when a test
+// sets it (context-pack/application.ts); absent, as with no pack prepared.
+let packContext:
+  | ((
+      scope: WorkspaceScope,
+      context: { company: string; role: string; stage: string },
+    ) => Promise<{ pointer: string; text: string }[]>)
+  | undefined;
 const app = (
   database: WorkspaceDatabasePort = pg.database,
   loadDefaultProfile?: (
@@ -95,6 +111,7 @@ const app = (
       return generated;
     },
     ...(loadDefaultProfile ? { loadDefaultProfile } : {}),
+    ...(packContext ? { packContext } : {}),
   });
 async function request(
   path: string,
@@ -1675,4 +1692,118 @@ it("names the fields of a request the server does not accept", async () => {
   );
   expect(error.message).toContain("restart the dev server");
   expect(error.message).not.toContain("secret");
+});
+
+describe("a briefing for an application whose context pack was prepared", () => {
+  const PACK = [
+    {
+      pointer: "/context/pack/people/0",
+      text: "Hiring manager stage, hiring manager: Imre Solvang, Manager, Engineering",
+    },
+    {
+      pointer: "/context/pack/asks/0",
+      text: "Required: Working proficiency in French; GAP: no evidence in the candidate's record. Nothing in the record says French.",
+    },
+    {
+      pointer: "/context/pack/asked/0",
+      text: "Asked in an earlier stage: Who should own the payout record?",
+    },
+  ];
+  const sourcesOf = (prompt: string) =>
+    (
+      JSON.parse(prompt) as {
+        sources: { pointer: string; text: string; sourceKind: string }[];
+      }
+    ).sources;
+  const ask = async (artifact: string, question: string) => {
+    const created = await request(
+      `/api/interview/briefing/artifacts/${artifact}`,
+      "PUT",
+      { expectedRevision: 0, briefing: { ...briefing, expected: [] } },
+    );
+    const start = (await created.json()).origin.artifactRevision;
+    prompts.length = 0;
+    return request(
+      `/api/interview/briefing/artifacts/${artifact}/ask`,
+      "POST",
+      { expectedRevision: start, question },
+    );
+  };
+  afterEach(() => {
+    packContext = undefined;
+  });
+
+  it("gives the writer the pack's lines as employer material, each under its pointer, asked for by company, role and stage", async () => {
+    const asked: unknown[] = [];
+    packContext = async (member, context) => {
+      asked.push([
+        member.actorId,
+        context.company,
+        context.role,
+        context.stage,
+      ]);
+      return PACK;
+    };
+    generated = {
+      questions: [
+        {
+          id: "ignored",
+          answerMarkdown: "They asked who should own the payout record.",
+          talkingPoints: ["a", "b", "c"],
+          citations: [
+            {
+              field: "answerMarkdown",
+              text: "who should own the payout record",
+              sourceKind: "employer-context",
+              pointer: "/context/pack/asked/0",
+              quote: "Who should own the payout record?",
+            },
+          ],
+          gaps: [],
+        },
+      ],
+    };
+    const response = await ask("packed", "What did they ask before?");
+    const body = await response.json();
+    expect([response.status, body.error]).toEqual([200, undefined]);
+    expect(asked).toEqual([
+      ["alice", context.company, context.role, context.stage],
+    ]);
+    const given = sourcesOf(prompts[0]?.prompt ?? "{}");
+    for (const line of PACK)
+      expect(given).toContainEqual({ ...line, sourceKind: "employer-context" });
+    // [SAFETY] Never as the candidate's own record.
+    expect(
+      given.filter(
+        (each) =>
+          each.pointer.startsWith("/context/pack/") &&
+          each.sourceKind !== "employer-context",
+      ),
+    ).toEqual([]);
+    // A citation on a line of the pack is verified like any other.
+    const [answer] = body.value.briefing.questions;
+    // It is kept as evidence of the answer, not turned into a gap.
+    expect(JSON.stringify(answer)).toContain("/context/pack/asked/0");
+    expect(answer.gaps).toEqual([]);
+  });
+
+  it("is written as it always was when no pack was prepared, or the pack cannot be read", async () => {
+    const plain = await ask("unpacked", "How do you mentor engineers?");
+    expect(plain.status).toBe(200);
+    const before = sourcesOf(prompts[0]?.prompt ?? "{}");
+    expect(
+      before.some((each) => each.pointer.startsWith("/context/pack/")),
+    ).toBe(false);
+
+    packContext = async () => [];
+    await ask("empty-pack", "How do you mentor engineers?");
+    expect(sourcesOf(prompts[0]?.prompt ?? "{}")).toEqual(before);
+
+    packContext = async () => {
+      throw new Error("the store is away");
+    };
+    const broken = await ask("broken-pack", "How do you mentor engineers?");
+    expect(broken.status).toBe(200);
+    expect(sourcesOf(prompts[0]?.prompt ?? "{}")).toEqual(before);
+  });
 });

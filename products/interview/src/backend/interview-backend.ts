@@ -16,6 +16,7 @@ import { Hono } from "hono";
 import {
   INTERVIEW_ANSWER_PROFILE,
   INTERVIEW_ASSISTANT_PROFILE,
+  INTERVIEW_PRODUCT_ID,
 } from "../assistant-profile";
 import { manifest } from "../manifest";
 import { promptMessages } from "./ai-messages";
@@ -25,6 +26,8 @@ import { behaviourFlags } from "./behaviour-flags";
 import { BriefingRepository } from "./briefing/repository";
 import { briefingScope } from "./briefing-access";
 import { coachTranscript, speakerOfSource } from "./coach-transcript";
+import { createApplicationPacks } from "./context-pack/application";
+import type { PackStore } from "./context-pack/prepare";
 import { createDocumentsApi, resolveDocumentsScope } from "./documents/api";
 import { resolveDocumentsConfig } from "./documents/config";
 import { createSessionRoutes } from "./live-session/routes";
@@ -42,11 +45,46 @@ import {
 import { createCodeRunner } from "./services";
 import { createInterviewStudio } from "./studio/host";
 
+// The member's experience matrix at its latest revision: what a context
+// pack's achievements are composed from.
+const latestMatrix =
+  (profiles: BriefingRepository) =>
+  async (scope: { tenantId: string; actorId: string }) => {
+    const member = { ...scope, productId: INTERVIEW_PRODUCT_ID };
+    const [latest] = await profiles.listProfiles(member);
+    if (!latest) return null;
+    const { matrix, id, revision } = await profiles.getProfileRevision(
+      member,
+      latest.id,
+      latest.revision,
+    );
+    return { matrix, id, revision };
+  };
+// What a briefing and a document read of an application's prepared context
+// pack (context-pack/application.ts); with no store, nothing, and both are
+// written from what they always were.
+const applicationPacksOf = (services: InterviewBackendServices) =>
+  createApplicationPacks({
+    database: services.database,
+    engine: services.engine,
+    packs: services.packStore,
+    loadMatrix: latestMatrix(
+      new BriefingRepository(workspaceDatabase(services.database)),
+    ),
+  });
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** The platform services Interview Studio's backend runs on. */
 export interface InterviewBackendServices {
   engine: AiEngine;
+  // Where the engine keeps prepared context packs: the store it was built
+  // with (`prepared`), so what a preparation kept is what a reader is given.
+  // Absent: no pack is kept and every reader uses the person's own material.
+  packStore?: PackStore;
+  // The profile an application's context pack is prepared with. Absent: the
+  // agent the assistant runs on when that is the default, else Claude Code.
+  packProfile?: string;
   database: PlatformDatabase;
   // The run queue's own connection (pg-boss opens it).
   runQueueConnectionString: string;
@@ -224,6 +262,14 @@ async function build(
     // the local member only.
     loadDefaultProfile: async (scope) =>
       (await isLocalMember(services, scope)) ? loadLocalProfile() : null,
+    // A briefing also reads what a model prepared for the application it is
+    // for, when there is one.
+    briefingPack: (scope, context) =>
+      applicationPacksOf(services).forBriefing(
+        scope,
+        context,
+        new AbortController().signal,
+      ),
   });
 }
 
@@ -271,6 +317,7 @@ export function createInterviewBackend(services: InterviewBackendServices) {
       database: services.database,
       resolveContext: services.resolveContext,
       contextEngine: services.engine,
+      packs: services.packStore,
       // What a session hears is the coach's input, as it arrives.
       recordings: transcriptRecordings,
       // [SAFETY] As with what is heard: a device-only session's screen never
@@ -339,6 +386,14 @@ export function createInterviewBackend(services: InterviewBackendServices) {
       engine: services.engine,
       config: documentsConfig,
       recordingsDirectory: transcriptsDirectory,
+      packs: services.packStore,
+      packProfile:
+        services.packProfile ??
+        (services.assistantDefaultModel?.startsWith("agent/")
+          ? services.assistantDefaultModel
+          : undefined),
+      loadMatrix: latestMatrix(profiles),
+      applicationPacks: applicationPacksOf(services),
       localTemplates: async (scope) =>
         (await isLocalMember(services, scope)) ? loadLocalTemplates() : null,
       localContact: async (scope) =>

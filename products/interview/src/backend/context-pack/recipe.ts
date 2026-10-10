@@ -3,7 +3,13 @@
 // It is configuration, not code: the AI engine prepares sources into records
 // of these kinds and resolves a projection for one question, the same way
 // for the coach, an answer and the view a person inspects.
-import type { Recipe, Slot } from "@omnitech/ai-engine";
+import type {
+  Extractor,
+  JsonSchema,
+  LinkStep,
+  Recipe,
+  Slot,
+} from "@omnitech/ai-engine";
 
 // [DOMAIN] A record keeps its kind. What the candidate did is never mixed
 // with what the employer wants: an employer's requirement can aim an answer,
@@ -24,6 +30,13 @@ export const KINDS = {
   // for extraction (brief-sources.ts). No projection has a slot for it, so it
   // is counted and inspectable, and never offered to a reader as a fact.
   turn: "transcript-turn",
+  // What a stage's transcript holds, read by a model and kept only with the
+  // words it rests on (the transcript extractor below). They belong to the
+  // stage they were said in, and a later stage is given them after its own.
+  asked: "stage-question",
+  answered: "stage-answer",
+  signal: "employer-signal",
+  commitment: "stage-commitment",
 } as const;
 export type ContextKind = (typeof KINDS)[keyof typeof KINDS];
 
@@ -42,6 +55,13 @@ export const ABOUT: Readonly<
   "prep-note": "employer",
   // The safe side: a turn is never the candidate's approved record.
   "transcript-turn": "employer",
+  // What was said in a stage is a record of the conversation. Even the
+  // person's own answer there is what they SAID, not their approved record:
+  // a claim is never verified against it.
+  "stage-question": "employer",
+  "stage-answer": "employer",
+  "employer-signal": "employer",
+  "stage-commitment": "employer",
 };
 
 // Known fields, looked up exactly and never written by a model.
@@ -82,7 +102,10 @@ const ROLE_WEIGHTS = { technologies: 3, company: 3, tags: 2, text: 1 };
 // is about the question; one that says the word on its way to something else
 // ("Round: … experience deep dive") is not. The heading is the words before a
 // sentence's colon (sources.ts), and a word found there counts 3.
-const HEADED_WEIGHTS = { heading: 3, text: 1 };
+// A record a model extracted has no heading; it has the search words and the
+// questions the extractor gave it, which say what it is about as a heading
+// does.
+const HEADED_WEIGHTS = { heading: 3, answers: 3, themes: 2, text: 1 };
 
 const ranked = (
   id: string,
@@ -98,13 +121,20 @@ export const PROJECTIONS = {
   answer: "answer",
   // Everything that bears on a question, for the view a person inspects.
   inspect: "inspect",
+  // The person's roles with their achievements whole, and what the employer
+  // asks for, for a resume or a letter. The roles are cast elsewhere
+  // (documents/cast.ts); readers.ts keeps the cast roles' achievements.
+  document: "document",
+  // One stage, to prepare for it: who is met, what they asked for, the fit
+  // and the gaps, the person's notes, and what earlier stages asked.
+  briefing: "briefing",
 } as const;
 export type ProjectionId = (typeof PROJECTIONS)[keyof typeof PROJECTIONS];
 
 // [DOMAIN] How the evidence for one question is arranged (pack.ts does it,
 // after the engine has ranked). The engine ranks every achievement that bears
-// on the question, up to EVIDENCE_RANKED; a projection's places are then
-// filled by these rules, in this order:
+// on the question or is tied to what the earlier slots selected; a
+// projection's places are then filled by these rules, in this order:
 //   1. LINKED FIRST. Evidence linked to the note, story or requirement that
 //      leads its slot comes before evidence that merely shares a word: the
 //      achievements of an employer the note or story names (the better match
@@ -123,18 +153,118 @@ export type ProjectionId = (typeof PROJECTIONS)[keyof typeof PROJECTIONS];
 //      least DOMINATES times as many words as the backup's best, or when the
 //      primary is linked more strongly and the backup was only found in
 //      passing (fewer than SPEAKS_FOR words).
-// `inspect` shows everything that bears on a question, so it is not arranged
-// by role: only rule 1 orders it.
+// `inspect`, `document` and `briefing` show everything that bears, so they
+// are not arranged by role: only rule 1 orders them.
 export const EVIDENCE_PLACES: Readonly<
   Record<ProjectionId, { places: number; roles?: number; lead?: number }>
 > = {
   coach: { places: 4, roles: 2, lead: 3 },
   answer: { places: 6, roles: 2, lead: 4 },
   inspect: { places: 60 },
+  document: { places: 400 },
+  briefing: { places: 24 },
 };
-const EVIDENCE_RANKED = 60;
+// Every achievement the engine may rank for one question: all of them. A tie
+// (LINKS below) keeps an achievement in the ranking though it shares no word
+// with the question, and the places above are what bound a selection.
+const EVIDENCE_RANKED = 400;
 export const DOMINATES = 2;
 export const SPEAKS_FOR = 2;
+
+// [DOMAIN] The ties between records (the engine's link steps). A step is from
+// one kind to others, and that is also the rule: the engine refuses a tie
+// whose ends are of any other kinds, whoever proposed it. No step ends at a
+// kind of the employer's, so an employer's fact can never be tied in as the
+// candidate's experience.
+//   Made in code (links.ts), never asked of a model:
+//     names  a prep note      -> the achievements of an employer it names
+//     tells  a chosen story   -> the achievements of an employer it names
+//     stack  a requirement    -> the achievements done on a technology it names
+//   Proposed by a model, each checked by the engine:
+//     fit    a requirement    -> the achievements that prove it, how strongly
+//     proof  a prep note      -> the achievement it rests on
+//     story  a question asked -> the story to tell, primary or backup
+export const LINKS = {
+  names: "names",
+  tells: "tells",
+  stack: "stack",
+  fit: "fit",
+  proof: "proof",
+  story: "story",
+} as const;
+export const FIT_STRENGTHS = ["strong", "partial", "gap"] as const;
+export type FitStrength = (typeof FIT_STRENGTHS)[number];
+
+const object = (
+  properties: Record<string, JsonSchema>,
+  required: readonly string[] = [],
+): JsonSchema => ({
+  type: "object",
+  additionalProperties: false,
+  required: [...required],
+  properties,
+});
+const text: JsonSchema = { type: "string" };
+const texts: JsonSchema = { type: "array", items: { type: "string" } };
+// How much of an achievement a model is shown when it links: who, where and
+// what, without the stack that ends every line.
+const LINK_CHARS = 220;
+
+const CODE_LINKS: readonly LinkStep[] = [
+  {
+    id: LINKS.names,
+    from: KINDS.prep,
+    to: KINDS.achievement,
+    fields: object({ basis: { enum: ["figure", "employer"] } }, ["basis"]),
+  },
+  {
+    id: LINKS.tells,
+    from: KINDS.story,
+    to: KINDS.achievement,
+    fields: object({ basis: { enum: ["figure", "employer"] } }, ["basis"]),
+  },
+  {
+    id: LINKS.stack,
+    from: KINDS.requirement,
+    to: KINDS.achievement,
+    fields: object({ technology: text, via: { enum: ["own", "note"] } }, [
+      "technology",
+      "via",
+    ]),
+  },
+];
+const MODEL_LINKS: readonly LinkStep[] = [
+  {
+    id: LINKS.fit,
+    from: KINDS.requirement,
+    to: KINDS.achievement,
+    instructions:
+      'The first list is what an employer asks of a candidate. The second list is what the candidate has done. For each requirement, name the achievements that are evidence for it: at most three, the most direct first. Give "strength": "strong" when the achievement shows the very thing asked for, "partial" when it shows something close. When nothing in the second list is evidence for a requirement, return one tie from it to the nearest achievement with "strength": "gap" and, as "note", one sentence on what is missing; never present a gap as experience.',
+    fields: object({ strength: { enum: [...FIT_STRENGTHS] }, note: text }, [
+      "strength",
+    ]),
+    maxChars: LINK_CHARS,
+  },
+  {
+    id: LINKS.proof,
+    from: KINDS.prep,
+    to: KINDS.achievement,
+    instructions:
+      "The first list is notes a candidate prepared for an interview. The second list is what the candidate has done. For each note, name the achievements the note rests on or that would be told as its example: at most two. Return no tie for a note that is about the employer, the process or a question to ask.",
+    maxChars: LINK_CHARS,
+  },
+  {
+    id: LINKS.story,
+    from: KINDS.asked,
+    to: [KINDS.story, KINDS.achievement],
+    instructions:
+      'The first list is questions an interviewer asked in an earlier stage, which may be asked again. The second list is the candidate\'s stories and achievements. For each question, name the one to tell first with "rank": "primary" and, if there is another, one with "rank": "backup".',
+    fields: object({ rank: { enum: ["primary", "backup"] } }, ["rank"]),
+    maxChars: LINK_CHARS,
+  },
+];
+// Every step a slot of evidence follows.
+const FOLLOWED = Object.values(LINKS);
 
 const projection = (id: ProjectionId, other: number) => ({
   id,
@@ -142,26 +272,83 @@ const projection = (id: ProjectionId, other: number) => ({
     ...EXACT,
     // A story the person chose for this kind of question leads.
     ranked("stories", KINDS.story, 2),
-    ranked("evidence", KINDS.achievement, EVIDENCE_RANKED, {
-      weights: EVIDENCE_WEIGHTS,
-      share: 0.6,
-    }),
-    ranked("roles", KINDS.role, 3, { weights: ROLE_WEIGHTS }),
-    ranked("preferences", KINDS.preference, other, {
-      weights: HEADED_WEIGHTS,
-    }),
     ranked("requirements", KINDS.requirement, other, {
       // A technology a requirement names counts as one an achievement names.
       weights: { ...HEADED_WEIGHTS, technologies: 3 },
       share: 0.15,
     }),
+    ranked("prep", KINDS.prep, other, { weights: HEADED_WEIGHTS }),
+    // What an interviewer asked in this stage or an earlier one, and what
+    // they said to expect: a later stage is given an earlier one's after its
+    // own (the engine's scope).
+    ranked("asked", KINDS.asked, other, { weights: HEADED_WEIGHTS }),
+    ranked("signals", KINDS.signal, other, { weights: HEADED_WEIGHTS }),
+    // [DOMAIN] After the slots above, because the engine follows a tie from
+    // what an EARLIER slot selected: a selected note, story, requirement or
+    // question keeps the achievements tied to it in the ranking.
+    ranked("evidence", KINDS.achievement, EVIDENCE_RANKED, {
+      weights: EVIDENCE_WEIGHTS,
+      share: 0.6,
+      follow: FOLLOWED,
+    }),
+    ranked("roles", KINDS.role, 3, { weights: ROLE_WEIGHTS }),
+    ranked("preferences", KINDS.preference, other, {
+      weights: HEADED_WEIGHTS,
+    }),
     ranked("employer", KINDS.employerFact, other, {
       weights: HEADED_WEIGHTS,
       share: 0.15,
     }),
-    ranked("prep", KINDS.prep, other, { weights: HEADED_WEIGHTS }),
   ],
 });
+
+// [DOMAIN] A resume is written from the person's whole record: every role,
+// every achievement whole (none cut for length a note would be), and what the
+// employer asks for with the evidence tied to it.
+const DOCUMENT_PROJECTION = {
+  id: PROJECTIONS.document,
+  slots: [
+    ...EXACT,
+    ranked("requirements", KINDS.requirement, 40, {
+      weights: { ...HEADED_WEIGHTS, technologies: 3 },
+      maxChars: 600,
+    }),
+    ranked("roles", KINDS.role, 40, { weights: ROLE_WEIGHTS }),
+    ranked("evidence", KINDS.achievement, EVIDENCE_RANKED, {
+      weights: EVIDENCE_WEIGHTS,
+      maxChars: 1200,
+      follow: FOLLOWED,
+    }),
+  ],
+};
+// [DOMAIN] One stage, to prepare for it. Read with no question it is the
+// stage's material by priority; `where` keeps the people apart from the
+// other facts of the employer.
+const BRIEFING_PROJECTION = {
+  id: PROJECTIONS.briefing,
+  slots: [
+    ...EXACT,
+    ranked("people", KINDS.employerFact, 16, {
+      where: [
+        { field: "section", op: "equals" as const, value: "stageDetails" },
+      ],
+    }),
+    ranked("stories", KINDS.story, 4),
+    ranked("requirements", KINDS.requirement, 16, {
+      weights: { ...HEADED_WEIGHTS, technologies: 3 },
+    }),
+    ranked("prep", KINDS.prep, 16, { weights: HEADED_WEIGHTS }),
+    ranked("asked", KINDS.asked, 16, { weights: HEADED_WEIGHTS }),
+    ranked("signals", KINDS.signal, 8, { weights: HEADED_WEIGHTS }),
+    ranked("answered", KINDS.answered, 8, { weights: HEADED_WEIGHTS }),
+    ranked("commitments", KINDS.commitment, 8, { weights: HEADED_WEIGHTS }),
+    ranked("evidence", KINDS.achievement, EVIDENCE_RANKED, {
+      weights: EVIDENCE_WEIGHTS,
+      follow: FOLLOWED,
+    }),
+    ranked("employer", KINDS.employerFact, 16, { weights: HEADED_WEIGHTS }),
+  ],
+};
 
 // [DOMAIN] Words that mean the same thing when someone asks. Each group
 // works every way round: asking about "pay" finds "salary" and asking about
@@ -253,15 +440,134 @@ for (const group of [...SAME, ...FORMS])
   for (const word of group)
     ALIASES[word] = group.filter((other) => other !== word);
 
+// The engine's name for the scope of a stage, by its place (1 first): what a
+// model extracted from a stage's transcript belongs to that stage.
+export const stageScope = (ordinal: number) => `stage:${ordinal}`;
+
+// [DOMAIN] The kinds of source a model reads (brief-sources.ts gives them).
+export const TEXT_SOURCE_KINDS = {
+  posting: "job-description",
+  employerSaid: "employer-said",
+  research: "research",
+  transcript: "transcript",
+} as const;
+
+// [DOMAIN] The sections a model files an extracted record under. The posting's
+// are the employer brief's own names, so a reader that knows a brief line by
+// its section knows an extracted one the same way.
+export const POSTING_SECTIONS = [
+  "mustHaves",
+  "niceToHaves",
+  "responsibilities",
+  "techStack",
+  "team",
+  "values",
+  "process",
+  "companyFacts",
+] as const;
+export const SAID_SECTIONS = ["process", "date", "constraint"] as const;
+export const RESEARCH_SECTIONS = [
+  "company",
+  "product",
+  "people",
+  "risk",
+  "questionsToAsk",
+] as const;
+
+// [DOMAIN] The extractors: what a model is asked to find in each kind of
+// source. The product writes the meaning here; the engine cuts the source to
+// the model's size, asks, checks every quote against the source and merges
+// what two pieces both found. A record whose quote is not in the source is
+// never kept, so nothing here can add a fact the source does not state.
+export const EXTRACTORS: readonly Extractor[] = [
+  {
+    id: "posting",
+    sourceKind: TEXT_SOURCE_KINDS.posting,
+    recordKinds: [KINDS.requirement, KINDS.employerFact],
+    instructions:
+      'This is a job posting. List what it says, one record for each separate thing, in the posting\'s own terms. Use kind "employer-requirement" for what it asks of a candidate ("section": "mustHaves" with "level": "must" when required, "niceToHaves" with "level": "nice" when preferred or a bonus), for what the person will do ("responsibilities") and for each technology it names ("techStack", one record a technology). Use kind "employer-fact" for the team ("team"), what the company values ("values"), the interview process ("process") and facts about the company ("companyFacts"). Keep each record to one sentence.',
+    fields: object(
+      {
+        section: { enum: [...POSTING_SECTIONS] },
+        level: { enum: ["must", "nice"] },
+      },
+      ["section"],
+    ),
+    themes: true,
+    answers: true,
+  },
+  {
+    id: "employer-said",
+    sourceKind: TEXT_SOURCE_KINDS.employerSaid,
+    recordKinds: [KINDS.employerFact],
+    instructions:
+      'This is something the employer or a recruiter told the candidate. List each fact it states, one record each: how the process runs ("section": "process"), a date or a deadline ("date"), or a rule or limit the candidate must keep to ("constraint"). Keep each record to one sentence.',
+    fields: object({ section: { enum: [...SAID_SECTIONS] } }, ["section"]),
+    themes: true,
+    answers: true,
+  },
+  {
+    id: "research",
+    sourceKind: TEXT_SOURCE_KINDS.research,
+    recordKinds: [KINDS.employerFact, KINDS.prep],
+    instructions:
+      'This is research a candidate gathered about an employer. List what it states, one record each, as kind "employer-fact": a fact about the company ("section": "company"), about what it builds or sells ("product"), about a person the candidate may meet ("people"), or something that could go wrong for the company or the role ("risk"). Where the text raises something worth asking the employer, give it as kind "prep-note" with "section": "questionsToAsk", worded as the question, and quote the words that raise it. Keep each record to one sentence.',
+    fields: object({ section: { enum: [...RESEARCH_SECTIONS] } }, ["section"]),
+    themes: true,
+    answers: true,
+  },
+  {
+    id: "transcript",
+    sourceKind: TEXT_SOURCE_KINDS.transcript,
+    recordKinds: [KINDS.asked, KINDS.answered, KINDS.signal, KINDS.commitment],
+    instructions:
+      'This is a transcript of one interview stage; each line begins with its time and its speaker. "Me" is the candidate. List, one record each: every question an interviewer asked the candidate (kind "stage-question": the question as asked, "askedBy" the speaker, "followUps" any follow-up questions on the same subject); what the candidate answered to it (kind "stage-answer": one sentence on what was said, "used" the employer or project the answer drew on, if it named one, "missing" what the answer left out that the question asked for, such as a figure); what the interviewer pressed on or said to expect later (kind "employer-signal": one sentence, "expect" what to prepare, "carriesTo" the later stage it was said about, by its name, if one was named); and anything the candidate promised to do or send (kind "stage-commitment"). Quote the speaker\'s own words.',
+    fields: object({
+      askedBy: text,
+      followUps: texts,
+      used: text,
+      missing: texts,
+      expect: text,
+      carriesTo: text,
+    }),
+    themes: true,
+    answers: true,
+  },
+];
+
+const PROJECTIONS_OF = [
+  projection(PROJECTIONS.coach, 3),
+  projection(PROJECTIONS.answer, 6),
+  projection(PROJECTIONS.inspect, 24),
+  DOCUMENT_PROJECTION,
+  BRIEFING_PROJECTION,
+];
+
+// The recipe a pack is PREPARED with when a model reads: the extractors and
+// every link step.
 export const INTERVIEW_CONTEXT_RECIPE: Recipe = {
   id: "interview-context",
-  version: "2",
+  version: "3",
   kinds: Object.fromEntries(Object.values(KINDS).map((kind) => [kind, {}])),
-  projections: [
-    projection(PROJECTIONS.coach, 3),
-    projection(PROJECTIONS.answer, 6),
-    projection(PROJECTIONS.inspect, 24),
+  extractors: EXTRACTORS,
+  links: [...CODE_LINKS, ...MODEL_LINKS],
+  projections: PROJECTIONS_OF,
+  aliases: ALIASES,
+};
+// [DOMAIN] The same recipe with no model in it: no extractor, and the model's
+// link steps declared (so a kept tie is still followed) but never asked. A
+// pack is prepared with this on every path a model must not be on: the live
+// coach, the view a person inspects, and every reader when no pack was
+// prepared.
+export const CODE_ONLY_RECIPE: Recipe = {
+  id: INTERVIEW_CONTEXT_RECIPE.id,
+  version: INTERVIEW_CONTEXT_RECIPE.version,
+  kinds: INTERVIEW_CONTEXT_RECIPE.kinds,
+  links: [
+    ...CODE_LINKS,
+    ...MODEL_LINKS.map(({ instructions: _asked, ...step }) => step),
   ],
+  projections: PROJECTIONS_OF,
   aliases: ALIASES,
 };
 

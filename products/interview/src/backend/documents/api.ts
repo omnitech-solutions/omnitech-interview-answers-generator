@@ -8,6 +8,7 @@ import {
 import { type PlatformDatabase, withTenant } from "@omnitech/database";
 import {
   candidacyContextSchema,
+  candidateMatrixSchema,
   type DocumentField,
   type DocumentFieldError,
   documentBlocks,
@@ -32,6 +33,11 @@ import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
 import { promptMessages } from "../ai-messages";
 import { readBrief } from "../brief/repository";
 import { registerBriefRoutes } from "../brief/routes";
+import type { ApplicationPacks } from "../context-pack/application";
+import {
+  type PackRoutesOptions,
+  registerPackRoutes,
+} from "../context-pack/routes";
 import { createInFlight, linkedAbort, ndjsonResponse } from "../work-guards";
 import { builtInAssetUrl } from "./built-in-assets";
 import { type BuiltInKey, builtInTemplates } from "./built-in-templates";
@@ -369,6 +375,17 @@ export function createDocumentsApi(options: {
   // Where the Studio's own transcript recordings are, for attaching one to
   // an interview stage. Absent: none are offered.
   recordingsDirectory?: string;
+  // The context pack of an application (context-pack/routes.ts): where the
+  // engine keeps prepared packs, the profile a preparation reads with, and
+  // the member's experience matrix.
+  packs?: PackRoutesOptions["packs"];
+  packProfile?: PackRoutesOptions["packProfile"];
+  loadMatrix?: PackRoutesOptions["loadMatrix"];
+  // What a writing call is given of the application's prepared pack (the
+  // employer's requirements with the evidence for each, and the cast roles'
+  // achievements whole). Absent, or with no pack prepared: a document is
+  // written from the matrix alone, as before.
+  applicationPacks?: Pick<ApplicationPacks, "forDocument">;
 }) {
   const config = options.config ?? DEFAULT_DOCUMENTS_CONFIG;
   const app = new Hono<{ Variables: { documentScope: DocumentScope } }>();
@@ -486,6 +503,45 @@ export function createDocumentsApi(options: {
     prefix,
     recordingsDirectory: options.recordingsDirectory,
   });
+  // The application's context pack: its review, its preparation by a model
+  // and its corrections, behind the same guard (context-pack/routes.ts).
+  registerPackRoutes(app, {
+    database: options.database,
+    prefix,
+    engine: options.engine,
+    packs: options.packs,
+    packProfile: options.packProfile,
+    loadMatrix: options.loadMatrix,
+  });
+  // [DOMAIN] The pack a writing call reads: for the application the
+  // document is for, the roles it was cast with. The cast and the
+  // verification are untouched (cast.ts, verify.ts); the pack adds which
+  // achievement is evidence for which requirement, and where the gaps are.
+  async function packFor(
+    scope: DocumentScope,
+    input: {
+      candidacyId: string | null;
+      profileId: string;
+      profileRevision: number;
+      matrix: unknown;
+      cast: DocumentCast | null | undefined;
+      signal: AbortSignal;
+    },
+  ) {
+    if (!options.applicationPacks || !input.candidacyId) return null;
+    const matrix = candidateMatrixSchema.safeParse(input.matrix);
+    if (!matrix.success) return null;
+    const roles = input.cast
+      ? [...new Set(Object.values(input.cast.slots).flat())]
+      : undefined;
+    return options.applicationPacks.forDocument(scope, {
+      candidacyId: input.candidacyId,
+      matrix: matrix.data,
+      profile: { id: input.profileId, revision: input.profileRevision },
+      ...(roles ? { roles } : {}),
+      signal: input.signal,
+    });
+  }
   async function contextFor(
     scope: DocumentScope,
     input: Parameters<typeof resolveDocumentContext>[1],
@@ -1335,6 +1391,14 @@ export function createDocumentsApi(options: {
             ? { kind: "candidacy", id: input.candidacyId }
             : { kind: "document-template", id: input.templateId },
           cast,
+          pack: await packFor(scope, {
+            candidacyId: input.candidacyId ?? null,
+            profileId: input.profileId,
+            profileRevision: input.profileRevision,
+            matrix: candidate.candidateProfile,
+            cast,
+            signal,
+          }),
           privateKeys: candidate.privateKeys,
           templateId: input.templateId,
           templateRevision: input.templateRevision,
@@ -1638,6 +1702,14 @@ export function createDocumentsApi(options: {
         request: executionFromHeaders(c.req.raw.headers),
         for: { kind: "document", id },
         cast: state.cast,
+        pack: await packFor(scope, {
+          candidacyId: current.document.candidacyId,
+          profileId: current.document.profileId,
+          profileRevision: current.document.profileRevision,
+          matrix: candidate.candidateProfile,
+          cast: state.cast,
+          signal: c.req.raw.signal,
+        }),
         privateKeys: candidate.privateKeys,
         blockKeys: current.fields
           .filter((field) => field.group)

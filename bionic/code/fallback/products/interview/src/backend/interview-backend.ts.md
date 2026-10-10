@@ -2,4 +2,5 @@
 
 _Source: `products/interview/src/backend/interview-backend.ts` (header-comment fallback)_
 
-The run queue's own connection (pg-boss opens it).
+The member's experience matrix at its latest revision: what a context
+pack's achievements are composed from.

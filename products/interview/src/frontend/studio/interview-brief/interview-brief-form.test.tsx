@@ -42,6 +42,10 @@ const client = vi.hoisted(() => ({
   removeResearch: vi.fn(),
 }));
 vi.mock("./interview-brief-client", () => ({ interviewBriefClient: client }));
+// The context pack's card has its own suite (pack-review.test.tsx). Here it
+// is a stub that records what the form hands it.
+const packSection = vi.hoisted(() => vi.fn((_props: unknown) => null));
+vi.mock("./pack-review", () => ({ PackReviewSection: packSection }));
 
 const ID = "22222222-2222-4222-8222-222222222222";
 const FIRST = "33333333-3333-4333-8333-333333333331";
@@ -137,12 +141,30 @@ const open = (label: string) => fireEvent.click(screen.getByText(label));
 
 beforeEach(() => {
   for (const each of Object.values(client)) each.mockReset();
+  packSection.mockClear();
 });
 afterEach(() => {
   cleanup();
 });
 
 describe("reading the interview", () => {
+  it("mounts the context pack's card for its application, held while the form is busy", async () => {
+    await show();
+    expect(packSection).toHaveBeenLastCalledWith(
+      { candidacyId: ID, disabled: false },
+      undefined,
+    );
+    // A write in flight holds the card's controls with the form's own.
+    client.addStage.mockReturnValueOnce(new Promise(() => undefined));
+    typeIn("ib-stage-new-label", "Final");
+    click("ib-stage-add");
+    await settle();
+    expect(packSection).toHaveBeenLastCalledWith(
+      { candidacyId: ID, disabled: true },
+      undefined,
+    );
+  });
+
   it("reads the application's brief once and shows each stage as its own section", async () => {
     await show(
       brief({

@@ -1,6 +1,7 @@
 // The interview brief as sources, in code and with no engine: how text is
 // cut into records, what each part becomes, what a stage reads, and what may
 // leave this machine. Every name and figure is invented.
+import { createAiEngine } from "@omnitech/ai-engine";
 import { describe, expect, it } from "vitest";
 import type { BriefMaterial } from "../brief/repository";
 import {
@@ -15,6 +16,7 @@ import {
 } from "./brief-sources";
 import { MATRIX, PROFILE } from "./fixture";
 import { linksOf } from "./links";
+import { prepareContextPack } from "./pack";
 import { KINDS } from "./recipe";
 import { matrixSource } from "./sources";
 
@@ -269,6 +271,71 @@ describe("links, made after the scope", () => {
 });
 
 describe("what may leave this machine", () => {
+  // [SAFETY] The pack itself keeps the rule, whoever reads it: a remote
+  // prompt (the default) never holds a device-only transcript's turns or
+  // what a model extracted from it; the person's own screen holds both.
+  it("is kept by the pack: a device-only transcript is read only on the device", async () => {
+    const id = `stage:${stage(1).id}:transcript:t1`;
+    const sources = briefSources(
+      material({
+        stages: [
+          stage(1, {
+            transcripts: [
+              {
+                id: "t1",
+                title: "Call",
+                origin: "recorded",
+                capturePolicy: "device-only",
+                occurredAt: null,
+                sha256: "1".repeat(64),
+                text: "Dana: tell me about the ledger migration",
+              },
+            ],
+          }),
+        ],
+      }),
+    );
+    const engine = createAiEngine({ profiles: [], providers: {} });
+    const execution = {
+      scope: { tenantId: "t", actorId: "a" },
+      signal: new AbortController().signal,
+    };
+    const onDevice = await prepareContextPack(engine, sources, execution, {
+      reader: "device",
+    });
+    const turn = onDevice.prepared.records.find(
+      (record) => record.source.id === id,
+    );
+    expect(turn).toBeDefined();
+    // A kept pack holding what a local model extracted from that transcript.
+    const kept = {
+      ...onDevice.prepared,
+      records: [
+        ...onDevice.prepared.records,
+        { ...turn!, id: "extracted-from-device-only", by: "model" as const },
+      ],
+    };
+    for (const options of [{}, { reader: "remote" as const }, { kept }]) {
+      const remote = await prepareContextPack(
+        engine,
+        sources,
+        execution,
+        options,
+      );
+      expect(
+        remote.prepared.records.filter((record) => record.source.id === id),
+      ).toEqual([]);
+      expect(JSON.stringify(remote.prepared)).not.toContain("ledger migration");
+    }
+    const shown = await prepareContextPack(engine, sources, execution, {
+      kept,
+      reader: "device",
+    });
+    expect(shown.prepared.records.map((record) => record.id)).toContain(
+      "extracted-from-device-only",
+    );
+  });
+
   it("is everything but a device-only transcript", () => {
     const sources = briefSources(
       material({

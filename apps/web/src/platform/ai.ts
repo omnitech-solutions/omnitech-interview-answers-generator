@@ -25,6 +25,11 @@ import {
 } from "@omnitech/platform-runtime/ai-config";
 import { engineLog } from "@omnitech/platform-runtime/ai-log";
 import {
+  AGENT_WINDOW,
+  enginePreparedStore,
+  type KeptPacks,
+} from "@omnitech/platform-runtime/ai-packs";
+import {
   AgentPayloadStore,
   agentPayloadSecret,
   PostgresAgentJobRepository,
@@ -362,6 +367,16 @@ function traceConfig(): TraceConfig | undefined {
  * profiles, the providers behind them, the model catalogues, the image
  * provider, agent jobs and the trace, all read from the environment once.
  */
+// [DOMAIN] Where prepared context packs are kept (ADR-0041): the engine's own
+// database when `AI_ENGINE_DATABASE_URL` names one, this server's memory
+// otherwise. One store for the life of the server: the engine keeps packs in
+// it, and the products read what it kept from the same place.
+let packs: KeptPacks | undefined;
+export function platformPreparedStore(): KeptPacks {
+  packs ??= enginePreparedStore();
+  return packs;
+}
+
 export function createPlatformAiEngine(): AiEngine {
   const providers: Record<string, ModelPort> = {};
   const catalogs: Record<string, ModelCatalog> = {};
@@ -436,6 +451,14 @@ export function createPlatformAiEngine(): AiEngine {
         locality: language.locality,
         timeoutMs: Math.min(language.timeoutMs, 3_600_000),
         capabilities,
+        // [DOMAIN] What the configured model holds, as the host knows it (the
+        // loaded context length for LM Studio, `ASSISTANT_CONTEXT_TOKENS`):
+        // what the engine cuts a source to when this profile prepares a
+        // context pack.
+        window: {
+          contextTokens: budget.contextTokens,
+          outputTokens: budget.outputTokens,
+        },
       }
     : undefined;
 
@@ -456,6 +479,9 @@ export function createPlatformAiEngine(): AiEngine {
       locality: "remote",
       timeoutMs: 120_000,
       capabilities,
+      // The hosted model reads a long source whole; its replies are capped
+      // by the provider's own output setting above.
+      window: { contextTokens: AGENT_WINDOW.contextTokens, outputTokens: 4096 },
       retry,
     });
   else if (languageProfile)
@@ -510,6 +536,8 @@ export function createPlatformAiEngine(): AiEngine {
       label: "LM Studio",
       provider: LM_STUDIO_MODELS,
       catalog: true,
+      // No window is declared: a catalogue model's is what LM Studio reports
+      // it was LOADED with, which the engine reads from the catalogue.
       // Declared by the environment, never inferred (rule:declared-profile-
       // locality): the configured model's own declaration, else LM Studio's.
       locality:
@@ -531,6 +559,8 @@ export function createPlatformAiEngine(): AiEngine {
       label: "OpenRouter · free",
       provider: OPENROUTER_MODELS,
       catalog: true,
+      // No window is declared: each model's is the context length OpenRouter
+      // lists for it, which the engine reads from the catalogue.
     });
   }
 
@@ -559,6 +589,8 @@ export function createPlatformAiEngine(): AiEngine {
       provider: AGENT_JOBS,
       kind: "agent",
       catalog: true,
+      // Claude Code and Codex hold a whole posting or transcript in one call.
+      window: AGENT_WINDOW,
     });
   }
 
@@ -586,6 +618,9 @@ export function createPlatformAiEngine(): AiEngine {
     images: { [images.providerId]: images },
     ...(jobs ? { jobs } : {}),
     ...(trace ? { trace } : {}),
+    // Prepared context packs are kept here, and re-prepared only where a
+    // source changed.
+    prepared: platformPreparedStore().store,
     log,
     // [SAFETY] Only a member holding a product's read permission may use a
     // profile; the caller's permissions travel on the execution.

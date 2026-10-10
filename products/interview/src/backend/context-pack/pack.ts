@@ -9,7 +9,13 @@
 // for one question under a named projection: pure, repeatable, and every
 // record left out carries its reason.
 import { createHash } from "node:crypto";
-import type { AiEngine, Prepared, Resolved, Source } from "@omnitech/ai-engine";
+import type {
+  AiEngine,
+  ContextLink,
+  Prepared,
+  Resolved,
+  Source,
+} from "@omnitech/ai-engine";
 import type {
   CandidateMatrix,
   ContextView,
@@ -17,19 +23,22 @@ import type {
 } from "@omnitech/interview-contracts";
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
 import type { SessionContext } from "../live-session/session-context";
-import { withSessionBrief } from "./brief-sources";
-import { linkSources, linksOf, roleOf } from "./links";
+import { remoteSources, withSessionBrief } from "./brief-sources";
+import { withKept } from "./kept";
+import { givenLinks, linkSources, linksOf, roleOf } from "./links";
 import {
   ABOUT,
+  CODE_ONLY_RECIPE,
   type ContextKind,
   DOMINATES,
   EVIDENCE_PLACES,
-  INTERVIEW_CONTEXT_RECIPE,
   KINDS,
   keyTerms,
+  LINKS,
   type ProjectionId,
   SPEAKS_FOR,
   sameAs,
+  stageScope,
   wordsOf,
 } from "./recipe";
 import { briefSource, matrixSource, preferencesSource } from "./sources";
@@ -51,7 +60,12 @@ export type PackFact = {
 };
 
 export type ContextPack = {
+  // What the pack selects from: today's material and, when a model prepared
+  // the application, what it extracted and tied that still stands.
   prepared: Prepared;
+  // Requirements a model found no evidence for, each tied to the nearest
+  // achievement with what is missing. Never followed as evidence.
+  gaps: readonly ContextLink[];
   // The selection for one question. `spoken` is what was said, as it was
   // said; an empty one selects by priority alone.
   resolve(
@@ -70,6 +84,21 @@ export type ContextPack = {
 
 // The projection view (ADR-0038), as the browser contract states it.
 export type PackView = ContextView;
+
+// [DOMAIN] Where a fact is. The person's own material is addressed by its
+// place in it ("/roles/3/proof_points/1"), which the windows open. A record a
+// model extracted is addressed by its source and the place of the words it
+// rests on ("research:<id>@chars:120-180"), since two sources both have a
+// character 120.
+const pointerOf = (
+  source: Prepared["records"][number]["source"],
+  recordId: string,
+): string =>
+  source.locator === undefined
+    ? recordId
+    : source.quote === undefined
+      ? source.locator
+      : `${source.id}@${source.locator}`;
 
 export class ContextPackError extends Error {
   constructor(readonly reason: string) {
@@ -137,6 +166,48 @@ export function sessionSources(context: SessionContext): Source[] {
   return withSessionBrief(sources, context);
 }
 
+// What a pack is made with beside its sources.
+export type PackOptions = {
+  // The application's pack as a model prepared it (prepare.ts), when one is
+  // kept: its extracted records and its ties are read with today's material
+  // wherever the source they rest on has not changed since (kept.ts).
+  kept?: Prepared | undefined;
+  // The stage resolved for, by its place. What a model extracted from a
+  // stage's transcript belongs to that stage: this stage's leads, an earlier
+  // stage's follows, a later stage's is left out (the engine's scope).
+  stage?: number | undefined;
+  // [SAFETY] Where what the pack selects is read. "remote" (the default: fail
+  // closed) is a prompt sent to a model that does not run on this machine,
+  // so a device-only source is left out before anything is prepared, with
+  // everything a model extracted from it. "device" is the person's own
+  // screen, which shows all of it.
+  reader?: "device" | "remote" | undefined;
+};
+
+// A kept pack without what rests on the sources named: their records, and
+// every tie that touches one.
+function withoutSources(
+  kept: Prepared,
+  withheld: readonly { id: string }[],
+): Prepared {
+  if (withheld.length === 0) return kept;
+  const left = new Set(withheld.map((source) => source.id));
+  const records = kept.records.filter((record) => !left.has(record.source.id));
+  const seen = new Set(records.map((record) => record.id));
+  return {
+    ...kept,
+    sources: kept.sources.filter((source) => !left.has(source.id)),
+    records,
+    ...(kept.links
+      ? {
+          links: kept.links.filter(
+            (link) => seen.has(link.from) && seen.has(link.to),
+          ),
+        }
+      : {}),
+  };
+}
+
 export async function prepareContextPack(
   engine: ContextEngine,
   sources: readonly Source[],
@@ -145,10 +216,26 @@ export async function prepareContextPack(
     signal: AbortSignal;
     for?: { kind: string; id: string };
   },
+  options: PackOptions = {},
 ): Promise<ContextPack> {
-  const recipe = INTERVIEW_CONTEXT_RECIPE;
+  // [SAFETY] No model is on this path, whatever the sources hold: the recipe
+  // has no extractor and asks for no tie, and a source's raw text is not
+  // passed. A pack is prepared by a model only in prepare.ts.
+  const recipe = CODE_ONLY_RECIPE;
+  const { sendable, withheld } =
+    options.reader === "device"
+      ? { sendable: [...sources], withheld: [] }
+      : remoteSources(sources);
+  const given = sendable.map(
+    ({ text: _text, pieces: _pieces, ...source }) => source,
+  );
   const result = await engine.context.prepare(
-    { sources, recipe },
+    {
+      sources: given,
+      recipe,
+      // The ties made in code (links.ts), for the engine to check and keep.
+      links: givenLinks(given.flatMap((source) => source.records ?? [])),
+    },
     {
       scope: { ...execution.scope, productId: INTERVIEW_PRODUCT_ID },
       permissions: ["interview.read"],
@@ -159,7 +246,29 @@ export async function prepareContextPack(
   // [GUARD] Material the recipe does not know is refused whole, naming what
   // was wrong: nothing is dropped silently.
   if (!result.ok) throw new ContextPackError(result.failure.reason);
-  const { prepared } = result;
+  const merged = options.kept
+    ? withKept(result.prepared, withoutSources(options.kept, withheld))
+    : result.prepared;
+  // [SAFETY] A gap is a requirement with NO evidence: its tie says what is
+  // missing and is never followed, or the nearest achievement would be
+  // offered as the experience the person lacks.
+  const isGap = (link: ContextLink) =>
+    link.step === LINKS.fit && link.fields?.["strength"] === "gap";
+  const gaps = (merged.links ?? []).filter(isGap);
+  const prepared: Prepared = merged.links
+    ? { ...merged, links: merged.links.filter((link) => !isGap(link)) }
+    : merged;
+  const stage = options.stage;
+  const scope =
+    stage === undefined
+      ? undefined
+      : {
+          is: stageScope(stage),
+          // The nearest earlier stage first.
+          earlier: Array.from({ length: stage - 1 }, (_, at) =>
+            stageScope(stage - 1 - at),
+          ),
+        };
 
   const select = (
     projection: ProjectionId,
@@ -172,6 +281,7 @@ export async function prepareContextPack(
       projection,
       ...(query ? { query } : {}),
       ...(overrides ? { overrides } : {}),
+      ...(scope ? { scope } : {}),
     });
     if (!resolved.ok) throw new ContextPackError(resolved.failure.reason);
     return resolved.resolved;
@@ -193,6 +303,14 @@ export async function prepareContextPack(
         put(onTechnology, technology.toLowerCase(), record.id);
   }
 
+  // A model's ties by the step and the record they are from.
+  const tiedFrom = new Map<string, ContextLink[]>();
+  for (const link of prepared.links ?? []) {
+    if (link.by !== "model") continue;
+    const key = `${link.step}\n${link.from}`;
+    tiedFrom.set(key, [...(tiedFrom.get(key) ?? []), link]);
+  }
+
   // [DOMAIN] How strongly an achievement is tied to what leads the other
   // slots (recipe.ts, rule 1). The record that leads its slot speaks for the
   // question: a note found in passing, third in its slot, names nothing.
@@ -202,6 +320,9 @@ export async function prepareContextPack(
     person: readonly string[],
     // The words the question came to.
     asked: readonly string[],
+    // Filled here: how strongly a model tied each achievement to a line that
+    // leads its slot (2 or 1).
+    fits: Map<string, number>,
   ): Map<string, number> => {
     const tiers = new Map<string, number>();
     const raise = (ids: readonly string[], tier: number) => {
@@ -209,14 +330,53 @@ export async function prepareContextPack(
         if (byId.get(id)?.kind === KINDS.achievement)
           tiers.set(id, Math.max(tier, tiers.get(id) ?? 0));
     };
-    const leading = (slot: string) => {
-      const fact = resolved.selected.find((each) => each.slot === slot);
+    const leader = (slot: string) => {
+      // The line that leads its slot. Among questions asked before, a stage's
+      // own come first whatever they match (the engine's scope), so the one
+      // that speaks for the question is the one that matches it best.
+      const of = resolved.selected.filter((each) => each.slot === slot);
+      const fact =
+        slot === "asked"
+          ? [...of].sort((a, b) => b.score.words - a.score.words)[0]
+          : of[0];
       // One shared word is in passing: such a line links nothing.
       if (!fact || fact.score.words < Math.min(SPEAKS_FOR, asked.length))
         return undefined;
-      const record = byId.get(fact.recordId);
+      return byId.get(fact.recordId);
+    };
+    const leading = (slot: string) => {
+      const record = leader(slot);
       return record && linksOf(record);
     };
+    // [DOMAIN] What a MODEL tied to the line that leads its slot (recipe.ts,
+    // LINKS) is an inference, one step away from the question: the note or
+    // requirement was found by a word of the question, and what a model tied
+    // to it need not share any. The person's own words outrank it: a note
+    // that names its proof, a story they chose. So a model's tie never
+    // outranks an achievement that answers the question itself. It breaks a
+    // tie (of two equal matches the tied one comes first: a note's proof, a
+    // primary story and strong evidence before a backup story and partial
+    // evidence), and it keeps the achievement in the ranking though it shares
+    // no word with the question.
+    for (const [slot, step, strength] of [
+      ["prep", LINKS.proof, () => 2],
+      [
+        "asked",
+        LINKS.story,
+        (link: ContextLink) => (link.fields?.["rank"] === "backup" ? 1 : 2),
+      ],
+      [
+        "requirements",
+        LINKS.fit,
+        (link: ContextLink) => (link.fields?.["strength"] === "strong" ? 2 : 1),
+      ],
+    ] as const) {
+      const from = leader(slot)?.id;
+      if (!from) continue;
+      for (const link of tiedFrom.get(`${step}\n${from}`) ?? [])
+        if (byId.get(link.to)?.kind === KINDS.achievement)
+          fits.set(link.to, Math.max(fits.get(link.to) ?? 0, strength(link)));
+    }
     for (const links of [leading("stories"), leading("prep")]) {
       if (!links) continue;
       raise(links.achievements, 3);
@@ -229,8 +389,9 @@ export async function prepareContextPack(
     // Node; NestJS preferred"). The ones the question itself says are the
     // ones it is about; when it says none of them ("event-driven" for a
     // requirement that names Kafka), every one of them bears on it.
-    const required = leading("requirements");
-    if (required) {
+    const stack = leading("requirements");
+    if (stack) {
+      const required = stack;
       const said = new Set(asked);
       const says = (technology: string) =>
         wordsOf(technology).every((word) =>
@@ -276,6 +437,10 @@ export async function prepareContextPack(
     projection: ProjectionId,
     resolved: Resolved,
     tiers: ReadonlyMap<string, number>,
+    fits: ReadonlyMap<string, number>,
+    // Whether anything was asked: with no question nothing is left out for
+    // sharing no word with it.
+    asked: boolean,
   ): Resolved => {
     const plan = EVIDENCE_PLACES[projection];
     const ranked = resolved.selected.filter((fact) => fact.slot === "evidence");
@@ -283,18 +448,36 @@ export async function prepareContextPack(
     const tier = (fact: { recordId: string }) => tiers.get(fact.recordId) ?? 0;
     // Rule 1: linked first. What a note or story is linked to is one group:
     // within it the better match for the question leads, and of two equal
-    // matches the one whose figure the note states. The sort is stable, so
-    // the engine's order stands wherever these rules say nothing.
+    // matches the one whose figure the note states. Everywhere else the
+    // order is the engine's own for an untied record: the better match, then
+    // the record's priority, then its id.
     const NAMED = 2;
     const group = (fact: { recordId: string }) =>
       tier(fact) === PERSON ? PERSON : Math.min(tier(fact), NAMED);
-    const ordered = [...ranked].sort(
-      (a, b) =>
-        group(b) - group(a) ||
-        (group(a) === NAMED
-          ? b.score.words - a.score.words || tier(b) - tier(a)
-          : 0),
-    );
+    // [DOMAIN] The engine keeps every achievement tied to ANYTHING the
+    // earlier slots selected. Only what the LEADING line of a slot is tied to
+    // speaks for the question, and a requirement's technologies only when
+    // nothing stronger does: any other achievement that shares no word with
+    // the question is left out, as it always was.
+    const least = [...tiers.values()].some(
+      (each) => each >= NAMED && each < PERSON,
+    )
+      ? NAMED
+      : 1;
+    const fit = (fact: { recordId: string }) => fits.get(fact.recordId) ?? 0;
+    const bears = (fact: Resolved["selected"][number]) =>
+      !asked || fact.score.words > 0 || tier(fact) >= least || fit(fact) > 0;
+    const ordered = ranked
+      .filter(bears)
+      .sort(
+        (a, b) =>
+          group(b) - group(a) ||
+          b.score.words - a.score.words ||
+          (group(a) === NAMED ? tier(b) - tier(a) : 0) ||
+          fit(b) - fit(a) ||
+          b.score.priority - a.score.priority ||
+          (a.recordId < b.recordId ? -1 : a.recordId > b.recordId ? 1 : 0),
+      );
     const roleFor = (fact: { recordId: string }) => {
       const record = byId.get(fact.recordId);
       return (record && roleOf(record)) ?? fact.recordId;
@@ -346,12 +529,16 @@ export async function prepareContextPack(
           .map((fact) => ({
             recordId: fact.recordId,
             slot: "evidence",
-            reason: "limit" as const,
+            reason: bears(fact) ? ("limit" as const) : ("relevance" as const),
           })),
       ],
       resolutions: resolved.resolutions.map((resolution) =>
         resolution.of === "slot" && resolution.subject === "evidence"
-          ? { ...resolution, recordIds: chosen.map((fact) => fact.recordId) }
+          ? {
+              ...resolution,
+              state: chosen.length > 0 ? resolution.state : "no-such-fact",
+              recordIds: chosen.map((fact) => fact.recordId),
+            }
           : resolution,
       ),
       meta: {
@@ -420,29 +607,52 @@ export async function prepareContextPack(
     // [DOMAIN] What the leading note, story or requirement is linked to is
     // ranked before everything else, whether or not it shares a word with
     // the question: the note that answers "NestJS" names the employer, and
-    // the employer's record never says "NestJS". The engine ranks a pinned
-    // record first and never drops it for relevance, which is what a link
-    // needs; a person's own pins stay ahead of any link (rule 1).
-    const tiers = tiersFor(base, person, query.split(" "));
-    const tied = (least: number) =>
-      [...tiers].flatMap(([id, tier]) =>
-        tier >= least && tier < PERSON ? [id] : [],
+    // the employer's record never says "NestJS". The evidence slot FOLLOWS
+    // the ties (recipe.ts), so the engine keeps a tied achievement in its
+    // ranking; the places are then filled by the recipe's rules (`arrange`).
+    const fits = new Map<string, number>();
+    const tiers = tiersFor(base, person, query.split(" "), fits);
+    let found = base;
+    if (asked !== query) {
+      const own = select(projection, asked, overrides);
+      // What the question's own selection is tied to stays, though the
+      // story's words selected other notes.
+      const had = new Set(
+        own.selected
+          .filter((fact) => fact.slot === "evidence")
+          .map((fact) => fact.recordId),
       );
-    // A named employer or a stated figure decides alone; a requirement's
-    // technologies are followed only when nothing stronger is linked.
-    const linked = query ? (tied(2).length > 0 ? tied(2) : tied(1)) : [];
-    const found =
-      asked === query && linked.length === 0
-        ? base
-        : withOwn(
-            projection,
-            base,
-            select(projection, asked, {
-              ...overrides,
-              pinned: [...person, ...linked],
-            }),
-          );
-    const first = arrange(projection, found, tiers);
+      const tied = base.selected.filter(
+        (fact) =>
+          fact.slot === "evidence" &&
+          !had.has(fact.recordId) &&
+          ((tiers.get(fact.recordId) ?? 0) > 0 || fits.has(fact.recordId)),
+      );
+      const wide = withOwn(projection, base, own);
+      const at = wide.selected.findIndex((fact) => fact.slot === "evidence");
+      found =
+        tied.length === 0
+          ? wide
+          : {
+              ...wide,
+              selected:
+                at < 0
+                  ? [...wide.selected, ...tied]
+                  : [
+                      ...wide.selected.slice(0, at),
+                      ...tied,
+                      ...wide.selected.slice(at),
+                    ],
+              excluded: wide.excluded.filter(
+                (each) =>
+                  !(
+                    each.slot === "evidence" &&
+                    tied.some((fact) => fact.recordId === each.recordId)
+                  ),
+              ),
+            };
+    }
+    const first = arrange(projection, found, tiers, fits, query !== "");
     // [DOMAIN] A question nothing in the material answers by its words
     // ("tell me about yourself") is still about the person: their recent
     // roles are offered, chosen by recency alone and marked as that slot.
@@ -476,7 +686,7 @@ export async function prepareContextPack(
     const kind = selected.kind as ContextKind;
     return {
       id: selected.recordId,
-      pointer: selected.source.locator ?? selected.recordId,
+      pointer: pointerOf(selected.source, selected.recordId),
       text: selected.text,
       kind,
       about: ABOUT[kind] ?? "employer",
@@ -486,6 +696,7 @@ export async function prepareContextPack(
   };
   return {
     prepared,
+    gaps,
     resolve,
     facts: (projection, spoken) =>
       resolve(projection, spoken).selected.map(toFact),
@@ -504,7 +715,7 @@ export async function prepareContextPack(
           return [
             {
               id: recordId,
-              pointer: record.source.locator ?? recordId,
+              pointer: pointerOf(record.source, recordId),
               text: record.text,
               kind,
               about: ABOUT[kind] ?? "employer",

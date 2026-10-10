@@ -4,14 +4,22 @@
 import { describe, expect, it } from "vitest";
 import {
   ABOUT,
+  CODE_ONLY_RECIPE,
   DOMINATES,
   EVIDENCE_PLACES,
+  EXTRACTORS,
+  FIT_STRENGTHS,
   INTERVIEW_CONTEXT_RECIPE,
   KINDS,
   keyTerms,
+  LINKS,
+  POSTING_SECTIONS,
   PROJECTIONS,
+  RESEARCH_SECTIONS,
+  SAID_SECTIONS,
   SPEAKS_FOR,
   sameAs,
+  TEXT_SOURCE_KINDS,
   wordsOf,
 } from "./recipe";
 
@@ -94,6 +102,12 @@ describe("the kinds of fact", () => {
       "prep-note": "employer",
       // A raw turn of a transcript: never the candidate's approved record.
       "transcript-turn": "employer",
+      // What was said in a stage, read from its transcript: a record of the
+      // conversation, and never the candidate's approved record.
+      "stage-question": "employer",
+      "stage-answer": "employer",
+      "employer-signal": "employer",
+      "stage-commitment": "employer",
     });
   });
 
@@ -141,7 +155,10 @@ describe("the projections", () => {
     period: 0,
   };
   const ROLE = { technologies: 3, company: 3, tags: 2, text: 1 };
-  const HEADED = { heading: 3, text: 1 };
+  // A record a model extracted is found by its search words and the
+  // questions it answers, as a line is by its heading.
+  const HEADED = { heading: 3, answers: 3, themes: 2, text: 1 };
+  const FOLLOWED = ["names", "tells", "stack", "fit", "proof", "story"];
   const slotsOf = (other: number) => [
     ...EXACT,
     {
@@ -152,15 +169,52 @@ describe("the projections", () => {
       maxChars: 400,
     },
     {
+      id: "requirements",
+      mode: "ranked",
+      kind: KINDS.requirement,
+      limit: other,
+      maxChars: 400,
+      weights: { ...HEADED, technologies: 3 },
+      share: 0.15,
+    },
+    {
+      id: "prep",
+      mode: "ranked",
+      kind: KINDS.prep,
+      limit: other,
+      maxChars: 400,
+      weights: HEADED,
+    },
+    // What an earlier stage asked and said to expect.
+    {
+      id: "asked",
+      mode: "ranked",
+      kind: KINDS.asked,
+      limit: other,
+      maxChars: 400,
+      weights: HEADED,
+    },
+    {
+      id: "signals",
+      mode: "ranked",
+      kind: KINDS.signal,
+      limit: other,
+      maxChars: 400,
+      weights: HEADED,
+    },
+    {
       id: "evidence",
       mode: "ranked",
       kind: KINDS.achievement,
-      // The engine ranks all that bears on a question; the projection's
-      // places are filled from that (EVIDENCE_PLACES).
-      limit: 60,
+      // The engine ranks every achievement that bears on a question or is
+      // tied to what the slots above selected; the projection's places are
+      // filled from that (EVIDENCE_PLACES). It comes AFTER the slots whose
+      // ties it follows.
+      limit: 400,
       maxChars: 400,
       weights: EVIDENCE,
       share: 0.6,
+      follow: FOLLOWED,
     },
     {
       id: "roles",
@@ -179,15 +233,6 @@ describe("the projections", () => {
       weights: HEADED,
     },
     {
-      id: "requirements",
-      mode: "ranked",
-      kind: KINDS.requirement,
-      limit: other,
-      maxChars: 400,
-      weights: { ...HEADED, technologies: 3 },
-      share: 0.15,
-    },
-    {
       id: "employer",
       mode: "ranked",
       kind: KINDS.employerFact,
@@ -196,27 +241,79 @@ describe("the projections", () => {
       weights: HEADED,
       share: 0.15,
     },
-    {
-      id: "prep",
-      mode: "ranked",
-      kind: KINDS.prep,
-      limit: other,
-      maxChars: 400,
-      weights: HEADED,
-    },
   ];
 
-  it("are the coach's, an answer's and the one a person inspects", () => {
+  it("are the coach's, an answer's, the one a person inspects, a document's and a briefing's", () => {
     expect(PROJECTIONS).toEqual({
       coach: "coach",
       answer: "answer",
       inspect: "inspect",
+      document: "document",
+      briefing: "briefing",
     });
-    expect(INTERVIEW_CONTEXT_RECIPE.projections.map(({ id }) => id)).toEqual([
-      "coach",
-      "answer",
-      "inspect",
+    for (const recipe of [INTERVIEW_CONTEXT_RECIPE, CODE_ONLY_RECIPE])
+      expect(recipe.projections.map(({ id }) => id)).toEqual([
+        "coach",
+        "answer",
+        "inspect",
+        "document",
+        "briefing",
+      ]);
+  });
+
+  const slotIds = (id: string) =>
+    INTERVIEW_CONTEXT_RECIPE.projections
+      .find((projection) => projection.id === id)
+      ?.slots.filter((slot) => slot.mode !== "exact")
+      .map((slot) => [slot.id, slot.kind, slot.limit]);
+
+  it("give a document every role and every achievement whole, with what the employer asks for", () => {
+    expect(slotIds("document")).toEqual([
+      ["requirements", KINDS.requirement, 40],
+      ["roles", KINDS.role, 40],
+      ["evidence", KINDS.achievement, 400],
     ]);
+    const evidence = INTERVIEW_CONTEXT_RECIPE.projections
+      .find((projection) => projection.id === "document")
+      ?.slots.find((slot) => slot.id === "evidence");
+    // Whole: an achievement a note would find too long is still given.
+    expect(evidence?.maxChars).toBe(1200);
+    expect(evidence?.follow).toEqual(FOLLOWED);
+  });
+
+  it("give a briefing one stage: the people, the fit, the notes, and what earlier stages asked, answered and promised", () => {
+    expect(slotIds("briefing")).toEqual([
+      ["people", KINDS.employerFact, 16],
+      ["stories", KINDS.story, 4],
+      ["requirements", KINDS.requirement, 16],
+      ["prep", KINDS.prep, 16],
+      ["asked", KINDS.asked, 16],
+      ["signals", KINDS.signal, 8],
+      ["answered", KINDS.answered, 8],
+      ["commitments", KINDS.commitment, 8],
+      ["evidence", KINDS.achievement, 400],
+      ["employer", KINDS.employerFact, 16],
+    ]);
+    const people = INTERVIEW_CONTEXT_RECIPE.projections
+      .find((projection) => projection.id === "briefing")
+      ?.slots.find((slot) => slot.id === "people");
+    expect(people?.where).toEqual([
+      { field: "section", op: "equals", value: "stageDetails" },
+    ]);
+  });
+
+  it("put a slot of evidence after every slot whose ties it follows, in every projection", () => {
+    const from = new Set<string>([
+      KINDS.prep,
+      KINDS.story,
+      KINDS.requirement,
+      KINDS.asked,
+    ]);
+    for (const projection of INTERVIEW_CONTEXT_RECIPE.projections) {
+      const at = projection.slots.findIndex((slot) => slot.id === "evidence");
+      for (const [index, slot] of projection.slots.entries())
+        if (from.has(slot.kind)) expect(index, projection.id).toBeLessThan(at);
+    }
   });
 
   it.each([
@@ -239,6 +336,9 @@ describe("the projections", () => {
       coach: { places: 4, roles: 2, lead: 3 },
       answer: { places: 6, roles: 2, lead: 4 },
       inspect: { places: 60 },
+      // Not arranged by role either: a document and a briefing read all.
+      document: { places: 400 },
+      briefing: { places: 24 },
     });
     // The primary role leads, and never takes every place of two.
     for (const plan of Object.values(EVIDENCE_PLACES))
@@ -266,12 +366,222 @@ describe("the projections", () => {
   it("is versioned configuration", () => {
     expect(INTERVIEW_CONTEXT_RECIPE).toMatchObject({
       id: "interview-context",
-      version: "2",
+      version: "3",
     });
     expect(INTERVIEW_CONTEXT_RECIPE.aliases).toMatchObject({
       salary: expect.arrayContaining(["compensation", "pay"]),
       postgres: ["postgresql"],
     });
+  });
+});
+
+describe("what a model is asked to extract", () => {
+  const extractor = (id: string) => {
+    const found = EXTRACTORS.find((each) => each.id === id);
+    if (!found) throw new Error(`No extractor "${id}".`);
+    return found;
+  };
+  const fieldsOf = (id: string) =>
+    extractor(id).fields as {
+      additionalProperties: boolean;
+      required: string[];
+      properties: Record<string, { enum?: string[]; type?: string }>;
+    };
+
+  it("is one extractor for each kind of source a model reads, and the recipe declares exactly those", () => {
+    expect(INTERVIEW_CONTEXT_RECIPE.extractors).toBe(EXTRACTORS);
+    expect(EXTRACTORS.map(({ id, sourceKind }) => [id, sourceKind])).toEqual([
+      ["posting", TEXT_SOURCE_KINDS.posting],
+      ["employer-said", TEXT_SOURCE_KINDS.employerSaid],
+      ["research", TEXT_SOURCE_KINDS.research],
+      ["transcript", TEXT_SOURCE_KINDS.transcript],
+    ]);
+    expect(TEXT_SOURCE_KINDS).toEqual({
+      posting: "job-description",
+      employerSaid: "employer-said",
+      research: "research",
+      transcript: "transcript",
+    });
+  });
+
+  // "Every extracted record carries the exact quote and where it is": no
+  // extractor opts out, so the engine keeps nothing whose quote it cannot find.
+  it("requires a quote of every record, and asks for search words and the questions it answers", () => {
+    for (const each of EXTRACTORS) {
+      expect(each.quote, each.id).toBeUndefined();
+      expect(each.themes, each.id).toBe(true);
+      expect(each.answers, each.id).toBe(true);
+      expect(each.instructions.length, each.id).toBeGreaterThan(80);
+    }
+  });
+
+  it("produces only kinds the recipe declares, and never one of the candidate's", () => {
+    for (const each of EXTRACTORS)
+      for (const kind of each.recordKinds) {
+        expect(INTERVIEW_CONTEXT_RECIPE.kinds[kind], kind).toBeDefined();
+        // [SAFETY] A model never writes the person's own record.
+        expect(ABOUT[kind as keyof typeof ABOUT], kind).toBe("employer");
+      }
+  });
+
+  it("reads a posting into requirements, each must or nice, and the employer's own facts, filed by section", () => {
+    expect(extractor("posting").recordKinds).toEqual([
+      KINDS.requirement,
+      KINDS.employerFact,
+    ]);
+    const fields = fieldsOf("posting");
+    expect(fields.additionalProperties).toBe(false);
+    expect(fields.required).toEqual(["section"]);
+    expect(fields.properties["section"]?.enum).toEqual([...POSTING_SECTIONS]);
+    expect(fields.properties["level"]?.enum).toEqual(["must", "nice"]);
+    expect(POSTING_SECTIONS).toEqual([
+      "mustHaves",
+      "niceToHaves",
+      "responsibilities",
+      "techStack",
+      "team",
+      "values",
+      "process",
+      "companyFacts",
+    ]);
+    for (const section of POSTING_SECTIONS)
+      expect(extractor("posting").instructions).toContain(`"${section}"`);
+  });
+
+  it("reads what the employer said into process facts, dates and constraints", () => {
+    expect(extractor("employer-said").recordKinds).toEqual([
+      KINDS.employerFact,
+    ]);
+    expect(fieldsOf("employer-said").properties["section"]?.enum).toEqual([
+      ...SAID_SECTIONS,
+    ]);
+    expect(SAID_SECTIONS).toEqual(["process", "date", "constraint"]);
+  });
+
+  it("reads research into company facts, product, people and risks, and questions worth asking as notes", () => {
+    expect(extractor("research").recordKinds).toEqual([
+      KINDS.employerFact,
+      KINDS.prep,
+    ]);
+    expect(fieldsOf("research").properties["section"]?.enum).toEqual([
+      ...RESEARCH_SECTIONS,
+    ]);
+    expect(RESEARCH_SECTIONS).toEqual([
+      "company",
+      "product",
+      "people",
+      "risk",
+      "questionsToAsk",
+    ]);
+  });
+
+  it("reads a transcript into what was asked, what was answered, what to expect and what was promised", () => {
+    expect(extractor("transcript").recordKinds).toEqual([
+      KINDS.asked,
+      KINDS.answered,
+      KINDS.signal,
+      KINDS.commitment,
+    ]);
+    const fields = fieldsOf("transcript");
+    expect(fields.additionalProperties).toBe(false);
+    // One record kind uses some of them, so none is required.
+    expect(fields.required).toEqual([]);
+    expect(Object.keys(fields.properties)).toEqual([
+      "askedBy",
+      "followUps",
+      "used",
+      "missing",
+      "expect",
+      "carriesTo",
+    ]);
+    for (const kind of extractor("transcript").recordKinds)
+      expect(extractor("transcript").instructions).toContain(`"${kind}"`);
+  });
+});
+
+describe("the ties between records", () => {
+  const steps = INTERVIEW_CONTEXT_RECIPE.links ?? [];
+  const step = (id: string) => {
+    const found = steps.find((each) => each.id === id);
+    if (!found) throw new Error(`No link step "${id}".`);
+    return found;
+  };
+
+  it("are three made in code and three a model proposes", () => {
+    expect(LINKS).toEqual({
+      names: "names",
+      tells: "tells",
+      stack: "stack",
+      fit: "fit",
+      proof: "proof",
+      story: "story",
+    });
+    expect(steps.map(({ id }) => id)).toEqual(Object.values(LINKS));
+    expect(
+      steps.filter((each) => each.instructions).map(({ id }) => id),
+    ).toEqual(["fit", "proof", "story"]);
+  });
+
+  it("declare each pair: a requirement to evidence, a note to its proof, a question to a story", () => {
+    expect(steps.map(({ id, from, to }) => [id, from, to])).toEqual([
+      ["names", KINDS.prep, KINDS.achievement],
+      ["tells", KINDS.story, KINDS.achievement],
+      ["stack", KINDS.requirement, KINDS.achievement],
+      ["fit", KINDS.requirement, KINDS.achievement],
+      ["proof", KINDS.prep, KINDS.achievement],
+      ["story", KINDS.asked, [KINDS.story, KINDS.achievement]],
+    ]);
+  });
+
+  // [SAFETY] The declaration is the rule the engine enforces: no step ends
+  // at a kind of the employer's, so nothing the employer said can be tied in
+  // as what the candidate did, whoever proposes it.
+  it("never end at anything but the candidate's own record", () => {
+    for (const each of steps)
+      for (const to of typeof each.to === "string" ? [each.to] : each.to)
+        expect(ABOUT[to as keyof typeof ABOUT], each.id).toBe("candidate");
+  });
+
+  it("say how strongly evidence fits, with a note on a gap", () => {
+    expect(FIT_STRENGTHS).toEqual(["strong", "partial", "gap"]);
+    expect(step("fit").fields).toEqual({
+      type: "object",
+      additionalProperties: false,
+      required: ["strength"],
+      properties: {
+        strength: { enum: ["strong", "partial", "gap"] },
+        note: { type: "string" },
+      },
+    });
+    expect(step("story").fields).toMatchObject({
+      required: ["rank"],
+      properties: { rank: { enum: ["primary", "backup"] } },
+    });
+    // A model is shown the start of an achievement, never the whole pack.
+    for (const id of ["fit", "proof", "story"])
+      expect(step(id).maxChars).toBe(220);
+  });
+});
+
+describe("the recipe with no model in it", () => {
+  it("is the same recipe: its id, version, kinds, projections and aliases", () => {
+    expect(CODE_ONLY_RECIPE.id).toBe(INTERVIEW_CONTEXT_RECIPE.id);
+    expect(CODE_ONLY_RECIPE.version).toBe(INTERVIEW_CONTEXT_RECIPE.version);
+    expect(CODE_ONLY_RECIPE.kinds).toBe(INTERVIEW_CONTEXT_RECIPE.kinds);
+    expect(CODE_ONLY_RECIPE.projections).toBe(
+      INTERVIEW_CONTEXT_RECIPE.projections,
+    );
+    expect(CODE_ONLY_RECIPE.aliases).toBe(INTERVIEW_CONTEXT_RECIPE.aliases);
+  });
+
+  it("has no extractor, and declares every link step while asking a model for none", () => {
+    expect(CODE_ONLY_RECIPE.extractors).toBeUndefined();
+    expect(CODE_ONLY_RECIPE.extract).toBeUndefined();
+    expect((CODE_ONLY_RECIPE.links ?? []).map(({ id }) => id)).toEqual(
+      Object.values(LINKS),
+    );
+    for (const each of CODE_ONLY_RECIPE.links ?? [])
+      expect(each.instructions, each.id).toBeUndefined();
   });
 });
 

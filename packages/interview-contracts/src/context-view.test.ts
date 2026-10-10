@@ -58,8 +58,16 @@ describe("the projection view", () => {
     expect(contextViewSchema.parse(empty)).toEqual(empty);
   });
 
-  it("is one of three projections, and no other", () => {
-    expect(CONTEXT_PROJECTIONS).toEqual(["coach", "answer", "inspect"]);
+  it("is one of five projections, and no other", () => {
+    // The three a question is asked of, and the two a document and a
+    // briefing read (BRIEF-interview-brief-and-context-pack, phase 6).
+    expect(CONTEXT_PROJECTIONS).toEqual([
+      "coach",
+      "answer",
+      "inspect",
+      "document",
+      "briefing",
+    ]);
     for (const projection of CONTEXT_PROJECTIONS)
       expect(accepts({ ...view, projection })).toBe(true);
     expect(accepts({ ...view, projection: "debug" })).toBe(false);

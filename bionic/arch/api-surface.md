@@ -2,7 +2,7 @@
 
 _Static route scan (Express/Fastify verb calls + NestJS decorators, labeling GraphQL resolvers as a residual rather than reading them); the app is not executed._
 
-## Routes (97)
+## Routes (98)
 
 | method | path | handler |
 |---|---|---|
@@ -82,6 +82,7 @@ _Static route scan (Express/Fastify verb calls + NestJS decorators, labeling Gra
 | POST | `/api/v1/run-all` | — |
 | POST | `/api/v1/syntax-check` | — |
 | POST | `/candidacies` | — |
+| POST | `/candidacies/not-a-uuid/context-pack/prepare` | — |
 | POST | `/platform/v1/agent-jobs` | — |
 | POST | `/platform/v1/agent-jobs/:id/resume` | — |
 | POST | `/presentation/v1/documents` | — |
@@ -106,4 +107,5 @@ _Static route scan (Express/Fastify verb calls + NestJS decorators, labeling Gra
 
 ## Residuals
 
-- 25 route declarations dropped: the path is composed at runtime and has no static value, and the application is not executed, so no path is rendered for them (a named residual) — `products/interview/src/backend/brief/api.test.ts` lines 1660, 1675, 1681, 1686, 1738, 1743, 1747, 1753, 1755, 1763, 1776, 1782, 1792, 1807, 1820; `products/interview/src/backend/live-session/hardening/cross-user.test.ts` lines 118, 123, 141, 142, 154, 208, 211, 217, 247; `products/interview/src/backend/live-session/hardening/world.ts` line 178.
+- Skipped for exceeding the 2 MB bound: `apps/web/public/ocr.docs-arch-aside/core/tesseract-core-lstm.wasm.js`, `apps/web/public/ocr.docs-arch-aside/core/tesseract-core-relaxedsimd-lstm.wasm.js`, `apps/web/public/ocr.docs-arch-aside/core/tesseract-core-simd-lstm.wasm.js`
+- 25 route declarations dropped: the path is composed at runtime and has no static value, and the application is not executed, so no path is rendered for them (a named residual) — `products/interview/src/backend/brief/api.test.ts` lines 1687, 1702, 1708, 1713, 1765, 1770, 1774, 1780, 1782, 1790, 1803, 1809, 1819, 1834, 1847; `products/interview/src/backend/live-session/hardening/cross-user.test.ts` lines 118, 123, 141, 142, 154, 208, 211, 217, 247; `products/interview/src/backend/live-session/hardening/world.ts` line 178.

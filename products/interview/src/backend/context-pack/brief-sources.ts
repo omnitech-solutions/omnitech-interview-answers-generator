@@ -37,7 +37,7 @@ import type { BriefMaterial } from "../brief/repository";
 import { clockOf, turnsOf } from "../brief/transcript";
 import type { SessionContext } from "../live-session/session-context";
 import { linkSources } from "./links";
-import { KINDS } from "./recipe";
+import { KINDS, stageScope, TEXT_SOURCE_KINDS } from "./recipe";
 import { headingsOf } from "./sources";
 
 type SourceRecord = NonNullable<Source["records"]>[number];
@@ -46,9 +46,11 @@ export const BRIEF_SOURCE_KINDS = {
   notes: "candidate-notes",
   outcome: "stage-outcome",
   details: "stage-details",
-  transcript: "transcript",
-  employerSaid: "employer-said",
-  research: "research",
+  transcript: TEXT_SOURCE_KINDS.transcript,
+  employerSaid: TEXT_SOURCE_KINDS.employerSaid,
+  research: TEXT_SOURCE_KINDS.research,
+  // The job posting: read only by a model, when a pack is prepared.
+  posting: TEXT_SOURCE_KINDS.posting,
 } as const;
 
 // A source of the brief: the engine's source, and what a view or a sender
@@ -80,7 +82,11 @@ export function remoteSources<Each extends Source>(
   const sendable: Each[] = [];
   const withheld: { id: string; reason: "device-only" }[] = [];
   for (const source of sources)
-    if (sourceMayLeaveDevice(source as BriefSource)) sendable.push(source);
+    if (
+      sourceMayLeaveDevice(source as BriefSource) &&
+      source.policy !== "device-only"
+    )
+      sendable.push(source);
     else withheld.push({ id: source.id, reason: "device-only" });
   return { sendable, withheld };
 }
@@ -151,6 +157,10 @@ function textSource(
     kind: string;
     text: string;
     stage?: Stage;
+    // The text is also given whole, for the recipe's extractor of this kind
+    // of source (recipe.ts). Only a preparation by a model reads it: every
+    // other path passes the records alone (pack.ts).
+    read?: boolean;
   },
   record: (piece: ReturnType<typeof piecesOf>[number]) => SourceRecord,
 ): BriefSource {
@@ -160,6 +170,7 @@ function textSource(
     revision: revisionOf(sha256),
     kind: from.kind,
     records: distinct(piecesOf(from.text).map(record)),
+    ...(from.read ? { text: from.text } : {}),
     sha256,
     chars: from.text.length,
     ...(from.stage ? of(from.stage) : {}),
@@ -278,11 +289,24 @@ function stageSources(
   // material for extraction, never a fact, so it is of a kind no slot takes.
   for (const transcript of stage.transcripts) {
     const sendable = mayLeaveDevice(transcript);
+    const turns = turnsOf(transcript.text);
     sources.push({
       id: `stage:${stage.id}:transcript:${transcript.id}`,
       revision: revisionOf(transcript.sha256),
       kind: BRIEF_SOURCE_KINDS.transcript,
-      records: turnsOf(transcript.text).map((turn, at) => ({
+      // [DOMAIN] What a model reads of it when a pack is prepared: the turns,
+      // each named by its place on the transcript's clock, so a record
+      // extracted from it points at the moment it was said.
+      pieces: turns.map((turn) => ({
+        locator: `${clockOf(turn.startMs)}-${clockOf(turn.endMs)}`,
+        text: `${turn.speaker}: ${turn.text}`,
+      })),
+      // [SAFETY] The engine's own guard: a device-only source is read only
+      // by a model that runs on this machine, and skipped for any other.
+      policy: sendable ? "permitted-remote" : "device-only",
+      // What is extracted from it belongs to this stage.
+      scope: stageScope(stage.ordinal),
+      records: turns.map((turn, at) => ({
         id: `turn:${transcript.id}:${at}`,
         kind: KINDS.turn,
         text: turn.text,
@@ -327,6 +351,7 @@ export function briefSources(
           id: `employer-said:${entry.id}`,
           kind: BRIEF_SOURCE_KINDS.employerSaid,
           text: entry.said,
+          read: true,
         },
         (piece) => ({
           id: `said:${entry.id}:${short(piece.text)}`,
@@ -355,6 +380,7 @@ export function briefSources(
           id: `research:${document.id}`,
           kind: BRIEF_SOURCE_KINDS.research,
           text: document.text,
+          read: true,
         },
         (piece) => ({
           id: `research:${document.id}:${short(piece.text)}`,
@@ -376,7 +402,28 @@ export function briefSources(
       ),
     );
   // A source nothing was read from says nothing.
-  return sources.filter((source) => (source.records ?? []).length > 0);
+  const said = sources.filter((source) => (source.records ?? []).length > 0);
+  const posting = postingSource(material);
+  return posting ? [...said, posting] : said;
+}
+
+// [DOMAIN] The application's posting as a source: no record of its own, only
+// the text a model reads when the pack is prepared (the recipe's "posting"
+// extractor). Until then what the pack knows of the posting is the employer
+// brief, which a model cleaned from it with no pointer back.
+export function postingSource(material: BriefMaterial): BriefSource | null {
+  const text = material.posting?.trim();
+  if (!text) return null;
+  const sha256 = sha(text);
+  return {
+    id: `posting:${material.candidacyId}`,
+    revision: revisionOf(sha256),
+    kind: BRIEF_SOURCE_KINDS.posting,
+    text,
+    sha256,
+    chars: text.length,
+    sendable: true,
+  };
 }
 
 // The stage a record belongs to, by its place; undefined for a record of the

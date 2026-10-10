@@ -68,6 +68,8 @@ type Candidacy = {
   companyId: string;
   companyName: string;
   companyResearch: string | null;
+  jobDescription: string | null;
+  employerBrief: unknown;
 };
 
 // [SAFETY] The application, only when it is the member's own: its candidate
@@ -85,6 +87,8 @@ async function ownedCandidacy(
       companyId: candidacies.companyId,
       companyName: companies.name,
       companyResearch: companies.research,
+      jobDescription: candidacies.jobDescription,
+      employerBrief: candidacies.employerBrief,
     })
     .from(candidacies)
     .innerJoin(
@@ -1116,6 +1120,9 @@ export async function keepCarriedResearch(
 // brief, with every text. Read in the owner's scope like everything above.
 export type BriefMaterial = {
   candidacyId: string;
+  // The job posting as the person pasted it; null when there is none. Read by
+  // a model only when the application's context pack is prepared.
+  posting?: string | null;
   stages: Array<{
     id: string;
     ordinal: number;
@@ -1161,6 +1168,60 @@ export type BriefMaterial = {
   }>;
 };
 
+// [DOMAIN] The member's one application to a company for a role, by their
+// names as typed (case and surrounding space aside), or null: none, or more
+// than one, so no one application is meant.
+export async function findCandidacy(
+  db: TenantDatabase,
+  scope: BriefScope,
+  named: { company: string; role: string },
+): Promise<string | null> {
+  const rows = await db
+    .select({
+      id: candidacies.id,
+      title: candidacies.title,
+      company: companies.name,
+    })
+    .from(candidacies)
+    .innerJoin(
+      memberPeople,
+      and(
+        eq(memberPeople.tenantId, candidacies.tenantId),
+        eq(memberPeople.personId, candidacies.candidatePersonId),
+      ),
+    )
+    .innerJoin(
+      companies,
+      and(
+        eq(companies.tenantId, candidacies.tenantId),
+        eq(companies.id, candidacies.companyId),
+      ),
+    )
+    .where(
+      and(
+        eq(candidacies.tenantId, scope.tenantId),
+        eq(memberPeople.userId, scope.actorId),
+      ),
+    )
+    .limit(500);
+  const same = (a: string, b: string) =>
+    a.trim().toLowerCase() === b.trim().toLowerCase();
+  const found = rows.filter(
+    (row) => same(row.company, named.company) && same(row.title, named.role),
+  );
+  return found.length === 1 ? (found[0]?.id ?? null) : null;
+}
+
+// The application's model-cleaned employer brief as it is stored (validated
+// by its reader), or null: the member's own application only.
+export async function readEmployerBrief(
+  db: TenantDatabase,
+  scope: BriefScope,
+  candidacyId: string,
+): Promise<unknown> {
+  return (await ownedCandidacy(db, scope, candidacyId)).employerBrief ?? null;
+}
+
 export async function readBriefMaterial(
   db: TenantDatabase,
   scope: BriefScope,
@@ -1192,6 +1253,7 @@ export async function readBriefMaterial(
   const researchText = new Map(documents.map((row) => [row.id, row.content]));
   return {
     candidacyId,
+    posting: blank(candidacy.jobDescription),
     stages: brief.stages.map((stage) => ({
       id: stage.id,
       ordinal: stage.ordinal,

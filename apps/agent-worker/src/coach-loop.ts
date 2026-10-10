@@ -14,6 +14,7 @@ import {
 } from "@omnitech/ai-engine";
 import type { PlatformDatabase } from "@omnitech/database";
 import { resolveAgentProfiles } from "@omnitech/platform-runtime/ai-config";
+import { enginePreparedStore } from "@omnitech/platform-runtime/ai-packs";
 import {
   type CoachLedger,
   type CoachPorts,
@@ -229,6 +230,11 @@ export function coachLoop(
     name: "coach",
     run: async (signal) => {
       const kept = engineTrace(env);
+      // [DOMAIN] The context packs the web server prepared, read from the
+      // engine's own database when one is named. A pack kept only in the web
+      // server's memory cannot be seen from here: the coach then reads the
+      // person's material as it stands, as it always did.
+      const packs = enginePreparedStore(env);
       const engine = createAiEngine({
         profiles: [profile],
         providers: {
@@ -254,7 +260,14 @@ export function coachLoop(
           profileId: COACH_PROFILE,
           ...studio,
           ...(database
-            ? { context: createCoachContext(database, engine) }
+            ? {
+                context: createCoachContext(
+                  database,
+                  engine,
+                  Date.now,
+                  packs.kept === "database" ? packs.store : undefined,
+                ),
+              }
             : {}),
           // The coach's transcript belongs to this machine's one Studio, not
           // to a tenant's stored record.
@@ -319,6 +332,7 @@ export function coachLoop(
         await studio.release();
         await engine.traceSettled().catch(() => undefined);
         await kept.close();
+        await packs.close();
       }
     },
   };

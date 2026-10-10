@@ -11,6 +11,8 @@ import type { CoachTranscriptSession } from "@omnitech/interview-contracts";
 import {
   type ContextEngine,
   type ContextPack,
+  keptFor,
+  type PackStore,
   prepareContextPack,
   sessionSources,
 } from "../context-pack/index";
@@ -39,6 +41,12 @@ export function createCoachContext(
   database: PlatformDatabase,
   engine: ContextEngine,
   nowMs: () => number = Date.now,
+  // Where prepared context packs are kept. Given, the coach also reads what
+  // a model extracted for the session's application (requirements with their
+  // quotes, what earlier stages asked and signalled, the fit). It is READ
+  // here, never prepared: no model is called on the coach's path, and with
+  // no kept pack the coach has exactly the person's material as it stands.
+  packs?: PackStore,
 ): CoachContextPort {
   let held:
     | { sessionId: string; at: number; pack: ContextPack | null }
@@ -60,12 +68,32 @@ export function createCoachContext(
           scope,
           session.sessionId,
         )
-          .then((context) =>
-            prepareContextPack(engine, sessionSources(context), {
-              scope,
-              signal: new AbortController().signal,
-              for: { kind: "session", id: session.sessionId },
-            }),
+          .then(async (context) =>
+            prepareContextPack(
+              engine,
+              sessionSources(context),
+              {
+                scope,
+                signal: new AbortController().signal,
+                for: { kind: "session", id: session.sessionId },
+              },
+              {
+                // A store that does not answer is no kept pack (prepare.ts).
+                kept: await keptFor(packs, scope, context),
+                // What was extracted from a stage's transcript is given to
+                // the stage the session is in after that stage's own, and a
+                // later stage's is left out.
+                stage: context.material?.stage?.ordinal,
+                // [SAFETY] The coach's prompt is sent to a model that does
+                // not run on this machine (coach.ts sends it as
+                // "permitted-remote"; the worker runs the coach on Claude
+                // Code or Codex and on nothing else). So a device-only
+                // transcript, and what a local model extracted from one, is
+                // no part of this pack. Said outright, though it is the
+                // pack's default.
+                reader: "remote",
+              },
+            ),
           )
           .catch(() => null);
         held = { sessionId: session.sessionId, at: nowMs(), pack };

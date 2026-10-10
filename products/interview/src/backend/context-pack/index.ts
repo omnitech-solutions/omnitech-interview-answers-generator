@@ -16,10 +16,22 @@ export {
   ContextPackError,
   contextSources,
   type PackFact,
+  type PackOptions,
   type PackView,
   prepareContextPack,
   sessionSources,
 } from "./pack";
+export {
+  type ApplicationMaterial,
+  applicationSources,
+  createMemoryPackStore,
+  keptFor,
+  loadKeptPack,
+  type PackStore,
+  packKey,
+  prepareApplicationPack,
+  reviewPack,
+} from "./prepare";
 export {
   ABOUT,
   type ContextKind,

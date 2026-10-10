@@ -95,7 +95,7 @@ describe("the fixture", () => {
 describe("the pack on the fixture", () => {
   it("is prepared by the current recipe into whole achievements, with no fragment left", () => {
     expect(result.benchmark).toBe(FIXTURE);
-    expect(result.recipe).toEqual({ id: "interview-context", version: "2" });
+    expect(result.recipe).toEqual({ id: "interview-context", version: "3" });
     expect(result.records.byKind).toEqual({
       "candidate-achievement": 139,
       "candidate-preference": 6,
@@ -347,7 +347,7 @@ describe("the report", () => {
   it("says the scores, the records by kind and each question", () => {
     const report = reportPackBench(result);
     expect(report).toContain(
-      `pack:bench ${FIXTURE}: recipe interview-context v2, no earlier run`,
+      `pack:bench ${FIXTURE}: recipe interview-context v3, no earlier run`,
     );
     expect(report).toContain("records: 243: candidate-achievement 139,");
     expect(report).toMatch(/right evidence first\s+\d+\/28\s*$/m);

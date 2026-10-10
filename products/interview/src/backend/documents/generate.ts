@@ -8,6 +8,7 @@ import {
 } from "@omnitech/interview-contracts";
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
 import { promptMessages } from "../ai-messages";
+import type { DocumentPack } from "../context-pack/readers";
 import { type CastRole, castRoles, type DocumentCast, roleLine } from "./cast";
 import { DEFAULT_DOCUMENTS_CONFIG, type GenerationSettings } from "./config";
 
@@ -31,6 +32,11 @@ export type DocumentGenerationInput = {
   // full and a line about the others, never the whole matrix; without one (a
   // template with no blocks) it is given the matrix as before.
   cast?: DocumentCast | null;
+  // What the application's prepared context pack adds (context-pack/
+  // readers.ts): what the employer asks for with the achievements that are
+  // evidence for each, the gaps, and the cast roles' achievements whole.
+  // Absent or null: the call is written from the matrix alone, as before.
+  pack?: DocumentPack | null;
   // Facts that are the document's but never the model's to read: the person's
   // contact details. They are filled by the server and left out of the prompt.
   privateKeys?: readonly string[];
@@ -499,6 +505,24 @@ export async function generateDocumentValues(
     // employer matches nothing) falls back to the whole matrix.
     const scoped =
       evidence?.blocks.every((block) => block.roles.length > 0) ?? false;
+    // [DOMAIN] The pack as this call reads it: what the employer asks for,
+    // always; and the achievements of the roles its OWN blocks were cast
+    // with, so a call never reads another block's employer. A call with no
+    // block writes of the whole career and is given every cast role's.
+    const ownRoles =
+      scoped && cast && evidence && evidence.blocks.length > 0
+        ? new Set(
+            evidence.blocks.flatMap((block) => cast.slots[block.block] ?? []),
+          )
+        : null;
+    const pack = input.pack
+      ? {
+          asks: input.pack.asks,
+          achievements: ownRoles
+            ? input.pack.achievements.filter((each) => ownRoles.has(each.role))
+            : input.pack.achievements,
+        }
+      : null;
     const prior = input.completedBatches?.[batch.id];
     if (prior) {
       if (prior.fieldsHash !== fieldsHash)
@@ -578,6 +602,9 @@ export async function generateDocumentValues(
                 (scoped
                   ? " Each entry of blocks is one employer the server has already decided: write that block's fields only from the roles given in the same entry, and never name the employer, title or dates yourself (the server prints them). otherRoles are held by other blocks and written elsewhere: never use their systems, products, clients or figures. A field with no block speaks of the whole career and is written from document."
                   : "") +
+                (pack
+                  ? " pack.asks is what the employer asks for, each with the pointers of the candidate's achievements that are evidence for it (pack.achievements holds those achievements whole, by pointer): where a field allows a choice of what to say, prefer what is evidence for a required ask. An ask whose fit is gap or none is something the record does not show: never write it as experience."
+                  : "") +
                 (rewriting.size > 0
                   ? " A field with currentValue is being rewritten: keep its kind and length (about targetWords words, never more than maxWords), and write different wording from currentValue. A field marked rejected held text its evidence did not support: write it afresh from the evidence given, about targetWords words."
                   : ""),
@@ -598,6 +625,7 @@ export async function generateDocumentValues(
                 facts: promptFacts,
                 candidacy: input.candidacyValues,
                 interview: input.interviewValues,
+                ...(pack ? { pack } : {}),
                 ...(corrections ? { corrections } : {}),
               }),
             ),

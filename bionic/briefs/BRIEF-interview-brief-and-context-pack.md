@@ -596,3 +596,229 @@ a question wins over an application line found by one word.
 - Removing a stage a live session or a document was made for is refused (`stage-in-use`).
 - The Briefings form's research is still one text (see the carry-over table).
 - The real window was not seen: the form and the picker are proven by their suites, not by eye.
+
+## 12. Result of phases 3 to 6 (2026-10-10)
+
+A model now prepares an application's pack: it reads the posting, the research, what the employer
+said and each stage's transcript; the engine keeps only what the source says, ties records
+together and keeps the result; a person reviews and corrects it; and the coach, the session view,
+briefings and documents read it with no model on their path. The engine was not changed, and no
+migration was added. [[research/references/walkthrough-context-pack]] describes the pack as it
+now is, with records, ties and a selection from the fixture.
+
+### What was built
+
+| Phase | Built | Where |
+|---|---|---|
+| 3 | Recipe version 3: four extractors (`posting`, `employer-said`, `research`, `transcript`), each with a schema, instructions, a required quote, search words and answered questions. The posting as a source. Preparation a few sources at a time, with progress, cancelling (what was read is kept) and "read again" for one source. One pack per application and member, kept by the engine. Windows declared on the host's profiles | `recipe.ts`, `brief-sources.ts`, `prepare.ts`; `packages/platform-runtime/src/ai-packs.ts`; `apps/web/src/platform/ai.ts`, `products.ts` |
+| 4 | `stage-question`, `stage-answer`, `employer-signal`, `stage-commitment` from a transcript's turns, each pointing at its moment on the clock and scoped to its stage. A device-only transcript carries `policy: "device-only"`: the engine skips it for a profile that does not run here, and the review says it was withheld. Resolving for stage 2 gives stage 1's questions and signals after stage 2's own, for a transcript that may leave this device (section 13) | `recipe.ts`, `brief-sources.ts`, `pack.ts` (`stage`), `kept.ts` |
+| 5 | Link steps `fit` (strength, a note on a gap), `proof`, `story`, asked of a model; `names`, `tells`, `stack`, made in code and passed to `prepare` as `links`. The evidence slot follows them, so the second resolve that pinned linked records is gone. The review (counts, refused, unread, withheld, gaps, stages, sources) and its corrections through `engine.context.correct` | `recipe.ts`, `links.ts` (`givenLinks`), `pack.ts`, `prepare.ts` (`reviewPack`), `routes.ts`, `pack-review.ts` (contract), `frontend/studio/interview-brief/pack-review.tsx` |
+| 6 | Projections `document` and `briefing`; the stage as an option of every pack. The coach, the session view, briefings and documents read the kept pack when there is one and are exactly as before when there is none | `kept.ts`, `readers.ts`, `application.ts`, `coach/context.ts`, `live-session/routes.ts`, `briefing/api.ts`, `documents/generate.ts`, `documents/api.ts` |
+
+Routes, on the documents API behind its guard, under `…/candidacies/:id/context-pack`: `GET` (the
+review), `POST /prepare` (NDJSON progress, then the review), `POST /corrections`. Refusals:
+`not-found`, `invalid-request`, `body-too-large`, `generation-unavailable` (no profile can
+prepare), `already-running`.
+
+**The review is in the Interview form**, as a "Context pack" card under Research. That form is
+where the posting, the stages, their transcripts, what the employer said and the research are
+entered, so what a model made of them is checked where they are changed. The window's Context
+pane answers a different question (what was selected for the question on show, in a live
+session), and it now shows the extracted facts too.
+
+### Three decisions made while building, each with its reason
+
+1. **A reader never prepares; it reads.** A reader prepares today's material in code, exactly as
+   at version 2, and `withKept` adds what of the kept pack still stands: a record a model
+   extracted while its source is at the revision it was read at, a tie while both its ends are
+   there, and the person's removals and edits. So a changed source's facts are not read until it
+   is prepared again, no model can be reached from the coach's path, and "no pack" is not a
+   special case.
+2. **A model's tie breaks a tie; it never outranks an achievement that answers the question
+   itself.** The first version ranked a model's `fit` and `proof` as a note's named employer is
+   ranked. On the fixture that fixed two questions and lost four ("a production incident", "an
+   API contract", "how do you mentor", "your testing strategy"): a requirement or a note found
+   by one word of the question brought its own evidence ahead of the direct answer. A model's
+   tie is an inference one step from the question; the person's own words (a note that names
+   its proof, a story they chose) keep their rank. This is the same lesson as phase 2's
+   "relevance first, the stage as the tie-break".
+3. **The employer brief stays, and is superseded line by line.** `candidacies.employer_brief` is
+   still made and still read by the documents, the session snapshot and the live start screen;
+   nothing was deleted. In the pack, once the posting has been read by a model, the brief's copy
+   of the posting (must-haves, nice-to-haves, stack, responsibilities, company facts, values,
+   summary, team, format) is left out and the quoted records stand; what the brief distilled
+   from the person's notes (prep notes, questions to ask) stays. Until the posting is read the
+   brief is what the pack knows of it, as before.
+
+### Before and after, on the fixture
+
+`pnpm pack:bench:prepared`. The fixture gained `posting.txt`, `gold-extraction.json` (55 records
+a careful reader finds, each with its exact quote, and three a model might invent) and
+`gold-links.json` (17 fits, 5 proofs, 2 questions with their stories, and ties the recipe
+forbids). The existing gold files were not changed. The scripted model answers a piece with the
+gold records whose words are in that piece, so it is deterministic and reads what a real model
+is shown.
+
+| Measure | Before (phases 0 to 2, code only) | After, prepared by the scripted model |
+|---|---|---|
+| Right evidence first | 24 of 28 | **25 of 28** |
+| Right evidence in the first three | 24 of 28 | 25 of 28 |
+| Right prep note first | 23 of 27 | 23 of 27 |
+| Wrong-employer evidence in the first three | 2 of 28 | 2 of 28 |
+| Requirements found (recall); invented (must be 0) | not read | 14 of 14; **0** |
+| Questions asked in the transcript, found | not read | 2 of 2 |
+| Model-written records with a verified quote (must be 100%) | none | **55 of 55**; 3 proposals refused |
+| Requirements with evidence linked; gaps | none | 13 of 14; 1 |
+| Wrong links (must be 0); ties refused by the rule | none | **0**; 3 |
+| Stage carry-forward to a remote reader, transcript as recorded (device-only; section 13) | 0 of 3 | 0 of 3, withheld |
+| Stage carry-forward to a remote reader, transcript permitted remote | 0 of 3 | **3 of 3** |
+| Model calls and pieces, large profile (200,000 tokens) | 0 | 12 calls (8 extraction, 4 link); 8 pieces |
+| Model calls and pieces, small profile (1,500 tokens) | 0 | 164 calls (10 extraction, 154 link); 10 pieces |
+| Calls after one source changes | 0 | 1 (1 source read again, 7 reused) |
+| Resolve per question, median | about 2 ms | about 6 ms |
+
+The large and the small profile keep the same 55 records with the same quotes and locators, and
+the same ties. The small profile's 154 link calls are the honest cost of a 1,500-token window:
+139 achievements are shown a few at a time against each group of requirements, notes and
+questions.
+
+**What moved, and what did not.** One question gained its evidence: "Why Kestrel?", whose note
+names no employer, and to which a model ties the multi-carrier quoting work. No question that
+code alone had right was lost. Still wrong: "How do you make sure a payout is never sent
+twice?" (no word of the question is in the record or the notes; a note labelled with the
+questions it answers would find it, and notes are not read by a model, below); "ingestion for
+large files from a bank" and "a partner API is slow or down" (the fit for the leading
+requirement is right, and by decision 2 it only breaks a tie: an achievement sharing more words
+leads). The prep-note misses are the four of section 10, unchanged.
+
+**One live run** (`pnpm pack:bench:claude`, Claude Code, 2026-10-10, the fixture as it stood
+with one must-have since replaced): 176 seconds, 10 calls (7 extraction, 3 link), 59 records
+written, 59 of 59 with a verified quote, 14 of 14 requirements found, 0 invented, 12 of 15 asks
+with evidence (Claude counted 15 asks), 0 wrong links, 0 ties refused. The transcript was
+withheld (it is device-only and an agent does not run on this device), so 0 of 2 questions and 0
+of 3 carried forward, as it must be. Evidence 24 of 28, prep 23 of 27: Claude's own ties gave no
+gain on the questions and lost none. The other three profiles were left to the owner's session.
+
+### What the engine lacked
+
+Everything asked for was there. Five things were worked around in the product, and three of section 10 still stand.
+
+- **No way to read a kept pack.** `engine.context` prepares and corrects a named pack and has no
+  `load(key)`. A reader cannot call `prepare` to get it back (a changed source would be
+  extracted, on the coach's path). The host therefore gives the product the same store it gave
+  the engine (`packStore`), and the product reads `store.load` itself.
+- **No progress from `prepare`.** It reports by log line only. The product prepares three
+  sources at a time and reports between the steps, giving a source whose turn has not come at
+  the revision the pack last knew, so the engine reuses what it had.
+- **A source with a hole is read again by every later `prepare`**, which is right for the next
+  preparation and wrong within a stepped one. The product sets a hole aside as it is made and
+  puts it back at the end, saving through the store.
+- **No memory store is exported**, so a host with no engine database writes one
+  (`createMemoryPreparedStore`).
+- **Extraction cannot label a record the product gave.** It makes new records, so a person's
+  note cannot be given the questions it answers without duplicating it.
+- Still wanted from section 10: a query per slot (a story's words still need a second
+  `resolve`), a cap per group in a slot (`arrange` still fills the places), stemming. `follow`
+  replaced the pinning of linked records, as asked.
+
+### Deviations from what was asked, and why
+
+- **Preparation runs in the web server, not in a worker loop.** It asks through the engine by
+  profile, and an agent profile's calls run in the agent worker as agent jobs, which is how
+  document generation reaches Claude Code and Codex (the request holds the engine call; each
+  model call is a job). Rule 7 holds: Next.js launches no agent process.
+- **Kept in memory means in the web server's memory.** With no `AI_ENGINE_DATABASE_URL` the
+  worker's coach cannot see it and reads the material as it stands.
+- **A device-only transcript is extracted only by a profile declared `locality: "device"`**, and
+  the Studio's configured local model is the one that can be. No such profile was run live.
+- **No extractor for the person's notes** (section 4 listed one). See the engine's limit above.
+- **`stage-answer` says what an answer drew on in words**; it is not tied to an achievement.
+- **A briefing finds its application by company and role as typed.** A briefing is a workspace
+  draft with no application id; adding one is a contract and form change.
+- **The pack is not offered to a model as tools.** For every writer the Studio gathers with
+  `find` and `related` itself, which is what an agent runtime needs and costs a model with tools
+  nothing.
+- **The fixture's "two research documents" are three**, as phase 2 left them; all are read.
+- **The posting gained one must-have the record does not show** ("Working proficiency in
+  French"), so the fixture has a true gap. Two earlier choices were wrong (the matrix does have
+  Kafka in a stack, and a double-entry ledger as a pattern) and were replaced when the gate
+  caught them.
+
+### What is not proven
+
+- The window: the card, the form and the Context pane were not looked at in a running app.
+  Their suites prove them.
+- Live: only Claude Code was run, once. Codex, OpenRouter and LM Studio have commands and no
+  run; the small-model proof (section 4) is by the scripted model at 1,500 tokens.
+- The engine's Postgres store under this product: the suites use the memory store. The lazy
+  wrapper over `connectEngineStore` is tested against a stub connection.
+- The session view with a kept pack over HTTP was not proven when this section was written. It
+  is now, through the session route (section 13).
+- A real transcript of an hour: the fixture's has five turns.
+
+### What is left
+
+- Notes read by a model (needs the engine to label a given record, or a merge in the product).
+- The four live runs, and the same on the real application kept outside the repository
+  (`pnpm pack:bench --live --profile … --matrix … --brief … --gold … --application … --posting …`).
+- An application id on a briefing.
+- Coverage, citation and pivot views; pins and exclusions in the window.
+- An ADR that amends ADR-0041: recipe version 3, where prepared context is kept, and decision 2.
+
+## 13. Device-only sources never reach a remote reader (2026-10-10)
+
+**The rule.** A session, a recording or a source kept under a device-only policy never reaches a
+model that does not run on this machine. For the pack that means: the turns of a device-only
+transcript, and everything a model that runs here extracted from one (questions, answers, signals,
+commitments, and every tie to them), are read only on the person's own screen.
+
+**The gap that was found.** Phases 3 to 6 kept the rule when a pack is PREPARED (the engine skips
+a device-only source for a profile that does not run here) and broke it when a pack is READ. The
+guards `remoteSources` and `sourceMayLeaveDevice` existed and no reader called them. So once a
+local model had read a device-only transcript, the coach's prompt (sent to Claude Code or Codex as
+`permitted-remote`), a briefing and a document were each given what it had extracted. The
+benchmark scored that leak as a success: "stage carry-forward 3 of 3" was measured on the
+fixture's device-only recording. A second, narrower leak was found while closing the first: a
+preparation by a remote profile, run after a local one, was shown the questions the local model
+had read from the transcript when the engine asked it for ties.
+
+**How it is closed.** The pack itself keeps the rule, whoever reads it.
+
+| Reader | Reads as | Where it is enforced |
+|---|---|---|
+| The coach (`coach/context.ts`; the worker's `coach-loop.ts`) | remote | `prepareContextPack` (`pack.ts`): the default reader is remote. A device-only source is left out before anything is prepared, and `withoutSources` removes from the kept pack every record and tie that rests on one |
+| A briefing and a document (`context-pack/application.ts`, read by `briefing/api.ts` and `documents/generate.ts`) | remote | the same |
+| The session's Context view (`live-session/routes.ts`) | device | passes `reader: "device"`: it is the person's own screen and is answered to the browser only |
+| The pack review card (`context-pack/routes.ts`, `reviewPack`) | device | passes `reader: "device"`. `reviewPack` read any other way counts such records and does not say them |
+| A stage's view (`stage.ts`) | as its pack | a remote reader's list of what was left out for scope no longer holds a later stage's device-only turns |
+| Preparing (`prepare.ts`) | the profile's declared locality | the engine skips a device-only source for a remote profile, as before. New: unless the profile is declared to run here, what the kept pack already holds from such a source is set aside before any call and put back after |
+
+The default is fail closed: a reader that says nothing is remote. A reader is "device" only where
+the code can say so for certain. The coach runs on Claude Code or Codex and on nothing else, so
+it is always remote. A briefing and a document may be written by a local model, but the place
+where their pack is built is not told which profile writes, so they are remote too.
+
+**What this means for the owner.**
+
+- A call recorded under a device-only policy carries nothing forward to the coach, a briefing or
+  a document: not what was asked, not what you answered, not what they said to expect. You still
+  see all of it in the session's Context pane and in the Interview form's "Context pack" card,
+  provided a local model prepared the pack (a remote one is never given the transcript).
+- A device-only recording cannot be loosened afterwards: the policy is a fact about the
+  recording.
+- To get carry-forward: paste or attach the transcript in the Interview form and choose "May be
+  read by a remote model" (a pasted or attached transcript "Stays on this device" unless you say
+  so, and you may change that later), or record the call under a permitted policy. Then prepare
+  the pack; any profile can read such a transcript.
+- Your notes for a stage, its outcome and next steps, what the employer said and the research
+  are not transcripts and were never withheld: they reach every reader as before.
+
+**Measured.** `pnpm pack:bench:prepared` now says carry-forward twice, both for a remote reader:
+the transcript as recorded, 0 of 3 and "withheld: device-only" (the rule kept, not a failure),
+and the transcript permitted remote, 3 of 3. Every other score is unchanged. The gate asserts
+both, and each carry-forward test has a mirror with the device-only recording that looks for the
+transcript's words in everything the reader is given.
+
+**Not proven.** The Postgres store under the put-back of `prepare.ts` (the suites use the memory
+store). A briefing or a document written by a local model still reads as remote: correct, and
+less than it could be given.

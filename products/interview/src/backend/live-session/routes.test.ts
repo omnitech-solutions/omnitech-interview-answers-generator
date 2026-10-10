@@ -4,7 +4,7 @@
 // one refusal for every bad ingest credential; the credential never accepted
 // in a URL; bounds before parsing; membership re-checked; and control state
 // carried on every acknowledgement (ADR-0011, ADR-0012).
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -20,9 +20,13 @@ import {
 import type { PlatformContext } from "@omnitech/platform-contracts";
 import { Hono } from "hono";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
 import { deriveLiveModel } from "../../frontend/studio/live/session-state";
+import { createCoachContext } from "../coach/context";
 import { readTranscript } from "../coach/transcript-file";
 import { BRIEF, MATRIX, PREFERENCES } from "../context-pack/fixture";
+import { createMemoryPackStore, packKey } from "../context-pack/prepare";
+import { INTERVIEW_CONTEXT_RECIPE, KINDS } from "../context-pack/recipe";
 import type { HeardLine } from "./ingest";
 import {
   type Fixture,
@@ -2050,6 +2054,131 @@ describe("the projection view (ADR-0038)", () => {
     }
   });
 
+  // [SAFETY] This route is the one reader of a pack that is the person's own
+  // screen (`reader: "device"`). A call recorded under a device-only policy,
+  // and what a model that runs here extracted from it, is shown here and is
+  // given to no reader whose prompt leaves this machine: the coach reads the
+  // same session and the same kept pack and is given none of it.
+  it("shows a device-only transcript's question on the person's own screen, and the coach of the same session nothing of it", async () => {
+    const person = await member("view-device-only");
+    const profile = await seedMatrixProfile(fx, fx.tenantA, person.id, {
+      matrix: MATRIX,
+    });
+    const second = await fx.one(
+      `INSERT INTO interview.interviews(tenant_id,candidacy_id,ordinal,kind,label)
+       VALUES($1,$2,2,'technical','Round 2') RETURNING id`,
+      [fx.tenantA, person.candidacy],
+    );
+    // The first round, recorded on this device and kept on it.
+    const said = "which team should own the tide ledger";
+    const text = `10:02:10 --> 10:02:24\nDana: ${said}\n\n10:02:27 --> 10:02:40\nMe: the harbour team, it writes every row\n`;
+    const sha256 = createHash("sha256").update(text).digest("hex");
+    const transcript = await fx.one(
+      `INSERT INTO interview.interview_transcripts(tenant_id,owner_user_id,interview_id,title,origin,capture_policy,content,content_sha256,chars,turns)
+       VALUES($1,$2,$3,'Round 1 call','recorded','device-only',$4,$5,$6,2) RETURNING id`,
+      [fx.tenantA, person.id, person.interview, text, sha256, text.length],
+    );
+    const sourceId = `stage:${person.interview}:transcript:${transcript}`;
+    const revision = sha256.slice(0, 16);
+    // The application's pack as a model that runs here prepared and kept it:
+    // one question it read from that call.
+    const QUESTION = "Which team should own the tide ledger?";
+    const packs = createMemoryPackStore();
+    await packs.save?.(
+      { tenantId: fx.tenantA, productId: INTERVIEW_PRODUCT_ID },
+      {
+        key: packKey(person.candidacy, person.id),
+        recipeId: INTERVIEW_CONTEXT_RECIPE.id,
+      },
+      {
+        recipe: {
+          id: INTERVIEW_CONTEXT_RECIPE.id,
+          version: INTERVIEW_CONTEXT_RECIPE.version,
+        },
+        sources: [{ id: sourceId, revision }],
+        records: [
+          {
+            id: `${sourceId}:0000000000000001`,
+            kind: KINDS.asked,
+            text: QUESTION,
+            fields: { askedBy: "Dana" },
+            source: {
+              id: sourceId,
+              revision,
+              locator: "10:02:10-10:02:24",
+              quote: said,
+            },
+            hash: "0000000000000001",
+            by: "model",
+            verified: "quote-found",
+            themes: ["ownership", "ledger"],
+            scope: "stage:1",
+          },
+        ],
+        rejected: [],
+        links: [],
+      },
+    );
+    as(person);
+    const started = await post("", {
+      ...START,
+      candidacyId: person.candidacy,
+      interviewId: second,
+      profile: { id: profile.id },
+    });
+    expect(started.status).toBe(201);
+    const id = ((await started.json()) as { session: { id: string } }).session
+      .id;
+    const ASKED = "Who should own the tide ledger?";
+    const query = `?projection=coach&q=${encodeURIComponent(ASKED)}`;
+    const withPacks = createSessionRoutes({
+      database: fx.member,
+      resolveContext,
+      contextEngine: engine,
+      packs,
+    });
+
+    // The person's own screen: the question, and where it was said.
+    const before = modelCalls;
+    const shown = await viewOf(await view(id, query, withPacks));
+    expect(
+      shown.selected
+        .filter((fact) => fact.slot === "asked")
+        .map((fact) => [fact.text, fact.pointer]),
+    ).toEqual([[QUESTION, `${sourceId}@10:02:10-10:02:24`]]);
+    expect(shown.sources.find((source) => source.id === sourceId)).toEqual({
+      id: sourceId,
+      revision,
+      kind: "transcript",
+      stage: 1,
+      records: 2,
+      sendable: false,
+    });
+    expect(modelCalls).toBe(before);
+    // With no pack kept the screen has the call's turns and no question.
+    const bare = await viewOf(await view(id, query));
+    expect(bare.selected.filter((fact) => fact.slot === "asked")).toEqual([]);
+    expect(bare.sources.find((source) => source.id === sourceId)).toMatchObject(
+      { sendable: false, records: 2 },
+    );
+
+    // The coach of the same session, reading the same kept pack: its prompt
+    // is sent to a model that does not run here, so none of it is given.
+    const facts = await createCoachContext(
+      fx.member,
+      engine,
+      Date.now,
+      packs,
+    ).facts({ tenantId: fx.tenantA, actorId: person.id, sessionId: id }, ASKED);
+    expect(facts.length).toBeGreaterThan(0);
+    const given = JSON.stringify(facts).toLowerCase();
+    for (const words of ["tide ledger", "harbour team", "10:02:10", sourceId])
+      expect(given, words).not.toContain(words);
+    // And the view did hold those words: the test would see them.
+    expect(JSON.stringify(shown).toLowerCase()).toContain("tide ledger?");
+    expect(modelCalls).toBe(before);
+  });
+
   it("returns the view of the owner's material for a question, and asks no model", async () => {
     const owner = await prepared("view-ok");
     const before = modelCalls;
@@ -2131,12 +2260,16 @@ describe("the projection view (ADR-0038)", () => {
       "employer.company",
       "employer.role",
       "stories",
+      "requirements",
+      "prep",
+      // What a stage's transcript gives, once a model has read one.
+      "asked",
+      "signals",
+      // After the slots whose ties it follows.
       "evidence",
       "roles",
       "preferences",
-      "requirements",
       "employer",
-      "prep",
     ]);
     // The role's five achievements: a metric its proof point states is
     // part of that proof point.

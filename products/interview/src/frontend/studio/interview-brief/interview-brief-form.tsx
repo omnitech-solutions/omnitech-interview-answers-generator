@@ -42,6 +42,7 @@ import { useCallback, useEffect, useState } from "react";
 import { DocumentsApiError } from "../documents/documents-client";
 import { EmployerSaidList, ResearchList } from "./brief-lists";
 import { interviewBriefClient } from "./interview-brief-client";
+import { PackReviewSection } from "./pack-review";
 
 const words = (value: string) =>
   value.charAt(0).toUpperCase() + value.slice(1).replaceAll("_", " ");
@@ -862,6 +863,7 @@ export function InterviewBriefForm({ candidacyId }: { candidacyId: string }) {
           void run(() => interviewBriefClient.removeResearch(candidacyId, id))
         }
       />
+      <PackReviewSection candidacyId={candidacyId} disabled={busy} />
     </Flex>
   );
 }

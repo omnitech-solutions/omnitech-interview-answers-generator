@@ -1134,7 +1134,16 @@ describe("the context pack built from the stored brief, with no model", () => {
       `stage:${made.second}:transcript:${uploaded}`,
       ...said.map((id) => `employer-said:${id}`),
       ...research.map((id) => `research:${id}`),
+      // The posting: no record of its own, the text a model reads when the
+      // application's pack is prepared.
+      `posting:${made.candidacy}`,
     ]);
+    expect(sources.at(-1)).toMatchObject({
+      kind: BRIEF_SOURCE_KINDS.posting,
+      text: "Rebuild the forecasting pipeline.",
+      sendable: true,
+    });
+    expect(sources.at(-1)?.records).toBeUndefined();
     for (const source of sources) {
       // The revision is the content hash's first sixteen characters.
       expect(source.sha256).toMatch(/^[a-f0-9]{64}$/);
@@ -1157,6 +1166,7 @@ describe("the context pack built from the stored brief, with no model", () => {
       [BRIEF_SOURCE_KINDS.research, null],
       [BRIEF_SOURCE_KINDS.research, null],
       [BRIEF_SOURCE_KINDS.research, null],
+      [BRIEF_SOURCE_KINDS.posting, null],
     ]);
     // Every record of a stage's source says its stage, by place and by id.
     for (const source of sources.filter((each) => each.stage !== undefined))
@@ -1296,32 +1306,49 @@ describe("the context pack built from the stored brief, with no model", () => {
 
   it("prepares on a real engine: turns are counted and inspectable, and never offered as a fact", async () => {
     const context = contextOf({ interviewBrief: material, stage: null });
+    const turnsOf = (of: Awaited<ReturnType<typeof prepareContextPack>>) =>
+      of.prepared.records.filter((record) => record.kind === KINDS.turn);
+    // The person's own screen: 3 pasted + 2 recorded + 2 uploaded.
+    const shown = await prepareContextPack(
+      engine,
+      sessionSources(context),
+      EXECUTION,
+      { reader: "device" },
+    );
+    expect(turnsOf(shown)).toHaveLength(7);
+    expect(turnsOf(shown)[0]?.source).toMatchObject({
+      id: `stage:${made.first}:transcript:${made.pasted}`,
+    });
+    // [SAFETY] Any other reader is a prompt sent off this machine (the
+    // pack's default): the recording was made under a device-only policy,
+    // so its two turns are no part of that pack. 3 pasted + 2 uploaded.
     const pack = await prepareContextPack(
       engine,
       sessionSources(context),
       EXECUTION,
     );
-    const turns = pack.prepared.records.filter(
-      (record) => record.kind === KINDS.turn,
-    );
-    // 3 pasted + 2 recorded + 2 uploaded.
-    expect(turns).toHaveLength(7);
-    expect(turns[0]?.source).toMatchObject({
-      id: `stage:${made.first}:transcript:${made.pasted}`,
-    });
-    for (const projection of ["coach", "answer", "inspect"] as const)
-      for (const spoken of [
-        "",
-        "how do you decide when a feature should be a service of its own",
-        "Tell me about the Quayside Freight reporting service.",
-      ]) {
-        const resolved = pack.resolve(projection, spoken);
-        expect(
-          [...resolved.selected, ...resolved.excluded].filter((fact) =>
-            fact.recordId.startsWith("turn:"),
-          ),
-        ).toEqual([]);
-      }
+    expect(turnsOf(pack)).toHaveLength(5);
+    const recorded = `stage:${made.first}:transcript:${made.recorded}`;
+    expect(
+      pack.prepared.records.filter((record) => record.source.id === recorded),
+    ).toEqual([]);
+    expect(
+      shown.prepared.records.filter((record) => record.source.id === recorded),
+    ).toHaveLength(2);
+    for (const reader of [pack, shown])
+      for (const projection of ["coach", "answer", "inspect"] as const)
+        for (const spoken of [
+          "",
+          "how do you decide when a feature should be a service of its own",
+          "Tell me about the Quayside Freight reporting service.",
+        ]) {
+          const resolved = reader.resolve(projection, spoken);
+          expect(
+            [...resolved.selected, ...resolved.excluded].filter((fact) =>
+              fact.recordId.startsWith("turn:"),
+            ),
+          ).toEqual([]);
+        }
     // The stage's own notes and what the employer said are offered.
     const prep = pack
       .facts("inspect", "What is your experience with NestJS?")

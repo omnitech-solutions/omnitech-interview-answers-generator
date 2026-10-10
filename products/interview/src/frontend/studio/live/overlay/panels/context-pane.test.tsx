@@ -1096,6 +1096,9 @@ describe("ContextPane", () => {
       ["roles", "Your roles"],
       ["employer", "About them"],
       ["prep", "Your prep"],
+      // What a model read from an earlier stage's transcript.
+      ["asked", "Asked in a stage"],
+      ["signals", "Said to expect"],
       // A slot the pane has no name for is named as the server names it.
       ["benefits", "benefits"],
     ])("the slot %s is labelled %s", async (slot, label) => {

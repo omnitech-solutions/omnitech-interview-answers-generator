@@ -17,6 +17,10 @@
     "./ai-log": {
       "types": "./dist/ai-log.d.ts",
       "import": "./dist/ai-log.js"
+    },
+    "./ai-packs": {
+      "types": "./dist/ai-packs.d.ts",
+      "import": "./dist/ai-packs.js"
     }
   },
   "scripts": {

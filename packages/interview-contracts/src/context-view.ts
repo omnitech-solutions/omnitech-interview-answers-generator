@@ -5,7 +5,13 @@ import { z } from "zod";
 // was left out and why, and what each slot came to. It is the same selection
 // the coach and the answers read, so what the model read and what the person
 // is shown cannot differ.
-export const CONTEXT_PROJECTIONS = ["coach", "answer", "inspect"] as const;
+export const CONTEXT_PROJECTIONS = [
+  "coach",
+  "answer",
+  "inspect",
+  "document",
+  "briefing",
+] as const;
 
 const fact = {
   // The record's identity, stable when other parts of the material change.

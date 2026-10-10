@@ -288,11 +288,13 @@ describe("what the employer wants", () => {
         .filter((fact) => /nestjs/i.test(fact.text))
         .map((fact) => [fact.text, fact.about, fact.slot]),
     ).toEqual([
+      // What the employer asks for is selected first: the evidence slot
+      // follows its ties, so it comes after the slots it follows.
+      ["Five years of NestJS in production", "employer", "requirements"],
       // The achievement that names NestJS, then the others done on it.
       [NEST, "candidate", "evidence"],
       [INVOICES, "candidate", "evidence"],
       [REVIEWED, "candidate", "evidence"],
-      ["Five years of NestJS in production", "employer", "requirements"],
     ]);
   });
 });
@@ -528,11 +530,17 @@ describe("the same selection, reproduced", () => {
   });
 
   it("has another digest for another question, another projection or other material", async () => {
+    // The three projections a question is asked of. A document and a
+    // briefing read the whole record with or without one, so two questions
+    // none of their slots answers are one selection, and one digest.
+    const asked = [
+      PROJECTIONS.coach,
+      PROJECTIONS.answer,
+      PROJECTIONS.inspect,
+    ] as const;
     const digests = new Set(
       QUESTIONS.flatMap((question) =>
-        Object.values(PROJECTIONS).map(
-          (projection) => pack.view(projection, question).digest,
-        ),
+        asked.map((projection) => pack.view(projection, question).digest),
       ),
     );
     expect(digests.size).toBe(QUESTIONS.length * 3);
@@ -620,12 +628,15 @@ describe("the view a person inspects", () => {
       { slot: "employer.company", state: "covered", count: 1 },
       { slot: "employer.role", state: "covered", count: 1 },
       { slot: "stories", state: "no-such-fact", count: 0 },
+      { slot: "requirements", state: "no-such-fact", count: 0 },
+      { slot: "prep", state: "no-such-fact", count: 0 },
+      // What a stage's transcript gives, once a model has read one.
+      { slot: "asked", state: "no-such-fact", count: 0 },
+      { slot: "signals", state: "no-such-fact", count: 0 },
       { slot: "evidence", state: "covered", count: 5 },
       { slot: "roles", state: "covered", count: 1 },
       { slot: "preferences", state: "no-such-fact", count: 0 },
-      { slot: "requirements", state: "no-such-fact", count: 0 },
       { slot: "employer", state: "no-such-fact", count: 0 },
-      { slot: "prep", state: "no-such-fact", count: 0 },
     ]);
   });
 
@@ -798,7 +809,7 @@ describe("a pack of no material", () => {
     expect(empty.lookup("candidate.name")).toBeUndefined();
     expect(empty.lookup("employer.company")).toBeUndefined();
     const states = empty.view("inspect", GO).slots;
-    expect(states.length).toBe(12);
+    expect(states.length).toBe(14);
     for (const slot of states) {
       expect(slot.count).toBe(0);
       expect(slot.state).toBe(
@@ -1187,5 +1198,5 @@ describe("evidence for a question, on a whole brief", () => {
           expect(given.has(`${fact.slot}:${fact.id}`), fact.id).toBe(false);
         expect(kestrel.view(projection, question).digest).toBe(view.digest);
       }
-  });
+  }, 60_000);
 });

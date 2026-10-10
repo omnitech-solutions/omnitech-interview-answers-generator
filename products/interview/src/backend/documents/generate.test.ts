@@ -10,6 +10,7 @@ import {
 import { createLogger } from "@omnitech/logging";
 import { engineLog } from "@omnitech/platform-runtime/ai-log";
 import { describe, expect, it, vi } from "vitest";
+import type { DocumentPack } from "../context-pack/readers";
 import { castValues, planCast } from "./cast";
 import { resumeRunFields, SYNTHETIC_MATRIX } from "./fixtures/resume-run";
 import {
@@ -48,6 +49,8 @@ const fields: DocumentField[] = [
 // What the product asked the model: the profile, the schema of the fields it
 // wants, and the JSON it sent as the user's message.
 type Asked = {
+  // What the call was told, beside what it was given.
+  system: string;
   profileId: string;
   schema: { properties: Record<string, unknown> };
   prompt: string;
@@ -71,6 +74,14 @@ function scripted(
       scripted: {
         async *stream(_scope, model: ModelInput, signal) {
           const asked: Asked = {
+            system: model.messages
+              .filter((message) => message.role === "system")
+              .flatMap((message) =>
+                message.parts.map((part) =>
+                  part.type === "text" ? part.text : "",
+                ),
+              )
+              .join(""),
             profileId: model.profileId,
             schema: model.schema as Asked["schema"],
             prompt: model.messages
@@ -791,18 +802,19 @@ describe("blocks and the cast", () => {
     ...castValues(blockFields, cast, SYNTHETIC_MATRIX),
   };
   const contact = ["heading_phone_number", "email_address", "portfolio"];
-  const run = (engine: Parameters<typeof generateDocumentValues>[0]) =>
-    generateDocumentValues(engine, {
-      ...input,
-      fields: blockFields,
-      candidateProfile: SYNTHETIC_MATRIX,
-      candidacyValues: {},
-      profileValues: { ...facts, email_address: "rowan@example.invalid" },
-      missingProfileKeys: ["heading_phone_number", "portfolio"],
-      privateKeys: contact,
-      cast,
-      generation: { maxCalls: 4, fieldsPerCall: 6, attempts: 1 },
-    });
+  const base = async () => ({
+    ...input,
+    fields: blockFields,
+    candidateProfile: SYNTHETIC_MATRIX,
+    candidacyValues: {},
+    profileValues: { ...facts, email_address: "rowan@example.invalid" },
+    missingProfileKeys: ["heading_phone_number", "portfolio"],
+    privateKeys: contact,
+    cast,
+    generation: { maxCalls: 4, fieldsPerCall: 6, attempts: 1 },
+  });
+  const run = async (engine: Parameters<typeof generateDocumentValues>[0]) =>
+    generateDocumentValues(engine, await base());
 
   it("never cuts a batch inside a block, however the calls are shared out", () => {
     const { modelFields } = documentFieldOwnership({
@@ -859,6 +871,123 @@ describe("blocks and the cast", () => {
     });
     expect(batches).toHaveLength(1);
     expect(batches[0]?.fields).toHaveLength(6);
+  });
+
+  describe("with the application's context pack", () => {
+    const roles = [...new Set(Object.values(cast.slots).flat())];
+    const [first, second] = roles;
+    const pack: DocumentPack = {
+      asks: [
+        {
+          requirement: "React for internal tools",
+          pointer: "posting:1@chars:10-40",
+          level: "must",
+          fit: "strong",
+          evidence: [
+            { pointer: `${first}/proof_points/0`, text: "At One: built it." },
+          ],
+        },
+        {
+          requirement: "Working proficiency in French",
+          pointer: "posting:1@chars:50-80",
+          level: "must",
+          fit: "gap",
+          evidence: [],
+          gap: "Nothing in the record says French.",
+        },
+      ],
+      achievements: [
+        {
+          role: first ?? "",
+          pointer: `${first}/proof_points/0`,
+          text: "At One: built it.",
+        },
+        {
+          role: second ?? "",
+          pointer: `${second}/proof_points/0`,
+          text: "At Two: ran it.",
+        },
+        {
+          role: "/roles/99",
+          pointer: "/roles/99/proof_points/0",
+          text: "At Nowhere: uncast.",
+        },
+      ],
+    };
+    const asked = (call: { prompt: string }) =>
+      JSON.parse(call.prompt) as {
+        pack?: DocumentPack;
+        blocks?: { block: string }[];
+      };
+
+    it("gives every writing call what the employer asks for, with the evidence and the gap", async () => {
+      const { engine, calls } = scripted(echo);
+      await generateDocumentValues(engine, { ...(await base()), pack });
+      expect(calls.length).toBeGreaterThan(1);
+      for (const call of calls) {
+        expect(asked(call).pack?.asks).toEqual(pack.asks);
+        expect(call.system).toContain(
+          "An ask whose fit is gap or none is something the record does not show: never write it as experience.",
+        );
+      }
+    });
+
+    it("gives a call only the achievements of the roles its own blocks were cast with", async () => {
+      const { engine, calls } = scripted(echo);
+      await generateDocumentValues(engine, { ...(await base()), pack });
+      let scoped = 0;
+      for (const call of calls) {
+        const { blocks, pack: given } = asked(call);
+        const own = new Set(
+          (blocks ?? []).flatMap((block) => cast.slots[block.block] ?? []),
+        );
+        if (own.size === 0) continue;
+        scoped++;
+        for (const each of given?.achievements ?? [])
+          expect(own.has(each.role), `${each.role} in ${[...own]}`).toBe(true);
+        // Never another block's employer, and never a role that was not cast.
+        expect(
+          given?.achievements.some((each) => each.role === "/roles/99"),
+        ).toBe(false);
+      }
+      expect(scoped).toBeGreaterThan(0);
+    });
+
+    it("is written exactly as before when there is no pack: the prompt and the instructions are unchanged", async () => {
+      const plain = scripted(echo);
+      await generateDocumentValues(plain.engine, await base());
+      for (const absent of [undefined, null]) {
+        const again = scripted(echo);
+        await generateDocumentValues(again.engine, {
+          ...(await base()),
+          ...(absent === undefined ? {} : { pack: absent }),
+        });
+        expect(again.calls.map((call) => call.prompt)).toEqual(
+          plain.calls.map((call) => call.prompt),
+        );
+        expect(again.calls.map((call) => call.system)).toEqual(
+          plain.calls.map((call) => call.system),
+        );
+      }
+      for (const call of plain.calls) {
+        expect(call.prompt).not.toContain('"pack"');
+        expect(call.system).not.toContain("pack.asks");
+      }
+    });
+
+    it("leaves the server's values and the cast as they are: the pack only adds what to read", async () => {
+      const without = await run(scripted(echo).engine);
+      const withPack = await generateDocumentValues(scripted(echo).engine, {
+        ...(await base()),
+        pack,
+      });
+      expect(withPack.values["contract_company2"]).toBe(
+        without.values["contract_company2"],
+      );
+      expect(Object.keys(withPack.values).sort()).toEqual(
+        Object.keys(without.values).sort(),
+      );
+    });
   });
 
   it("asks the model for prose only: never an employer, a title or a date, and never a block the cast left empty", async () => {

@@ -1,0 +1,661 @@
+{
+  "name": "kestrel-freight-pay-extraction",
+  "note": "What a careful reader finds in the fixture's posting, research, employer-said entries and transcript: each record with the exact words it rests on. `requirements` counts the posting's mustHaves and niceToHaves. `invented` are proposals a model might make that the source does not say: each must be refused. Every name and figure is invented.",
+  "sources": [
+    {
+      "source": "posting",
+      "kind": "job-description",
+      "records": [
+        {
+          "kind": "employer-requirement",
+          "text": "7+ years building complex, scalable APIs, including third-party API integration",
+          "quote": "7+ years of experience building complex, scalable APIs, including integrating with third-party APIs",
+          "fields": {
+            "section": "mustHaves",
+            "level": "must"
+          },
+          "themes": ["apis", "integrations"],
+          "answers": []
+        },
+        {
+          "kind": "employer-requirement",
+          "text": "Strong TypeScript and Node on the server; NestJS preferred",
+          "quote": "Strong TypeScript and Node on the server. NestJS is what we use, and experience with it is preferred",
+          "fields": {
+            "section": "mustHaves",
+            "level": "must"
+          },
+          "themes": ["typescript", "node", "nestjs"],
+          "answers": []
+        },
+        {
+          "kind": "employer-requirement",
+          "text": "Relational data modelling in PostgreSQL, including migrations of live data",
+          "quote": "Relational data modelling in PostgreSQL, including migrations of live data",
+          "fields": {
+            "section": "mustHaves",
+            "level": "must"
+          },
+          "themes": ["postgresql", "migration"],
+          "answers": []
+        },
+        {
+          "kind": "employer-requirement",
+          "text": "Experience leading a team's technical direction and mentoring engineers",
+          "quote": "Experience leading a team's technical direction and mentoring engineers",
+          "fields": {
+            "section": "mustHaves",
+            "level": "must"
+          },
+          "themes": ["leadership", "mentoring"],
+          "answers": []
+        },
+        {
+          "kind": "employer-requirement",
+          "text": "React for internal and customer-facing tools",
+          "quote": "React for internal and customer-facing tools",
+          "fields": {
+            "section": "mustHaves",
+            "level": "must"
+          },
+          "themes": ["react"],
+          "answers": []
+        },
+        {
+          "kind": "employer-requirement",
+          "text": "Event-driven design with a message broker such as Kafka",
+          "quote": "Event-driven design with a message broker such as Kafka",
+          "fields": {
+            "section": "mustHaves",
+            "level": "must"
+          },
+          "themes": ["kafka", "events"],
+          "answers": []
+        },
+        {
+          "kind": "employer-requirement",
+          "text": "Testing strategy across unit, contract and end-to-end layers",
+          "quote": "A testing strategy that spans unit, contract and end-to-end layers",
+          "fields": {
+            "section": "mustHaves",
+            "level": "must"
+          },
+          "themes": ["testing"],
+          "answers": []
+        },
+        {
+          "kind": "employer-requirement",
+          "text": "Operational ownership: on-call, incident response, observability",
+          "quote": "Operational ownership: on-call, incident response and observability",
+          "fields": {
+            "section": "mustHaves",
+            "level": "must"
+          },
+          "themes": ["incidents", "observability"],
+          "answers": []
+        },
+        {
+          "kind": "employer-requirement",
+          "text": "Security-minded design for systems that move money",
+          "quote": "Security-minded design for systems that move money",
+          "fields": {
+            "section": "mustHaves",
+            "level": "must"
+          },
+          "themes": ["security", "payments"],
+          "answers": []
+        },
+        {
+          "kind": "employer-requirement",
+          "text": "Working proficiency in French, for brokers in Quebec",
+          "quote": "Working proficiency in French, for our brokers in Quebec",
+          "fields": {
+            "section": "mustHaves",
+            "level": "must"
+          },
+          "themes": ["french", "language"],
+          "answers": []
+        },
+        {
+          "kind": "employer-requirement",
+          "text": "Clear written communication with product and partner teams",
+          "quote": "Clear written communication with product and partner teams",
+          "fields": {
+            "section": "mustHaves",
+            "level": "must"
+          },
+          "themes": ["communication"],
+          "answers": []
+        },
+        {
+          "kind": "employer-requirement",
+          "text": "Freight, logistics or payments domain experience",
+          "quote": "Freight, logistics or payments domain experience",
+          "fields": {
+            "section": "niceToHaves",
+            "level": "nice"
+          },
+          "themes": ["freight", "payments"],
+          "answers": []
+        },
+        {
+          "kind": "employer-requirement",
+          "text": "Moving a service from MongoDB to PostgreSQL",
+          "quote": "Experience moving a service from MongoDB to PostgreSQL",
+          "fields": {
+            "section": "niceToHaves",
+            "level": "nice"
+          },
+          "themes": ["mongodb", "postgresql", "migration"],
+          "answers": []
+        },
+        {
+          "kind": "employer-requirement",
+          "text": "Experience introducing delivery metrics to a team",
+          "quote": "Experience introducing delivery metrics to a team",
+          "fields": {
+            "section": "niceToHaves",
+            "level": "nice"
+          },
+          "themes": ["metrics", "delivery"],
+          "answers": []
+        },
+        {
+          "kind": "employer-requirement",
+          "text": "Set technical direction for the Settlements services",
+          "quote": "Set technical direction for the Settlements services",
+          "fields": {
+            "section": "responsibilities"
+          },
+          "themes": ["leadership"],
+          "answers": []
+        },
+        {
+          "kind": "employer-requirement",
+          "text": "Manage third-party carrier and factoring integrations for reliability, performance and security",
+          "quote": "Manage third-party carrier and factoring integrations for reliability, performance and security",
+          "fields": {
+            "section": "responsibilities"
+          },
+          "themes": ["integrations", "carriers"],
+          "answers": []
+        },
+        {
+          "kind": "employer-requirement",
+          "text": "Own reconciliation correctness between payouts and bank files",
+          "quote": "Own reconciliation correctness between payouts and bank files",
+          "fields": {
+            "section": "responsibilities"
+          },
+          "themes": ["reconciliation", "payouts"],
+          "answers": []
+        },
+        {
+          "kind": "employer-requirement",
+          "text": "Plan the move of settlement data from MongoDB to PostgreSQL",
+          "quote": "Plan the move of settlement data from MongoDB to PostgreSQL",
+          "fields": {
+            "section": "responsibilities"
+          },
+          "themes": ["migration", "mongodb", "postgresql"],
+          "answers": []
+        },
+        {
+          "kind": "employer-requirement",
+          "text": "Lead design reviews and keep decisions written down",
+          "quote": "Lead design reviews and keep decisions written down",
+          "fields": {
+            "section": "responsibilities"
+          },
+          "themes": ["design"],
+          "answers": []
+        },
+        {
+          "kind": "employer-requirement",
+          "text": "Mentor engineers and raise the bar on code review",
+          "quote": "Mentor engineers and raise the bar on code review",
+          "fields": {
+            "section": "responsibilities"
+          },
+          "themes": ["mentoring"],
+          "answers": []
+        },
+        {
+          "kind": "employer-requirement",
+          "text": "Partner with product on scope, sequencing and deadlines",
+          "quote": "Partner with product on scope, sequencing and deadlines",
+          "fields": {
+            "section": "responsibilities"
+          },
+          "themes": ["product", "deadlines"],
+          "answers": []
+        },
+        {
+          "kind": "employer-requirement",
+          "text": "Improve observability and incident response for payouts",
+          "quote": "Improve observability and incident response for payouts",
+          "fields": {
+            "section": "responsibilities"
+          },
+          "themes": ["observability", "incidents"],
+          "answers": []
+        },
+        {
+          "kind": "employer-requirement",
+          "text": "Stay hands-on: roughly half the time in code",
+          "quote": "Stay hands-on: expect roughly half your time in code",
+          "fields": {
+            "section": "responsibilities"
+          },
+          "themes": ["hands-on"],
+          "answers": []
+        },
+        {
+          "kind": "employer-fact",
+          "text": "Settlements owns carrier payouts, reconciliation, statements and the rules that decide when a load is paid",
+          "quote": "Settlements owns carrier payouts, reconciliation, statements and the rules that decide when a load is paid",
+          "fields": {
+            "section": "team"
+          },
+          "themes": ["settlements", "team"],
+          "answers": []
+        },
+        {
+          "kind": "employer-fact",
+          "text": "The Tech Lead leads six engineers and works beside a product manager and a designer",
+          "quote": "You will lead six engineers and work beside a product manager and a designer",
+          "fields": {
+            "section": "team"
+          },
+          "themes": ["team"],
+          "answers": ["How big is the team?"]
+        },
+        {
+          "kind": "employer-fact",
+          "text": "Carriers first: a late payout is a broken promise",
+          "quote": "we put carriers first: a late payout is a broken promise",
+          "fields": {
+            "section": "values"
+          },
+          "themes": ["values", "carriers"],
+          "answers": []
+        },
+        {
+          "kind": "employer-fact",
+          "text": "Say the hard thing kindly",
+          "quote": "We say the hard thing kindly",
+          "fields": {
+            "section": "values"
+          },
+          "themes": ["values", "candour"],
+          "answers": []
+        },
+        {
+          "kind": "employer-fact",
+          "text": "Learn from every incident",
+          "quote": "We learn from every incident",
+          "fields": {
+            "section": "values"
+          },
+          "themes": ["values", "incidents"],
+          "answers": []
+        },
+        {
+          "kind": "employer-fact",
+          "text": "The hiring-manager interview is one hour on leadership and experience, with no coding",
+          "quote": "A hiring-manager interview of one hour on leadership and experience, with no coding",
+          "fields": {
+            "section": "process"
+          },
+          "themes": ["interview", "process"],
+          "answers": []
+        },
+        {
+          "kind": "employer-fact",
+          "text": "The technical round is two hours: live coding on a NestJS and React repository, then system design",
+          "quote": "a technical round of two hours: live coding on a NestJS and React repository, followed by system design",
+          "fields": {
+            "section": "process"
+          },
+          "themes": ["interview", "technical"],
+          "answers": ["What is in the technical round?"]
+        },
+        {
+          "kind": "employer-fact",
+          "text": "Candidates do not use AI assistants during live interviews unless the interviewer says otherwise",
+          "quote": "candidates do not use AI assistants during live interviews unless the interviewer says otherwise",
+          "fields": {
+            "section": "process"
+          },
+          "themes": ["ai", "interview"],
+          "answers": ["Can I use AI in the interview?"]
+        },
+        {
+          "kind": "employer-fact",
+          "text": "Pays freight carriers within two days of delivery, on behalf of brokers across Canada",
+          "quote": "Kestrel Freight Pay pays freight carriers within two days of delivery, on behalf of brokers across Canada",
+          "fields": {
+            "section": "companyFacts"
+          },
+          "themes": ["company", "carriers"],
+          "answers": []
+        },
+        {
+          "kind": "employer-fact",
+          "text": "Processes about 400,000 carrier payouts a year and integrates with 30 carrier and factoring partners",
+          "quote": "We process about 400,000 carrier payouts a year and integrate with 30 carrier and factoring partners",
+          "fields": {
+            "section": "companyFacts"
+          },
+          "themes": ["scale", "payouts"],
+          "answers": []
+        },
+        {
+          "kind": "employer-fact",
+          "text": "Series B, 140 people, remote first with a hub in Halifax",
+          "quote": "We are a Series B company of 140 people, remote first, with a hub in Halifax",
+          "fields": {
+            "section": "companyFacts"
+          },
+          "themes": ["company", "remote"],
+          "answers": []
+        },
+        {
+          "kind": "employer-requirement",
+          "text": "NestJS",
+          "quote": "Node and NestJS services in TypeScript",
+          "fields": {
+            "section": "techStack"
+          },
+          "themes": ["nestjs"],
+          "answers": []
+        },
+        {
+          "kind": "employer-requirement",
+          "text": "React and Redux",
+          "quote": "React and Redux on the front end",
+          "fields": {
+            "section": "techStack"
+          },
+          "themes": ["react", "redux"],
+          "answers": []
+        },
+        {
+          "kind": "employer-requirement",
+          "text": "PostgreSQL and MongoDB",
+          "quote": "PostgreSQL and MongoDB for data",
+          "fields": {
+            "section": "techStack"
+          },
+          "themes": ["postgresql", "mongodb"],
+          "answers": []
+        },
+        {
+          "kind": "employer-requirement",
+          "text": "Kafka",
+          "quote": "Kafka for events",
+          "fields": {
+            "section": "techStack"
+          },
+          "themes": ["kafka"],
+          "answers": []
+        },
+        {
+          "kind": "employer-requirement",
+          "text": "Redis",
+          "quote": "Redis for caching",
+          "fields": {
+            "section": "techStack"
+          },
+          "themes": ["redis"],
+          "answers": []
+        }
+      ]
+    },
+    {
+      "source": "research:00000000-0000-4000-8000-00000000c001",
+      "kind": "research",
+      "records": [
+        {
+          "kind": "employer-fact",
+          "text": "The settlement ledger is append-only and balanced nightly against bank files",
+          "quote": "The settlement ledger is append-only and balanced nightly against bank files",
+          "fields": {
+            "section": "product"
+          },
+          "themes": ["ledger", "reconciliation"],
+          "answers": ["How is the settlement ledger balanced?"]
+        },
+        {
+          "kind": "employer-fact",
+          "text": "Payout batches close at 16:00 Atlantic on business days",
+          "quote": "Payout batches close at 16:00 Atlantic on business days",
+          "fields": {
+            "section": "product"
+          },
+          "themes": ["payouts", "batches"],
+          "answers": []
+        },
+        {
+          "kind": "employer-fact",
+          "text": "On-call rotates weekly across the six engineers",
+          "quote": "On-call rotates weekly across the six engineers",
+          "fields": {
+            "section": "company"
+          },
+          "themes": ["on-call", "rota"],
+          "answers": []
+        },
+        {
+          "kind": "prep-note",
+          "text": "What happens to a payout batch when the nightly balance against the bank files fails?",
+          "quote": "balanced nightly against bank files",
+          "fields": {
+            "section": "questionsToAsk"
+          },
+          "themes": ["reconciliation"],
+          "answers": []
+        }
+      ]
+    },
+    {
+      "source": "research:00000000-0000-4000-8000-00000000c002",
+      "kind": "research",
+      "records": [
+        {
+          "kind": "employer-fact",
+          "text": "Median days to pay a carrier fell from 31 to 27 across the brokers surveyed",
+          "quote": "Median days to pay a carrier fell from 31 to 27 across the brokers surveyed",
+          "fields": {
+            "section": "company"
+          },
+          "themes": ["carriers", "payment"],
+          "answers": []
+        },
+        {
+          "kind": "employer-fact",
+          "text": "Factoring fees held at about 3% of invoice value",
+          "quote": "Factoring fees held at about 3% of invoice value",
+          "fields": {
+            "section": "risk"
+          },
+          "themes": ["factoring", "fees"],
+          "answers": []
+        }
+      ]
+    },
+    {
+      "source": "research:00000000-0000-4000-8000-00000000c003",
+      "kind": "research",
+      "records": [
+        {
+          "kind": "employer-fact",
+          "text": "Imre Solvang managed the reconciliation team before Settlements",
+          "quote": "Imre Solvang managed the reconciliation team before Settlements",
+          "fields": {
+            "section": "people"
+          },
+          "themes": ["imre", "reconciliation"],
+          "answers": ["Who is Imre Solvang?"]
+        },
+        {
+          "kind": "employer-fact",
+          "text": "Asta Verhoeven wrote the idempotency layer for partner webhooks",
+          "quote": "Asta Verhoeven wrote the idempotency layer for partner webhooks",
+          "fields": {
+            "section": "people"
+          },
+          "themes": ["asta", "idempotency", "webhooks"],
+          "answers": ["Who is Asta Verhoeven?"]
+        }
+      ]
+    },
+    {
+      "source": "employer-said:00000000-0000-4000-8000-00000000d001",
+      "kind": "employer-said",
+      "records": [
+        {
+          "kind": "employer-fact",
+          "text": "The technical round is two hours: one hour of live coding on a shared NestJS and React repository, then one hour of system design",
+          "quote": "The technical round is two hours: one hour of live coding on a shared NestJS and React repository, then one hour of system design",
+          "fields": {
+            "section": "process"
+          },
+          "themes": ["technical", "interview"],
+          "answers": ["How long is the technical round?"]
+        }
+      ]
+    },
+    {
+      "source": "employer-said:00000000-0000-4000-8000-00000000d002",
+      "kind": "employer-said",
+      "records": [
+        {
+          "kind": "employer-fact",
+          "text": "References are taken only after an offer is agreed",
+          "quote": "References are taken only after an offer is agreed",
+          "fields": {
+            "section": "constraint"
+          },
+          "themes": ["references", "offer"],
+          "answers": ["When are references taken?"]
+        }
+      ]
+    },
+    {
+      "source": "employer-said:00000000-0000-4000-8000-00000000d003",
+      "kind": "employer-said",
+      "records": [
+        {
+          "kind": "employer-fact",
+          "text": "The panel cares most about correctness under retries",
+          "quote": "The panel cares most about correctness under retries",
+          "fields": {
+            "section": "process"
+          },
+          "themes": ["retries", "correctness", "panel"],
+          "answers": ["What does the panel care about?"]
+        }
+      ]
+    },
+    {
+      "source": "stage:00000000-0000-4000-8000-00000000a001:transcript:00000000-0000-4000-8000-00000000e001",
+      "kind": "transcript",
+      "records": [
+        {
+          "kind": "stage-question",
+          "text": "When two teams both need the same payout record, who should own it?",
+          "quote": "when two teams both need the same payout record, who should own it",
+          "fields": {
+            "askedBy": "Interviewer"
+          },
+          "themes": ["ownership", "data"],
+          "answers": []
+        },
+        {
+          "kind": "stage-answer",
+          "text": "One team writes the record and the other reads it through a contract; at Quotewright the quote state had one owner.",
+          "quote": "one team writes it and the other reads it through a contract, at Quotewright the quote state had one owner",
+          "fields": {
+            "used": "Quotewright",
+            "missing": ["no figure given"]
+          },
+          "themes": ["ownership", "contract"],
+          "answers": []
+        },
+        {
+          "kind": "stage-question",
+          "text": "How would you bring a new engineer into the on-call rota?",
+          "quote": "how would you bring a new engineer into the on-call rota",
+          "fields": {
+            "askedBy": "Interviewer"
+          },
+          "themes": ["on-call", "onboarding"],
+          "answers": []
+        },
+        {
+          "kind": "stage-answer",
+          "text": "Shadow for two weeks first, then paired, then alone with a named backup.",
+          "quote": "shadow for two weeks first, then paired, then alone with a named backup",
+          "fields": {},
+          "themes": ["on-call", "onboarding"],
+          "answers": []
+        },
+        {
+          "kind": "employer-signal",
+          "text": "The technical round is next: expect a question on idempotent payouts.",
+          "quote": "the technical round is next, expect a question on idempotent payouts",
+          "fields": {
+            "expect": "A question on idempotent payouts",
+            "carriesTo": "Technical"
+          },
+          "themes": ["idempotency", "payouts", "technical"],
+          "answers": []
+        }
+      ]
+    }
+  ],
+  "invented": [
+    {
+      "kind": "job-description",
+      "after": "Security-minded design for systems that move money",
+      "record": {
+        "kind": "employer-requirement",
+        "text": "PCI DSS Level 1 certification experience",
+        "quote": "Experience with PCI DSS Level 1 certification is required",
+        "fields": {
+          "section": "mustHaves",
+          "level": "must"
+        },
+        "themes": ["pci"],
+        "answers": []
+      }
+    },
+    {
+      "kind": "research",
+      "after": "Factoring fees held at about 3% of invoice value",
+      "record": {
+        "kind": "employer-fact",
+        "text": "Kestrel raised a Series C round in 2025",
+        "quote": "Kestrel closed its Series C in 2025",
+        "fields": {
+          "section": "company"
+        },
+        "themes": ["funding"],
+        "answers": []
+      }
+    },
+    {
+      "kind": "transcript",
+      "after": "expect a question on idempotent payouts",
+      "record": {
+        "kind": "stage-commitment",
+        "text": "Promised to send a write-up of the Quotewright adapter contract.",
+        "quote": "I will send you a write-up of the adapter contract",
+        "fields": {},
+        "themes": ["follow-up"],
+        "answers": []
+      }
+    }
+  ]
+}

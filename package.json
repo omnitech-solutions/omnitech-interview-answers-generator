@@ -61,6 +61,12 @@
     "coach:replay": "pnpm --filter @omnitech/agent-worker exec tsx src/coach-replay.ts",
     "pack:bench": "pnpm --filter @omnitech/agent-worker exec tsx ../../scripts/pack-bench.ts",
     "pack:bench:timing": "pnpm --filter @omnitech/agent-worker exec tsx ../../scripts/pack-bench.ts",
+    "pack:bench:prepared": "pnpm --filter @omnitech/agent-worker exec tsx ../../scripts/pack-bench.ts --prepared",
+    "pack:bench:claude": "pnpm --filter @omnitech/agent-worker exec tsx ../../scripts/pack-bench.ts --live --profile agent/claude-code",
+    "pack:bench:codex": "pnpm --filter @omnitech/agent-worker exec tsx ../../scripts/pack-bench.ts --live --profile agent/codex",
+    "pack:bench:openrouter": "pnpm --filter @omnitech/agent-worker exec tsx ../../scripts/pack-bench.ts --live --profile openrouter",
+    "pack:bench:lmstudio": "pnpm --filter @omnitech/agent-worker exec tsx ../../scripts/pack-bench.ts --live --profile lm-studio",
+    "pack:bench:all": "pnpm --filter @omnitech/agent-worker exec tsx ../../scripts/pack-bench.ts --all",
     "engine:sync": "pnpm --dir ../omnitech-ai-engine --filter @omnitech/ai-engine build && pnpm --dir ../omnitech-ai-engine/packages/ai-engine pack --pack-destination \"$PWD/vendor/omnitech-ai-engine\" && pnpm install"
   },
   "devDependencies": {

@@ -28,10 +28,16 @@
 // one named there counts as one named by an achievement does (recipe.ts).
 // A link is stored as an object under `fields.links`, which selection never
 // matches on: it changes which evidence is preferred, never what is found.
-import type { Source } from "@omnitech/ai-engine";
-import { KINDS, sameAs, wordsOf } from "./recipe";
+import type { GivenLink, JsonValue, Source } from "@omnitech/ai-engine";
+import { KINDS, LINKS, sameAs, wordsOf } from "./recipe";
 
-type SourceRecord = NonNullable<Source["records"]>[number];
+// A record as linking reads it: one a source gives, or one already prepared.
+type SourceRecord = Readonly<{
+  id: string;
+  kind: string;
+  text: string;
+  fields?: Readonly<Record<string, JsonValue>>;
+}>;
 export type Links = {
   achievements: string[];
   roles: string[];
@@ -91,12 +97,30 @@ function statedIn(text: string): { figure: string; beside: Set<string> }[] {
 const NAME_LETTERS = 4;
 
 export function linkSources(sources: readonly Source[]): Source[] {
-  const records = sources.flatMap((source) => source.records ?? []);
+  const linked = linker(sources.flatMap((source) => source.records ?? []));
+  return sources.map((source) => ({
+    ...source,
+    ...(source.records ? { records: source.records.map(linked) } : {}),
+  }));
+}
+
+// The same links over records however they were come by: what a source gave
+// and what a model extracted are linked by one rule (pack.ts links a prepared
+// pack's extracted requirements with it).
+export function linkRecords<Each extends SourceRecord>(
+  records: readonly Each[],
+): Each[] {
+  return records.map(linker(records));
+}
+
+function linker(
+  records: readonly SourceRecord[],
+): <Each extends SourceRecord>(record: Each) => Each {
   const roles = records.filter((record) => record.kind === KINDS.role);
   const achievements = records.filter(
     (record) => record.kind === KINDS.achievement,
   );
-  if (roles.length === 0) return [...sources];
+  if (roles.length === 0) return (record) => record;
 
   // [DOMAIN] A word the material ever writes in lower case is a word, not a
   // name: "Relay" may name an employer only if nobody wrote "relay".
@@ -205,7 +229,7 @@ export function linkSources(sources: readonly Source[]): Source[] {
         tied.set(name, [...new Set([...(tied.get(name) ?? []), ...at])]);
   }
 
-  const linked = (record: SourceRecord): SourceRecord => {
+  return <Each extends SourceRecord>(record: Each): Each => {
     if (record.kind === KINDS.story || record.kind === KINDS.prep) {
       const links = noteLinks(record);
       return links.roles.length === 0
@@ -251,8 +275,66 @@ export function linkSources(sources: readonly Source[]): Source[] {
       },
     };
   };
-  return sources.map((source) => ({
-    ...source,
-    ...(source.records ? { records: source.records.map(linked) } : {}),
-  }));
+}
+
+// [STRATEGY] The links above as the ties the engine keeps (recipe.ts, LINKS):
+// each from the record that names something to an ACHIEVEMENT it stands for.
+// An employer named is every achievement of that role; a technology is every
+// achievement done on it. The engine checks each tie again (both ends exist,
+// the pair is one the step allows) and a slot of evidence follows them, so a
+// selected note keeps what it names in the ranking with no second search.
+export function givenLinks(records: readonly SourceRecord[]): GivenLink[] {
+  const ofRole = new Map<string, string[]>();
+  const onTechnology = new Map<string, string[]>();
+  const put = (into: Map<string, string[]>, key: string, id: string) =>
+    into.set(key, [...(into.get(key) ?? []), id]);
+  for (const record of records) {
+    if (record.kind !== KINDS.achievement) continue;
+    const role = roleOf(record);
+    if (role) put(ofRole, role, record.id);
+    for (const technology of strings(record.fields?.["stack"]))
+      put(onTechnology, technology.toLowerCase(), record.id);
+  }
+  const given = new Map<string, GivenLink>();
+  const tie = (
+    step: string,
+    from: string,
+    to: readonly string[],
+    fields: NonNullable<GivenLink["fields"]>,
+  ) => {
+    // The first tie between two records stands: the strongest is made first.
+    for (const id of to)
+      if (!given.has(`${step}\n${from}\n${id}`))
+        given.set(`${step}\n${from}\n${id}`, { step, from, to: id, fields });
+  };
+  for (const record of records) {
+    const links = linksOf(record);
+    if (!links) continue;
+    if (record.kind === KINDS.prep || record.kind === KINDS.story) {
+      const step = record.kind === KINDS.prep ? LINKS.names : LINKS.tells;
+      tie(step, record.id, links.achievements, { basis: "figure" });
+      tie(
+        step,
+        record.id,
+        links.roles.flatMap((role) => ofRole.get(role) ?? []),
+        { basis: "employer" },
+      );
+    } else if (record.kind === KINDS.requirement) {
+      for (const each of links.through ?? [])
+        tie(
+          LINKS.stack,
+          record.id,
+          each.roles.flatMap((role) => ofRole.get(role) ?? []),
+          { technology: each.technology, via: "note" },
+        );
+      for (const technology of links.technologies)
+        tie(
+          LINKS.stack,
+          record.id,
+          onTechnology.get(technology.toLowerCase()) ?? [],
+          { technology, via: "own" },
+        );
+    }
+  }
+  return [...given.values()];
 }

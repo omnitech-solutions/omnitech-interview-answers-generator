@@ -463,6 +463,10 @@ const SLOT_LABEL: Record<string, string> = {
   requirements: "What they require",
   employer: "About them",
   prep: "Your prep",
+  // What a model read from an earlier stage's transcript, once the
+  // application's context pack is prepared.
+  asked: "Asked in a stage",
+  signals: "Said to expect",
 };
 const ABOUT_LABEL: Record<ContextView["selected"][number]["about"], string> = {
   candidate: "Yours",

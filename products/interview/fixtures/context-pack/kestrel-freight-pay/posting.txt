@@ -1,0 +1,54 @@
+Tech Lead, Settlements
+Kestrel Freight Pay · Halifax hub or remote in Canada
+
+About Kestrel Freight Pay
+
+Kestrel Freight Pay pays freight carriers within two days of delivery, on behalf of brokers across Canada. We began as a factoring service and grew into a settlement platform that small and mid-size freight brokers run their payables on. We process about 400,000 carrier payouts a year and integrate with 30 carrier and factoring partners. We are a Series B company of 140 people, remote first, with a hub in Halifax.
+
+The team
+
+Settlements owns carrier payouts, reconciliation, statements and the rules that decide when a load is paid. Quoting, our sister team, owns rates and carrier selection. You will lead six engineers and work beside a product manager and a designer.
+
+What you will do
+
+- Set technical direction for the Settlements services.
+- Manage third-party carrier and factoring integrations for reliability, performance and security.
+- Own reconciliation correctness between payouts and bank files.
+- Plan the move of settlement data from MongoDB to PostgreSQL.
+- Lead design reviews and keep decisions written down.
+- Mentor engineers and raise the bar on code review.
+- Partner with product on scope, sequencing and deadlines.
+- Improve observability and incident response for payouts.
+- Stay hands-on: expect roughly half your time in code.
+
+What you bring
+
+- 7+ years of experience building complex, scalable APIs, including integrating with third-party APIs.
+- Strong TypeScript and Node on the server. NestJS is what we use, and experience with it is preferred.
+- Relational data modelling in PostgreSQL, including migrations of live data.
+- Experience leading a team's technical direction and mentoring engineers.
+- React for internal and customer-facing tools.
+- Event-driven design with a message broker such as Kafka.
+- A testing strategy that spans unit, contract and end-to-end layers.
+- Operational ownership: on-call, incident response and observability.
+- Security-minded design for systems that move money.
+- Working proficiency in French, for our brokers in Quebec.
+- Clear written communication with product and partner teams.
+
+Nice to have
+
+- Freight, logistics or payments domain experience.
+- Experience moving a service from MongoDB to PostgreSQL.
+- Experience introducing delivery metrics to a team.
+
+Our stack
+
+Node and NestJS services in TypeScript, React and Redux on the front end, PostgreSQL and MongoDB for data, Kafka for events, Redis for caching, and AWS with Docker, Terraform and GitHub Actions for delivery.
+
+How we work
+
+We set ambitious goals and meet them. We act like the outcome is ours. We say the hard thing kindly. We learn from every incident. And we put carriers first: a late payout is a broken promise.
+
+The interview process
+
+A hiring-manager interview of one hour on leadership and experience, with no coding. Then a technical round of two hours: live coding on a NestJS and React repository, followed by system design. We ask that candidates do not use AI assistants during live interviews unless the interviewer says otherwise.

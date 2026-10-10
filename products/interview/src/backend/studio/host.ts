@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { CodeRunner } from "@omnitech/code-runner";
+import type { BriefingContext } from "@omnitech/interview-contracts";
 import {
   type DatabasePort,
   type ModelCatalog,
@@ -86,6 +87,11 @@ export type InterviewStudioOptions = {
   runner: Pick<CodeRunner, "runAll">;
   // How much conversation and draft the model is given each turn.
   contextCharacters: number;
+  // A briefing's lines from the application's prepared context pack.
+  briefingPack?: (
+    scope: Scope,
+    context: BriefingContext,
+  ) => Promise<{ pointer: string; text: string }[]>;
   // The candidate profile a new briefing pack starts from, if any.
   loadDefaultProfile?: (
     scope: Scope,
@@ -265,6 +271,7 @@ export function createInterviewStudio(options: InterviewStudioOptions) {
       generate,
       loadDefaultProfile: async (scope) =>
         (await options.loadDefaultProfile?.(scope)) ?? null,
+      ...(options.briefingPack ? { packContext: options.briefingPack } : {}),
     }),
   );
 

@@ -29,6 +29,8 @@ const extraEntrypointReasons: Record<string, string> = {
     "test-only: lets product conformance tests drive a real companion against the real backend; package-boundaries.test.ts confines importers to product tests",
   "@omnitech/platform-runtime./ai-log":
     "the AI engine's logger for the hosts that build an engine (the web host and the agent worker): the Studio's logger as its sink, one default for both; kept off the registry entrypoint, which the browser loads",
+  "@omnitech/platform-runtime./ai-packs":
+    "where prepared context packs are kept, for the hosts that build an AI engine (the web host and the agent worker): the engine's database when AI_ENGINE_DATABASE_URL names one, the process's memory otherwise; one decision for both, kept off the registry entrypoint, which the browser loads (ADR-0041)",
   "@omnitech/platform-runtime./ai-config":
     "env-driven model and agent-profile resolution for the hosts that build an AI engine (the web host and the agent worker); the engine itself reads no environment (ADR-0037)",
   "@omnitech/database./test-support":
@@ -145,7 +147,14 @@ const surfaces: Record<string, SurfaceRow> = {
   // server render the same entries the same way). Only names another package
   // imports are exported; the row and enumeration schemas they are built from
   // stay private to the contract's own file.
-  "@omnitech/interview-contracts": { entrypoints: 1, names: 489 },
+  // 502, up from 489: the review of an application's context pack (BRIEF-
+  // interview-brief-and-context-pack, phases 3 to 6). The routes that answer
+  // it and the Interview form that shows it must agree on what a review
+  // holds, how a preparation reports as it runs and what a correction is:
+  // packReviewSchema, packProgressSchema, packPrepareSchema,
+  // packCorrectionSchema and packCorrectionsSchema with their types,
+  // PACK_REVIEW_BOUNDS and PACK_SOURCE_STATES.
+  "@omnitech/interview-contracts": { entrypoints: 1, names: 502 },
   "@omnitech/interview-library": { entrypoints: 1, names: 5 },
   "@omnitech/interview-playground-control": { entrypoints: 1, names: 16 },
   "@omnitech/interview-storage": { entrypoints: 1, names: 8 },
@@ -159,7 +168,11 @@ const surfaces: Record<string, SurfaceRow> = {
   // +1 entrypoint and +4 names: ./ai-log, the one adapter that gives every
   // engine the Studio builds the Studio's own logger (engineLog,
   // engineLogLevel, engineLogSink, EngineLogOptions).
-  "@omnitech/platform-runtime": { entrypoints: 3, names: 17 },
+  // +1 entrypoint and +5 names: ./ai-packs, the one decision of where
+  // prepared context packs are kept, shared by the web host (which prepares
+  // them) and the agent worker (whose coach reads them): enginePreparedStore,
+  // createMemoryPreparedStore, KeptPacks, AGENT_WINDOW, ENGINE_DATABASE_ENV.
+  "@omnitech/platform-runtime": { entrypoints: 4, names: 22 },
   // +1: agentPayloadSecret, moved here when agent-job-service went into the AI engine.
   "@omnitech/platform-storage": { entrypoints: 3, names: 39 },
   // +6: the live coach the agent worker runs (createCoach, Coach, CoachPorts, CoachOptions, CoachCallError, COACH_PROMPT_VERSION).

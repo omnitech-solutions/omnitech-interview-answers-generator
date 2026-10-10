@@ -43,6 +43,8 @@ import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
 import { briefingScope } from "../briefing-access";
 import {
   type ContextEngine,
+  keptFor,
+  type PackStore,
   PROJECTIONS,
   type ProjectionId,
   prepareStagePack,
@@ -86,6 +88,9 @@ export type SessionRoutesOptions = {
   // Prepares and resolves the session's context pack for its owner's view.
   // Absent: the view route answers that it is not available.
   contextEngine?: ContextEngine;
+  // Where prepared context packs are kept: the view then shows what a model
+  // extracted for the session's application beside the person's material.
+  packs?: PackStore | undefined;
 };
 
 // A start or control body is a few fields; this bounds it before parsing.
@@ -472,7 +477,7 @@ export function createSessionRoutes(options: SessionRoutesOptions) {
     if (typeof asked === "number" && !(Number.isInteger(asked) && asked >= 1))
       throw new SessionError("invalid_input");
     const pack = await loadSessionContext(options.database, scope, sessionId)
-      .then((context) =>
+      .then(async (context) =>
         prepareStagePack(
           engine,
           context,
@@ -482,6 +487,14 @@ export function createSessionRoutes(options: SessionRoutesOptions) {
             for: { kind: "session", id: sessionId },
           },
           asked,
+          // The application's pack as a model prepared it, when one is kept.
+          // Read, never prepared: no model is called on this path.
+          // [SAFETY] This is the person's own screen: it shows a device-only
+          // transcript too. Every other reader of a pack is a remote prompt.
+          {
+            kept: await keptFor(options.packs, scope, context),
+            reader: "device",
+          },
         ),
       )
       .catch((error: unknown) => {

@@ -4,7 +4,11 @@ import { resolveDefaultLanguageModel } from "@omnitech/platform-runtime/ai-confi
 import { createInterviewBackend } from "@omnitech/product-interview/backend";
 import { createPresentationApi } from "@omnitech/product-presentation/backend";
 import type { Hono } from "hono";
-import { interviewAssistantBudget, interviewAssistantListing } from "./ai";
+import {
+  interviewAssistantBudget,
+  interviewAssistantListing,
+  platformPreparedStore,
+} from "./ai";
 import { resolvePlatformContext } from "./context";
 
 /** A registered product's backend: its router and any in-process worker. */
@@ -48,6 +52,14 @@ export function createProductBackends(
           assistantDefaultModel:
             process.env["INTERVIEW_ASSISTANT_DEFAULT_MODEL"],
         }
+      : {}),
+    // Prepared context packs are read from the store the engine keeps them
+    // in (ai.ts).
+    packStore: platformPreparedStore().store,
+    // The profile an application's context pack is prepared with; absent,
+    // the product's default (the agent the assistant runs on).
+    ...(process.env["INTERVIEW_PACK_PROFILE"]?.trim()
+      ? { packProfile: process.env["INTERVIEW_PACK_PROFILE"].trim() }
       : {}),
     localDefaultProfile:
       process.env["NODE_ENV"] !== "production" &&

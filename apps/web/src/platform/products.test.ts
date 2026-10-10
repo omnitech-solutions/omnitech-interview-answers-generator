@@ -14,6 +14,7 @@ vi.mock("@omnitech/product-presentation/backend", () => ({
 vi.mock("./ai", () => ({
   interviewAssistantBudget: () => ({ contextCharacters: 1 }),
   interviewAssistantListing: () => undefined,
+  platformPreparedStore: () => ({ store: undefined, kept: "memory" }),
 }));
 vi.mock("@omnitech/platform-runtime/ai-config", () => ({
   resolveDefaultLanguageModel: () => null,
