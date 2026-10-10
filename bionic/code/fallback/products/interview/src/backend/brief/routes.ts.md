@@ -9,7 +9,8 @@ prefix: /api/interview/documents/candidacies/:id/…
 
 PROBLEM: one application's stages, transcripts, employer-said entries and
 research must be read and edited whole by its owner. STRATEGY: each route
-parses its body against the contract (every size is bounded there), opens
-one tenant transaction, and lets the repository settle ownership first.
+parses its body against the contract (every size is bounded there) and
+hands it to the brief's service, which opens one tenant transaction and lets
+the repository settle ownership first.
 [SAFETY] A refusal is a code alone. Nothing a person typed, uploaded or
 recorded is ever logged or echoed in an error.

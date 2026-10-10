@@ -63,7 +63,7 @@ Speaker 2: The team was small, so I was wary of paying for extra deployments, ex
 
 Two paths feed `coachTranscript` (`coach-transcript.ts`, held in memory, never written):
 
-- A stored `transcript.final` observation: `ingest.ts` builds a `HeardLine` and calls `onHeard`. In `interview-backend.ts`, `speakerOfSource` maps `application-audio` to `interviewer`, `microphone` to `candidate`, anything else to `unknown`.
+- A stored `transcript.final` observation: the observation handler (`live-session/handlers/observation.handler.ts`) builds a `HeardLine`, and after the commit `live-session/infrastructure/event-publisher.ts` calls `onHeard`. In `interview-backend.ts`, `speakerOfSource` maps `application-audio` to `interviewer`, `microphone` to `candidate`, anything else to `unknown`.
 - The window's own microphone tap, `POST …/sessions/:id/input` in `routes.ts`, also calls `onHeard`. It names no source, so the speaker is `unknown`.
 
 Device-only never reaches the coach: `onHeard` returns before `coachTranscript.add` when `heard.remote` is false, and the screen tap does the same. Both taps also feed the owner's recording (see "What is kept").

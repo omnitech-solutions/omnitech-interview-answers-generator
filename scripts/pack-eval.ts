@@ -105,30 +105,88 @@ import {
   selectingRecipe,
 } from "../products/interview/src/backend/context-pack/recipe";
 
+import { scriptArgs } from "./script-flags.mjs";
+
 // The engine's types, by way of the modules that already speak them (a
 // script names no package of its own).
 type AiEngine = Awaited<ReturnType<typeof liveEngine>>["engine"];
 type Prepared = NonNullable<EvalFixture["kept"]>;
 
-const args = process.argv.slice(2);
-const has = (flag: string) => args.includes(flag);
-const one = (flag: string): string | undefined => {
-  const at = args.lastIndexOf(flag);
-  return at === -1 ? undefined : args[at + 1];
-};
-const list = (flag: string) =>
-  one(flag)
+const { values: flags, args } = scriptArgs({
+  application: { type: "string" },
+  arm: { type: "string" },
+  bench: { type: "string" },
+  brief: { type: "string" },
+  catalogue: { type: "string" },
+  category: { type: "string" },
+  cite: { type: "string" },
+  concurrency: { type: "string" },
+  endpoint: { type: "string" },
+  "endpoint-kind": { type: "string" },
+  expect: { type: "string" },
+  freeze: { type: "string" },
+  from: { type: "string" },
+  grounding: { type: "string" },
+  interviewer: { type: "string" },
+  kept: { type: "string" },
+  label: { type: "string" },
+  latency: { type: "string" },
+  "leave-out": { type: "string" },
+  matrix: { type: "string" },
+  me: { type: "string" },
+  model: { type: "string" },
+  parallel: { type: "string" },
+  plan: { type: "string" },
+  preferences: { type: "string" },
+  questions: { type: "string" },
+  results: { type: "string" },
+  runtime: { type: "string" },
+  sample: { type: "string" },
+  show: { type: "string" },
+  signals: { type: "string" },
+  speed: { type: "string" },
+  stage: { type: "string" },
+  timeout: { type: "string" },
+  to: { type: "string" },
+  transcript: { type: "string" },
+  "unknown-is": { type: "string" },
+  window: { type: "string" },
+  within: { type: "string" },
+  answers: { type: "boolean" },
+  check: { type: "boolean" },
+  coach: { type: "boolean" },
+  dev: { type: "boolean" },
+  "endpoint-owns": { type: "boolean" },
+  "hide-me": { type: "boolean" },
+  "no-activity": { type: "boolean" },
+  "no-annotate": { type: "boolean" },
+  "no-cache": { type: "boolean" },
+  "no-names": { type: "boolean" },
+  "no-store": { type: "boolean" },
+  "no-voice-stop": { type: "boolean" },
+  "permit-device-only": { type: "boolean" },
+  private: { type: "boolean" },
+  quiet: { type: "boolean" },
+  retain: { type: "boolean" },
+  retrieval: { type: "boolean" },
+  speakers: { type: "boolean" },
+  studio: { type: "boolean" },
+  timing: { type: "boolean" },
+  trace: { type: "boolean" },
+});
+const list = (value: string | undefined) =>
+  value
     ?.split(",")
     .map((each) => each.trim())
     .filter(Boolean);
 const root = fileURLToPath(new URL("../", import.meta.url));
 const results = resolve(
   root,
-  one("--results") ?? ".dev-local/benchmarks/pack-eval",
+  flags["results"] ?? ".dev-local/benchmarks/pack-eval",
 );
 const stamp = () => new Date().toISOString().replace(/[:.]/g, "-");
 const keep = (name: string, value: unknown) => {
-  if (has("--no-store")) return;
+  if (flags["no-store"]) return;
   mkdirSync(results, { recursive: true });
   const file = `${results}/${name}-${stamp()}.json`;
   writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
@@ -203,7 +261,7 @@ async function freeze(app: HeldOutApplication, model: string) {
   // "withheld from a remote reader" has a paired positive. Never for a
   // person's own material.
   const application = applicationOf(
-    has("--permit-device-only")
+    flags["permit-device-only"]
       ? { ...fixture, brief: transcriptsPermitted(fixture.brief) }
       : fixture,
   );
@@ -224,8 +282,8 @@ async function freeze(app: HeldOutApplication, model: string) {
         profileId: live.profile,
         onDevice: live.onDevice,
         kept: fixture.kept ?? undefined,
-        annotate: !has("--no-annotate"),
-        concurrency: Number(one("--concurrency") ?? 3),
+        annotate: !flags["no-annotate"],
+        concurrency: Number(flags["concurrency"] ?? 3),
       },
       { scope: BENCH_SCOPE, signal: AbortSignal.timeout(3 * 3_600_000) },
       (progress) =>
@@ -334,8 +392,8 @@ function questions(): {
   set: ReturnType<typeof readQuestions>;
   asked: Question[];
 } {
-  const set = readQuestions(one("--questions"));
-  const categories = list("--category") as Category[] | undefined;
+  const set = readQuestions(flags["questions"]);
+  const categories = list(flags["category"]) as Category[] | undefined;
   return {
     set,
     asked: set.questions.filter(
@@ -387,7 +445,7 @@ async function retrieval() {
     console.error(`\n${faults.length} gold fault(s): nothing was scored.`);
     process.exit(1);
   }
-  const wanted = list("--arm");
+  const wanted = list(flags["arm"]);
   const arms = retrievalArms().filter(
     (arm) => !wanted || wanted.includes(arm.id),
   );
@@ -491,7 +549,7 @@ async function answerer(model: string): Promise<{
         },
         {
           scope: SCOPE,
-          signal: AbortSignal.timeout(Number(one("--timeout") ?? 600) * 1000),
+          signal: AbortSignal.timeout(Number(flags["timeout"] ?? 600) * 1000),
           ...(live.onDevice ? { policy: "device-only" as const } : {}),
         },
         options,
@@ -500,10 +558,10 @@ async function answerer(model: string): Promise<{
         ? {
             ok: true,
             value: result.value,
-            usage:
-              result.usage.status === "unavailable"
-                ? undefined
-                : {
+            ...(result.usage.status === "unavailable"
+              ? {}
+              : {
+                  usage: {
                     ...(result.usage.inputTokens !== undefined
                       ? { inputTokens: result.usage.inputTokens }
                       : {}),
@@ -511,6 +569,7 @@ async function answerer(model: string): Promise<{
                       ? { outputTokens: result.usage.outputTokens }
                       : {}),
                   },
+                }),
           }
         : {
             ok: false,
@@ -520,7 +579,7 @@ async function answerer(model: string): Promise<{
   // What the model's window holds of records, at three characters a token,
   // less room for the instructions and the answer.
   const window = Number(
-    one("--window") ?? (agent ? 180_000 : live.onDevice ? 12_000 : 100_000),
+    flags["window"] ?? (agent ? 180_000 : live.onDevice ? 12_000 : 100_000),
   );
   return {
     answerer: {
@@ -563,12 +622,12 @@ async function answers() {
     console.error(`${faults.length} gold fault(s): nothing was asked.`);
     process.exit(1);
   }
-  const model = one("--model") ?? "scripted";
+  const model = flags["model"] ?? "scripted";
   const { answerer: who, close } = await answerer(model);
   const wanted =
-    (list("--arm") as AnswerArm[] | undefined) ??
+    (list(flags["arm"]) as AnswerArm[] | undefined) ??
     ANSWER_ARMS.filter((arm) => arm !== "tools" || who.askWithPack);
-  const picked = sample(asked, Number(one("--sample") ?? 40));
+  const picked = sample(asked, Number(flags["sample"] ?? 40));
   const selectors: Partial<Record<AnswerArm, Arm>> = {
     whole: retrievalArms().find((arm) => arm.id === "everything") as Arm,
     bm25: bm25Arm(),
@@ -584,11 +643,11 @@ async function answers() {
       questions: picked,
       fixtures,
       selectors,
-      ...(has("--no-cache") ? {} : { cache: `${results}/answers` }),
-      parallel: Number(one("--parallel") ?? 4),
+      ...(flags["no-cache"] ? {} : { cache: `${results}/answers` }),
+      parallel: Number(flags["parallel"] ?? 4),
       onAnswer: (kept, reused) => {
         done += 1;
-        if (has("--quiet")) return;
+        if (flags["quiet"]) return;
         console.error(
           `  ${done}/${total} ${kept.arm} ${kept.id}${reused ? " (kept)" : ` ${(kept.ms / 1000).toFixed(1)}s`}${kept.answer ? "" : ` FAILED ${kept.failure ?? ""}`}`,
         );
@@ -688,7 +747,7 @@ function coach() {
 // rule): this is for understanding a failure, and says so.
 async function show(ids: readonly string[]) {
   const { set } = questions();
-  const wanted = list("--arm") ?? ["before", "adopted"];
+  const wanted = list(flags["arm"]) ?? ["before", "adopted"];
   for (const id of ids) {
     const question = set.questions.find((each) => each.id === id);
     if (!question) continue;
@@ -771,23 +830,23 @@ async function dev() {
 // ---- Which level ---------------------------------------------------------------------
 
 const main = async () => {
-  if (one("--freeze"))
+  if (flags["freeze"])
     return freeze(
-      one("--freeze") as HeldOutApplication,
-      one("--model") ?? "agent/claude-code",
+      flags["freeze"] as HeldOutApplication,
+      flags["model"] ?? "agent/claude-code",
     );
-  if (one("--catalogue"))
-    return catalogue(one("--catalogue") as HeldOutApplication);
-  if (has("--check")) {
-    const faults = await check(readQuestions(one("--questions")));
+  if (flags["catalogue"])
+    return catalogue(flags["catalogue"] as HeldOutApplication);
+  if (flags["check"]) {
+    const faults = await check(readQuestions(flags["questions"]));
     for (const fault of faults) console.log(`${fault.id}: ${fault.fault}`);
     console.log(`${faults.length} gold fault(s).`);
     process.exit(faults.length > 0 ? 1 : 0);
   }
-  if (has("--dev")) return dev();
-  if (one("--show")) return show(list("--show") ?? []);
-  if (has("--coach")) return coach();
-  if (has("--answers")) return answers();
+  if (flags["dev"]) return dev();
+  if (flags["show"]) return show(list(flags["show"]) ?? []);
+  if (flags["coach"]) return coach();
+  if (flags["answers"]) return answers();
   return retrieval();
 };
 main().then(

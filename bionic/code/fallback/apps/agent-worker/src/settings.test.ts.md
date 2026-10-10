@@ -2,4 +2,4 @@
 
 _Source: `apps/agent-worker/src/settings.test.ts` (header-comment fallback)_
 
-_No leading comment block found._
+The loop table is the worker's registration: these loops, in this order.

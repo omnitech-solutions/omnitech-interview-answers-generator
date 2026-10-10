@@ -2,7 +2,6 @@
 
 _Source: `packages/interview-library/src/index.ts` (header-comment fallback)_
 
-[STRATEGY] Exact before fuzzy: typo tolerance treats "nextjs" and
-"nestjs" as the same word, and the fuzzy title matches then crowd the
-exact ones off the first page. Tolerance is used only when the exact
-term finds nothing (a real typo).
+The Orama index of the library: building, keeping on disk and querying.
+What a section is lives in ./library-sections; what a search admits and how
+a hit ranks lives in ./library-ranking.

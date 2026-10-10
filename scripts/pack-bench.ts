@@ -103,11 +103,28 @@ import {
   createMemoryPackStore,
 } from "../products/interview/src/backend/context-pack/prepare";
 
-const args = process.argv.slice(2);
-const one = (flag: string): string | undefined => {
-  const at = args.lastIndexOf(flag);
-  return at === -1 ? undefined : args[at + 1];
-};
+import { scriptArgs } from "./script-flags.mjs";
+
+const { values: flags, args } = scriptArgs({
+  application: { type: "string" },
+  brief: { type: "string" },
+  concurrency: { type: "string" },
+  extraction: { type: "string" },
+  fixture: { type: "string" },
+  gold: { type: "string" },
+  links: { type: "string" },
+  matrix: { type: "string" },
+  posting: { type: "string" },
+  preferences: { type: "string" },
+  profile: { type: "string" },
+  results: { type: "string" },
+  show: { type: "string" },
+  all: { type: "boolean" },
+  live: { type: "boolean" },
+  "no-store": { type: "boolean" },
+  prepared: { type: "boolean" },
+  stages: { type: "boolean" },
+});
 // `pnpm --filter … exec` runs in the package's folder, so a path that is
 // neither absolute nor under the home folder is read from the repository's
 // root, wherever the command was typed.
@@ -115,10 +132,10 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 const path = (given: string) =>
   resolve(root, given.replace(/^~(?=\/)/, homedir()));
 
-const matrix = one("--matrix");
-const brief = one("--brief");
-const gold = one("--gold");
-const preferences = one("--preferences");
+const matrix = flags["matrix"];
+const brief = flags["brief"];
+const gold = flags["gold"];
+const preferences = flags["preferences"];
 const outside = matrix ?? brief ?? gold;
 if (outside && !(matrix && brief && gold)) {
   console.error(
@@ -136,16 +153,16 @@ const { material, gold: questions } =
         }),
         gold: readGold(path(gold)),
       }
-    : readFixture(one("--fixture") ?? "kestrel-freight-pay");
+    : readFixture(flags["fixture"] ?? "kestrel-freight-pay");
 
 const resultsFolder = () => {
-  const kept = one("--results");
+  const kept = flags["results"];
   return kept
     ? pathToFileURL(`${path(kept).replace(/\/$/, "")}/`)
     : new URL("../.dev-local/benchmarks/", import.meta.url);
 };
 const keep = (name: string, result: unknown) => {
-  if (args.includes("--no-store")) return;
+  if (flags["no-store"]) return;
   const folder = resultsFolder();
   mkdirSync(folder, { recursive: true });
   const file = new URL(name, folder);
@@ -159,15 +176,14 @@ const scores = ({
   ...result
 }: PreparedBenchResult & { prepared?: unknown }) => result;
 const preparedFixture = (): PreparedFixture => {
-  const application = one("--application");
+  const application = flags["application"];
   if (!application)
-    return readPreparedFixture(one("--fixture") ?? "kestrel-freight-pay");
+    return readPreparedFixture(flags["fixture"] ?? "kestrel-freight-pay");
   if (!(matrix && brief && gold)) {
     console.error("--application needs --matrix, --brief and --gold with it.");
     process.exit(2);
   }
-  const optional = (flag: string, key: string) => {
-    const given = one(flag);
+  const optional = (given: string | undefined, key: string) => {
     return given ? { [key]: path(given) } : {};
   };
   return readPreparedMaterial({
@@ -175,14 +191,14 @@ const preparedFixture = (): PreparedFixture => {
     brief: path(brief),
     gold: path(gold),
     application: path(application),
-    ...optional("--preferences", "preferences"),
-    ...optional("--posting", "posting"),
-    ...optional("--extraction", "extraction"),
-    ...optional("--links", "links"),
+    ...optional(flags["preferences"], "preferences"),
+    ...optional(flags["posting"], "posting"),
+    ...optional(flags["extraction"], "extraction"),
+    ...optional(flags["links"], "links"),
   });
 };
 
-if (args.includes("--all")) {
+if (flags["all"]) {
   // Four runs at once, each its own process, engine, store and result file.
   const script = fileURLToPath(import.meta.url);
   const passed = args.filter((each) => each !== "--all");
@@ -223,8 +239,8 @@ if (args.includes("--all")) {
   process.exit(0);
 }
 
-if (args.includes("--live")) {
-  const asked = one("--profile");
+if (flags["live"]) {
+  const asked = flags["profile"];
   if (!asked) {
     console.error(`--live needs --profile: ${LIVE_PROFILES.join(", ")}.`);
     process.exit(2);
@@ -238,16 +254,16 @@ if (args.includes("--live")) {
       engine: live.engine,
       profile: live.profile,
       onDevice: live.onDevice,
-      concurrency: Number(one("--concurrency") ?? 2),
+      concurrency: Number(flags["concurrency"] ?? 2),
       signal: stop.signal,
       onProgress: (progress) =>
         console.error(
           `${live.profile}: ${progress.done}/${progress.total} sources, ${progress.calls} calls`,
         ),
     });
-    const stageFixture = one("--application")
+    const stageFixture = flags["application"]
       ? undefined
-      : readStageFixture(one("--fixture") ?? "kestrel-freight-pay");
+      : readStageFixture(flags["fixture"] ?? "kestrel-freight-pay");
     const before = stageFixture
       ? (
           await runStageBench(
@@ -271,10 +287,10 @@ if (args.includes("--live")) {
   process.exit(0);
 }
 
-if (args.includes("--prepared")) {
+if (flags["prepared"]) {
   const fixture = preparedFixture();
   const stageFixture = readStageFixture(
-    one("--fixture") ?? "kestrel-freight-pay",
+    flags["fixture"] ?? "kestrel-freight-pay",
   );
   const before = (
     await runStageBench(
@@ -333,8 +349,8 @@ if (args.includes("--prepared")) {
   process.exit(0);
 }
 
-if (args.includes("--stages")) {
-  const fixture = readStageFixture(one("--fixture") ?? "kestrel-freight-pay");
+if (flags["stages"]) {
+  const fixture = readStageFixture(flags["fixture"] ?? "kestrel-freight-pay");
   console.log(
     reportStageBench(
       await runStageBench(
@@ -348,7 +364,7 @@ if (args.includes("--stages")) {
   process.exit(0);
 }
 
-const shown = one("--show");
+const shown = flags["show"];
 if (shown) {
   const pack = await preparePackForBench(material);
   for (const id of shown.split(",")) {
@@ -365,12 +381,12 @@ if (shown) {
 
 const result = await runPackBench(material, questions);
 
-const kept = one("--results");
+const kept = flags["results"];
 const folder = kept
   ? pathToFileURL(`${path(kept).replace(/\/$/, "")}/`)
   : new URL("../.dev-local/benchmarks/", import.meta.url);
 const prefix = `pack-${result.benchmark}-`;
-const store = !args.includes("--no-store");
+const store = !flags["no-store"];
 if (store) mkdirSync(folder, { recursive: true });
 const earlier = (() => {
   try {

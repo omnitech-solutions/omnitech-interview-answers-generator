@@ -2,4 +2,5 @@
 
 _Source: `products/interview/src/frontend/studio/documents/documents-ui.tsx` (header-comment fallback)_
 
-The same pill group serves page tabs and filters; only the semantics differ.
+A row of buttons described as data: the footer of a modal, the actions of a
+page or a drawer.

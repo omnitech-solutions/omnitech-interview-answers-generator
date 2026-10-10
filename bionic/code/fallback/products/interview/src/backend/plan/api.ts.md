@@ -2,4 +2,4 @@
 
 _Source: `products/interview/src/backend/plan/api.ts` (header-comment fallback)_
 
-What a question's latest run says, in the words the plan shows.
+The plan API: the current interview, its items and each item's live status.

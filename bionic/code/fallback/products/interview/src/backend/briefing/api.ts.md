@@ -2,5 +2,5 @@
 
 _Source: `products/interview/src/backend/briefing/api.ts` (header-comment fallback)_
 
-The interview's facts for a prompt. Long material (the request, job
-description, notes, research, preferences) is sent once, as sources.
+WorkspaceError currently carries 400 for these briefing-specific failures.
+Retain their existing responses until the shared error metadata includes them.

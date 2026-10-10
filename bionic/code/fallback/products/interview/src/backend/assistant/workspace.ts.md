@@ -2,5 +2,5 @@
 
 _Source: `products/interview/src/backend/assistant/workspace.ts` (header-comment fallback)_
 
-Structural host ports: compatible with the portable package's built exports,
-with no dependency on another checkout's TypeScript source or global store.
+Only what this module exported before its contracts moved out: the row
+mappers and schemas beside them stay internal.

@@ -7,47 +7,34 @@
 // The token is INTERVIEW_API_TOKEN, or the one `pnpm dev` made in
 // .dev-local/api-token. The address is INTERVIEW_API_URL or the local server.
 import { readFileSync } from "node:fs";
+import { coachApi } from "./coach-api.mjs";
+import { scriptArgs } from "./script-flags.mjs";
 
-const base = (process.env.INTERVIEW_API_URL ?? "http://127.0.0.1:3000").replace(
-  /\/$/,
-  "",
+const { positionals, tokens } = scriptArgs(
+  { show: { type: "boolean" }, clear: { type: "boolean" } },
+  undefined,
+  true,
 );
-function token() {
-  if (process.env.INTERVIEW_API_TOKEN) return process.env.INTERVIEW_API_TOKEN;
-  try {
-    return readFileSync(
-      new URL("../.dev-local/api-token", import.meta.url),
-      "utf8",
-    ).trim();
-  } catch {
-    return "";
-  }
-}
-const argument = process.argv[2];
+const first = tokens[0];
+const argument = first?.kind === "option" ? `--${first.name}` : positionals[0];
 if (!argument) {
   console.error("Give the plan's file, --show or --clear.");
   process.exit(1);
 }
 const show = argument === "--show";
-const response = await fetch(`${base}/api/v1/coach-plan`, {
-  method: show ? "GET" : "PUT",
-  headers: {
-    authorization: `Bearer ${token()}`,
-    "content-type": "application/json",
-  },
-  ...(show
-    ? {}
+const body = await coachApi(
+  show ? "GET" : "PUT",
+  "/api/v1/coach-plan",
+  show
+    ? undefined
     : {
-        body: JSON.stringify({
-          text: argument === "--clear" ? "" : readFileSync(argument, "utf8"),
-        }),
-      }),
-});
-const body = await response.json().catch(() => ({}));
-if (!response.ok) {
-  console.error(
-    `Studio answered ${response.status}: ${body?.error?.message ?? "the plan was not accepted"}`,
-  );
+        text: argument === "--clear" ? "" : readFileSync(argument, "utf8"),
+      },
+).catch((error) => {
+  if (error.status === undefined) throw error;
+  console.error(error.message);
   process.exit(1);
-}
-console.log(show ? body.text || "(no plan)" : `Plan set: ${body.text.length} characters.`);
+});
+console.log(
+  show ? body.text || "(no plan)" : `Plan set: ${body.text.length} characters.`,
+);

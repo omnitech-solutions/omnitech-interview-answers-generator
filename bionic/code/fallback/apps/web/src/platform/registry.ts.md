@@ -3,3 +3,4 @@
 _Source: `apps/web/src/platform/registry.ts` (header-comment fallback)_
 
 Build-time registration: every trusted product, its manifest and pages.
+Adding a product to the shell is a row here and a row in products.ts.

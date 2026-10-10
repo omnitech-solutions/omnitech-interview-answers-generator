@@ -2,4 +2,5 @@
 
 _Source: `products/interview/src/backend/documents/api.ts` (header-comment fallback)_
 
-The profile that cleans a job spec into an employer brief.
+Local development: the author's own template files and experience
+matrix, for the local member only.

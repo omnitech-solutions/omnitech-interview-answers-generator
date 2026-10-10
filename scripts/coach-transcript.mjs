@@ -16,56 +16,34 @@
 // .dev-local/api-token. The address is INTERVIEW_API_URL or the local server.
 import { readFileSync } from "node:fs";
 import { setTimeout as wait } from "node:timers/promises";
+import { coachApi } from "./coach-api.mjs";
+import { scriptArgs } from "./script-flags.mjs";
 
-const base = (process.env.INTERVIEW_API_URL ?? "http://127.0.0.1:3000").replace(
-  /\/$/,
-  "",
+const { values: flags, positionals } = scriptArgs(
+  {
+    interviewer: { type: "string", multiple: true },
+    candidate: { type: "string", multiple: true },
+    speed: { type: "string", multiple: true },
+    all: { type: "boolean" },
+    clear: { type: "boolean" },
+  },
+  undefined,
+  true,
 );
-function token() {
-  if (process.env.INTERVIEW_API_TOKEN) return process.env.INTERVIEW_API_TOKEN;
-  try {
-    return readFileSync(
-      new URL("../.dev-local/api-token", import.meta.url),
-      "utf8",
-    ).trim();
-  } catch {
-    return "";
-  }
-}
 async function send(method, body) {
-  const response = await fetch(`${base}/api/v1/coach-transcript`, {
-    method,
-    headers: {
-      authorization: `Bearer ${token()}`,
-      "content-type": "application/json",
-    },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-  const answer = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    console.error(
-      `Studio answered ${response.status}: ${answer?.error?.message ?? "the transcript was not accepted"}`,
-    );
+  return coachApi(method, "/api/v1/coach-transcript", body).catch((error) => {
+    if (error.status === undefined) throw error;
+    console.error(error.message);
     process.exit(1);
-  }
-  return answer;
+  });
 }
 
-const args = process.argv.slice(2);
-const option = (name) => {
-  const at = args.indexOf(name);
-  return at >= 0 ? args[at + 1] : undefined;
-};
-if (args.includes("--clear")) {
+if (flags.clear) {
   await send("DELETE");
   console.log("Transcript cleared.");
   process.exit(0);
 }
-// The file is the argument that is neither an option nor an option's value.
-const VALUED = new Set(["--interviewer", "--candidate", "--speed"]);
-const file = args.find(
-  (arg, at) => !arg.startsWith("--") && !VALUED.has(args[at - 1]),
-);
+const file = positionals[0];
 if (!file) {
   console.error("Give the transcript file, or --clear.");
   process.exit(1);
@@ -73,13 +51,13 @@ if (!file) {
 // A panel: --interviewer may name several labels ("Priya,Marcus,Tom"). Each
 // of their lines then carries its label as the speaker's name, because the
 // recorder told those voices apart. With one interviewer no name is sent.
-const interviewers = (option("--interviewer") ?? "")
+const interviewers = (flags.interviewer?.[0] ?? "")
   .split(",")
   .map((label) => label.trim())
   .filter(Boolean);
 const speakers = {
   ...Object.fromEntries(interviewers.map((label) => [label, "interviewer"])),
-  ...(option("--candidate") ? { [option("--candidate")]: "candidate" } : {}),
+  ...(flags.candidate?.[0] ? { [flags.candidate?.[0]]: "candidate" } : {}),
 };
 const NAME = /^\p{L}[\p{L}\p{N} .'’-]{0,39}$/u;
 const nameOf = (label) =>
@@ -134,7 +112,7 @@ const lineOf = (each, at) => ({
   text: each.text.slice(0, 4000),
   at: new Date(at).toISOString(),
 });
-if (args.includes("--all")) {
+if (flags.all) {
   const first = started - (said.at(-1).endMs - said[0].offsetMs);
   for (let at = 0; at < said.length; at += 500)
     await send("POST", {
@@ -144,7 +122,7 @@ if (args.includes("--all")) {
     });
   console.log(`${said.length} lines given to the coach.`);
 } else {
-  const speed = Math.max(1, Number(option("--speed") ?? "30") || 30);
+  const speed = Math.max(1, Number(flags.speed?.[0] ?? "30") || 30);
   console.log(
     `Replaying ${said.length} lines at ${speed}x (about ${Math.ceil((said.at(-1).endMs - said[0].offsetMs) / speed / 60_000)} min). Ctrl-C stops.`,
   );

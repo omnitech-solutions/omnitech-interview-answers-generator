@@ -2,10 +2,7 @@
 
 _Source: `products/interview/src/backend/live-session/companion-capability.ts` (header-comment fallback)_
 
-The capture companion's latest self-reported readiness for its owner
-(capability.report, ADR-0012 Locality by stage). One row per (tenant, owner)
-under forced row security binding tenant AND actor: the actor is the session
-owner on the ingest write and the signed-in member on the browser read, so
-another member of the same workspace never reads or replaces it. The row is
-device capability, never content: states and a language tag only. Nothing
-here logs.
+The signed-in member's own view of what their capture companion last
+reported (capability.report, ADR-0012 Locality by stage). The row and its
+row security are repositories/capability.repository.ts'; this is the read
+the browser makes. Device capability, never content. Nothing here logs.

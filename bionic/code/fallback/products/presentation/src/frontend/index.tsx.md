@@ -2,4 +2,4 @@
 
 _Source: `products/presentation/src/frontend/index.tsx` (header-comment fallback)_
 
-Shared with the platform shell, which writes the member's saved choice.
+_No leading comment block found._

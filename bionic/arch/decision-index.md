@@ -1,6 +1,6 @@
 # Decision index
 
-_Accepted, non-archived decisions (23), projected from `adrs/index.md`. ADR references are footnotes, never inline._
+_Accepted, non-archived decisions (24), projected from `adrs/index.md`. ADR references are footnotes, never inline._
 
 | # | decision | date | ref |
 |---|---|---|---|
@@ -27,6 +27,7 @@ _Accepted, non-archived decisions (23), projected from `adrs/index.md`. ADR refe
 | 21 | A live coach reads the conversation and writes the coach's notes as it happens | 2026-10-08 | [^d21] |
 | 22 | The AI engine is imported at its one entry point | 2026-10-08 | [^d22] |
 | 23 | The first context pack slice derives identities from content and adds three rules | 2026-10-09 | [^d23] |
+| 24 | Application boundaries: contracts, domain, services, repositories, transport; UI from the library only, data-driven | 2026-10-10 | [^d24] |
 
 [^d1]: ADR-0000
 [^d2]: ADR-0001
@@ -51,3 +52,4 @@ _Accepted, non-archived decisions (23), projected from `adrs/index.md`. ADR refe
 [^d21]: ADR-0039
 [^d22]: ADR-0040
 [^d23]: ADR-0041
+[^d24]: ADR-0042

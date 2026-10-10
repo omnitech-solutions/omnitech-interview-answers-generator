@@ -2,4 +2,5 @@
 
 _Source: `apps/web/app/api/integrations/[provider]/callback/route.ts` (header-comment fallback)_
 
-ADR-0006 D3: a missing signing or vault secret is an operator gap.
+[SAFETY] The verifier cookie is cleared on every outcome that got as far as
+reading it, so the same callback URL cannot be replayed.

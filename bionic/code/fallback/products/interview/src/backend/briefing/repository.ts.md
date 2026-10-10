@@ -2,5 +2,5 @@
 
 _Source: `products/interview/src/backend/briefing/repository.ts` (header-comment fallback)_
 
-The local default profile follows its source file: none yet, or file
-content that was never a revision, saves one.
+Existing consumers outside briefing retain this entrypoint. Persistence is
+implemented in repositories/; use cases are plain functions in services/.

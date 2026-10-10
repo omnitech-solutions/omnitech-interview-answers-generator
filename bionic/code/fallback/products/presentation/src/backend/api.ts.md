@@ -2,5 +2,6 @@
 
 _Source: `products/presentation/src/backend/api.ts` (header-comment fallback)_
 
-A request body is read as a stream against these bounds before any handler
-sees it. Images and theme files travel as base64 inside JSON.
+The presentation API: Hono wiring and transport only. Each route reads the
+member, parses its body against contracts.ts, delegates to application/ and
+answers; what a failure says is the route's row of data, not a branch.

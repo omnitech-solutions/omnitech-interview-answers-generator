@@ -2,5 +2,5 @@
 
 _Source: `apps/web/src/platform/products.ts` (header-comment fallback)_
 
-[GUARD] The interview run queue opens its own connection; without one
-it would fail later and less clearly.
+How the picker presents the assistant's own profile; absent with no
+language model, when that profile does not exist.

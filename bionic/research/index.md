@@ -1,6 +1,6 @@
 # Research index
 
-_Last updated: 2026-10-05_
+_Last updated: 2026-10-10_
 
 ## Sources (9)
 
@@ -22,8 +22,9 @@ _Last updated: 2026-10-05_
 
 ## Decisions-context (0)
 
-## References (10)
+## References (11)
 
+- [[research/references/application-boundaries]] — where code belongs: decision table, allowed imports per layer, anti-patterns, migration order, tripwires (ADR-0042) — sources: 0 — `last_reviewed: 2026-10-10`
 - [[research/references/adding-a-product]] — steps and required surfaces for a new product vertical — sources: 0 — `last_reviewed: 2026-10-02`
 - [[research/references/ai-execution-boundaries]] — direct model vs agent runtime; on-device profile — sources: 0 — `last_reviewed: 2026-10-02`
 - [[research/references/interview-briefings-runbook]] — behavioural briefing pack operator runbook — sources: 0 — `last_reviewed: 2026-10-02`

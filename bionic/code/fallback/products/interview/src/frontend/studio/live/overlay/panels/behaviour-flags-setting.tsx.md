@@ -10,3 +10,7 @@ has answered there is nothing to show, rather than a control that may lie.
 
 [SAFETY] Each line of help says what the flag really does and when a change
 takes hold; the words are the registry's, so they cannot drift from it.
+
+[STRATEGY] The section is a declared form (behaviour-flags-form.ts): its
+schema, its help and its read-only state are all read from the registry and
+drawn by the library's DynamicForm. A new flag needs no code here.

@@ -2,6 +2,9 @@
 
 _Source: `packages/platform-storage/src/platform-repository.ts` (header-comment fallback)_
 
-[SAFETY] Memberships are tenant-owned rows under forced row-level
-security: the person and the slug's tenant are found first, then the
-membership is read inside that tenant.
+People, sign-in identities, preferences, connected accounts and a tenant's
+installed products. What a context grants is decided in ./platform-context.
+Raw by necessity: users, identities, preferences and connected accounts are
+not tenant-owned and a context's tenant is known only after its first read,
+while the database package hands out a Drizzle handle only for a known
+tenant and actor (withTenant). The upserts name their conflict targets.

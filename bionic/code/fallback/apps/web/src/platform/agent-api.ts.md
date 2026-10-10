@@ -2,5 +2,6 @@
 
 _Source: `apps/web/src/platform/agent-api.ts` (header-comment fallback)_
 
-The profiles a product may start a job with, by id; their definitions are
-central (@omnitech/platform-runtime/ai-config).
+The platform agent-job HTTP routes (profiles, create, events, cancel,
+resume): Hono wiring only. Each resolves the tenant member, validates the
+request and delegates to agent-jobs.ts.
