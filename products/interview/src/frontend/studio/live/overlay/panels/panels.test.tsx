@@ -1,5 +1,6 @@
 // The four panels over the real store with a scripted service, the one-owner
 // rule, language and skill gating, the commands list and the toasts.
+import { BEHAVIOUR_FLAGS } from "@omnitech/interview-contracts";
 import {
   act,
   cleanup,
@@ -141,6 +142,33 @@ describe("routing", () => {
     );
     expect(screen.getByTestId("pn-settings")).toBeVisible();
     expect(screen.queryByTestId("pn-pill")).toBeNull();
+  });
+  it("draws every behaviour flag in Settings once the Studio has answered them, and none in the compact window", async () => {
+    const flags = BEHAVIOUR_FLAGS.map((flag) => ({
+      key: flag.env,
+      value: flag.default,
+      source: "default",
+      stored: null,
+      default: flag.default,
+    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ flags }))),
+    );
+    try {
+      await show("settings");
+      await flush();
+      for (const flag of BEHAVIOUR_FLAGS)
+        expect(screen.getByTestId(`pn-flag-${flag.env}`)).toBeVisible();
+      cleanup();
+      await show("single");
+      await flush();
+      expect(
+        screen.queryByTestId(`pn-flag-${BEHAVIOUR_FLAGS[0].env}`),
+      ).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 

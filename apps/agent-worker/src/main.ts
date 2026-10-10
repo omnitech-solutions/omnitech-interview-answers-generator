@@ -29,6 +29,7 @@ import {
 } from "@omnitech/product-interview/session-worker";
 import { coachLoop } from "./coach-loop";
 import { engineTrace } from "./engine-trace";
+import { flaggedLoop } from "./flagged-loop";
 import { defaultStagingBase, sweepStagingBase } from "./session-agent-port";
 import { createSessionEngine, SESSION_AGENT_FLAG } from "./session-engine";
 import { runSessionLoop, sessionWorkerId } from "./session-loop";
@@ -396,8 +397,15 @@ export async function runConfiguredAgentWorker(
     // still purged (their observations, owner inputs and staged images).
     sessionLoop(env, database, log, runtimes) ??
       sessionSweepLoop(env, database, log),
-    // The live coach, when the host names a runtime for it.
-    coachLoop(env, runtimes, log, database),
+    // The live coach, when the host or Settings names a runtime for it. Its
+    // flags are followed while the worker runs (flagged-loop.ts): a change
+    // in Settings starts, stops or restarts it without restarting the worker.
+    flaggedLoop(
+      "coach",
+      env,
+      (flagged) => coachLoop(flagged, runtimes, log, database),
+      log,
+    ),
   ].filter((loop): loop is WorkerLoop => loop !== null);
   try {
     await runWorkerLoops(loops, signal, database, log);

@@ -71,7 +71,8 @@ export type SessionRoutesOptions = {
   onHeard?: IngestOptions["onHeard"];
   // Whether voice activity from a session's audio sources is taken (the
   // owner's switch), and who is told when one starts or stops hearing a voice.
-  voiceActivity?: boolean;
+  // A function is asked at every report (a change in Settings needs no restart).
+  voiceActivity?: IngestOptions["voiceActivity"];
   onActivity?: IngestOptions["onActivity"];
   // Told the text read from a capture of the screen (the coach), with its
   // session and whether that session may be processed off this device.
@@ -344,7 +345,9 @@ export function createSessionRoutes(options: SessionRoutesOptions) {
           retryAfter = seconds;
         },
         ...(options.onHeard ? { onHeard: options.onHeard } : {}),
-        voiceActivity: options.voiceActivity === true,
+        ...(options.voiceActivity !== undefined
+          ? { voiceActivity: options.voiceActivity }
+          : {}),
         ...(options.onActivity ? { onActivity: options.onActivity } : {}),
       },
     );

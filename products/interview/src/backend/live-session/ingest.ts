@@ -101,7 +101,9 @@ export type IngestOptions = {
   onHeard?: (heard: HeardLine) => void;
   // Whether this Studio takes voice activity at all (the owner's switch).
   // Absent or false: a report is refused voice_activity_off and told to nobody.
-  voiceActivity?: boolean;
+  // A function is asked at every report, so a change in Settings applies to
+  // the next one without a restart.
+  voiceActivity?: boolean | (() => boolean);
   // Told that an audio source of a session started or stopped hearing a
   // voice. [SAFETY] Only ever for a session whose owner allows processing off
   // this device: a device-only session's activity is told to nobody.
@@ -915,7 +917,11 @@ function voiceActivityLocked(
       ack: refusal(closed ?? "session_paused", { control: standing }),
       cancelJobs,
     };
-  if (options.voiceActivity !== true || row.policy !== "permitted-remote")
+  const switchedOn =
+    typeof options.voiceActivity === "function"
+      ? options.voiceActivity() === true
+      : options.voiceActivity === true;
+  if (!switchedOn || row.policy !== "permitted-remote")
     return {
       ack: refusal("voice_activity_off", { control: standing }),
       cancelJobs,

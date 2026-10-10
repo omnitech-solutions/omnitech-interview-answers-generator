@@ -5,6 +5,9 @@
 // the coach nothing; nothing is stored; and, end to end, a synthetic voice run
 // through the shared detector makes the coach's transcript feed say who is
 // speaking, until the voice stops or the source goes quiet.
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   createVoiceActivityDetector,
   createVoiceActivityReporter,
@@ -20,6 +23,10 @@ import {
   it,
   vi,
 } from "vitest";
+import {
+  type BehaviourFlagStore,
+  createBehaviourFlagStore,
+} from "../behaviour-flags";
 import { createCoachTranscript } from "../coach-transcript";
 import { ingestObservation } from "./ingest";
 import {
@@ -155,6 +162,132 @@ describe("the owner's switch", () => {
     expect(voiceActivityEnabled({ ACTIVE_SESSION_VOICE_ACTIVITY: "on" })).toBe(
       true,
     );
+  });
+
+  it("is what Settings stored when the environment says nothing, and off by default", () => {
+    const KEY = "ACTIVE_SESSION_VOICE_ACTIVITY";
+    expect(voiceActivityEnabled({}, {})).toBe(false);
+    expect(voiceActivityEnabled({}, { [KEY]: "on" })).toBe(true);
+    expect(voiceActivityEnabled({}, { [KEY]: "off" })).toBe(false);
+    // An empty variable says nothing, so Settings still decides.
+    expect(voiceActivityEnabled({ [KEY]: "" }, { [KEY]: "on" })).toBe(true);
+    // A stored value that is not one of the flag's is no setting at all.
+    expect(voiceActivityEnabled({}, { [KEY]: "true" })).toBe(false);
+  });
+
+  it("is the environment's when the host set it, whatever Settings stored", () => {
+    const KEY = "ACTIVE_SESSION_VOICE_ACTIVITY";
+    expect(voiceActivityEnabled({ [KEY]: "off" }, { [KEY]: "on" })).toBe(false);
+    expect(voiceActivityEnabled({ [KEY]: "on" }, { [KEY]: "off" })).toBe(true);
+    // Set to anything that is not `on`, it is off, as it always was.
+    expect(voiceActivityEnabled({ [KEY]: "true" }, { [KEY]: "on" })).toBe(
+      false,
+    );
+  });
+});
+
+describe("the stored setting, asked at every report", () => {
+  const KEY = "ACTIVE_SESSION_VOICE_ACTIVITY";
+  const directory = mkdtempSync(join(tmpdir(), "voice-activity-flags-"));
+  afterAll(() => rmSync(directory, { recursive: true, force: true }));
+  // Ingests as the Studio does: the switch is the flag store's value, read
+  // when the report arrives.
+  const report = async (
+    flags: BehaviourFlagStore,
+    credential: string,
+    told: VoiceActivityHeard[],
+  ) =>
+    ingestObservation(
+      fx.member,
+      credential,
+      fx.tenantA,
+      activity("application-audio", true),
+      {
+        voiceActivity: () => flags.value(KEY) === "on",
+        onActivity: (heard) => told.push(heard),
+        activityGate: createVoiceActivityGate(),
+      },
+    );
+
+  it("refuses until Settings turns it on, takes the very next report, and refuses again once it is turned off", async () => {
+    const flags = createBehaviourFlagStore(join(directory, "a.json"), {});
+    const { session, credential } = await begin("va-setting");
+    const told: VoiceActivityHeard[] = [];
+    expect(await report(flags, credential, told)).toMatchObject({
+      status: "refused",
+      code: "voice_activity_off",
+    });
+    expect(told).toEqual([]);
+    expect(flags.set(KEY, "on")).toBe("stored");
+    expect((await report(flags, credential, told)).status).toBe("accepted");
+    expect(told.map((heard) => heard.session.sessionId)).toEqual([session.id]);
+    expect(flags.set(KEY, "off")).toBe("stored");
+    expect(await report(flags, credential, told)).toMatchObject({
+      status: "refused",
+      code: "voice_activity_off",
+    });
+    expect(told).toHaveLength(1);
+    expect(await stored(session.id)).toBe(0);
+  });
+
+  it("never reaches the listener from a device-only session, however Settings is set", async () => {
+    const flags = createBehaviourFlagStore(join(directory, "b.json"), {});
+    flags.set(KEY, "on");
+    const { session, credential } = await begin(
+      "va-setting-local",
+      "device-only",
+    );
+    const told: VoiceActivityHeard[] = [];
+    expect(await report(flags, credential, told)).toMatchObject({
+      status: "refused",
+      code: "voice_activity_off",
+    });
+    expect(told).toEqual([]);
+    expect(await stored(session.id)).toBe(0);
+  });
+
+  it("stays off when the host set it off, whatever Settings holds, and Settings cannot change it", async () => {
+    const file = join(directory, "c.json");
+    createBehaviourFlagStore(file, {}).set(KEY, "on");
+    const flags = createBehaviourFlagStore(file, { [KEY]: "off" });
+    const { credential } = await begin("va-setting-host-off");
+    const told: VoiceActivityHeard[] = [];
+    expect(flags.set(KEY, "on")).toBe("environment");
+    expect(await report(flags, credential, told)).toMatchObject({
+      status: "refused",
+      code: "voice_activity_off",
+    });
+    expect(told).toEqual([]);
+  });
+
+  it("is on when the host set it on, with nothing stored", async () => {
+    const flags = createBehaviourFlagStore(join(directory, "d.json"), {
+      [KEY]: "on",
+    });
+    const { credential } = await begin("va-setting-host-on");
+    const told: VoiceActivityHeard[] = [];
+    expect((await report(flags, credential, told)).status).toBe("accepted");
+    expect(told).toHaveLength(1);
+  });
+
+  it("treats a switch that answers anything but true as off", async () => {
+    const { credential } = await begin("va-setting-odd");
+    const told: VoiceActivityHeard[] = [];
+    const ack = await ingestObservation(
+      fx.member,
+      credential,
+      fx.tenantA,
+      activity("microphone", true),
+      {
+        voiceActivity: (() => "on") as unknown as () => boolean,
+        onActivity: (heard) => told.push(heard),
+      },
+    );
+    expect(ack).toMatchObject({
+      status: "refused",
+      code: "voice_activity_off",
+    });
+    expect(told).toEqual([]);
   });
 });
 
@@ -385,7 +518,7 @@ describe("the gate", () => {
 const resolveContext = async (): Promise<PlatformContext | null> => null;
 const base = () => `http://studio.test/api/interview/t/${slug}/sessions`;
 
-function studio(on = true) {
+function studio(on: boolean | (() => boolean) = true) {
   // The coach's transcript as the running Studio holds it, fed by the very
   // listener the Studio gives its routes.
   const transcript = createCoachTranscript();
@@ -459,6 +592,31 @@ describe("the ingest route", () => {
       control: { state: "active" },
     });
     expect(transcript.since().speaking).toBeUndefined();
+  });
+
+  it("asks the stored setting at every report: one running Studio refuses, then takes, with no restart", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "voice-activity-http-"));
+    try {
+      const KEY = "ACTIVE_SESSION_VOICE_ACTIVITY";
+      const flags = createBehaviourFlagStore(join(directory, "f.json"), {});
+      const { credential } = await begin("va-http-setting");
+      const { transcript, send } = studio(() => flags.value(KEY) === "on");
+      const report = () =>
+        send(`Bearer ${credential}`, activity("application-audio", true));
+      expect(await (await report()).json()).toMatchObject({
+        status: "refused",
+        code: "voice_activity_off",
+      });
+      expect(transcript.since().speaking).toBeUndefined();
+      flags.set(KEY, "on");
+      expect(await (await report()).json()).toMatchObject({
+        status: "accepted",
+        eventId: "voice-activity",
+      });
+      expect(transcript.since().speaking).toEqual(["interviewer"]);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 });
 

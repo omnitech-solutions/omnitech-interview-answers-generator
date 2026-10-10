@@ -32,6 +32,16 @@ import {
 import type { SessionCodeRunner } from "./session-run";
 import { createLoggerTraceSink, sanitizeTrace, type TraceSink } from "./trace";
 
+// The behaviour flags the worker follows (the registry is the contracts'):
+// re-exported here so the worker app imports them from this one entrypoint.
+export {
+  BEHAVIOUR_FLAGS,
+  behaviourFlagsResponseSchema,
+  resolveBehaviourFlag,
+  type StoredBehaviourFlags,
+  storedBehaviourFlags,
+  withBehaviourFlags,
+} from "@omnitech/interview-contracts";
 export {
   INTERVIEW_ANSWER_PROFILE,
   INTERVIEW_SESSION_DEVICE_PROFILE,

@@ -5,17 +5,27 @@
 // transient signal and never content: nothing here is stored, logged or kept
 // beyond a per-session count of recent reports.
 
-import type { CoachSpeaker } from "@omnitech/interview-contracts";
+import {
+  type BehaviourFlagEnvironment,
+  behaviourFlagValue,
+  type CoachSpeaker,
+  type StoredBehaviourFlags,
+} from "@omnitech/interview-contracts";
 import { speakerOfSource } from "../coach-transcript";
 
 // `on` lets a session's audio sources say who is speaking. Anything else (and
 // unset) keeps it off: the companion is told so on its first report, sends no
-// more for that run, and the coach waits out pauses as before.
+// more for that run, and the coach waits out pauses as before. It is one of
+// the behaviour flags (BEHAVIOUR_FLAGS in the contracts): the environment
+// variable wins when the host set it, otherwise what Settings stored, and it
+// is off by default.
 export const VOICE_ACTIVITY_ENV = "ACTIVE_SESSION_VOICE_ACTIVITY";
 
 export const voiceActivityEnabled = (
-  env: Readonly<Record<string, string | undefined>> = process.env,
-): boolean => env["ACTIVE_SESSION_VOICE_ACTIVITY"] === "on";
+  env: BehaviourFlagEnvironment = process.env,
+  stored: StoredBehaviourFlags = {},
+): boolean =>
+  behaviourFlagValue(env, "ACTIVE_SESSION_VOICE_ACTIVITY", stored) === "on";
 
 // One audio source of a live session started or stopped hearing a voice. Told
 // only for a session whose owner allows processing off this device.
