@@ -255,26 +255,21 @@ export function addUsage(
 }
 
 /**
- * The template's fields written by the model, section by section. The template
- * and source text never define field authority: the server owns every key and
- * overwrites what it owns after the model has answered.
+ * Who fills each field of a template. `modelFields` are the ones only prose can
+ * fill; `fixed` is everything read without a model: the application, the
+ * interview, facts the matrix states outright, and the blanks left for the
+ * person. A document made by hand is `fixed` plus a blank for each model field.
  */
-export async function generateDocumentValues(
-  engine: Pick<AiEngine, "generate">,
-  input: DocumentGenerationInput,
-  hooks: {
-    onPlan?(plan: GenerationPlan): void;
-    onBatch?(update: {
-      id: string;
-      title: string;
-      values: Record<string, string>;
-      fieldsHash: string;
-      replayed: boolean;
-      usage?: Usage | null;
-    }): void | Promise<void>;
-  } = {},
-): Promise<DocumentGenerationResult> {
-  const keys = input.fields.map((field) => field.key);
+export function documentFieldOwnership(
+  input: Pick<
+    DocumentGenerationInput,
+    | "fields"
+    | "candidacyValues"
+    | "interviewValues"
+    | "profileValues"
+    | "missingProfileKeys"
+  >,
+): { modelFields: DocumentField[]; fixed: Record<string, string> } {
   const facts = input.profileValues ?? {};
   const missing = new Set(input.missingProfileKeys);
   // [SAFETY] The model writes only what the matrix cannot state outright and
@@ -298,6 +293,33 @@ export async function generateDocumentValues(
             ? ""
             : (facts[field.key] ?? "");
   }
+  return { modelFields, fixed };
+}
+
+/**
+ * The template's fields written by the model, section by section. The template
+ * and source text never define field authority: the server owns every key and
+ * overwrites what it owns after the model has answered.
+ */
+export async function generateDocumentValues(
+  engine: Pick<AiEngine, "generate">,
+  input: DocumentGenerationInput,
+  hooks: {
+    onPlan?(plan: GenerationPlan): void;
+    onBatch?(update: {
+      id: string;
+      title: string;
+      values: Record<string, string>;
+      fieldsHash: string;
+      replayed: boolean;
+      usage?: Usage | null;
+    }): void | Promise<void>;
+  } = {},
+): Promise<DocumentGenerationResult> {
+  const keys = input.fields.map((field) => field.key);
+  const { modelFields, fixed } = documentFieldOwnership(input);
+  const facts = input.profileValues ?? {};
+  const modelKeys = new Set(modelFields.map((field) => field.key));
   const settings = input.generation ?? DEFAULT_DOCUMENTS_CONFIG.generation;
   const batches = planBatches(modelFields, settings);
   hooks.onPlan?.({

@@ -7,6 +7,7 @@ import {
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { StudioActions } from "../config/commands";
+import { keyOpen, pointerOpen } from "../live/overlay/panels/toolbar-test-kit";
 import type {
   DocumentContext,
   Template,
@@ -72,7 +73,12 @@ const exportRow = {
   createdAt: "2026-10-02",
 };
 
-type Call = { method: string; path: string; body: unknown };
+type Call = {
+  method: string;
+  path: string;
+  body: unknown;
+  accept: string | null;
+};
 let calls: Call[];
 let currentRevision: number;
 let revisionValues: Record<number, Record<string, string>>;
@@ -84,6 +90,7 @@ let editorFields: typeof fields;
 let documentCandidacyId: string | null;
 let documentInterviewId: string | null;
 let claimState: "unverified" | "confirmed";
+let firstRevisionKind: "generated" | "manual";
 
 function listed(item: Template, latestRevision = 1): TemplateListItem {
   return {
@@ -104,6 +111,7 @@ function mockApi() {
   exports = [];
   validationIssues = [];
   claimState = "unverified";
+  firstRevisionKind = "generated";
   saveConflict = false;
   templateCatalog = [listed(template)];
   editorFields = fields;
@@ -118,7 +126,12 @@ function mockApi() {
         init?.body && !(init.body instanceof FormData)
           ? JSON.parse(String(init.body))
           : (init?.body ?? null);
-      calls.push({ method, path, body });
+      calls.push({
+        method,
+        path,
+        body,
+        accept: new Headers(init?.headers).get("accept"),
+      });
       if (path.endsWith("/context")) return Response.json(context);
       if (
         path.includes("/candidacies/") &&
@@ -209,6 +222,20 @@ function mockApi() {
             },
           ],
         });
+      // Made by hand: one plain answer with the saved document, nothing streamed.
+      if (
+        path === "/api/interview/documents" &&
+        method === "POST" &&
+        (body as { mode?: string }).mode === "manual"
+      )
+        return Response.json(
+          {
+            document: { id: DOCUMENT_ID },
+            revision: { revision: 1 },
+            errors: [{ key: "full_name", code: "missing" }],
+          },
+          { status: 201 },
+        );
       if (path === "/api/interview/documents" && method === "POST")
         return new Response(
           `${[
@@ -331,7 +358,7 @@ function mockApi() {
             values: revisionValues[revision],
             validation: validationIssues,
             provenance: {
-              kind: revision === 1 ? "generated" : "edited",
+              kind: revision === 1 ? firstRevisionKind : "edited",
               modelOwnedKeys: ["full_name"],
               claimState,
             },
@@ -476,7 +503,9 @@ describe("New document dialog", () => {
     renderAt(["new"]);
     expect(await screen.findByText(/Save an experience matrix/)).toBeVisible();
     expect(screen.getByText(/No model is available/)).toBeVisible();
-    expect(screen.getByRole("button", { name: "Generate" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Generate with AI" }),
+    ).toBeDisabled();
   });
 
   it("creates from candidacy, profile revision, and model", async () => {
@@ -486,7 +515,7 @@ describe("New document dialog", () => {
       screen.getByRole("radio", { name: /Northwind · Engineer/ }),
     );
     expect(screen.getByText(/Resume — Northwind/)).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    fireEvent.click(screen.getByRole("button", { name: "Generate with AI" }));
     await waitFor(
       () => expect(actions.go).toHaveBeenCalledWith("documents", [DOCUMENT_ID]),
       { timeout: 4000 },
@@ -512,7 +541,7 @@ describe("New document dialog", () => {
     await screen.findByRole("dialog", { name: "New document" });
     expect(screen.getByText("Claude Code")).toBeVisible();
     expect(screen.getByText(/Follows the model chosen/)).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    fireEvent.click(screen.getByRole("button", { name: "Generate with AI" }));
     await waitFor(() =>
       expect(posted("/api/interview/documents")).toBeTruthy(),
     );
@@ -537,7 +566,7 @@ describe("New document dialog", () => {
     renderAt(["new"]);
     await screen.findByRole("dialog", { name: "New document" });
     expect(screen.getByText(/can't write documents/)).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    fireEvent.click(screen.getByRole("button", { name: "Generate with AI" }));
     await waitFor(() =>
       expect(posted("/api/interview/documents")).toBeTruthy(),
     );
@@ -569,7 +598,7 @@ describe("New document dialog", () => {
     expect(
       screen.getByRole("button", { name: "Hiring manager" }),
     ).toHaveAttribute("aria-pressed", "true");
-    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    fireEvent.click(screen.getByRole("button", { name: "Generate with AI" }));
     await waitFor(() =>
       expect(posted("/api/interview/documents")).toBeTruthy(),
     );
@@ -612,7 +641,7 @@ describe("New document dialog", () => {
     );
     renderAt(["new"]);
     await screen.findByRole("dialog", { name: "New document" });
-    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    fireEvent.click(screen.getByRole("button", { name: "Generate with AI" }));
     expect(await screen.findByText("Writing your document")).toBeVisible();
     expect(screen.getByText("Reading your experience…")).toBeVisible();
     await waitFor(() => expect(send).toBeDefined());
@@ -681,7 +710,7 @@ describe("New document dialog", () => {
       return event.defaultPrevented;
     };
     expect(leave()).toBe(false);
-    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    fireEvent.click(screen.getByRole("button", { name: "Generate with AI" }));
     await screen.findByText("Writing your document");
     expect(leave()).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: "Cancel generation" }));
@@ -706,11 +735,13 @@ describe("New document dialog", () => {
     );
     renderAt(["new"]);
     await screen.findByRole("dialog", { name: "New document" });
-    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    fireEvent.click(screen.getByRole("button", { name: "Generate with AI" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "already being written in another window",
     );
-    expect(screen.getByRole("button", { name: "Generate" })).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Generate with AI" }),
+    ).toBeEnabled();
   });
 
   it("returns to the form with the reason when writing fails part way", async () => {
@@ -731,18 +762,22 @@ describe("New document dialog", () => {
     );
     renderAt(["new"]);
     await screen.findByRole("dialog", { name: "New document" });
-    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    fireEvent.click(screen.getByRole("button", { name: "Generate with AI" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "could not be completed",
     );
-    expect(screen.getByRole("button", { name: "Generate" })).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Generate with AI" }),
+    ).toBeEnabled();
   });
 
   it("creates a new application first, then writes the document for it", async () => {
     renderAt(["new"]);
     await screen.findByRole("dialog", { name: "New document" });
     fireEvent.click(screen.getByRole("radio", { name: /New application/ }));
-    expect(screen.getByRole("button", { name: "Generate" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Generate with AI" }),
+    ).toBeDisabled();
     fireEvent.change(screen.getByLabelText("Company"), {
       target: { value: "Zensurance" },
     });
@@ -753,7 +788,7 @@ describe("New document dialog", () => {
       target: { value: "Own payments" },
     });
     expect(screen.getByText(/Resume — Zensurance/)).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    fireEvent.click(screen.getByRole("button", { name: "Generate with AI" }));
     await waitFor(
       () => expect(actions.go).toHaveBeenCalledWith("documents", [DOCUMENT_ID]),
       { timeout: 4000 },
@@ -800,9 +835,11 @@ describe("New document dialog", () => {
     fireEvent.change(screen.getByLabelText("Role"), {
       target: { value: "Senior Engineer" },
     });
-    expect(screen.getByRole("button", { name: "Generate" })).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Generate with AI" }),
+    ).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "Technical" }));
-    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    fireEvent.click(screen.getByRole("button", { name: "Generate with AI" }));
     await waitFor(() =>
       expect(posted("/api/interview/documents")).toBeTruthy(),
     );
@@ -834,7 +871,9 @@ describe("New document dialog", () => {
     expect(
       screen.getByRole("button", { name: "Hiring manager" }),
     ).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Generate" })).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Generate with AI" }),
+    ).toBeEnabled();
     expect(
       screen.getByText(/Interview prep — Northwind · Hiring manager/),
     ).toBeVisible();
@@ -855,7 +894,7 @@ describe("New document dialog", () => {
     await screen.findByRole("dialog", { name: "New document" });
     fireEvent.click(screen.getByRole("button", { name: /Interview prep/ }));
     fireEvent.click(screen.getByRole("button", { name: "System design" }));
-    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    fireEvent.click(screen.getByRole("button", { name: "Generate with AI" }));
     await waitFor(() =>
       expect(posted("/api/interview/documents")).toBeTruthy(),
     );
@@ -879,7 +918,7 @@ describe("New document dialog", () => {
     fireEvent.change(screen.getByLabelText("Job description"), {
       target: { value: "Build reliable systems" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    fireEvent.click(screen.getByRole("button", { name: "Generate with AI" }));
     await waitFor(
       () => expect(actions.go).toHaveBeenCalledWith("documents", [DOCUMENT_ID]),
       { timeout: 4000 },
@@ -897,6 +936,350 @@ describe("New document dialog", () => {
     expect(calls[saveIndex]?.body).toEqual({
       jobDescription: "Build reliable systems",
     });
+  });
+
+  // The footer's split button: its main half does the remembered choice, its
+  // caret opens the menu that offers the two.
+  const MODE_KEY = "interview-studio.documents.creation-mode";
+  const modeCaret = () =>
+    screen.getByRole("button", { name: "Choose how the document is made" });
+  const modeMenu = () =>
+    within(screen.getByRole("menu", { name: "How the document is made" }));
+  const chooseMode = (name: RegExp) => {
+    pointerOpen(modeCaret());
+    fireEvent.click(modeMenu().getByRole("menuitemradio", { name }));
+  };
+  const openNew = async () => {
+    const view = renderAt(["new"]);
+    await screen.findByRole("dialog", { name: "New document" });
+    return view;
+  };
+
+  it("writes with AI by default and says so in the button, the menu and the summary", async () => {
+    await openNew();
+    expect(
+      screen.getByRole("button", { name: "Generate with AI" }),
+    ).toBeEnabled();
+    expect(
+      screen.queryByRole("button", { name: "Create manually" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText("2 fields · DOCX · written in a few parallel calls"),
+    ).toBeVisible();
+    pointerOpen(modeCaret());
+    const items = modeMenu().getAllByRole("menuitemradio");
+    expect(items.map((item) => item.getAttribute("aria-checked"))).toEqual([
+      "true",
+      "false",
+    ]);
+    expect(items[0]).toHaveTextContent("Generate with AI");
+    expect(items[0]).toHaveTextContent(
+      "Primary model writes the fields in a few parallel calls",
+    );
+    expect(items[1]).toHaveTextContent("Create manually");
+    expect(items[1]).toHaveTextContent("No AI call");
+    expect(localStorage.getItem(MODE_KEY)).toBeNull();
+  });
+
+  it("changes the main button and the summary when manual is chosen, without making anything", async () => {
+    await openNew();
+    chooseMode(/Create manually/);
+    expect(
+      screen.getByRole("button", { name: "Create manually" }),
+    ).toBeEnabled();
+    expect(
+      screen.queryByRole("button", { name: "Generate with AI" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText("2 fields · DOCX · you write the fields · no AI call"),
+    ).toBeVisible();
+    expect(screen.queryByText(/parallel calls/)).not.toBeInTheDocument();
+    expect(posted("/api/interview/documents")).toBeUndefined();
+    // The menu announces the choice now in force.
+    pointerOpen(modeCaret());
+    expect(
+      modeMenu().getByRole("menuitemradio", { name: /Create manually/ }),
+    ).toHaveAttribute("aria-checked", "true");
+    expect(
+      modeMenu().getByRole("menuitemradio", { name: /Generate with AI/ }),
+    ).toHaveAttribute("aria-checked", "false");
+  });
+
+  it("remembers the last choice the next time the dialog opens, in either direction", async () => {
+    const first = await openNew();
+    chooseMode(/Create manually/);
+    expect(localStorage.getItem(MODE_KEY)).toBe("manual");
+    first.unmount();
+    const second = await openNew();
+    expect(
+      screen.getByRole("button", { name: "Create manually" }),
+    ).toBeVisible();
+    expect(screen.getByText(/you write the fields · no AI call/)).toBeVisible();
+    chooseMode(/Generate with AI/);
+    expect(localStorage.getItem(MODE_KEY)).toBe("ai");
+    second.unmount();
+    await openNew();
+    expect(
+      screen.getByRole("button", { name: "Generate with AI" }),
+    ).toBeVisible();
+  });
+
+  it("ignores a stored choice that is not one of the two", async () => {
+    for (const stored of ["Manual", "", "both", '"manual"']) {
+      localStorage.setItem(MODE_KEY, stored);
+      const view = await openNew();
+      expect(
+        screen.getByRole("button", { name: "Generate with AI" }),
+      ).toBeVisible();
+      expect(screen.getByText(/written in a few parallel calls/)).toBeVisible();
+      view.unmount();
+    }
+  });
+
+  it("falls back to AI when the browser's storage cannot be read or written", async () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    await openNew();
+    expect(
+      screen.getByRole("button", { name: "Generate with AI" }),
+    ).toBeVisible();
+    chooseMode(/Create manually/);
+    expect(
+      screen.getByRole("button", { name: "Create manually" }),
+    ).toBeVisible();
+  });
+
+  it("creates manually from the same choices with no generation request, then opens the document", async () => {
+    await openNew();
+    fireEvent.click(
+      screen.getByRole("radio", { name: /Northwind · Engineer/ }),
+    );
+    chooseMode(/Create manually/);
+    fireEvent.click(screen.getByRole("button", { name: "Create manually" }));
+    await waitFor(() =>
+      expect(actions.go).toHaveBeenCalledWith("documents", [DOCUMENT_ID]),
+    );
+    const creates = calls.filter(
+      (call) =>
+        call.method === "POST" && call.path === "/api/interview/documents",
+    );
+    expect(creates).toHaveLength(1);
+    // The same selection as a generated document, with no model named.
+    expect(creates[0]?.body).toEqual({
+      title: "Resume — Northwind",
+      templateId: TEMPLATE_ID,
+      templateRevision: 1,
+      profileId: "profile-1",
+      profileRevision: 3,
+      candidacyId: CANDIDACY_ID,
+      interviewId: null,
+      mode: "manual",
+    });
+    // No stream is asked for, nothing is drawn as "being written", and no
+    // other request that would reach a model is made.
+    expect(creates[0]?.accept ?? "").not.toContain("x-ndjson");
+    expect(screen.queryByText("Writing your document")).not.toBeInTheDocument();
+    expect(
+      calls.filter(
+        (call) =>
+          call.method === "POST" &&
+          (call.path.endsWith("/preview") ||
+            call.path.endsWith("/regenerate") ||
+            call.path.endsWith("/brief")),
+      ),
+    ).toEqual([]);
+  });
+
+  it("creates manually when no model is available, and says the document can still be made", async () => {
+    stubFetchFor((path) =>
+      path.endsWith("/context")
+        ? Response.json({ ...context, targets: [] })
+        : undefined,
+    );
+    await openNew();
+    expect(
+      screen.getByRole("button", { name: "Generate with AI" }),
+    ).toBeDisabled();
+    chooseMode(/Create manually/);
+    expect(
+      screen.getByText(/You can still create the document manually/),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Create manually" }));
+    await waitFor(() =>
+      expect(actions.go).toHaveBeenCalledWith("documents", [DOCUMENT_ID]),
+    );
+    expect(posted("/api/interview/documents")?.body).not.toHaveProperty(
+      "aiTargetId",
+    );
+  });
+
+  it("still needs an experience matrix and a complete application to create manually", async () => {
+    localStorage.setItem(MODE_KEY, "manual");
+    await openNew();
+    fireEvent.click(screen.getByRole("radio", { name: /New application/ }));
+    expect(
+      screen.getByRole("button", { name: "Create manually" }),
+    ).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Company"), {
+      target: { value: "Zensurance" },
+    });
+    fireEvent.change(screen.getByLabelText("Role"), {
+      target: { value: "Tech Lead" },
+    });
+    expect(
+      screen.getByText(/Saved to this application when you create/),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Create manually" }));
+    await waitFor(() =>
+      expect(actions.go).toHaveBeenCalledWith("documents", [DOCUMENT_ID]),
+    );
+    // The application is made first, exactly as it is before generating.
+    const order = calls
+      .filter((call) => call.method === "POST")
+      .map((call) => call.path);
+    expect(order.indexOf("/api/interview/documents/candidacies")).toBeLessThan(
+      order.indexOf("/api/interview/documents"),
+    );
+    expect(posted("/api/interview/documents")?.body).toMatchObject({
+      candidacyId: NEW_CANDIDACY_ID,
+      interviewId: null,
+      mode: "manual",
+    });
+  });
+
+  it("adds the stage interview prep needs before creating manually", async () => {
+    templateCatalog = [
+      listed(template),
+      listed({
+        ...template,
+        id: PREP_TEMPLATE_ID,
+        name: "Interview prep",
+        kind: "interview_prep",
+      }),
+    ];
+    localStorage.setItem(MODE_KEY, "manual");
+    await openNew();
+    fireEvent.click(screen.getByRole("button", { name: /Interview prep/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Technical" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create manually" }));
+    await waitFor(() =>
+      expect(actions.go).toHaveBeenCalledWith("documents", [DOCUMENT_ID]),
+    );
+    expect(posted("/interviews")?.body).toEqual({
+      kind: "technical",
+      label: "Technical",
+    });
+    expect(posted("/api/interview/documents")?.body).toMatchObject({
+      templateId: PREP_TEMPLATE_ID,
+      candidacyId: CANDIDACY_ID,
+      interviewId: NEW_INTERVIEW_ID,
+      mode: "manual",
+    });
+  });
+
+  it("points at the existing document when a manual create finds a match on the server", async () => {
+    localStorage.setItem(MODE_KEY, "manual");
+    const original = globalThis.fetch;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) =>
+        String(input) === "/api/interview/documents" && init?.method === "POST"
+          ? Promise.resolve(
+              Response.json(
+                { existingDocumentId: DOCUMENT_ID, offer: "open-it" },
+                { status: 409 },
+              ),
+            )
+          : original(input, init),
+      ),
+    );
+    await openNew();
+    fireEvent.click(screen.getByRole("button", { name: "Create manually" }));
+    expect(
+      await screen.findByText("A matching document already exists."),
+    ).toBeVisible();
+    expect(actions.go).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", { name: "Create manually" }),
+    ).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Open it" }));
+    expect(actions.go).toHaveBeenCalledWith("documents", [DOCUMENT_ID]);
+  });
+
+  it("returns to the form with the reason when a manual create fails", async () => {
+    localStorage.setItem(MODE_KEY, "manual");
+    const original = globalThis.fetch;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) =>
+        String(input) === "/api/interview/documents" && init?.method === "POST"
+          ? Promise.resolve(
+              Response.json(
+                { error: { code: "server-error" } },
+                { status: 500 },
+              ),
+            )
+          : original(input, init),
+      ),
+    );
+    await openNew();
+    fireEvent.click(screen.getByRole("button", { name: "Create manually" }));
+    expect(
+      (await screen.findAllByText(/Documents service returned an error/))[0],
+    ).toBeVisible();
+    expect(actions.go).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", { name: "Create manually" }),
+    ).toBeEnabled();
+  });
+
+  it("reaches the choice from the keyboard, and Escape closes the menu, not the dialog", async () => {
+    await openNew();
+    keyOpen(modeCaret());
+    const items = modeMenu().getAllByRole("menuitemradio");
+    expect(items).toHaveLength(2);
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+    await waitFor(() =>
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByRole("dialog", { name: "New document" })).toBeVisible();
+    expect(actions.go).not.toHaveBeenCalled();
+    // ArrowDown on the main half opens the same menu.
+    keyOpen(screen.getByRole("button", { name: "Generate with AI" }));
+    fireEvent.keyDown(
+      modeMenu().getByRole("menuitemradio", { name: /Create manually/ }),
+      { key: "Enter" },
+    );
+    expect(
+      await screen.findByRole("button", { name: "Create manually" }),
+    ).toBeVisible();
+    // With no menu open, Escape still closes the dialog.
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(actions.go).toHaveBeenCalledWith("documents");
+  });
+
+  it("locks the choice while a document is being written", async () => {
+    const original = globalThis.fetch;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) =>
+        String(input) === "/api/interview/documents" && init?.method === "POST"
+          ? new Promise<Response>(() => undefined)
+          : original(input, init),
+      ),
+    );
+    await openNew();
+    fireEvent.click(screen.getByRole("button", { name: "Generate with AI" }));
+    expect(
+      await screen.findByRole("button", { name: "Generating…" }),
+    ).toBeDisabled();
+    expect(modeCaret()).toHaveAttribute("aria-disabled", "true");
+    pointerOpen(modeCaret());
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
   it("points at the existing document instead of generating a duplicate", async () => {
@@ -960,6 +1343,34 @@ describe("Document editor", () => {
     });
     expect(await screen.findByText("Saved as rev 2")).toBeVisible();
     expect(await screen.findByText("Saved · rev 2")).toBeVisible();
+  });
+
+  it("opens a manually created document editable: blanks need attention, are written by hand, and no model is asked", async () => {
+    firstRevisionKind = "manual";
+    revisionValues = { 1: { full_name: "", company_name: "Northwind" } };
+    validationIssues = [{ key: "full_name", code: "missing" }];
+    renderAt([DOCUMENT_ID]);
+    const name = await screen.findByRole("textbox", { name: "Full name" });
+    expect(name).toHaveValue("");
+    expect(name).not.toHaveAttribute("readonly");
+    // What the application states is filled in and stays the application's.
+    expect(screen.getByRole("textbox", { name: "Company name" })).toHaveValue(
+      "Northwind",
+    );
+    expect(screen.getByText("1 / 2 need attention")).toBeVisible();
+    fireEvent.focus(name);
+    fireEvent.change(name, { target: { value: "Ada Lovelace" } });
+    fireEvent.blur(name);
+    await waitFor(() => expect(currentRevision).toBe(2));
+    expect(posted(`/${DOCUMENT_ID}/revisions`)?.body).toMatchObject({
+      baseRevision: 1,
+      values: { full_name: "Ada Lovelace", company_name: "Northwind" },
+    });
+    expect(posted(`/${DOCUMENT_ID}/regenerate`)).toBeUndefined();
+    fireEvent.click(await screen.findByRole("button", { name: /Rev 2/ }));
+    expect(
+      await screen.findByRole("menuitem", { name: /Rev 1.*Created manually/ }),
+    ).toBeVisible();
   });
 
   it("zooms the preview and hides the fields to focus on the document", async () => {

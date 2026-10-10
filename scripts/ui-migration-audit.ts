@@ -502,7 +502,9 @@ export const rawAllowList: readonly AllowEntry[] = [
   },
   {
     file: `${FRONTEND}/studio/documents/`,
-    max: { button: 36, textarea: 4, input: 5, select: 1 },
+    // 35, down from 36: the New document dialog's "Generate" is the library
+    // SplitButton (generate with AI or create manually).
+    max: { button: 35, textarea: 4, input: 5, select: 1 },
     reason: STUDIO_WEB,
   },
   {

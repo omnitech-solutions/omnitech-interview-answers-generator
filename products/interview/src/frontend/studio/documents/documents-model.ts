@@ -162,6 +162,7 @@ export function revisionNote(
 ): string {
   if (provenance.restoredFromRevision)
     return `Restored rev ${provenance.restoredFromRevision}`;
+  if (provenance.kind === "manual") return "Created manually";
   if (provenance.kind === "edited") return "Edited";
   if (provenance.kind === "candidate-confirmed") return "Candidate confirmed";
   if (provenance.kind === "source-refreshed") return "Source facts refreshed";

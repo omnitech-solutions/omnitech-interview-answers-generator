@@ -1,10 +1,16 @@
 "use client";
 
+import { SplitButton } from "@oc-tech/omni-ui-components";
 import type { DocumentField } from "@omnitech/interview-contracts";
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "../icon";
 import { useLeaveGuard } from "../work-guards";
 import { documentTarget } from "./assistant-model";
+import {
+  type CreationMode,
+  loadCreationMode,
+  saveCreationMode,
+} from "./creation-mode";
 import type { PreviewPayload } from "./document-preview";
 import { type WritingBatch, WritingView } from "./document-writing";
 import {
@@ -18,7 +24,7 @@ import {
   type TemplateListItem,
 } from "./documents-client";
 import { KIND_ICON, KIND_LABEL } from "./documents-model";
-import { Modal, message, Spinner } from "./documents-ui";
+import { Modal, message } from "./documents-ui";
 
 // "New application" is a choice in the list, made real when generating.
 const NEW_APPLICATION = "__new";
@@ -73,6 +79,9 @@ export function NewDocumentDialog({
   // Generation follows the assistant's model; it is not chosen here.
   const [resolution] = useState(() => documentTarget(context.targets));
   const targetId = resolution.target?.id ?? "";
+  // Written by the model or made by hand: the choice last used in this browser.
+  const [mode, setMode] = useState<CreationMode>(loadCreationMode);
+  const manual = mode === "manual";
   const [busy, setBusy] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [error, setError] = useState("");
@@ -139,10 +148,11 @@ export function NewDocumentDialog({
     ? !!company.trim() && !!role.trim()
     : !!candidacy;
   const companyName = isNew ? company.trim() : candidacy?.company_name;
-  const canGenerate =
+  // A document made by hand needs no model, so none has to be available.
+  const canCreate =
     !!selected &&
     !!profile &&
-    !!targetId &&
+    (manual || !!targetId) &&
     (candidacyId === "" || hasApplication) &&
     (!needsStage || (hasApplication && !!stage));
   const existingStageId =
@@ -175,8 +185,14 @@ export function NewDocumentDialog({
     );
   }
 
-  async function generate() {
-    if (!selected || !profile || !canGenerate) return;
+  function chooseMode(next: CreationMode) {
+    setMode(next);
+    saveCreationMode(next);
+    setError("");
+  }
+
+  async function create() {
+    if (!selected || !profile || !canCreate) return;
     const controller = new AbortController();
     pending.current = controller;
     setBusy(true);
@@ -227,7 +243,7 @@ export function NewDocumentDialog({
             )
           ).interviewId;
       }
-      const body = {
+      const selection = {
         title,
         templateId,
         templateRevision: selected.latestRevision,
@@ -235,8 +251,20 @@ export function NewDocumentDialog({
         profileRevision: profile.revision,
         candidacyId: applicationId,
         interviewId: stageId,
-        aiTargetId: targetId,
       };
+      if (manual) {
+        // Made by hand: one plain request, no model call and nothing to watch
+        // being written. The document opens in the editor to be filled in.
+        const made = await postJson<{ document: { id: string } }>(
+          "",
+          { ...selection, mode: "manual" },
+          controller.signal,
+        );
+        if (controller.signal.aborted) return;
+        onCreated(made.document.id);
+        return;
+      }
+      const body = { ...selection, aiTargetId: targetId };
       // Draw the empty document at once, then redraw as sections land.
       written.current = {};
       setWriting({ batches: null, fields: [], preview: null, finished: false });
@@ -352,9 +380,15 @@ export function NewDocumentDialog({
               {error
                 ? error
                 : busy
-                  ? `${resolution.target?.label ?? "The model"} is writing ${selected?.fieldCount ?? ""} fields · ${clock(seconds)} · sections are written side by side`
+                  ? manual
+                    ? "Creating the document · no AI call"
+                    : `${resolution.target?.label ?? "The model"} is writing ${selected?.fieldCount ?? ""} fields · ${clock(seconds)} · sections are written side by side`
                   : selected
-                    ? `${selected.fieldCount} fields · ${selected.template.format.toUpperCase()} · written in a few parallel calls`
+                    ? `${selected.fieldCount} fields · ${selected.template.format.toUpperCase()} · ${
+                        manual
+                          ? "you write the fields · no AI call"
+                          : "written in a few parallel calls"
+                      }`
                     : "Choose a template"}
             </div>
           </div>
@@ -366,17 +400,58 @@ export function NewDocumentDialog({
               onClose();
             }}
           >
-            {busy ? "Cancel generation" : "Cancel"}
+            {busy && !manual ? "Cancel generation" : "Cancel"}
           </button>
-          <button
-            type="button"
-            className="dx-button dx-button-primary dx-button-lg"
-            disabled={busy || !canGenerate}
-            onClick={() => void generate()}
-          >
-            {busy ? <Spinner /> : <Icon name="auto_awesome" size={18} />}
-            {busy ? "Generating…" : "Generate"}
-          </button>
+          <SplitButton
+            tone="accent"
+            main={{
+              label: busy
+                ? manual
+                  ? "Creating…"
+                  : "Generating…"
+                : manual
+                  ? "Create manually"
+                  : "Generate with AI",
+              icon: <Icon name={manual ? "edit" : "auto_awesome"} size={18} />,
+              labelInline: true,
+              state: busy ? "analysing" : "idle",
+              disabled: busy || !canCreate,
+              onPress: () => void create(),
+            }}
+            caret={{
+              label: "Choose how the document is made",
+              ...(busy ? { disabledReason: "The document is being made" } : {}),
+            }}
+            openMenuOn={["arrowdown"]}
+            menu={{
+              label: "How the document is made",
+              // Inside the dialog, so it is drawn above the dialog's scrim.
+              portal: false,
+              side: "top",
+              align: "end",
+              sections: [
+                {
+                  id: "mode",
+                  value: mode,
+                  items: [
+                    {
+                      id: "ai",
+                      label: "Generate with AI",
+                      description: `${resolution.target?.label ?? "A model"} writes the fields in a few parallel calls`,
+                    },
+                    {
+                      id: "manual",
+                      label: "Create manually",
+                      description:
+                        "Opens with the application and matrix facts filled in; you write the rest. No AI call",
+                    },
+                  ],
+                },
+              ],
+              onValueChange: (_section, id) =>
+                chooseMode(id === "manual" ? "manual" : "ai"),
+            }}
+          />
         </>
       }
     >
@@ -405,6 +480,7 @@ export function NewDocumentDialog({
           {context.targets.length === 0 && (
             <p className="dx-notice" role="status">
               No model is available for document generation.
+              {manual ? " You can still create the document manually." : ""}
             </p>
           )}
 
@@ -540,7 +616,8 @@ export function NewDocumentDialog({
                     placeholder="Paste the role's job description"
                   />
                   <span className="dx-sub">
-                    Saved to this application when you generate.
+                    Saved to this application when you{" "}
+                    {manual ? "create the document" : "generate"}.
                   </span>
                 </div>
               </>

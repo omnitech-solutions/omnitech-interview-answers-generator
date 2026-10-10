@@ -5,7 +5,12 @@ import {
 } from "@omnitech/ai-engine";
 import type { DocumentField } from "@omnitech/interview-contracts";
 import { describe, expect, it } from "vitest";
-import { generateDocumentValues, outputWeight, planBatches } from "./generate";
+import {
+  documentFieldOwnership,
+  generateDocumentValues,
+  outputWeight,
+  planBatches,
+} from "./generate";
 
 const fields: DocumentField[] = [
   {
@@ -289,6 +294,64 @@ const sectioned = (sections: Array<[string, number]>) =>
       section,
     })),
   );
+
+describe("documentFieldOwnership", () => {
+  const manualNote: DocumentField = {
+    key: "notes",
+    label: "Notes",
+    source: "manual",
+    required: false,
+    maxLength: null,
+  };
+  const stage: DocumentField = {
+    key: "interview_stage",
+    label: "Stage",
+    source: "interview",
+    required: false,
+    maxLength: null,
+  };
+  const name: DocumentField = {
+    key: "full_name",
+    label: "Name",
+    source: "candidate-profile",
+    required: true,
+    maxLength: null,
+  };
+
+  it("leaves to a model only what prose must fill, and reads the rest without one", () => {
+    const owned = documentFieldOwnership({
+      fields: [...fields, name, stage, manualNote],
+      candidacyValues: { company_name: "Northwind", role_title: "unused" },
+      interviewValues: { interview_stage: "Technical" },
+      profileValues: { full_name: "Ada" },
+      missingProfileKeys: ["phone"],
+    });
+    expect(owned.modelFields.map((field) => field.key)).toEqual(["summary"]);
+    // The application, the interview and the matrix's facts as written; a
+    // contact detail the matrix lacks and a manual field are blank.
+    expect(owned.fixed).toEqual({
+      company_name: "Northwind",
+      phone: "",
+      full_name: "Ada",
+      interview_stage: "Technical",
+      notes: "",
+    });
+  });
+
+  it("invents nothing when a source has no value for a field", () => {
+    const owned = documentFieldOwnership({
+      fields: [...fields, stage],
+      candidacyValues: {},
+      interviewValues: {},
+      missingProfileKeys: [],
+    });
+    expect(owned.modelFields.map((field) => field.key)).toEqual([
+      "phone",
+      "summary",
+    ]);
+    expect(owned.fixed).toEqual({ company_name: "", interview_stage: "" });
+  });
+});
 
 describe("planBatches", () => {
   it("makes one call for a small template and none for an empty one", () => {

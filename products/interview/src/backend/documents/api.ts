@@ -31,7 +31,7 @@ import { builtInAssetUrl } from "./built-in-assets";
 import { type BuiltInKey, builtInTemplates } from "./built-in-templates";
 import { DEFAULT_DOCUMENTS_CONFIG, type DocumentsConfig } from "./config";
 import { DocumentContextNotFound, resolveDocumentContext } from "./context";
-import { generateDocumentValues } from "./generate";
+import { documentFieldOwnership, generateDocumentValues } from "./generate";
 import { renderDocxTemplate } from "./render-docx";
 import { renderDocxAsMarkdown } from "./render-docx-markdown";
 import {
@@ -930,7 +930,8 @@ export function createDocumentsApi(options: {
         );
       }
     }
-    await authorizedTarget(scope, input.aiTargetId);
+    // A document made by hand names no model, so there is none to authorise.
+    if ("aiTargetId" in input) await authorizedTarget(scope, input.aiTargetId);
     const candidate = await resolveDocumentContext(options.database, {
       tenantId: scope.tenantId,
       actorId: scope.actorId,
@@ -948,6 +949,66 @@ export function createDocumentsApi(options: {
     const existing = await repo.findMatchingDocument(scopeKey(scope), input);
     if (existing)
       return c.json({ existingDocumentId: existing.id, offer: "open-it" }, 409);
+    // Two saves of the same selection can race; the loser is pointed at the
+    // document that won.
+    const orExisting = async (error: unknown) => {
+      if (error instanceof DocumentAlreadyExists) {
+        await resolveDocumentContext(options.database, {
+          tenantId: scope.tenantId,
+          actorId: scope.actorId,
+          profileId: input.profileId,
+          profileRevision: input.profileRevision,
+          candidacyId: input.candidacyId,
+          interviewId: input.interviewId,
+        });
+        const winner = await repo.findMatchingDocument(scopeKey(scope), input);
+        if (winner) return { existingDocumentId: winner.id };
+      }
+      throw error;
+    };
+    if ("mode" in input) {
+      // [DOMAIN] Made by hand: the same template and the same sources, and no
+      // model call. The application, the interview and the facts the matrix
+      // states outright are filled in; every field only prose can fill is left
+      // blank for the person, so nothing is invented. Blank required fields
+      // fail validation, which keeps the document at "invalid" (Needs
+      // attention) until they are written.
+      const { modelFields, fixed } = documentFieldOwnership({
+        fields: template.fields,
+        candidacyValues: candidate.candidacyValues,
+        interviewValues: candidate.interviewValues,
+        profileValues: candidate.profileValues,
+        missingProfileKeys: candidate.missingProfileKeys,
+      });
+      const values = {
+        ...fixed,
+        ...Object.fromEntries(modelFields.map((field) => [field.key, ""])),
+      };
+      const { mode: _mode, ...selection } = input;
+      const created = await repo
+        .createDocument(scopeKey(scope), {
+          ...selection,
+          signal: c.req.raw.signal,
+          values,
+          provenance: {
+            kind: "manual",
+            sourceDigest,
+            // The fields a model may still be asked to write from the editor.
+            modelOwnedKeys: modelFields.map((field) => field.key),
+            claimState: "unverified",
+          },
+        })
+        .catch(orExisting);
+      if ("existingDocumentId" in created)
+        return c.json(
+          { existingDocumentId: created.existingDocumentId, offer: "open-it" },
+          409,
+        );
+      return c.json(
+        { ...created, errors: validateDocumentValues(template.fields, values) },
+        201,
+      );
+    }
     const requestIdentity = retryKey
       ? { key: retryKey, bindingHash: requestBinding, sourceDigest }
       : undefined;
@@ -1031,24 +1092,7 @@ export function createDocumentsApi(options: {
           aiUsage: generated.usage,
           ...(requestIdentity ? { requestIdentity } : {}),
         })
-        .catch(async (error: unknown) => {
-          if (error instanceof DocumentAlreadyExists) {
-            await resolveDocumentContext(options.database, {
-              tenantId: scope.tenantId,
-              actorId: scope.actorId,
-              profileId: input.profileId,
-              profileRevision: input.profileRevision,
-              candidacyId: input.candidacyId,
-              interviewId: input.interviewId,
-            });
-            const winner = await repo.findMatchingDocument(
-              scopeKey(scope),
-              input,
-            );
-            if (winner) return { existingDocumentId: winner.id };
-          }
-          throw error;
-        });
+        .catch(orExisting);
     };
     if (!(c.req.header("accept") ?? "").includes("application/x-ndjson")) {
       try {
@@ -1184,7 +1228,8 @@ export function createDocumentsApi(options: {
     }
     if (input.baseRevision !== current.document.currentRevision)
       throw new DocumentRevisionConflict();
-    await authorizedTarget(scope, input.aiTargetId);
+    // A document made by hand names no model, so there is none to authorise.
+    if ("aiTargetId" in input) await authorizedTarget(scope, input.aiTargetId);
     const candidate = await resolveDocumentContext(options.database, {
       tenantId: scope.tenantId,
       actorId: scope.actorId,

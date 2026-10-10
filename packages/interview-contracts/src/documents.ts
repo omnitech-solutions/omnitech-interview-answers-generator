@@ -60,7 +60,8 @@ export const documentTemplateCreateSchema = z.strictObject({
   instructions: z.string().max(16_000),
 });
 
-export const documentCreateSchema = z.strictObject({
+// What a new document is made from; the same whoever writes its fields.
+const documentSelection = {
   title: z.string().trim().min(1).max(200),
   templateId: z.uuid(),
   templateRevision: z.number().int().positive(),
@@ -68,8 +69,19 @@ export const documentCreateSchema = z.strictObject({
   profileRevision: z.number().int().positive(),
   candidacyId: z.uuid().nullable(),
   interviewId: z.uuid().nullable(),
-  aiTargetId: z.string().trim().min(1).max(256),
-});
+};
+
+// [DOMAIN] A document is written by a model (`aiTargetId` names it) or made by
+// hand (`mode: "manual"`): no model is named because none is called. The two
+// never mix, so a manual request cannot carry a model and a request with
+// neither is refused.
+export const documentCreateSchema = z.union([
+  z.strictObject({
+    ...documentSelection,
+    aiTargetId: z.string().trim().min(1).max(256),
+  }),
+  z.strictObject({ ...documentSelection, mode: z.literal("manual") }),
+]);
 
 export const documentEditSchema = z.strictObject({
   baseRevision: z.number().int().positive(),

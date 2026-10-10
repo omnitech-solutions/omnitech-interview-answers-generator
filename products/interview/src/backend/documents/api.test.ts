@@ -592,6 +592,412 @@ describe("Documents private API", () => {
     expect(await markdownDownload.text()).toContain("Evidence");
   }, 30_000);
 
+  // Every way the product can reach a model goes through the engine, so a
+  // document made by hand must leave each of its methods uncalled.
+  function watchEngine() {
+    const methods = engine as unknown as Record<string, unknown>;
+    const spies = Object.keys(methods)
+      .filter((name) => typeof methods[name] === "function")
+      .map((name) => vi.spyOn(methods as Record<string, () => unknown>, name));
+    expect(spies.length).toBeGreaterThan(0);
+    return () => spies.reduce((sum, spy) => sum + spy.mock.calls.length, 0);
+  }
+  async function uploadMarkdown(
+    mine: ReturnType<typeof app>,
+    name: string,
+    body: string,
+    fields?: unknown[],
+  ) {
+    const form = new FormData();
+    form.set("name", name);
+    form.set("kind", "custom");
+    form.set("format", "md");
+    form.set("instructions", "Use only the candidate profile");
+    form.set("file", new File([body], "template.md"));
+    if (fields) form.set("fields", JSON.stringify(fields));
+    const uploaded = await mine.request(`${url}/templates`, {
+      method: "POST",
+      headers,
+      body: form,
+    });
+    expect(uploaded.status, await uploaded.clone().text()).toBe(201);
+    return ((await uploaded.json()) as { template: { id: string } }).template
+      .id;
+  }
+
+  it("creates a document manually with no model call: sources filled in, the rest blank, editable by hand", async () => {
+    const mine = app(ownerId);
+    const candidacy = await mine.request(
+      `${url}/candidacies`,
+      post({
+        companyName: "Manual Co",
+        title: "Staff Engineer",
+        jobDescription: "Hand-written role",
+      }),
+    );
+    expect(candidacy.status).toBe(201);
+    const candidacyId = ((await candidacy.json()) as { candidacyId: string })
+      .candidacyId;
+    const templateId = await uploadMarkdown(
+      mine,
+      "Manual template",
+      "# {full_name}\n{company_name} · {role_title}\n{job_description}\n{email}\n{summary}\n{highlights}\n",
+    );
+    const selection = {
+      title: "Manual resume",
+      templateId,
+      templateRevision: 1,
+      profileId: "profile",
+      profileRevision: 1,
+      candidacyId,
+      interviewId: null,
+    };
+    const asked = output.length;
+    const engineCalls = watchEngine();
+
+    const created = await mine.request(
+      url,
+      // A browser that asks for a stream still gets one plain answer: there
+      // is nothing to watch being written.
+      post(
+        { ...selection, mode: "manual" },
+        { accept: "application/x-ndjson" },
+      ),
+    );
+    expect(created.status, await created.clone().text()).toBe(201);
+    expect(created.headers.get("content-type")).toContain("application/json");
+    const made = (await created.json()) as {
+      document: { id: string; status: string; currentRevision: number };
+      revision: {
+        values: Record<string, string>;
+        provenance: Record<string, unknown>;
+        validation: Array<{ key: string; code: string }>;
+        aiUsage: unknown;
+      };
+      errors: Array<{ key: string; code: string }>;
+    };
+    // The application and the matrix's own facts are filled in; what only
+    // prose can fill, and a contact detail the matrix lacks, are left blank.
+    expect(made.revision.values).toEqual({
+      full_name: "Ada",
+      company_name: "Manual Co",
+      role_title: "Staff Engineer",
+      job_description: "Hand-written role",
+      email: "",
+      summary: "",
+      highlights: "",
+    });
+    // An honest state: blank required fields keep it at "Needs attention".
+    expect(made.document.status).toBe("invalid");
+    expect(made.document.currentRevision).toBe(1);
+    const missing = [
+      { key: "email", code: "missing" },
+      { key: "summary", code: "missing" },
+      { key: "highlights", code: "missing" },
+    ];
+    expect(made.errors).toEqual(missing);
+    expect(made.revision.validation).toEqual(missing);
+    expect(made.revision.aiUsage).toBeNull();
+    expect(made.revision.provenance).toMatchObject({
+      kind: "manual",
+      modelOwnedKeys: ["summary", "highlights"],
+      claimState: "unverified",
+    });
+    expect(made.revision.provenance).not.toHaveProperty("targetId");
+    expect(made.revision.provenance["sourceDigest"]).toMatch(/^[a-f0-9]{64}$/);
+
+    // It opens like any document: listed, loaded with its fields, drawn.
+    const list = (await (await mine.request(url, { headers })).json()) as {
+      documents: Array<{ id: string; status: string; title: string }>;
+    };
+    expect(
+      list.documents.find((item) => item.id === made.document.id),
+    ).toMatchObject({ status: "invalid", title: "Manual resume" });
+    const opened = await mine.request(`${url}/${made.document.id}`, {
+      headers,
+    });
+    expect(opened.status).toBe(200);
+    expect(
+      ((await opened.json()) as { fields: Array<{ key: string }> }).fields.map(
+        (field) => field.key,
+      ),
+    ).toEqual([
+      "full_name",
+      "company_name",
+      "role_title",
+      "job_description",
+      "email",
+      "summary",
+      "highlights",
+    ]);
+    const preview = await mine.request(
+      `${url}/${made.document.id}/preview?revision=1`,
+      { headers },
+    );
+    expect(preview.status).toBe(200);
+    expect(((await preview.json()) as { html: string }).html).toContain(
+      "Manual Co",
+    );
+    // The same selection is one document: a second manual create is pointed
+    // at the first.
+    const duplicate = await mine.request(
+      url,
+      post({ ...selection, mode: "manual" }),
+    );
+    expect(duplicate.status).toBe(409);
+    expect(await duplicate.json()).toMatchObject({
+      existingDocumentId: made.document.id,
+      offer: "open-it",
+    });
+    // What the application states is not the person's to retype.
+    const overwritten = await mine.request(
+      `${url}/${made.document.id}/revisions`,
+      post({
+        baseRevision: 1,
+        values: { ...made.revision.values, company_name: "Another Co" },
+      }),
+    );
+    expect(overwritten.status).toBe(400);
+    // The fields are written by hand and saved as an ordinary edit.
+    const byHand = {
+      ...made.revision.values,
+      email: "ada@example.invalid",
+      summary: "Written by hand",
+      highlights: "Also by hand",
+    };
+    const edited = await mine.request(
+      `${url}/${made.document.id}/revisions`,
+      post({ baseRevision: 1, values: byHand }),
+    );
+    expect(edited.status, await edited.clone().text()).toBe(201);
+    const reopened = (await (
+      await mine.request(`${url}/${made.document.id}`, { headers })
+    ).json()) as {
+      document: { status: string; currentRevision: number };
+      revision: {
+        values: Record<string, string>;
+        provenance: Record<string, unknown>;
+      };
+    };
+    expect(reopened.document).toMatchObject({
+      status: "ready",
+      currentRevision: 2,
+    });
+    expect(reopened.revision.values).toEqual(byHand);
+    expect(reopened.revision.provenance).toMatchObject({
+      kind: "edited",
+      modelOwnedKeys: ["summary", "highlights"],
+    });
+    // Hand-written content is still the candidate's to confirm before export.
+    const exported = await mine.request(
+      `${url}/${made.document.id}/exports`,
+      post({ revision: 2, format: "md" }),
+    );
+    expect(exported.status).toBe(201);
+    const download = await mine.request(
+      `${url}/${made.document.id}/exports/${((await exported.json()) as { id: string }).id}/download`,
+      { headers },
+    );
+    const text = await download.text();
+    expect(text).toContain("Written by hand");
+    expect(text).toContain("DRAFT — Unverified candidate content");
+
+    // Creating, opening, drawing, editing and exporting asked no model.
+    expect(output).toHaveLength(asked);
+    expect(engineCalls()).toBe(0);
+    // Nobody else can open it.
+    expect(
+      (await app(otherId).request(`${url}/${made.document.id}`, { headers }))
+        .status,
+    ).toBe(404);
+
+    // Generating the same selection is pointed at it too, before any writing.
+    const generatedAgain = await mine.request(
+      url,
+      post({ ...selection, aiTargetId: "test-model" }),
+    );
+    expect(generatedAgain.status).toBe(409);
+    expect(await generatedAgain.json()).toMatchObject({
+      existingDocumentId: made.document.id,
+    });
+    expect(output).toHaveLength(asked);
+    // A model can still be asked for one field later, from the editor.
+    const regenerated = await mine.request(
+      `${url}/${made.document.id}/regenerate`,
+      post({ baseRevision: 2, fieldKey: "summary", aiTargetId: "test-model" }),
+    );
+    expect(regenerated.status, await regenerated.clone().text()).toBe(201);
+    expect(output).toHaveLength(asked + 1);
+    expect((await regenerated.json()).values).toMatchObject({
+      summary: "Evidence",
+      highlights: "Also by hand",
+    });
+  }, 30_000);
+
+  it("creates manually without a model being available, and for the general case with only the matrix", async () => {
+    // No write target exists for this member's engine view, so nothing could
+    // be generated; a document made by hand needs none.
+    const templateId = await uploadMarkdown(
+      app(ownerId),
+      "Manual general template",
+      "{name}\n{company_name}\n{interview_stage}\n{about}\n{notes}\n",
+      [
+        {
+          key: "name",
+          label: "Name",
+          source: "candidate-profile",
+          required: true,
+          maxLength: null,
+        },
+        {
+          key: "company_name",
+          label: "Company name",
+          source: "candidacy",
+          required: false,
+          maxLength: null,
+        },
+        {
+          key: "interview_stage",
+          label: "Interview stage",
+          source: "interview",
+          required: false,
+          maxLength: null,
+        },
+        {
+          key: "about",
+          label: "About",
+          source: "candidate-profile",
+          required: true,
+          maxLength: 40,
+        },
+        {
+          key: "notes",
+          label: "Notes",
+          source: "manual",
+          required: false,
+          maxLength: null,
+        },
+      ],
+    );
+    const asked = output.length;
+    const engineCalls = watchEngine();
+    const created = await app(ownerId).request(
+      url,
+      post({
+        title: "Manual general",
+        templateId,
+        templateRevision: 1,
+        profileId: "profile",
+        profileRevision: 1,
+        candidacyId: null,
+        interviewId: null,
+        mode: "manual",
+      }),
+    );
+    expect(created.status, await created.clone().text()).toBe(201);
+    const made = (await created.json()) as {
+      document: { id: string; status: string };
+      revision: {
+        values: Record<string, string>;
+        provenance: { modelOwnedKeys: string[] };
+      };
+      errors: unknown[];
+    };
+    // With no application there is nothing to copy: only the matrix's name.
+    expect(made.revision.values).toEqual({
+      name: "Ada",
+      company_name: "",
+      interview_stage: "",
+      about: "",
+      notes: "",
+    });
+    expect(made.revision.provenance.modelOwnedKeys).toEqual(["about"]);
+    expect(made.errors).toEqual([{ key: "about", code: "missing" }]);
+    expect(made.document.status).toBe("invalid");
+    // The template's own limits apply to what is typed by hand.
+    const tooLong = await app(ownerId).request(
+      `${url}/${made.document.id}/preview`,
+      post({
+        baseRevision: 1,
+        values: { ...made.revision.values, about: "A".repeat(41) },
+      }),
+    );
+    expect(tooLong.status).toBe(200);
+    expect(
+      ((await tooLong.json()) as { validation: unknown[] }).validation,
+    ).toEqual([{ key: "about", code: "too-long" }]);
+    expect(output).toHaveLength(asked);
+    expect(engineCalls()).toBe(0);
+  }, 30_000);
+
+  it("refuses a manual create that is not exactly one, or not the member's to make", async () => {
+    const mine = app(ownerId);
+    const templateId = await uploadMarkdown(
+      mine,
+      "Manual refusals",
+      "{about}\n",
+    );
+    const selection = {
+      title: "Refused manual",
+      templateId,
+      templateRevision: 1,
+      profileId: "profile",
+      profileRevision: 1,
+      candidacyId: null,
+      interviewId: null,
+    };
+    const asked = output.length;
+    const engineCalls = watchEngine();
+    for (const body of [
+      selection,
+      { ...selection, mode: "manual", aiTargetId: "test-model" },
+      { ...selection, mode: "ai" },
+      { ...selection, mode: "manual", values: { about: "Typed" } },
+    ]) {
+      const refused = await mine.request(url, post(body));
+      expect(refused.status).toBe(400);
+      expect((await refused.json()).error.code).toBe("invalid-request");
+    }
+    // Unknown template, unknown experience revision, another member's
+    // template, and a member who may only read.
+    expect(
+      (
+        await mine.request(
+          url,
+          post({ ...selection, templateId: randomUUID(), mode: "manual" }),
+        )
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await mine.request(
+          url,
+          post({ ...selection, profileRevision: 99, mode: "manual" }),
+        )
+      ).status,
+    ).toBe(404);
+    expect(
+      (await app(otherId).request(url, post({ ...selection, mode: "manual" })))
+        .status,
+    ).toBe(404);
+    expect(
+      (
+        await app(ownerId, ["interview.read"]).request(
+          url,
+          post({ ...selection, mode: "manual" }),
+        )
+      ).status,
+    ).toBe(401);
+    const list = (await (await mine.request(url, { headers })).json()) as {
+      documents: Array<{ title: string }>;
+    };
+    expect(list.documents.some((item) => item.title === "Refused manual")).toBe(
+      false,
+    );
+    expect(output).toHaveLength(asked);
+    expect(engineCalls()).toBe(0);
+  }, 30_000);
+
   it("refuses an oversized upload without a content-length header", async () => {
     const form = new FormData();
     form.set("name", "Too large");

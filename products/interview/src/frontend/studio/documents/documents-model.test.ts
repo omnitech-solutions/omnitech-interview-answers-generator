@@ -1,6 +1,6 @@
 import type { DocumentField } from "@omnitech/interview-contracts";
 import { describe, expect, it } from "vitest";
-import { groupFields, groupIdOf } from "./documents-model";
+import { groupFields, groupIdOf, revisionNote } from "./documents-model";
 
 const field = (
   key: string,
@@ -46,5 +46,13 @@ describe("groupFields", () => {
   it("gives a field the same group id it was grouped under", () => {
     const sectioned = field("a", "candidacy", "Header");
     expect(groupFields([sectioned])[0]?.id).toBe(groupIdOf(sectioned));
+  });
+});
+
+describe("revisionNote", () => {
+  it("says how a first revision came to be: written by a model or made by hand", () => {
+    expect(revisionNote({ kind: "generated" }, [])).toBe("Generated");
+    expect(revisionNote({ kind: "manual" }, [])).toBe("Created manually");
+    expect(revisionNote({ kind: "edited" }, [])).toBe("Edited");
   });
 });

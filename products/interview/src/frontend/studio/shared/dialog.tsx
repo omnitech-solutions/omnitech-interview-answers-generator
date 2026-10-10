@@ -29,7 +29,9 @@ export function Dialog({
   useEffect(() => {
     const opener = document.activeElement;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") close.current();
+      // A menu or popup inside the dialog takes Escape first (it marks the
+      // event handled); only an unclaimed Escape closes the dialog.
+      if (event.key === "Escape" && !event.defaultPrevented) close.current();
     };
     window.addEventListener("keydown", onKey);
     if (!panel.current?.contains(document.activeElement))
