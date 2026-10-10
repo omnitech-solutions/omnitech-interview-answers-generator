@@ -2247,6 +2247,46 @@ NATIVE_CLAIMS.push(
       "dom",
       "the editor holds the generated test source",
     ],
+    // The toolbar's recording control and the Settings behaviour switches,
+    // found by the native scan. Pending here: their effect is observed at
+    // unit level (record-transcript.test.tsx, behaviour-flags tests), by no
+    // browser spec yet.
+    [
+      "native.tool.record-transcript",
+      "toolbar",
+      "button",
+      "Record transcript",
+      "Starts or stops recording this session's transcript for the interview stage it belongs to",
+      "server",
+      "the recording is started or stopped on the server and the button says which; the transcript is kept on the stage (unit level, record-transcript.test.tsx)",
+    ],
+    [
+      "native.settings.voice-activity",
+      "settings",
+      "button",
+      "Tell the coach who is speaking",
+      "Switches the voice-activity signal the coach waits on",
+      "server",
+      "the flag is saved and read by the coach on its next call; the environment still wins when it sets one",
+    ],
+    [
+      "native.settings.live-coach",
+      "settings",
+      "button",
+      "Live coach",
+      "Chooses the runtime the live coach runs on",
+      "server",
+      "the flag is saved and the coach loop starts on the chosen runtime",
+    ],
+    [
+      "native.settings.coach-retain",
+      "settings",
+      "button",
+      "Coach keeps one model session for the call",
+      "Switches whether the coach keeps one model session for the whole call",
+      "server",
+      "the flag is saved and the coach's next call continues or opens a session accordingly",
+    ],
   ]),
 );
 
