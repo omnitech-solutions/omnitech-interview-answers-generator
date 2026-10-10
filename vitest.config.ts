@@ -54,6 +54,8 @@ export default defineConfig({
         },
         test: {
           name: "node",
+          // An engine a test builds with no `log` stays quiet.
+          setupFiles: ["./packages/platform-runtime/vitest.engine-quiet.ts"],
           environment: "node",
           unstubEnvs: true,
           // The suites boot real servers and workers; 10 s is the ceiling.
@@ -74,6 +76,8 @@ export default defineConfig({
       {
         test: {
           name: "docker",
+          // An engine a test builds with no `log` stays quiet.
+          setupFiles: ["./packages/platform-runtime/vitest.engine-quiet.ts"],
           environment: "node",
           unstubEnvs: true,
           // These tests start databases and worker processes, so on a busy
@@ -89,6 +93,8 @@ export default defineConfig({
       {
         test: {
           name: "integration",
+          // An engine a test builds with no `log` stays quiet.
+          setupFiles: ["./packages/platform-runtime/vitest.engine-quiet.ts"],
           environment: "node",
           unstubEnvs: true,
           // Real-provider checks (a signed-in agent CLI on this machine),

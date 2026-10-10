@@ -21,6 +21,7 @@
     "@omnitech/product-interview": "workspace:*"
   },
   "devDependencies": {
+    "@omnitech/logging": "workspace:*",
     "@types/node": "catalog:",
     "esbuild": "catalog:",
     "tsx": "catalog:",

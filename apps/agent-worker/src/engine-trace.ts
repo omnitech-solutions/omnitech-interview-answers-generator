@@ -4,9 +4,11 @@
 import {
   combineTraces,
   createOtelTrace,
+  type EngineLogger,
   keepTraceIn,
   type TraceConfig,
 } from "@omnitech/ai-engine";
+import { engineLog } from "@omnitech/platform-runtime/ai-log";
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
@@ -16,8 +18,13 @@ export const ENGINE_DATABASE_ENV = "AI_ENGINE_DATABASE_URL";
 // "full" keeps prompts and answers with each step, for development. Any other
 // value keeps ids, timing and usage, and no content (AGENTS.md rule 8).
 export const ENGINE_CAPTURE_ENV = "AI_ENGINE_CAPTURE";
-// The engine's own log lines (ids and numbers, never content). Absent: none.
-export const ENGINE_LOG_ENV = "AI_ENGINE_LOG_LEVEL";
+
+// [DOMAIN] The engine's own log, for every engine, job worker and runtime this
+// worker builds: the Studio's logger as its sink, the same defaults as the web
+// server (everything in development; nothing in production unless
+// AI_ENGINE_LOG_LEVEL asks; content only where LOG_CONTENT allows).
+export const workerEngineLog = (env: Environment): EngineLogger =>
+  engineLog({ service: "agent-worker", env });
 
 export type EngineTrace = {
   trace: TraceConfig;

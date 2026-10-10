@@ -27,6 +27,8 @@ interface SurfaceRow {
 const extraEntrypointReasons: Record<string, string> = {
   "@omnitech/capture-companion./fixture":
     "test-only: lets product conformance tests drive a real companion against the real backend; package-boundaries.test.ts confines importers to product tests",
+  "@omnitech/platform-runtime./ai-log":
+    "the AI engine's logger for the hosts that build an engine (the web host and the agent worker): the Studio's logger as its sink, one default for both; kept off the registry entrypoint, which the browser loads",
   "@omnitech/platform-runtime./ai-config":
     "env-driven model and agent-profile resolution for the hosts that build an AI engine (the web host and the agent worker); the engine itself reads no environment (ADR-0037)",
   "@omnitech/database./test-support":
@@ -125,7 +127,13 @@ const surfaces: Record<string, SurfaceRow> = {
   // (coachVoiceNameSchema; BRIEF-panel-aware-coach), shared by the transcript
   // and note contracts here and by the product's replay cast, recorder-file
   // reader and roster, which must refuse the same names the contract refuses.
-  "@omnitech/interview-contracts": { entrypoints: 1, names: 444 },
+  // 449, up from 444: a template's blocks and a document's verification
+  // (BRIEF-document-generation-quality-and-ai-logging). The server and the
+  // editor must agree on which fields are one employer's block and which
+  // blocks do not apply, so both read `withFieldGroups`, `documentBlocks`
+  // and `documentLayout` (with the `DocumentBlock` type) from here; and
+  // `UnsupportedClaim` is what a failed field carries from one to the other.
+  "@omnitech/interview-contracts": { entrypoints: 1, names: 449 },
   "@omnitech/interview-library": { entrypoints: 1, names: 5 },
   "@omnitech/interview-playground-control": { entrypoints: 1, names: 16 },
   "@omnitech/interview-storage": { entrypoints: 1, names: 8 },
@@ -136,7 +144,10 @@ const surfaces: Record<string, SurfaceRow> = {
   "@omnitech/platform-integrations": { entrypoints: 1, names: 12 },
   // +1 entrypoint and +6 names: ./ai-config, the hosts' env-driven model and
   // agent-profile resolution, moved here when ai-runtime went into the AI engine.
-  "@omnitech/platform-runtime": { entrypoints: 2, names: 13 },
+  // +1 entrypoint and +4 names: ./ai-log, the one adapter that gives every
+  // engine the Studio builds the Studio's own logger (engineLog,
+  // engineLogLevel, engineLogSink, EngineLogOptions).
+  "@omnitech/platform-runtime": { entrypoints: 3, names: 17 },
   // +1: agentPayloadSecret, moved here when agent-job-service went into the AI engine.
   "@omnitech/platform-storage": { entrypoints: 3, names: 39 },
   // +6: the live coach the agent worker runs (createCoach, Coach, CoachPorts, CoachOptions, CoachCallError, COACH_PROMPT_VERSION).

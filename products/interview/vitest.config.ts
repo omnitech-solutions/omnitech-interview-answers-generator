@@ -15,6 +15,10 @@ export default defineConfig({
         extends: true,
         test: {
           name: "backend",
+          // An engine a test builds with no `log` stays quiet.
+          setupFiles: [
+            "../../packages/platform-runtime/vitest.engine-quiet.ts",
+          ],
           environment: "node",
           include: ["src/**/*.test.ts"],
           exclude: [...exclude, "src/frontend/**"],

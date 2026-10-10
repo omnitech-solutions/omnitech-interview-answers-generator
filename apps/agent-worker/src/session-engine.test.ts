@@ -1,6 +1,8 @@
 import type { Execution, ModelInput } from "@omnitech/ai-engine";
 import { createMemoryTrace } from "@omnitech/ai-engine";
+import { createLogger } from "@omnitech/logging";
 import { resolveAgentProfiles } from "@omnitech/platform-runtime/ai-config";
+import { engineLog } from "@omnitech/platform-runtime/ai-log";
 import {
   INTERVIEW_ANSWER_PROFILE,
   INTERVIEW_SESSION_DEVICE_PROFILE,
@@ -267,6 +269,72 @@ describe("session agent port selection (ships disabled)", () => {
     });
     expect(kept.records[0]?.messages).toBeUndefined();
     expect(kept.records[0]?.output).toBeUndefined();
+  });
+
+  // The worker's engines say their calls in the Studio's own log, through the
+  // same adapter as the web server (`engineLog`): a line when a session
+  // answer starts and one when it ends, naming the task it is for.
+  it("a session answer writes its start and end lines in the Studio's log, naming what it is for", async () => {
+    const lines: string[] = [];
+    const env = { NODE_ENV: "development", LOG_FORMAT: "json" };
+    const answering = {
+      ...runtime("claude-code"),
+      capabilities: { ...runtime("claude-code").capabilities, toolless: true },
+      run: async function* () {
+        yield {
+          type: "completed" as const,
+          result: { sessionId: "s", output: { answer: "SECRET-ANSWER" } },
+        };
+      },
+    };
+    const session = createSessionEngine(
+      { ...REMOTE, ACTIVE_SESSION_AGENT_PORT: "on" },
+      {
+        runtimes: { ...runtimes, "claude-code": answering },
+        trace: { sink: createMemoryTrace(), capture: "metadata" },
+        engineLog: engineLog({
+          service: "agent-worker",
+          env,
+          logger: createLogger({
+            service: "agent-worker",
+            env,
+            write: (line) => lines.push(line),
+          }),
+        }),
+      },
+    );
+    await session?.engine.generate(
+      input(SESSION_AGENT_CLAUDE_PROFILE, { type: "object" }),
+      {
+        ...execution(["interview.read"], "permitted-remote"),
+        for: { kind: "session-task", id: "session-1:task-2" },
+      },
+    );
+    await session?.close();
+    const said = lines.map(
+      (line) => JSON.parse(line) as Record<string, unknown>,
+    );
+    const of = (event: string) => said.find((line) => line["event"] === event);
+    expect(of("ai.call.started")).toMatchObject({
+      level: "debug",
+      service: "agent-worker",
+      message: `generate ${SESSION_AGENT_CLAUDE_PROFILE} started for session-task session-1:task-2`,
+      forKind: "session-task",
+      forId: "session-1:task-2",
+      providerKind: "agent",
+      tenantId: "t",
+      actorId: "u",
+    });
+    expect(of("ai.call.ended")).toMatchObject({
+      level: "info",
+      forKind: "session-task",
+      forId: "session-1:task-2",
+      outcome: "done",
+      attempts: 1,
+    });
+    // LOG_CONTENT is not set: nothing that was said is in any line.
+    expect(lines.join("\n")).not.toContain("SECRET-ANSWER");
+    expect(of("ai.prompt")).toBeUndefined();
   });
 });
 

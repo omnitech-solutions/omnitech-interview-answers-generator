@@ -42,10 +42,13 @@ const localEnvironment = {
   NODE_ENV: configuredEnvironment.NODE_ENV ?? "development",
   // The readable session story, with the words heard and answered, on this
   // machine's own terminal (set LOG_FORMAT=pretty or LOG_CONTENT=false in .env
-  // to turn either off; production never writes content).
+  // to turn either off; production never writes content). The level is
+  // "trace" because that is where the AI engine writes the whole prompt and
+  // the whole answer of every call (PROMPT, REPLY); LOG_LEVEL=debug in .env
+  // hides them and keeps one line per call.
   LOG_FORMAT: configuredEnvironment.LOG_FORMAT ?? "story",
   LOG_CONTENT: configuredEnvironment.LOG_CONTENT ?? "true",
-  LOG_LEVEL: configuredEnvironment.LOG_LEVEL ?? "debug",
+  LOG_LEVEL: configuredEnvironment.LOG_LEVEL ?? "trace",
   FAKE_AUTH_ENABLED: configuredEnvironment.FAKE_AUTH_ENABLED ?? "true",
   // Claude Code is the assistant and the screenshot analyser by default; LM
   // Studio is never required (set these in .env to change it).

@@ -18,12 +18,12 @@ import {
   type TraceConfig,
 } from "@omnitech/ai-engine";
 import { getPlatformDatabase } from "@omnitech/database";
-import { createLogger, type LogFields } from "@omnitech/logging";
 import {
   declareLocality,
   resolveAgentProfiles,
   resolveDefaultLanguageModel,
 } from "@omnitech/platform-runtime/ai-config";
+import { engineLog } from "@omnitech/platform-runtime/ai-log";
 import {
   AgentPayloadStore,
   agentPayloadSecret,
@@ -338,36 +338,12 @@ function imagePort() {
   return createFakeImagePort(persistImage);
 }
 
-// [DOMAIN] Every call the engine makes is said in this server's own log, by
-// this server's own logger: a line when it starts and a line when it ends
-// (operation, profile, provider, model, outcome, how long, tokens). Outside
-// production that is on without being asked; AI_ENGINE_LOG_LEVEL sets how
-// much, and "silent" turns it off. [SAFETY] The engine's lines carry ids,
-// names and numbers, never a prompt or an answer (rule 8); those are kept
-// only in the engine's own record, when AI_ENGINE_CAPTURE says so.
-const ENGINE_LOG_LEVELS = ["trace", "debug", "info", "warn", "error"] as const;
-type EngineLogLevel = (typeof ENGINE_LOG_LEVELS)[number];
-function logConfig() {
-  const asked = process.env["AI_ENGINE_LOG_LEVEL"]?.trim().toLowerCase();
-  if (asked === "silent") return undefined;
-  const level = ENGINE_LOG_LEVELS.find((each) => each === asked);
-  if (!level && process.env["NODE_ENV"] === "production") return undefined;
-  const logger = createLogger({ service: "ai-engine" });
-  const line =
-    (at: EngineLogLevel) =>
-    (fields: object, message: string): void =>
-      logger[at](message, fields as LogFields);
-  return {
-    level: level ?? "info",
-    logger: {
-      trace: line("trace"),
-      debug: line("debug"),
-      info: line("info"),
-      warn: line("warn"),
-      error: line("error"),
-    },
-  } as const;
-}
+// [DOMAIN] Every call the engine makes is said in this server's own log, in
+// the Studio's own format: `engineLog` (shared with the agent worker) gives
+// the engine the Studio's logger as its sink. In development it says
+// everything, whole prompts and answers included where LOG_CONTENT allows; in
+// production nothing unless AI_ENGINE_LOG_LEVEL asks, and never content.
+const serverEngineLog = () => engineLog({ service: "interview-web" });
 
 // [SAFETY] Every interaction is recorded when the host names a database for
 // the engine's own tables, without content unless AI_ENGINE_CAPTURE=full
@@ -602,7 +578,7 @@ export function createPlatformAiEngine(): AiEngine {
   });
 
   const trace = traceConfig();
-  const log = logConfig();
+  const log = serverEngineLog();
   return createAiEngine({
     profiles,
     providers,
@@ -610,7 +586,7 @@ export function createPlatformAiEngine(): AiEngine {
     images: { [images.providerId]: images },
     ...(jobs ? { jobs } : {}),
     ...(trace ? { trace } : {}),
-    ...(log ? { log } : {}),
+    log,
     // [SAFETY] Only a member holding a product's read permission may use a
     // profile; the caller's permissions travel on the execution.
     authorize: (execution) =>

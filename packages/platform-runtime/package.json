@@ -13,6 +13,10 @@
     "./ai-config": {
       "types": "./dist/ai-config.d.ts",
       "import": "./dist/ai-config.js"
+    },
+    "./ai-log": {
+      "types": "./dist/ai-log.d.ts",
+      "import": "./dist/ai-log.js"
     }
   },
   "scripts": {
@@ -23,6 +27,7 @@
   },
   "dependencies": {
     "@omnitech/ai-engine": "0.1.0",
+    "@omnitech/logging": "workspace:*",
     "@omnitech/platform-contracts": "workspace:*"
   },
   "devDependencies": {

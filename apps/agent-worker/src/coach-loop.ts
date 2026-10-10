@@ -20,7 +20,7 @@ import {
   createCoach,
   createCoachContext,
 } from "@omnitech/product-interview/session-worker";
-import { ENGINE_LOG_ENV, engineTrace } from "./engine-trace";
+import { engineTrace, workerEngineLog } from "./engine-trace";
 import { abortableSleep, errorName } from "./session-loop";
 
 type Environment = Readonly<Record<string, string | undefined>>;
@@ -229,7 +229,6 @@ export function coachLoop(
     name: "coach",
     run: async (signal) => {
       const kept = engineTrace(env);
-      const level = env[ENGINE_LOG_ENV]?.trim();
       const engine = createAiEngine({
         profiles: [profile],
         providers: {
@@ -243,7 +242,7 @@ export function coachLoop(
           }),
         },
         trace: kept.trace,
-        ...(level ? { log: { level: level as "info" } } : {}),
+        log: workerEngineLog(env),
       });
       const studio = coachApi(
         env["INTERVIEW_API_URL"] ?? "http://127.0.0.1:3000",

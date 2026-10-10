@@ -93,6 +93,7 @@ import {
   turnsOf,
 } from "@omnitech/product-interview/session-worker";
 import { coachApi } from "./coach-loop";
+import { workerEngineLog } from "./engine-trace";
 import { agentEnvironment } from "./main";
 
 type CoachNoteInput = Parameters<CoachPorts["notes"]["post"]>[0];
@@ -470,6 +471,8 @@ function modelEngine(): Pick<AiEngine, "stream"> {
   });
   console.log(`Notes by ${chosen} (${agent.model}), ${speed}x.`);
   return createAiEngine({
+    // The replay is a host like the worker: its engine says the same lines.
+    log: workerEngineLog(process.env),
     profiles: [
       {
         id: "coach",

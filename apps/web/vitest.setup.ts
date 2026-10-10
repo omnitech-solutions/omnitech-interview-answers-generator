@@ -1,8 +1,13 @@
 // oxlint-disable-next-line import/no-unassigned-import -- installs RTL matchers
 import "@testing-library/jest-dom/vitest";
 
+import { setDefaultEngineLog } from "@omnitech/ai-engine";
 import { cleanup } from "@testing-library/react";
 import { afterEach } from "vitest";
+
+// An engine a test builds with no `log` stays quiet (the engine logs by
+// default; `engineLog` is silent under NODE_ENV=test for the Studio's own).
+setDefaultEngineLog({ level: "silent" });
 
 // Node 25's experimental Web Storage global can shadow jsdom with an unusable
 // instance unless --localstorage-file is configured. Keep browser tests

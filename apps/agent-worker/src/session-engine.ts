@@ -13,6 +13,7 @@
 import type {
   AgentProfile,
   AgentRuntimeAdapter,
+  EngineLogger,
   TraceConfig,
 } from "@omnitech/ai-engine";
 import {
@@ -32,7 +33,7 @@ import {
   INTERVIEW_SESSION_DEVICE_PROFILE,
   INTERVIEW_SESSION_FAST_PROFILE,
 } from "@omnitech/product-interview/session-worker";
-import { ENGINE_LOG_ENV, engineTrace } from "./engine-trace";
+import { engineTrace, workerEngineLog } from "./engine-trace";
 import {
   type AttachmentSource,
   createSessionAgentPort,
@@ -154,6 +155,8 @@ export type SessionEngineOptions = {
   log?: (line: string) => void;
   // Test seam: where runs are kept, in place of what the environment names.
   trace?: TraceConfig;
+  // Test seam: the engine's logger, in place of the worker's own.
+  engineLog?: EngineLogger;
 };
 
 function createAgentProvider(
@@ -310,7 +313,6 @@ export function createSessionEngine(
   const kept = options.trace
     ? { trace: options.trace, close: async () => undefined }
     : engineTrace(env, options.log);
-  const level = env[ENGINE_LOG_ENV]?.trim();
 
   const engine = createAiEngine({
     profiles,
@@ -320,7 +322,7 @@ export function createSessionEngine(
         ? true
         : "The caller may not use interview profiles.",
     trace: kept.trace,
-    ...(level ? { log: { level: level as "info" } } : {}),
+    log: options.engineLog ?? workerEngineLog(env),
   });
 
   return {

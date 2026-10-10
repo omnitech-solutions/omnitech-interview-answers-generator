@@ -796,7 +796,6 @@ async function capabilityLocked(
   limits: IngestLimits,
   declaration: CompanionDeclaration,
 ): Promise<Locked> {
-  log.debug("companion.capability", { sessionId: row.id, report: envelope });
   const validated = validateWireMessage<CapabilityReport>(
     capabilityReportSchema,
     envelope,
@@ -811,6 +810,12 @@ async function capabilityLocked(
       ),
       cancelJobs,
     };
+  // [SAFETY] Logged only once it has been validated: a report that failed
+  // the wire schema may hold anything, and nothing of it is written.
+  log.debug("companion.capability", {
+    sessionId: row.id,
+    report: validated.value,
+  });
   if (closed && control.state !== "paused" && control.state !== "active")
     return { ack: refusal(closed, { control }), cancelJobs };
   if (await reportedWithin(tx, scope, limits.minHeartbeatIntervalMs))

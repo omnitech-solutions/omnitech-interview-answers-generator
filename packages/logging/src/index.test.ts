@@ -62,7 +62,7 @@ describe("redactFields", () => {
     expect(String((out["nested"] as Record<string, unknown>)["ok"])).toMatch(
       /…\[\+500\]$/,
     );
-    expect(out["err"]).toEqual({ name: "Error", message: "boom" });
+    expect(out["err"]).toMatchObject({ name: "Error", message: "boom" });
     expect("content" in out).toBe(false);
   });
 
@@ -241,5 +241,158 @@ describe("the story format (a local pnpm dev)", () => {
     expect(sink.lines[0]).toBe(
       "18:00:00 #d49f5e74  HEARD     You (mic)  (words hidden: set LOG_CONTENT=true)",
     );
+  });
+});
+
+describe("what was adopted from docx-generator-studio's logger, and what the engine needs", () => {
+  it("an error says its class, message, code and the first frame of the application; never its stack", () => {
+    const out = redactFields(
+      { err: Object.assign(new TypeError("boom"), { code: "E_DOWN" }) },
+      { content: false },
+    );
+    expect(out["err"]).toMatchObject({
+      name: "TypeError",
+      message: "boom",
+      code: "E_DOWN",
+      source: expect.stringMatching(/src\/index\.test\.ts:\d+$/),
+    });
+    expect(JSON.stringify(out)).not.toContain("    at ");
+  });
+
+  it("content that is allowed is written whole; every other long string is still cut", () => {
+    const long = "a".repeat(5_000);
+    const out = redactFields(
+      { note: long, content: { prompt: long, token: "t" } },
+      { content: true },
+    );
+    expect(String(out["note"])).toMatch(/…\[\+3000\]$/);
+    expect(out["content"]).toEqual({ prompt: long, token: "[redacted]" });
+    // A count of tokens is a number, not a credential.
+    expect(
+      redactFields(
+        { inputTokens: 12, token: 12, authTokens: "x" },
+        { content: false },
+      ),
+    ).toEqual({
+      inputTokens: 12,
+      token: "[redacted]",
+      authTokens: "[redacted]",
+    });
+    expect(
+      "content" in
+        redactFields({ content: { prompt: long } }, { content: false }),
+    ).toBe(false);
+  });
+
+  it("the pretty format stays one line: no undefined, and a line break is written escaped", () => {
+    const sink = capture();
+    createLogger({
+      service: "web",
+      format: "pretty",
+      level: "debug",
+      write: sink.write,
+      now: at,
+    }).debug("companion.refused", {
+      code: "x",
+      control: undefined,
+      note: "a\nb",
+    });
+    expect(sink.lines).toEqual([
+      '18:00:00.123 DEBUG web companion.refused code=x note="a\\nb"',
+    ]);
+  });
+});
+
+describe("the AI engine's lines in the story", () => {
+  const story = (content: boolean) => {
+    const sink = capture();
+    const log = createLogger({
+      service: "interview-web",
+      format: "story",
+      level: "trace",
+      content,
+      write: sink.write,
+      now: at,
+      env: { NO_COLOR: "1" },
+    });
+    return { sink, log };
+  };
+  const call = {
+    trace_id: "d8aa478bfdfc42958f72675f3d21b5ef",
+    operation: "generate",
+    profileId: "agent.claude-code",
+    provider: "claude",
+    model: "claude-sonnet-5-5",
+    forKind: "document",
+    forId: "a21331b6",
+  };
+
+  it("a call that ended is one line: the sentence, then tokens, cost, who answered and the trace", () => {
+    const { sink, log } = story(false);
+    process.env["NO_COLOR"] = "1";
+    log.info("ai.call.ended", {
+      ...call,
+      message:
+        "generate agent.claude-code done for document a21331b6 in 11.5 s",
+      inputTokens: 10321,
+      outputTokens: 1840,
+      cost: 0.0432,
+      costCurrency: "USD",
+      costStatus: "estimated",
+    });
+    log.warn("ai.attempt.retrying", {
+      ...call,
+      message:
+        "generate agent.claude-code failed (rate-limited); retrying in 250 ms, try 2 of 2",
+    });
+    log.error("ai.call.ended", {
+      ...call,
+      message: "generate agent.claude-code failed (unavailable)",
+    });
+    log.debug("ai.call.started", {
+      ...call,
+      message: "generate agent.claude-code started for document a21331b6",
+    });
+    delete process.env["NO_COLOR"];
+    expect(sink.lines).toEqual([
+      "18:00:00  AI        generate agent.claude-code done for document a21331b6 in 11.5 s  10321 in / 1840 out · ~0.0432 USD · claude claude-sonnet-5-5 · trace d8aa478b",
+      "18:00:00  AI WARN   generate agent.claude-code failed (rate-limited); retrying in 250 ms, try 2 of 2  claude claude-sonnet-5-5 · trace d8aa478b",
+      "18:00:00  AI ERROR  generate agent.claude-code failed (unavailable)  claude claude-sonnet-5-5 · trace d8aa478b",
+      "18:00:00  ai generate agent.claude-code started for document a21331b6 · trace d8aa478b",
+    ]);
+  });
+
+  it("with content on, the prompt and the answer are printed whole, as text; with it off, not at all", () => {
+    const prompt = `[system]\nReturn only JSON.\n\n[user]\n${"x".repeat(3_000)}`;
+    const said = (content: boolean) => {
+      const { sink, log } = story(content);
+      process.env["NO_COLOR"] = "1";
+      log.trace("ai.prompt", {
+        ...call,
+        message:
+          "prompt of generate agent.claude-code, attempt 1 (3034 characters)",
+        content: { prompt },
+      });
+      log.trace("ai.completion", {
+        ...call,
+        message:
+          "answer of generate agent.claude-code, attempt 1: done (9 characters)",
+        content: { completion: '{"a":"b"}' },
+      });
+      delete process.env["NO_COLOR"];
+      return sink.lines.join("\n");
+    };
+    const on = said(true);
+    expect(on).toContain(
+      "PROMPT    prompt of generate agent.claude-code, attempt 1 (3034 characters)\n              [system]\n              Return only JSON.",
+    );
+    // Whole: not cut at the 2,000 characters every other string is cut at.
+    expect(on).toContain("x".repeat(3_000));
+    expect(on).toContain(
+      'REPLY     answer of generate agent.claude-code, attempt 1: done (9 characters)\n              {"a":"b"}',
+    );
+    const off = said(false);
+    expect(off).not.toContain("Return only JSON");
+    expect(off).not.toContain("xxx");
   });
 });

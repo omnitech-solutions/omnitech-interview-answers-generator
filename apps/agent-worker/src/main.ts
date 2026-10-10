@@ -28,7 +28,7 @@ import {
   type SessionCodeRunner,
 } from "@omnitech/product-interview/session-worker";
 import { coachLoop } from "./coach-loop";
-import { engineTrace } from "./engine-trace";
+import { engineTrace, workerEngineLog } from "./engine-trace";
 import { flaggedLoop } from "./flagged-loop";
 import { defaultStagingBase, sweepStagingBase } from "./session-agent-port";
 import { createSessionEngine, SESSION_AGENT_FLAG } from "./session-engine";
@@ -210,6 +210,8 @@ function agentJobLoop(
             storeResult: (tenantId, result) =>
               payloads.save(tenantId, JSON.stringify(result)),
             runtimes,
+            // What the worker says of each job: claimed, ended, a lease lost.
+            log: workerEngineLog(env),
             trace: kept.trace,
           },
           signal,

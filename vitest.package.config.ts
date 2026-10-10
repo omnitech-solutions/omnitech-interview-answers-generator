@@ -8,5 +8,12 @@ export default defineConfig({
     environment: "node",
     include: ["src/**/*.test.ts"],
     exclude: ["dist/**", "node_modules/**"],
+    // An engine a test builds with no `log` stays quiet.
+    setupFiles: [
+      new URL(
+        "./packages/platform-runtime/vitest.engine-quiet.ts",
+        import.meta.url,
+      ).pathname,
+    ],
   },
 });

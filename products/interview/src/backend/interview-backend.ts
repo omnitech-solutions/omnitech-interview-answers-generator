@@ -31,7 +31,11 @@ import { createSessionRoutes } from "./live-session/routes";
 import { transcriptRecordings } from "./live-session/transcript-recording";
 import { tellCoachWhoSpeaks } from "./live-session/voice-activity";
 import { loadLocalDefaultProfile } from "./local-default-profile";
-import { loadLocalTemplates, localMatrixPath } from "./local-seeds";
+import {
+  loadLocalContact,
+  loadLocalTemplates,
+  localMatrixPath,
+} from "./local-seeds";
 import { createCodeRunner } from "./services";
 import { createInterviewStudio } from "./studio/host";
 
@@ -333,6 +337,8 @@ export function createInterviewBackend(services: InterviewBackendServices) {
       config: documentsConfig,
       localTemplates: async (scope) =>
         (await isLocalMember(services, scope)) ? loadLocalTemplates() : null,
+      localContact: async (scope) =>
+        (await isLocalMember(services, scope)) ? loadLocalContact() : null,
       ensureProfile: async (scope) => {
         if (!(await isLocalMember(services, scope))) return;
         const input = await loadLocalProfile();

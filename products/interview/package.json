@@ -90,6 +90,7 @@
   "devDependencies": {
     "@material-symbols/svg-400": "0.47.5",
     "@omnitech/capture-companion": "workspace:*",
+    "@omnitech/platform-runtime": "workspace:*",
     "@testing-library/jest-dom": "catalog:",
     "@testing-library/react": "catalog:",
     "@testing-library/user-event": "^14.6.1",
