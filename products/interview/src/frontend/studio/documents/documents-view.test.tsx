@@ -5,7 +5,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StudioActions } from "../config/commands";
 import { keyOpen, pointerOpen } from "../live/overlay/panels/toolbar-test-kit";
 import type {
@@ -383,6 +383,12 @@ const actions = {
   toggleTheme: vi.fn(),
   toggleAssistant: vi.fn(),
 } satisfies StudioActions;
+
+// A test that takes the browser's storage away gives it back: later tests
+// use it.
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 beforeEach(() => {
   localStorage.clear();

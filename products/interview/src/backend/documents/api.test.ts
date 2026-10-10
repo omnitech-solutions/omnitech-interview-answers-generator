@@ -600,7 +600,11 @@ describe("Documents private API", () => {
       .filter((name) => typeof methods[name] === "function")
       .map((name) => vi.spyOn(methods as Record<string, () => unknown>, name));
     expect(spies.length).toBeGreaterThan(0);
-    return () => spies.reduce((sum, spy) => sum + spy.mock.calls.length, 0);
+    // Counted from now: a method watched by an earlier test keeps its calls.
+    const calls = () =>
+      spies.reduce((sum, spy) => sum + spy.mock.calls.length, 0);
+    const before = calls();
+    return () => calls() - before;
   }
   async function uploadMarkdown(
     mine: ReturnType<typeof app>,
