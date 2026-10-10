@@ -38,6 +38,7 @@
     "hooks:run:pre-push": "lefthook run pre-push",
     "prepare": "lefthook install",
     "dev:stop": "node scripts/dev-stop.mjs",
+    "db:migrate": "DATABASE_OWNER_URL=${DATABASE_OWNER_URL:-postgresql://omnitech_owner:omnitech_owner@127.0.0.1:54320/omnitech} pnpm --filter @omnitech/database db:migrate",
     "dev:native": "node scripts/dev-native.mjs",
     "library:devdocs": "node scripts/import-devdocs.mjs",
     "app:up": "docker compose --profile app up -d --build && scripts/docker-host-services.sh start",
