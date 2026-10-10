@@ -243,7 +243,8 @@ function NoteBlock({
       note={note}
       mode={compact ? "compact" : "detail"}
       // A note named as its question says the heading once, not twice.
-      meta={`${KIND_LABEL[note.kind]} · ${clock(Date.parse(note.createdAt))}${
+      // In a panel, who asked, when the coach could tell.
+      meta={`${KIND_LABEL[note.kind]}${note.from ? ` · from ${note.from}` : ""} · ${clock(Date.parse(note.createdAt))}${
         sameTopic(note.title, heading) ? "" : ` · ${note.title}`
       }`}
     />

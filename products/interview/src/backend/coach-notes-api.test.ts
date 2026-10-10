@@ -932,3 +932,56 @@ describe("who may write the coach's notes (the pen, over HTTP)", () => {
     });
   });
 });
+
+describe("the coach notes API: who asked", () => {
+  const originalToken = process.env["INTERVIEW_API_TOKEN"];
+  beforeEach(async () => {
+    delete process.env["INTERVIEW_API_TOKEN"];
+    await send("DELETE");
+    await send("DELETE", undefined, REPLAY);
+  });
+  afterEach(() => {
+    if (originalToken === undefined) delete process.env["INTERVIEW_API_TOKEN"];
+    else process.env["INTERVIEW_API_TOKEN"] = originalToken;
+  });
+  type Asked = { notes: { title: string; from?: string }[] };
+
+  it("takes a note that says who asked and lists it with the name, in either space", async () => {
+    for (const url of [URL, REPLAY]) {
+      const posted = await send(
+        "POST",
+        {
+          title: "Charged once",
+          from: " Marcus ",
+          sections: [say("I key the ledger.")],
+        },
+        url,
+      );
+      expect(posted.status).toBe(201);
+      const body = (await (await send("GET", undefined, url)).json()) as Asked;
+      expect(body.notes.map((note) => note.from)).toEqual(["Marcus"]);
+    }
+  });
+
+  it("lists a note that named nobody without the field", async () => {
+    await send("POST", { title: "Sharding", sections: [say("By region.")] });
+    const body = (await (await send("GET")).json()) as Asked;
+    expect(body.notes).toHaveLength(1);
+    expect("from" in (body.notes[0] ?? {})).toBe(false);
+  });
+
+  it.each([
+    ["a sentence with a colon", "Marcus: the staff engineer"],
+    ["two lines", "Marcus\nTom"],
+    ["nothing", ""],
+    ["a list", ["Marcus"]],
+  ])("refuses %s as who asked, and keeps no note", async (_what, from) => {
+    const response = await send("POST", {
+      title: "Charged once",
+      from,
+      sections: [say("I key the ledger.")],
+    });
+    expect(response.status).toBe(400);
+    expect(((await (await send("GET")).json()) as Asked).notes).toEqual([]);
+  });
+});

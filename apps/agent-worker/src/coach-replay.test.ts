@@ -11,7 +11,7 @@
 // own timings (a piece begun and not yet ended); `--no-activity` leaves the
 // coach with the text alone. Both are run here, over the same files.
 import { execFile } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -74,6 +74,75 @@ Speaker 1: ${LATE_SECOND}
 00:00:14 --> 00:00:20
 Speaker 2: I would copy the region behind a flag and switch reads first.
 `;
+
+// A panel: three interviewers and the person coached. Two start at once, one
+// gives way, the other asks; then a handover and a second question.
+const PANEL_TRANSCRIPT = `00:00:02 --> 00:00:05
+Dana: Can I ask about, um, how you work with product when
+
+00:00:04 --> 00:00:06
+Ravi: And what about idempotency, if a
+
+00:00:07 --> 00:00:08
+Ravi: Sorry, go ahead, Dana.
+
+00:00:09 --> 00:00:11
+Dana: No, no, you go, mine is a longer one.
+
+00:00:12 --> 00:00:17
+Ravi: If a broker double-clicks submit, how do you make sure they are only charged once?
+
+00:00:19 --> 00:00:25
+Marisol: I key the ledger by correlation id, so the second request finds the first and does nothing.
+
+00:00:27 --> 00:00:30
+Ravi: Great. I'm going to hand over to Ines now.
+
+00:00:31 --> 00:00:36
+Ines: Thanks, Ravi. What notice period do you have?
+
+00:00:38 --> 00:00:41
+Marisol: Four weeks from the day I sign.
+`;
+const PANEL_CAST = ["--interviewer", "Dana,Ravi,Ines", "--me", "Marisol"];
+const PANEL_EXPECTED = {
+  questions: [
+    {
+      id: "charged-once",
+      from: "Ravi",
+      completeWhenSaid: "only charged once",
+      about: ["idempotency", "go ahead"],
+    },
+    { id: "notice", from: "Ines", completeWhenSaid: "notice period" },
+    { id: "nobody-said-who", completeWhenSaid: "notice period" },
+  ],
+  quiet: [{ id: "handover", said: "hand over to Ines" }],
+};
+type Kept = {
+  benchmark: string;
+  runtime: string;
+  names: boolean;
+  askers: { of: number; right: number; wrong: number; unnamed: number };
+  questions: {
+    id: string;
+    askedBy: string | null;
+    notedFrom: string | null;
+    answeredWhole: boolean;
+    prematureActs: number;
+    toActS: number | null;
+  }[];
+  quiet: { id: string; acts: number }[];
+};
+const keptIn = async (folder: string) => {
+  const files = await readdir(folder);
+  expect(files).toHaveLength(1);
+  return {
+    file: files[0] as string,
+    result: JSON.parse(
+      await readFile(join(folder, files[0] as string), "utf8"),
+    ) as Kept,
+  };
+};
 
 type Ran = { code: number; stdout: string; stderr: string };
 let directory = "";
@@ -151,7 +220,10 @@ const runs = {} as Record<
   | "plan"
   | "missing"
   | "missingPlan"
-  | "retained",
+  | "retained"
+  | "panel"
+  | "panelNoNames"
+  | "panelOneInterviewer",
   Ran
 >;
 
@@ -166,6 +238,10 @@ beforeAll(async () => {
     plan,
     "mode: system-design\nA booking system for a clinic.\n",
   );
+  const panel = join(directory, "panel-practice.txt");
+  await writeFile(panel, PANEL_TRANSCRIPT);
+  const expected = join(directory, "panel-practice.expected.json");
+  await writeFile(expected, JSON.stringify(PANEL_EXPECTED));
   const made = await Promise.all([
     replay(file, "--speakers"),
     replay(file, ...CAST, "--timing"),
@@ -191,6 +267,27 @@ beforeAll(async () => {
       join(directory, "no-such-plan.txt"),
     ),
     replay(file, ...CAST, "--timing", "--retain"),
+    replay(
+      panel,
+      ...PANEL_CAST,
+      "--timing",
+      "--expect",
+      expected,
+      "--results",
+      join(directory, "named"),
+    ),
+    replay(
+      panel,
+      ...PANEL_CAST,
+      "--no-names",
+      "--timing",
+      "--expect",
+      expected,
+      "--results",
+      join(directory, "unnamed"),
+    ),
+    // One label as the interviewer, the other two left as they are.
+    replay(panel, "--interviewer", "Ravi", "--me", "Marisol", "--timing"),
   ]);
   const names = Object.keys({
     speakers: 0,
@@ -209,6 +306,9 @@ beforeAll(async () => {
     missing: 0,
     missingPlan: 0,
     retained: 0,
+    panel: 0,
+    panelNoNames: 0,
+    panelOneInterviewer: 0,
   } satisfies Record<keyof typeof runs, 0>) as (keyof typeof runs)[];
   names.forEach((name, at) => {
     runs[name] = made[at] as Ran;
@@ -618,5 +718,111 @@ describe("pnpm coach:replay", () => {
     expect(code).toBe(1);
     expect(stderr).toContain("Nothing is left to replay");
     expect(stdout).not.toContain("ACT");
+  });
+});
+
+describe("pnpm coach:replay on a panel", () => {
+  const body = (ran: Ran) =>
+    ran.stdout
+      .split("\n")
+      .filter(
+        (line) =>
+          !line.startsWith("Replaying ") && !/^BENCHMARK /.test(line.trim()),
+      );
+
+  it("tells the coach which interviewer speaks when more than one label is the interviewer, and says so", () => {
+    const ran = runs.panel;
+    expect(ran.code).toBe(0);
+    expect(ran.stderr).toBe("");
+    expect(ran.stdout).toMatch(
+      /^Replaying 00:00:05 to 00:00:41: 9 pieces\. Dana = interviewer, Ravi = interviewer, Ines = interviewer, Marisol = me\. The coach is told who speaks: Dana, Ravi, Ines\.$/m,
+    );
+  });
+
+  it("--no-names replays the same call with nobody named, as a live call is heard, and says so", () => {
+    const ran = runs.panelNoNames;
+    expect(ran.code).toBe(0);
+    expect(ran.stdout).toMatch(
+      /Marisol = me\. The coach is not told which interviewer speaks\.$/m,
+    );
+    expect(pieces(ran)).toBe(pieces(runs.panel));
+  });
+
+  it("acts at the same moments, for the same reasons, on the same words, named or not", () => {
+    expect(acts(runs.panel).length).toBeGreaterThanOrEqual(2);
+    expect(acts(runs.panelNoNames)).toEqual(acts(runs.panel));
+    expect(agains(runs.panelNoNames)).toEqual(agains(runs.panel));
+    expect(summary(runs.panelNoNames)).toEqual(summary(runs.panel));
+    expect(body(runs.panelNoNames)).toEqual(body(runs.panel));
+  });
+
+  it("waits out two panelists starting at once and acts once, on the whole of what was asked", async () => {
+    const first = acts(runs.panel)[0];
+    expect(first?.[0]).toBe("question-finished");
+    // The turn quoted (cut to fit the line) begins where the first of them did.
+    expect(first?.[1]).toMatch(/^Can I ask about, um, .* idempotency/);
+    expect(
+      acts(runs.panel).filter(([, turn]) => turn.includes("idempotency")),
+    ).toHaveLength(1);
+    const { result } = await keptIn(join(directory, "named"));
+    expect(result.questions[0]).toMatchObject({
+      id: "charged-once",
+      answeredWhole: true,
+      prematureActs: 0,
+    });
+    expect(result.quiet).toEqual([{ id: "handover", acts: 0, notesShown: 0 }]);
+  });
+
+  it("names nobody when one label is the interviewer: a two-person replay says nothing of names", () => {
+    const ran = runs.panelOneInterviewer;
+    expect(ran.code).toBe(0);
+    expect(ran.stdout).toMatch(
+      /^Replaying .*: 9 pieces\. Ravi = interviewer, Marisol = me\.$/m,
+    );
+    expect(runs.timing.stdout).not.toContain("told");
+  });
+
+  it("keeps a benchmark's result with who asked each question, and no score for who was named when no model wrote notes", async () => {
+    const { file: name, result } = await keptIn(join(directory, "named"));
+    expect(name).toMatch(/^panel-practice-timing-.*\.json$/);
+    expect(result.benchmark).toBe("panel-practice");
+    expect(result.names).toBe(true);
+    expect(result.askers).toEqual({ of: 0, right: 0, wrong: 0, unnamed: 0 });
+    expect(
+      result.questions.map((question) => [
+        question.id,
+        question.askedBy,
+        question.notedFrom,
+        question.answeredWhole,
+      ]),
+    ).toEqual([
+      ["charged-once", "Ravi", null, true],
+      ["notice", "Ines", null, true],
+      ["nobody-said-who", null, null, true],
+    ]);
+    expect(runs.panel.stdout).not.toContain("who asked");
+    expect(runs.panel.stdout).not.toContain("the note says");
+  });
+
+  it("keeps a run without names as a benchmark of its own, so it is never compared with a named one", async () => {
+    const named = await keptIn(join(directory, "named"));
+    const unnamed = await keptIn(join(directory, "unnamed"));
+    expect(unnamed.file).toMatch(/^panel-practice-unnamed-timing-.*\.json$/);
+    expect(unnamed.result.benchmark).toBe("panel-practice-unnamed");
+    expect(unnamed.result.names).toBe(false);
+    expect(runs.panelNoNames.stdout).toContain(
+      "BENCHMARK panel-practice-unnamed on timing",
+    );
+    expect(runs.panel.stdout).toContain("BENCHMARK panel-practice on timing");
+    // The decisions scored are the same.
+    const scored = (kept: Kept) =>
+      kept.questions.map(({ id, answeredWhole, prematureActs, toActS }) => ({
+        id,
+        answeredWhole,
+        prematureActs,
+        toActS,
+      }));
+    expect(scored(unnamed.result)).toEqual(scored(named.result));
+    expect(unnamed.result.quiet).toEqual(named.result.quiet);
   });
 });

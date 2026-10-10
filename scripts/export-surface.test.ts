@@ -113,7 +113,17 @@ const surfaces: Record<string, SurfaceRow> = {
   // +1: who is speaking, as an audio source reports it
   // (coachActivityInputSchema), shared by the coach-activity route and
   // whoever feeds the transcript a voice-activity signal.
-  "@omnitech/interview-contracts": { entrypoints: 1, names: 427 },
+  // +16: the behaviour flag registry (BRIEF-flags-in-settings): BEHAVIOUR_FLAGS,
+  // its lookups and precedence (behaviourFlag, behaviourFlagValue,
+  // resolveBehaviourFlag, resolveBehaviourFlags, withBehaviourFlags,
+  // storedBehaviourFlags), the route's two schemas (behaviourFlagInputSchema,
+  // behaviourFlagsResponseSchema) and seven types, shared by the Studio's
+  // route and store, the Settings pane and the agent worker.
+  // +1: the name of who on a side spoke, where a line's source knows it
+  // (coachVoiceNameSchema; BRIEF-panel-aware-coach), shared by the transcript
+  // and note contracts here and by the product's replay cast, recorder-file
+  // reader and roster, which must refuse the same names the contract refuses.
+  "@omnitech/interview-contracts": { entrypoints: 1, names: 444 },
   "@omnitech/interview-library": { entrypoints: 1, names: 5 },
   "@omnitech/interview-playground-control": { entrypoints: 1, names: 16 },
   "@omnitech/interview-storage": { entrypoints: 1, names: 8 },
@@ -142,7 +152,14 @@ const surfaces: Record<string, SurfaceRow> = {
   // coach's ledger of a conversation (CoachLedger, COACH_LEDGER_VERSION), which
   // the worker's Studio client loads and saves so a restarted coach takes up
   // where the last one stopped.
-  "@omnitech/product-interview": { entrypoints: 6, names: 111 },
+  // +6, on ./session-worker: the behaviour flags the agent worker follows
+  // (BEHAVIOUR_FLAGS, behaviourFlagsResponseSchema, resolveBehaviourFlag,
+  // withBehaviourFlags, storedBehaviourFlags, StoredBehaviourFlags), re-exported
+  // from the contracts so the worker app keeps its one import of this product.
+  // +2, on ./session-worker: the panel as the plan names it (rosterOf,
+  // Panelist; BRIEF-panel-aware-coach), which the call-fixtures suite in the
+  // agent worker reads to hold a panel fixture's plan to its interviewers.
+  "@omnitech/product-interview": { entrypoints: 6, names: 119 },
   "@omnitech/product-presentation": { entrypoints: 3, names: 11 },
 };
 

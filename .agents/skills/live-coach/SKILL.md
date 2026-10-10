@@ -77,6 +77,23 @@ Rules, learned from coaching a real call by hand:
    far, what the interviewer revealed, which stories were used. Near the end,
    offer the plan's questions to ask.
 
+## A panel
+
+When the plan has a line `panel: Name (what they judge), Name (…)`, several
+interviewers are on the call.
+
+- Aim the answer at what the person who asked is judging; the plan says what
+  that is.
+- Talk between panelists is nothing to coach: a handover, an audio check,
+  "are we at time", one giving way to another. Post nothing.
+- A line in `new` or `before` may carry `"name"`: the interviewer who spoke,
+  when the transcript's source knew (a recorder's labels). A call heard live
+  never has it: every interviewer is just `"interviewer"`.
+- Say who asked with `"from":"Marcus"` on the note only when you know: the
+  line is named, or the words make it certain (handed to by name, introduced
+  themselves, addressed by name). Otherwise leave `from` out. A wrong name is
+  worse than none. The name must be one from the plan's panel or the lines.
+
 `kind` is one of `direct-answer`, `technical`, `behavioral`, `closing`,
 `follow-up`, `missed-opportunity`. A system design may carry a Mermaid
 `diagram` (no code fence) on the note; keep one note for the whole design and
@@ -88,6 +105,13 @@ Feed a recorded conversation to the Studio and coach it as if live:
 
 ```bash
 node scripts/coach-transcript.mjs <file> --interviewer "Speaker 1" --candidate "Speaker 2" --speed 1
+```
+
+A recording of a panel: name every interviewer label, and each of their lines
+carries their name.
+
+```bash
+node scripts/coach-transcript.mjs <file> --interviewer "Priya,Marcus,Tom" --candidate "Me" --speed 1
 ```
 
 To see only when the built-in coach would act, with no model:

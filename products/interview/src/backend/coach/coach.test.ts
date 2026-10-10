@@ -4531,3 +4531,354 @@ describe("one session of the model kept for the call", () => {
     expect(soFar(again.calls[0]?.users[0] ?? "")).toHaveLength(13);
   });
 });
+
+// ---- A panel --------------------------------------------------------------------
+
+describe("a panel of interviewers", () => {
+  const PANEL_HEAD = "THE PANEL: more than one interviewer is on this call.";
+  const PLAN =
+    "Panel round for a tech lead role.\npanel: Priya (hiring manager), Marcus (staff engineer: reliability), Tom (director: pushes back), Elena (product)\nLead with the decision rule.";
+  const CHARGED =
+    "If a broker double-clicks submit, how do you make sure they are only charged once?";
+  const noteFrom = (from?: string) =>
+    [
+      "KIND: technical",
+      "SAME: no",
+      "ASK: Charged only once",
+      ...(from === undefined ? [] : [`FROM: ${from}`]),
+      "SAY: I key the ledger by **correlation id**.",
+    ].join("\n");
+  // A world whose lines may name the interviewer who spoke, as a recorder's
+  // labels or a diarizer would. "me" is the candidate.
+  const panelWorld = (
+    live: Parameters<typeof world>[1] = {},
+    options: CoachOptions = {},
+  ) => {
+    const w = world(options, live);
+    const voice = (who: string | null, text: string) =>
+      w.transcript.add(
+        [
+          {
+            speaker: who === "me" ? "candidate" : "interviewer",
+            ...(who && who !== "me" ? { name: who } : {}),
+            text,
+            at: new Date(w.now()).toISOString(),
+          },
+        ],
+        live.session,
+      );
+    return {
+      ...w,
+      voice,
+      // Said, then the pause after a finished question, then the call.
+      async asks(who: string | null, text: string, pause = finishedMs) {
+        voice(who, text);
+        if (await w.tick()) {
+          await w.idle();
+          return w.tick();
+        }
+        w.advance(pause);
+        return w.act();
+      },
+    };
+  };
+  const withPlan = { plan: async () => PLAN };
+
+  describe("where the lines name who spoke", () => {
+    it("gives the model each voice under its own name, and the rules of a panel", async () => {
+      const w = panelWorld(withPlan);
+      w.reply({ chunks: [noteFrom("Marcus")] });
+      w.voice("Elena", "Can I ask about, um, how you work with product when");
+      w.voice("Marcus", "And what about idempotency, if a");
+      w.voice("Marcus", "Sorry, go ahead, Elena.");
+      w.voice("Elena", "No, no, you go, mine is a longer one.");
+      expect(await w.asks("Marcus", CHARGED)).toBe(true);
+      expect(w.calls).toHaveLength(1);
+      const prompt = w.calls[0]?.prompt ?? "";
+      expect(newLines(prompt)).toEqual([
+        "ELENA (interviewer): Can I ask about, um, how you work with product when",
+        "MARCUS (interviewer): And what about idempotency, if a",
+        "MARCUS (interviewer): Sorry, go ahead, Elena.",
+        "ELENA (interviewer): No, no, you go, mine is a longer one.",
+        `MARCUS (interviewer): ${CHARGED}`,
+      ]);
+      expect(under(prompt, PANEL_HEAD).slice(0, 5)).toEqual([
+        "- Priya: hiring manager",
+        "- Marcus: staff engineer: reliability",
+        "- Tom: director: pushes back",
+        "- Elena: product",
+        "Rules for a panel:",
+      ]);
+      expect(prompt).toContain("as the lines name them");
+      expect(w.calls[0]?.system).toBe(COACH_SYSTEM);
+    });
+
+    it("carries who asked on the note when the model names someone who spoke in the turn", async () => {
+      const w = panelWorld(withPlan);
+      w.reply({ chunks: [noteFrom("Marcus")] });
+      w.voice("Elena", "Can I ask about, um, how you work with product when");
+      await w.asks("Marcus", CHARGED);
+      expect(w.posts.at(-1)?.from).toBe("Marcus");
+      expect(w.posts.at(-1)?.ask).toBe("Charged only once");
+      expect(coachNoteInputSchema.safeParse(w.posts.at(-1)).success).toBe(true);
+    });
+
+    it("drops a name the model gives for someone who did not speak in the turn, even one on the roster", async () => {
+      const w = panelWorld(withPlan);
+      w.reply({ chunks: [noteFrom("Tom")] });
+      w.voice("Elena", "Can I ask about, um, how you work with product when");
+      await w.asks("Marcus", CHARGED);
+      expect(w.posts).toHaveLength(1);
+      expect(w.posts[0] && "from" in w.posts[0]).toBe(false);
+    });
+
+    it("names nobody when two spoke in the turn and the model does not say who asked", async () => {
+      const w = panelWorld(withPlan);
+      w.reply({ chunks: [noteFrom()] });
+      w.voice("Elena", "Can I ask about, um, how you work with product when");
+      await w.asks("Marcus", CHARGED);
+      expect(w.posts[0] && "from" in w.posts[0]).toBe(false);
+    });
+
+    it("says the one interviewer who spoke in the turn asked, whether or not the model wrote it", async () => {
+      for (const written of [undefined, "Marcus", "Tom", "somebody"]) {
+        const w = panelWorld(withPlan);
+        w.reply({ chunks: [noteFrom(written)] });
+        await w.asks("Marcus", CHARGED);
+        expect(w.posts.at(-1)?.from, String(written)).toBe("Marcus");
+      }
+    });
+
+    it("needs no roster and no plan: the names on the lines are enough", async () => {
+      const w = panelWorld();
+      w.reply({ chunks: [noteFrom("elena")] });
+      w.voice("Marcus", "And what about idempotency, if a");
+      await w.asks(
+        "Elena",
+        "How do you work with product on a date you cannot meet?",
+      );
+      expect(w.posts.at(-1)?.from).toBe("Elena");
+      const prompt = w.calls[0]?.prompt ?? "";
+      expect(prompt.split("\n").slice(0, 2)).toEqual([
+        PANEL_HEAD,
+        "Rules for a panel:",
+      ]);
+    });
+
+    it("names the person from the first revision shown, and on every one after", async () => {
+      const w = panelWorld(withPlan, { postEveryMs: 0 });
+      w.voice("Marcus", CHARGED);
+      await w.tick();
+      w.advance(finishedMs);
+      const call = await w.opens();
+      call.text(
+        "KIND: technical\nSAME: no\nASK: Charged only once\nFROM: Marcus\nSAY: I key the ledger.\n",
+      );
+      await w.flush();
+      call.text("ANCHOR: correlation id\n");
+      await w.flush();
+      call.done();
+      await w.idle();
+      expect(w.posts.length).toBeGreaterThanOrEqual(2);
+      expect(w.posts.map((post) => post.from)).toEqual(
+        w.posts.map(() => "Marcus"),
+      );
+      expect(w.posts.map((post) => post.revision)).toEqual(
+        w.posts.map((_, at) => at + 1),
+      );
+    });
+
+    it("acts at the same moments, on the same stretches, as it does when nobody is named", async () => {
+      const run = async (named: boolean) => {
+        const w = panelWorld(withPlan);
+        const who = (name: string) => (named ? name : null);
+        w.reply(
+          { chunks: [SILENT_REPLY] },
+          { chunks: [noteFrom("Marcus")] },
+          { chunks: [SILENT_REPLY] },
+        );
+        w.voice(who("Priya"), "I'm going to hand over to Marcus now.");
+        await w.asks(
+          who("Marcus"),
+          "Thanks, Priya. Can everyone hear me okay?",
+        );
+        w.later();
+        w.voice(
+          who("Elena"),
+          "Can I ask about, um, how you work with product when",
+        );
+        w.voice(who("Marcus"), "And what about idempotency, if a");
+        await w.asks(who("Marcus"), CHARGED);
+        await w.asks(
+          "me",
+          "I key the ledger by correlation id, so a second request is a no-op.",
+        );
+        w.later();
+        await w.asks(
+          who("Tom"),
+          "I don't buy that. What happens when the ledger is down?",
+        );
+        return w.told();
+      };
+      const named = await run(true);
+      expect(named).toEqual(await run(false));
+      expect(named.filter(([what]) => what === "act")).toHaveLength(3);
+    });
+
+    it("makes a call again when another panelist adds to the question, and the note then names one who spoke", async () => {
+      const w = panelWorld(withPlan);
+      w.voice("Aisha", "Are you legally able to work here?");
+      await w.tick();
+      w.advance(finishedMs);
+      const first = await w.opens();
+      w.voice("Priya", "And what notice period do you have?");
+      w.reply({ chunks: [noteFrom("Aisha")] });
+      expect(await w.tick()).toBe(true);
+      expect(first.stopped).toBe(true);
+      w.advance(finishedMs);
+      await w.act();
+      expect(w.events.map((event) => event.what)).toContain("recall");
+      expect(newLines(w.calls[1]?.prompt ?? "")).toEqual([
+        "AISHA (interviewer): Are you legally able to work here?",
+        "PRIYA (interviewer): And what notice period do you have?",
+      ]);
+      expect(w.posts.at(-1)?.from).toBe("Aisha");
+    });
+  });
+
+  describe("where the lines do not say who spoke (a call heard live)", () => {
+    it("tells the model the roster and to name the asker only on an explicit cue", async () => {
+      const w = panelWorld(withPlan);
+      w.reply({ chunks: [noteFrom()] });
+      await w.asks(null, CHARGED);
+      const prompt = w.calls[0]?.prompt ?? "";
+      expect(newLines(prompt)).toEqual([`INTERVIEWER: ${CHARGED}`]);
+      expect(under(prompt, PANEL_HEAD)).toContain(
+        "- Marcus: staff engineer: reliability",
+      );
+      expect(prompt).toContain(
+        "PANEL: the lines do not say which interviewer spoke (Priya, Marcus, Tom, Elena).",
+      );
+      expect(prompt).toContain("Never guess from what was asked.");
+      expect(w.posts[0] && "from" in w.posts[0]).toBe(false);
+    });
+
+    it("takes a name the model gives only when it is on the plan's roster", async () => {
+      for (const [written, kept] of [
+        ["Marcus", "Marcus"],
+        ["ELENA", "Elena"],
+        ["Aisha", undefined],
+        ["Dana", undefined],
+        ["the interviewer", undefined],
+      ] as const) {
+        const w = panelWorld(withPlan);
+        w.reply({ chunks: [noteFrom(written)] });
+        w.voice(null, "Great. I'm going to hand over to Marcus now.");
+        await w.asks(null, CHARGED);
+        expect(w.posts.at(-1)?.from, written).toBe(kept);
+      }
+    });
+
+    it("never fills in a name itself", async () => {
+      const w = panelWorld(withPlan);
+      w.reply({ chunks: [noteFrom()] });
+      w.voice(null, "Over to you, Marcus.");
+      await w.asks(null, CHARGED);
+      expect(w.posts).toHaveLength(1);
+      expect(w.posts[0] && "from" in w.posts[0]).toBe(false);
+    });
+  });
+
+  describe("a call with one interviewer", () => {
+    it("is asked exactly what it was asked before: no panel, no names, no FROM", async () => {
+      const w = world(
+        {},
+        { plan: async () => "Land the ledger migration story." },
+      );
+      w.reply({ chunks: [NOTE] });
+      await w.heard("interviewer", QUESTION, finishedMs);
+      const prompt = w.calls[0]?.prompt ?? "";
+      expect(prompt).not.toContain("PANEL");
+      expect(prompt).not.toContain("FROM");
+      expect(prompt).not.toContain("(interviewer)");
+      expect(newLines(prompt)).toEqual([`INTERVIEWER: ${QUESTION}`]);
+    });
+
+    it("is not made a panel by a plan that lists one person", async () => {
+      const w = world({}, { plan: async () => "panel: Dana (hiring manager)" });
+      w.reply({ chunks: [noteFrom("Dana")] });
+      await w.heard("interviewer", CHARGED, finishedMs);
+      const prompt = w.calls[0]?.prompt ?? "";
+      expect(prompt).not.toContain("THE PANEL");
+      expect(prompt).not.toContain("FROM");
+      expect(w.posts).toHaveLength(1);
+      expect(w.posts[0] && "from" in w.posts[0]).toBe(false);
+    });
+
+    it("names nobody, whatever the model writes", async () => {
+      const plain = world();
+      plain.reply({ chunks: [noteFrom()] });
+      await plain.heard("interviewer", CHARGED, finishedMs);
+      const told = world();
+      told.reply({ chunks: [noteFrom("Marcus")] });
+      await told.heard("interviewer", CHARGED, finishedMs);
+      expect(told.posts).toHaveLength(1);
+      expect(told.posts[0] && "from" in told.posts[0]).toBe(false);
+      const { key: _a, askId: _b, ...one } = told.posts[0] as CoachNoteInput;
+      const { key: _c, askId: _d, ...other } = plain.posts[0] as CoachNoteInput;
+      expect(one).toEqual(other);
+    });
+  });
+
+  describe("a look at the candidate's own answer", () => {
+    it("is asked by nobody: a nudge never names a panelist, named lines or not", async () => {
+      for (const named of [true, false]) {
+        const w = panelWorld(withPlan);
+        w.reply(
+          { chunks: [noteFrom("Marcus")] },
+          {
+            chunks: [
+              "KIND: follow-up\nSAME: yes\nASK: Charged only once\nFROM: Marcus\nSAY: Close on the **ledger**.",
+            ],
+          },
+        );
+        await w.asks(named ? "Marcus" : null, CHARGED);
+        w.voice("me", `I would start from the request id. ${points(70)}`);
+        await w.tick();
+        w.advance(TURN_TIMING.candidateEveryMs);
+        expect(await w.act()).toBe(true);
+        expect(w.events.at(-1)?.reason).toBe("answer-check");
+        expect(w.posts).toHaveLength(2);
+        expect(w.posts[0]?.from).toBe("Marcus");
+        expect(w.posts[1]?.kind).toBe("follow-up");
+        expect(w.posts[1] && "from" in w.posts[1]).toBe(false);
+      }
+    });
+  });
+
+  describe("one session of the model kept for the call", () => {
+    it("tells the panel with the plan, in what the session is told once", async () => {
+      const w = panelWorld(withPlan, { retain: true });
+      w.reply({ chunks: [noteFrom("Marcus")] });
+      await w.asks("Marcus", CHARGED);
+      const [background, turn] = w.calls[0]?.users ?? [];
+      expect(background).toContain(PANEL_HEAD);
+      expect(background).toContain("- Tom: director: pushes back");
+      expect(turn).not.toContain(PANEL_HEAD);
+      // The rule for who asked is said with every turn.
+      expect(turn).toContain("PANEL: straight after ASK, add the line FROM:");
+      expect(background).not.toContain("FROM");
+      expect(turn).toContain(`MARCUS (interviewer): ${CHARGED}`);
+      expect(w.posts.at(-1)?.from).toBe("Marcus");
+    });
+  });
+
+  describe("what the coach tells whoever watches", () => {
+    it("still carries ids, counts and reasons only: never a name", async () => {
+      const w = panelWorld(withPlan);
+      w.reply({ chunks: [noteFrom("Marcus")] });
+      await w.asks("Marcus", CHARGED);
+      expect(JSON.stringify(w.events)).not.toMatch(/Marcus|Priya|charged/i);
+    });
+  });
+});

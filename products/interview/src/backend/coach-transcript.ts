@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto";
-import type {
-  CoachSpace,
-  CoachSpeaker,
-  CoachTranscriptLine,
-  CoachTranscriptLineInput,
-  CoachTranscriptResponse,
-  CoachTranscriptSession,
+import {
+  type CoachSpace,
+  type CoachSpeaker,
+  type CoachTranscriptLine,
+  type CoachTranscriptLineInput,
+  type CoachTranscriptResponse,
+  type CoachTranscriptSession,
+  coachVoiceNameSchema,
 } from "@omnitech/interview-contracts";
 
 // The most lines held: several hours of talk. The oldest fall off.
@@ -71,6 +72,8 @@ export function createCoachTranscript() {
         lines.push({
           seq,
           speaker: line.speaker ?? "unknown",
+          // Carried as the source gave it; never made up here.
+          ...(line.name ? { name: line.name } : {}),
           text,
           at: line.at ?? new Date().toISOString(),
         });
@@ -157,6 +160,10 @@ export const speakerOfSource = (source: string | undefined): CoachSpeaker =>
 // consecutive blocks by one speaker are joined into the one thing they said.
 // [GUARD] Only the first line of a block can name its speaker: a later line
 // with a colon in it ("Note: we shipped", an address) is more of what was said.
+// [DOMAIN] When `speakers` names more than one label as the interviewer (a
+// panel), each of their lines keeps its label as the voice's name: the
+// recorder told them apart, and the coach can then say who asked. With one
+// interviewer there is nothing to tell apart and no name is carried.
 const TIMING = /^(\d{1,2}):(\d{2}):(\d{2})(?:[.,]\d+)?\s*-->/;
 // A speaker's label is a name and a colon, then a space: an address or a
 // clock time at the start of a line is not one.
@@ -171,6 +178,10 @@ export function parseTranscriptFile(
   } = {},
 ): CoachTranscriptLineInput[] {
   const started = (options.startedAt ?? new Date()).getTime();
+  const panel =
+    Object.values(options.speakers ?? {}).filter(
+      (speaker) => speaker === "interviewer",
+    ).length > 1;
   const out: (CoachTranscriptLineInput & { label: string })[] = [];
   let offsetMs = 0;
   // True on the line straight after a time line (or at the very start).
@@ -203,9 +214,15 @@ export function parseTranscriptFile(
       last.text = `${last.text} ${text}`;
       continue;
     }
+    const speaker = options.speakers?.[label] ?? "unknown";
     out.push({
       label,
-      speaker: options.speakers?.[label] ?? "unknown",
+      speaker,
+      ...(panel &&
+      speaker === "interviewer" &&
+      coachVoiceNameSchema.safeParse(label).success
+        ? { name: label }
+        : {}),
       text,
       at: new Date(started + offsetMs).toISOString(),
     });

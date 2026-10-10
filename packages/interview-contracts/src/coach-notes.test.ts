@@ -682,3 +682,49 @@ describe("a coach note as kept", () => {
     ).toBe(false);
   });
 });
+
+describe("who asked, on a note for a panel", () => {
+  it("is left out unless given: most notes name nobody", () => {
+    const parsed = coachNoteInputSchema.parse({ title: "Consistency" });
+    expect("from" in parsed).toBe(false);
+    expect("from" in coachNoteSchema.parse(stored)).toBe(false);
+  });
+
+  it("is an interviewer's name, trimmed, as posted and as kept", () => {
+    expect(
+      coachNoteInputSchema.parse({ title: "Consistency", from: " Marcus " })
+        .from,
+    ).toBe("Marcus");
+    expect(
+      coachNoteSchema.parse({ ...stored, from: "Mary Ann O'Neil" }).from,
+    ).toBe("Mary Ann O'Neil");
+  });
+
+  it.each([
+    ["blank", "  "],
+    ["over 40 characters", "a".repeat(41)],
+    ["a sentence with a colon", "Marcus: the staff engineer"],
+    ["two lines", "Marcus\nTom"],
+    ["markup", "<i>Marcus</i>"],
+    ["a number", 7],
+    ["a list", ["Marcus"]],
+  ])("refuses a name that is %s", (_what, from) => {
+    expect(accepts({ title: "Consistency", from })).toBe(false);
+    expect(coachNoteSchema.safeParse({ ...stored, from }).success).toBe(false);
+  });
+
+  it("stands beside what was asked and what was heard, and changes neither", () => {
+    const note = {
+      title: "Charged once",
+      ask: "Charged once",
+      heard: "How do you make sure they are only charged once?",
+      sections: [{ kind: "say", lines: [line("I key the ledger.")] }],
+    };
+    const { from, ...rest } = coachNoteInputSchema.parse({
+      ...note,
+      from: "Marcus",
+    });
+    expect(from).toBe("Marcus");
+    expect(rest).toEqual(coachNoteInputSchema.parse(note));
+  });
+});

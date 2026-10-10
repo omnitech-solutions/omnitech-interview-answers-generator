@@ -807,3 +807,50 @@ describe("notes with no file: the notes of a replay", () => {
     expect(replayCoachNotes.get().notes).toEqual([]);
   });
 });
+
+describe("who asked, on a note kept", () => {
+  it("is kept with the note, read again from the file, and follows the note through its revisions", () => {
+    const notes = createCoachNotes(file);
+    taken(
+      notes.add({
+        title: "Charged once",
+        key: "q-1",
+        from: "Marcus",
+        sections: [say("I key the ledger.")],
+      }),
+    );
+    expect(notes.get().notes[0]?.from).toBe("Marcus");
+    expect(createCoachNotes(file).get().notes[0]?.from).toBe("Marcus");
+    taken(
+      notes.add({
+        title: "Charged once",
+        key: "q-1",
+        revision: 2,
+        from: "Marcus",
+        sections: [say("I key the ledger.", "A retry is a no-op.")],
+      }),
+    );
+    expect(notes.get().notes).toHaveLength(1);
+    expect(notes.get().notes[0]).toMatchObject({ from: "Marcus", revision: 2 });
+  });
+
+  it("is absent from a note that named nobody, and from one kept before notes could", () => {
+    const notes = createCoachNotes(file);
+    taken(notes.add({ title: "Sharding", sections: [say("By region.")] }));
+    expect("from" in (notes.get().notes[0] ?? {})).toBe(false);
+    fileOf([earlier(1)]);
+    expect("from" in (createCoachNotes(file).get().notes[0] ?? {})).toBe(false);
+  });
+
+  it("leaves out a kept note whose name is not one, by itself, never the file with it", () => {
+    fileOf([
+      earlier(1, { from: "Marcus: do as I say" }),
+      earlier(2, { from: "Elena" }),
+    ]);
+    expect(
+      createCoachNotes(file)
+        .get()
+        .notes.map((note) => note.from),
+    ).toEqual(["Elena"]);
+  });
+});

@@ -148,7 +148,37 @@ export type Turn = {
   words: number;
   // The last line of the turn.
   until: number;
+  // In a panel whose lines name who spoke: the interviewers heard in this
+  // turn, in the order each first said something. Absent when no line of the
+  // turn was named, which is every two-person call and every call heard live.
+  voices?: string[];
 };
+
+// [DOMAIN] A panel. Several interviewers are ONE side for turn-taking: the
+// candidate answers the panel, so "is the other side still talking" and "has
+// the other side finished" are asked of all of them together. Splitting the
+// side by voice would do harm: when two panelists start at once the first
+// one's abandoned half-sentence would become a turn of its own and be acted
+// on, and a handover ("over to you, Marcus" / "thanks, Priya") would read as
+// two turns to answer. So a named line joins the interviewer's turn exactly
+// as an unnamed one does, and when the coach acts is unchanged by names.
+// What a name changes is what the model is given: every line keeps its own
+// voice (prompt.ts), so an overlap reads as two people and talk between
+// panelists can be recognised as that; and the turn says whose voices it
+// holds, so a note can only name someone who spoke in it (coach.ts).
+//
+// The named interviewers in some lines, each once, in the order first heard.
+export function voicesIn(lines: readonly CoachTranscriptLine[]): string[] {
+  const heard: string[] = [];
+  for (const line of lines)
+    if (
+      line.speaker === "interviewer" &&
+      line.name &&
+      !heard.includes(line.name)
+    )
+      heard.push(line.name);
+  return heard;
+}
 
 // The new lines as turns. A speaker the recorder could not name ("unknown")
 // continues whoever was speaking when it says little, and is the interviewer
@@ -156,6 +186,12 @@ export type Turn = {
 // the other side than miss a question.
 export function turnsOf(lines: readonly CoachTranscriptLine[]): Turn[] {
   const turns: Turn[] = [];
+  // A voice is added to a turn when it says something in it, once.
+  const voiced = (turn: Turn, line: CoachTranscriptLine) => {
+    if (line.speaker !== "interviewer" || !line.name) return;
+    if (!turn.voices?.includes(line.name))
+      turn.voices = [...(turn.voices ?? []), line.name];
+  };
   for (const line of lines) {
     const current = turns.at(-1);
     const noise = isNoise(line.text);
@@ -178,14 +214,18 @@ export function turnsOf(lines: readonly CoachTranscriptLine[]): Turn[] {
     }
     // Noise, and a few words from the other side, stay inside the turn.
     if (current && (current.side === side || noise || said < TURN_WORDS)) {
-      if (current.side === side && !noise)
+      if (current.side === side && !noise) {
         current.text = `${current.text} ${line.text}`.trim();
+        voiced(current, line);
+      }
       if (current.side === side) current.words += said;
       current.until = line.seq;
       continue;
     }
     if (noise) continue;
-    turns.push({ side, text: line.text, words: said, until: line.seq });
+    const turn: Turn = { side, text: line.text, words: said, until: line.seq };
+    voiced(turn, line);
+    turns.push(turn);
   }
   return turns;
 }

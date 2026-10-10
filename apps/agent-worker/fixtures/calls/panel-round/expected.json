@@ -1,64 +1,74 @@
 {
-  "about": "A ten-minute panel round: five interviewers, one candidate. The first two questions are the recorded screening stretch; the rest is scripted (see script.json). Each question names the words that complete it: an act before those words were said is premature. Each quiet stretch names words that are no question for the candidate: an act on them is wasted.",
+  "about": "A ten-minute panel round: five interviewers, one candidate. The first two questions are the recorded screening stretch; the rest is scripted (see script.json). Each question names the words that complete it: an act before those words were said is premature. Each quiet stretch names words that are no question for the candidate: an act on them is wasted. Each question names who asks it (`from`): a live run is scored on whether its note says so, and never names someone else.",
   "interviewer": ["Priya", "Marcus", "Tom", "Elena", "Aisha"],
   "me": ["Candidate"],
   "questions": [
     {
       "id": "service-or-monolith",
+      "from": "Priya",
       "scenario": "slow question in two parts",
       "completeWhenSaid": "stay in the existing",
       "about": ["microservice", "monolith"]
     },
     {
       "id": "data-ownership",
+      "from": "Priya",
       "scenario": "follow-up in three sentences",
       "completeWhenSaid": "How do you take data",
       "about": ["boundary", "ownership"]
     },
     {
       "id": "slowest-carrier",
+      "from": "Marcus",
       "scenario": "long preamble, a tag question, a 2.8 s pause, then the question",
       "completeWhenSaid": "waiting on the slowest carrier",
       "about": ["quoting service", "different speed", "time out"]
     },
     {
       "id": "why-not-a-queue",
+      "from": "Tom",
       "scenario": "interruption of the candidate's answer",
       "completeWhenSaid": "put a queue in front",
       "about": ["jump in"]
     },
     {
       "id": "queue-backs-up",
+      "from": "Tom",
       "scenario": "pushback",
       "completeWhenSaid": "queue itself backs up",
       "about": ["don't buy that"]
     },
     {
       "id": "charged-once",
+      "from": "Marcus",
       "scenario": "two panelists start at once, then one gives way",
       "completeWhenSaid": "only charged once",
       "about": ["idempotency", "double-clicks", "go ahead"]
     },
     {
       "id": "unrealistic-date",
+      "from": "Elena",
       "scenario": "question in three parts, then a rambling answer",
       "completeWhenSaid": "do differently now",
       "about": ["few parts", "unrealistic", "What did you do"]
     },
     {
       "id": "changed-your-mind",
+      "from": "Tom",
       "scenario": "question taken back and asked again",
       "completeWhenSaid": "more junior than you",
       "about": ["How many people", "scratch that"]
     },
     {
       "id": "first-thirty-minutes",
+      "from": "Elena",
       "scenario": "an instruction with no question mark",
       "completeWhenSaid": "first thirty minutes",
       "about": ["Friday afternoon", "quotes start failing"]
     },
     {
       "id": "nestjs",
+      "from": "Marcus",
       "scenario": "rapid short question",
       "optional": true,
       "completeWhenSaid": "NestJS in production",
@@ -66,6 +76,7 @@
     },
     {
       "id": "zero-downtime",
+      "from": "Marcus",
       "scenario": "rapid short question",
       "optional": true,
       "completeWhenSaid": "zero downtime Postgres migration",
@@ -73,24 +84,28 @@
     },
     {
       "id": "rate-limiting",
+      "from": "Priya",
       "scenario": "answered with a question; the interviewer's reply is a statement",
       "completeWhenSaid": "public quote API",
       "about": ["Last technical one"]
     },
     {
       "id": "work-and-notice",
+      "from": "Aisha",
       "scenario": "logistics, two questions in one",
       "completeWhenSaid": "notice period do you have",
       "about": ["legally able"]
     },
     {
       "id": "salary",
+      "from": "Aisha",
       "scenario": "salary",
       "completeWhenSaid": "salary expectations",
       "about": []
     },
     {
       "id": "questions-for-us",
+      "from": "Priya",
       "scenario": "the close",
       "completeWhenSaid": "questions do you have for us",
       "about": ["before we wrap up"]

@@ -15,6 +15,7 @@ export {
 } from "./context";
 export { COACH_PROMPT_VERSION } from "./prompt";
 export { COACH_MODES, type CoachMode } from "./reply";
+export { type Panelist, rosterOf } from "./roster";
 export {
   type Cast,
   castBlocks,

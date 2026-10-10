@@ -21,6 +21,7 @@ import { manifest } from "../manifest";
 import { promptMessages } from "./ai-messages";
 import { createApi } from "./api";
 import { createAssistantModels } from "./assistant-models";
+import { behaviourFlags } from "./behaviour-flags";
 import { BriefingRepository } from "./briefing/repository";
 import { briefingScope } from "./briefing-access";
 import { coachTranscript, speakerOfSource } from "./coach-transcript";
@@ -28,10 +29,7 @@ import { createDocumentsApi, resolveDocumentsScope } from "./documents/api";
 import { resolveDocumentsConfig } from "./documents/config";
 import { createSessionRoutes } from "./live-session/routes";
 import { transcriptRecordings } from "./live-session/transcript-recording";
-import {
-  tellCoachWhoSpeaks,
-  voiceActivityEnabled,
-} from "./live-session/voice-activity";
+import { tellCoachWhoSpeaks } from "./live-session/voice-activity";
 import { loadLocalDefaultProfile } from "./local-default-profile";
 import { loadLocalTemplates, localMatrixPath } from "./local-seeds";
 import { createCodeRunner } from "./services";
@@ -284,6 +282,8 @@ export function createInterviewBackend(services: InterviewBackendServices) {
           [
             {
               speaker: speakerOfSource(heard.source),
+              // No `name`: the call's audio is one stream, so which
+              // interviewer of a panel spoke is not known here.
               text: heard.text,
               at: heard.occurredAt,
             },
@@ -293,9 +293,11 @@ export function createInterviewBackend(services: InterviewBackendServices) {
       },
       // Who is speaking, from the session's own audio sources (the call's
       // audio is the interviewer, the microphone the candidate). Off unless
-      // the owner turned it on; ingest tells it only for a session that may
-      // be processed off this device, as with what is heard.
-      voiceActivity: voiceActivityEnabled(),
+      // the owner turned it on (the environment, or Settings: asked at every
+      // report, so a change needs no restart); ingest tells it only for a
+      // session that may be processed off this device, as with what is heard.
+      voiceActivity: () =>
+        behaviourFlags.value("ACTIVE_SESSION_VOICE_ACTIVITY") === "on",
       onActivity: tellCoachWhoSpeaks(coachTranscript),
     }),
   );

@@ -27,6 +27,11 @@
 //   --no-activity     do not tell the coach who is speaking (by default a replay
 //                     derives it from the recording's timings, as a stand-in
 //                     for a voice-activity signal)
+//   --no-names        do not tell the coach which interviewer spoke. By default a
+//                     replay with more than one interviewer label gives each
+//                     line its label as the speaker's name (the recorder told
+//                     them apart). A call heard live is one stream with nobody
+//                     named: this replays a panel the way it is heard live
 //   --retain          keep one session of the model open for the whole replay
 //                     (each turn then sends only what is new)
 //   --hide-me         the coach does not hear the person being coached
@@ -204,6 +209,7 @@ if (unnamed)
 
 const heard = castBlocks(blocks, cast as Cast, {
   hideMe: has("--hide-me"),
+  ...(has("--no-names") ? { names: false } : {}),
   ...(clockMs(one("--from")) === undefined
     ? {}
     : { fromMs: clockMs(one("--from")) as number }),
@@ -211,6 +217,10 @@ const heard = castBlocks(blocks, cast as Cast, {
     ? {}
     : { toMs: clockMs(one("--to")) as number }),
 });
+// The interviewers the coach will be told apart, in the order first heard.
+const voices = [
+  ...new Set(heard.flatMap((block) => (block.name ? [block.name] : []))),
+];
 if (heard.length === 0) {
   console.error("Nothing is left to replay with those speakers and times.");
   process.exit(1);
@@ -246,6 +256,7 @@ const feed = () => {
     lines.push({
       seq,
       speaker: block.speaker,
+      ...(block.name ? { name: block.name } : {}),
       text: block.text,
       at: new Date(block.endMs).toISOString(),
     });
@@ -529,7 +540,14 @@ console.log(
     cast,
   )
     .map(([label, role]) => `${label || "(no label)"} = ${role}`)
-    .join(", ")}.`,
+    .join(", ")}.${
+    // A panel: whether the coach is told which interviewer says each line.
+    voices.length > 0
+      ? ` The coach is told who speaks: ${voices.join(", ")}.`
+      : has("--no-names")
+        ? " The coach is not told which interviewer speaks."
+        : ""
+  }`,
 );
 // The coach hears a little past the last word, as it would in the room.
 const end = last + 10_000;
@@ -563,7 +581,9 @@ await runtime?.close?.();
 
 if (!timingOnly)
   for (const { atMs, note } of notes.values()) {
-    console.log(`\n${clock(atMs)}  ${note.kind}: ${note.ask ?? note.title}`);
+    console.log(
+      `\n${clock(atMs)}  ${note.kind}: ${note.ask ?? note.title}${note.from ? `  (from ${note.from})` : ""}`,
+    );
     for (const section of note.sections ?? [])
       for (const line of section.lines)
         console.log(
@@ -618,6 +638,8 @@ if (one("--expect")) {
       optional?: boolean;
       completeWhenSaid: string;
       about?: string[];
+      // In a panel: the interviewer who asks it.
+      from?: string;
     }[];
     // Things said that are no question for the candidate.
     quiet?: { id: string; said: string }[];
@@ -662,6 +684,11 @@ if (one("--expect")) {
       id: question.id,
       scenario: question.scenario ?? "",
       optional: question.optional === true,
+      // [DOMAIN] Who asked, and who the note for the whole question says
+      // asked: null when the note names nobody (or there is no note). A note
+      // that names nobody is safe; one that names the wrong person is not.
+      askedBy: question.from ?? null,
+      notedFrom: (whole && notes.get(whole.key)?.note.from) ?? null,
       answeredWhole: whole !== undefined,
       // Acts on part of the question, and how many of those put a note on screen.
       prematureActs: before.length,
@@ -710,12 +737,32 @@ if (one("--expect")) {
     : one("--runtime") === "codex"
       ? "codex"
       : "claude";
-  const name =
+  // A run without names is its own benchmark: it is compared with the last
+  // run without names, never with one where the coach was told who spoke.
+  const name = `${
     bench ??
     ((one("--expect") as string)
       .split("/")
       .at(-1)
-      ?.replace(/\.expected\.json$/, "") as string);
+      ?.replace(/\.expected\.json$/, "") as string)
+  }${has("--no-names") ? "-unnamed" : ""}`;
+  // How often a note said who asked, of the questions that have an asker and
+  // got a note. Counted only when a model wrote notes.
+  const noted = timingOnly
+    ? []
+    : questions.filter(
+        (question) => question.askedBy !== null && question.firstLineS !== null,
+      );
+  const askers = {
+    of: noted.length,
+    right: noted.filter((question) => question.notedFrom === question.askedBy)
+      .length,
+    wrong: noted.filter(
+      (question) =>
+        question.notedFrom !== null && question.notedFrom !== question.askedBy,
+    ).length,
+    unnamed: noted.filter((question) => question.notedFrom === null).length,
+  };
   const result = {
     benchmark: name,
     runtime: runtimeName,
@@ -735,6 +782,9 @@ if (one("--expect")) {
     notes: notes.size,
     silent: silences,
     failed: records.filter((record) => record.failed).length,
+    // Whether the coach was told which interviewer spoke each line.
+    names: voices.length > 0,
+    askers,
     questions,
     quiet,
   };
@@ -748,9 +798,13 @@ if (one("--expect")) {
     .sort()
     .at(-1);
   const previous = earlier
-    ? (JSON.parse(
-        readFileSync(new URL(earlier, folder), "utf8"),
-      ) as typeof result)
+    ? (JSON.parse(readFileSync(new URL(earlier, folder), "utf8")) as Omit<
+        typeof result,
+        "askers"
+      > & {
+        // Absent in a result kept before the coach knew of panels.
+        askers?: (typeof result)["askers"];
+      })
     : undefined;
   writeFileSync(
     new URL(
@@ -788,6 +842,19 @@ if (one("--expect")) {
   row("notes on screen at the end", result.notes, previous?.notes);
   row("calls that said nothing", result.silent, previous?.silent);
   row("calls that failed", result.failed, previous?.failed);
+  if (askers.of > 0) {
+    row(
+      "notes that say who asked, rightly",
+      askers.right,
+      previous?.askers?.right,
+    );
+    row(
+      "notes that name the WRONG person",
+      askers.wrong,
+      previous?.askers?.wrong,
+    );
+    row("notes that name nobody", askers.unnamed, previous?.askers?.unnamed);
+  }
   for (const [at, question] of result.questions.entries()) {
     const was = previous?.questions[at];
     console.log(
@@ -804,6 +871,14 @@ if (one("--expect")) {
       question.prematureNotesShown,
       was?.prematureNotesShown,
     );
+    if (question.askedBy !== null && question.firstLineS !== null)
+      console.log(
+        `    asked by ${question.askedBy}; the note says ${question.notedFrom ?? "nobody"}${
+          question.notedFrom !== null && question.notedFrom !== question.askedBy
+            ? "   WRONG"
+            : ""
+        }`,
+      );
     row("  question end → acting (s)", question.toActS, was?.toActS);
     row(
       "  acting → first line (s, real)",
@@ -840,7 +915,11 @@ if (one("--expect")) {
   }
   const asked = result.questions.filter((question) => !question.optional);
   console.log(
-    `\n  IN SHORT: ${asked.filter((question) => question.answeredWhole).length} of ${asked.length} questions acted on whole; ${result.questions.reduce((sum, question) => sum + question.prematureActs, 0)} acts on part of a question; ${result.quiet.reduce((sum, stretch) => sum + stretch.acts, 0)} acts on what was no question.`,
+    `\n  IN SHORT: ${asked.filter((question) => question.answeredWhole).length} of ${asked.length} questions acted on whole; ${result.questions.reduce((sum, question) => sum + question.prematureActs, 0)} acts on part of a question; ${result.quiet.reduce((sum, stretch) => sum + stretch.acts, 0)} acts on what was no question.${
+      askers.of > 0
+        ? ` Who asked (${result.names ? "lines named" : "lines not named"}): ${askers.right} of ${askers.of} notes right, ${askers.wrong} wrong, ${askers.unnamed} name nobody.`
+        : ""
+    }`,
   );
 }
 process.exit(0);

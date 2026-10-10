@@ -443,3 +443,114 @@ describe("giving each label its part", () => {
     expect(JSON.stringify(blocks)).toBe(before);
   });
 });
+
+// ---- A panel: more than one label is the interviewer ---------------------------
+
+describe("giving each interviewer of a panel a name", () => {
+  const blocks: SpokenBlock[] = [
+    block("Priya", "I'm going to hand over to Marcus now.", 1_000, 4_000),
+    block("Marcus", "Thanks, Priya. Can everyone hear me?", 5_000, 8_000),
+    block("Unknown", "Yeah.", 8_500, 9_000),
+    block("Candidate", "Yes, clearly.", 9_500, 11_000),
+    block("Marcus", "How would you shard it?", 12_000, 15_000),
+    block("Room mic", "The projector needs a new bulb.", 16_000, 18_000),
+  ];
+  const cast: Cast = {
+    Priya: "interviewer",
+    Marcus: "interviewer",
+    Candidate: "me",
+    "Room mic": "leave-out",
+  };
+  const voices = (...given: Parameters<typeof castBlocks>) =>
+    castBlocks(...given).map((each) => [each.speaker, each.name]);
+
+  it("keeps the label as the name of each interviewer's pieces, and of nobody else's", () => {
+    expect(voices(blocks, cast)).toEqual([
+      ["interviewer", "Priya"],
+      ["interviewer", "Marcus"],
+      ["unknown", undefined],
+      ["candidate", undefined],
+      ["interviewer", "Marcus"],
+    ]);
+    expect(castBlocks(blocks, cast)[0]).toEqual({
+      ...blocks[0],
+      speaker: "interviewer",
+      name: "Priya",
+    });
+    expect("name" in (castBlocks(blocks, cast)[3] ?? {})).toBe(false);
+  });
+
+  it("names nobody when only one label is the interviewer: a two-person replay is as it was", () => {
+    const two = castBlocks(blocks, { Marcus: "interviewer", Candidate: "me" });
+    expect(two.some((each) => "name" in each)).toBe(false);
+    expect(two[1]).toEqual({ ...blocks[1], speaker: "interviewer" });
+  });
+
+  it("drops the names when asked to, to replay a panel as a live call is heard", () => {
+    const heard = castBlocks(blocks, cast, { names: false });
+    expect(heard.some((each) => "name" in each)).toBe(false);
+    expect(heard.map(({ speaker, text }) => [speaker, text])).toEqual(
+      castBlocks(blocks, cast).map(({ speaker, text }) => [speaker, text]),
+    );
+  });
+
+  it("keeps the names with every other option", () => {
+    expect(
+      voices(blocks, cast, { hideMe: true, fromMs: 4_500, names: true }),
+    ).toEqual([
+      ["interviewer", "Marcus"],
+      ["unknown", undefined],
+      ["interviewer", "Marcus"],
+    ]);
+  });
+
+  it("does not count a label said to be unknown, or the candidate, as an interviewer to name", () => {
+    expect(
+      castBlocks(blocks, {
+        Priya: "unknown",
+        Marcus: "interviewer",
+        Candidate: "candidate",
+      }).some((each) => "name" in each),
+    ).toBe(false);
+  });
+
+  it("gives no name to a label that does not read as one, and keeps the piece", () => {
+    const odd = castBlocks(
+      [
+        block("Panel (room 2)", "Hello there.", 0, 1_000),
+        block("Marcus", "Hello.", 2_000, 3_000),
+      ],
+      { "Panel (room 2)": "interviewer", Marcus: "interviewer" },
+    );
+    expect(odd.map((each) => [each.speaker, each.name])).toEqual([
+      ["interviewer", undefined],
+      ["interviewer", "Marcus"],
+    ]);
+  });
+
+  it("names the voices of a file read from a recorder's blocks, end to end", () => {
+    const read = readTranscript(
+      text(
+        "00:00:01 --> 00:00:02",
+        "Elena: Can I ask about,",
+        "",
+        "00:00:02 --> 00:00:03",
+        "Marcus: And what about idempotency,",
+        "",
+        "00:00:04 --> 00:00:05",
+        "Candidate: Go ahead.",
+      ),
+    );
+    expect(
+      castBlocks(read, {
+        Elena: "interviewer",
+        Marcus: "interviewer",
+        Candidate: "me",
+      }).map((each) => [each.name, each.text]),
+    ).toEqual([
+      ["Elena", "Can I ask about,"],
+      ["Marcus", "And what about idempotency,"],
+      [undefined, "Go ahead."],
+    ]);
+  });
+});

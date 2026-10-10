@@ -882,3 +882,200 @@ describe("a recorder's transcript file", () => {
     ).toBe("2026-10-08T12:00:30.000Z");
   });
 });
+
+// ---- A panel: who on a side spoke ----------------------------------------------
+
+describe("who on a side spoke", () => {
+  it("is kept on the line as it was added, and only there", () => {
+    const transcript = createCoachTranscript();
+    transcript.add([
+      {
+        speaker: "interviewer",
+        name: "Priya",
+        text: "Over to Marcus.",
+        at: AT,
+      },
+      {
+        speaker: "interviewer",
+        name: "Marcus",
+        text: "Thanks, Priya.",
+        at: AT,
+      },
+      { speaker: "interviewer", text: "Can everyone hear me?", at: AT },
+      { speaker: "candidate", text: "Yes, clearly.", at: AT },
+    ]);
+    const read = transcript.since();
+    expect(read.lines).toEqual([
+      {
+        seq: 1,
+        speaker: "interviewer",
+        name: "Priya",
+        text: "Over to Marcus.",
+        at: AT,
+      },
+      {
+        seq: 2,
+        speaker: "interviewer",
+        name: "Marcus",
+        text: "Thanks, Priya.",
+        at: AT,
+      },
+      { seq: 3, speaker: "interviewer", text: "Can everyone hear me?", at: AT },
+      { seq: 4, speaker: "candidate", text: "Yes, clearly.", at: AT },
+    ]);
+    expect(read.lines.map((line) => "name" in line)).toEqual([
+      true,
+      true,
+      false,
+      false,
+    ]);
+    expect(coachTranscriptResponseSchema.safeParse(read).success).toBe(true);
+  });
+
+  it("is never made up: a live session's line, which has no name, is given none", () => {
+    const transcript = createCoachTranscript();
+    transcript.add(
+      [
+        {
+          speaker: speakerOfSource("application-audio"),
+          text: "Tell me more.",
+          at: AT,
+        },
+      ],
+      {
+        tenantId: "00000000-0000-4000-8000-000000000001",
+        actorId: "00000000-0000-4000-8000-000000000002",
+        sessionId: "00000000-0000-4000-8000-000000000003",
+      },
+    );
+    const [line] = transcript.since().lines;
+    expect(line).toEqual({
+      seq: 1,
+      speaker: "interviewer",
+      text: "Tell me more.",
+      at: AT,
+    });
+  });
+
+  it("is read from the cursor like the rest of the line, and goes with a clear", () => {
+    const transcript = createCoachTranscript();
+    transcript.add([
+      { speaker: "interviewer", name: "Tom", text: "Why not a queue?", at: AT },
+      { speaker: "interviewer", name: "Elena", text: "And the date?", at: AT },
+    ]);
+    expect(transcript.since(1).lines.map((line) => line.name)).toEqual([
+      "Elena",
+    ]);
+    transcript.clear();
+    expect(transcript.since().lines).toEqual([]);
+  });
+});
+
+describe("a recorder's transcript file of a panel", () => {
+  const startedAt = new Date("2026-10-08T09:00:00.000Z");
+  const FILE = [
+    "00:00:03 --> 00:00:09",
+    "Priya: I'm going to hand over to Marcus now.",
+    "",
+    "00:00:10 --> 00:00:14",
+    "Marcus: Thanks, Priya. How do you make sure a broker is charged once?",
+    "",
+    "00:00:15 --> 00:00:19",
+    "Candidate: I key the ledger by correlation id.",
+    "",
+    "00:00:20 --> 00:00:21",
+    "Guest 7: Can you hear me?",
+    "",
+  ].join("\n");
+
+  it("keeps each interviewer's label as the name of the voice when more than one label is the interviewer", () => {
+    const lines = parseTranscriptFile(FILE, {
+      speakers: {
+        Priya: "interviewer",
+        Marcus: "interviewer",
+        Candidate: "candidate",
+      },
+      startedAt,
+    });
+    expect(lines).toEqual([
+      {
+        speaker: "interviewer",
+        name: "Priya",
+        text: "I'm going to hand over to Marcus now.",
+        at: "2026-10-08T09:00:03.000Z",
+      },
+      {
+        speaker: "interviewer",
+        name: "Marcus",
+        text: "Thanks, Priya. How do you make sure a broker is charged once?",
+        at: "2026-10-08T09:00:10.000Z",
+      },
+      {
+        speaker: "candidate",
+        text: "I key the ledger by correlation id.",
+        at: "2026-10-08T09:00:15.000Z",
+      },
+      {
+        speaker: "unknown",
+        text: "Can you hear me?",
+        at: "2026-10-08T09:00:20.000Z",
+      },
+    ]);
+    expect(coachTranscriptInputSchema.safeParse({ lines }).success).toBe(true);
+  });
+
+  it("names nobody when one label is the interviewer: there is nothing to tell apart", () => {
+    const lines = parseTranscriptFile(FILE, {
+      speakers: { Marcus: "interviewer", Candidate: "candidate" },
+      startedAt,
+    });
+    expect(lines.some((line) => "name" in line)).toBe(false);
+    expect(lines.map((line) => line.speaker)).toEqual([
+      "unknown",
+      "interviewer",
+      "candidate",
+      "unknown",
+    ]);
+  });
+
+  it("names nobody when no label is given a part", () => {
+    expect(
+      parseTranscriptFile(FILE, { startedAt }).some((line) => "name" in line),
+    ).toBe(false);
+  });
+
+  it("does not join two interviewers' consecutive blocks into one line", () => {
+    const lines = parseTranscriptFile(
+      "00:00:01 --> 00:00:02\nPriya: Over to you.\n\n00:00:03 --> 00:00:04\nMarcus: Thanks.\n\n00:00:05 --> 00:00:06\nMarcus: First question.",
+      { speakers: { Priya: "interviewer", Marcus: "interviewer" }, startedAt },
+    );
+    expect(lines.map((line) => [line.name, line.text])).toEqual([
+      ["Priya", "Over to you."],
+      ["Marcus", "Thanks. First question."],
+    ]);
+  });
+
+  it("leaves a label that is not a name the contract takes without one, and still gives the line", () => {
+    const lines = parseTranscriptFile(
+      "00:00:01 --> 00:00:02\nPanel (room 2): Hello there.\n\n00:00:03 --> 00:00:04\nMarcus: Hello.",
+      {
+        speakers: { "Panel (room 2)": "interviewer", Marcus: "interviewer" },
+        startedAt,
+      },
+    );
+    expect(lines).toEqual([
+      {
+        speaker: "interviewer",
+        text: "Hello there.",
+        at: "2026-10-08T09:00:01.000Z",
+      },
+      {
+        speaker: "interviewer",
+        name: "Marcus",
+        text: "Hello.",
+        at: "2026-10-08T09:00:03.000Z",
+      },
+    ]);
+    expect(coachTranscriptInputSchema.safeParse({ lines }).success).toBe(true);
+  });
+});

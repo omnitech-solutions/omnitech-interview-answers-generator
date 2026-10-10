@@ -2,6 +2,7 @@ import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 
 import {
   answerGuideSchema,
+  behaviourFlagInputSchema,
   coachActivityInputSchema,
   coachNoteInputSchema,
   coachTranscriptInputSchema,
@@ -31,6 +32,7 @@ import { readBoundedJson } from "@omnitech/platform-contracts";
 import type { Context, Next } from "hono";
 import { Hono } from "hono";
 import { WorkspaceError, type WorkspaceScope } from "./assistant/workspace";
+import { behaviourFlags } from "./behaviour-flags";
 import { coachNotes, replayCoachNotes } from "./coach-notes";
 import { COACH_PLAN_LENGTH, coachPlan } from "./coach-plan";
 import { coachTranscript } from "./coach-transcript";
@@ -947,6 +949,37 @@ console.log(solve([1, 2, 3]));`,
         "The plan is text of at most a page.",
       );
     return context.json(coachPlan.set(text));
+  });
+
+  // The behaviour flags (BEHAVIOUR_FLAGS in the contracts): read by the
+  // Settings pane and by the agent worker, changed from Settings. Each flag
+  // says where its value comes from; one the host set in the environment is
+  // read-only here. [SAFETY] Names and values from closed lists only.
+  app.get("/api/v1/behaviour-flags", (context) =>
+    context.json({ flags: behaviourFlags.list() }),
+  );
+  app.put("/api/v1/behaviour-flags", async (context) => {
+    const body = await readBody(context, JSON_BODY_LIMIT_BYTES);
+    if (!body.ok) return body.response;
+    const input = behaviourFlagInputSchema.safeParse(body.value);
+    const outcome = input.success
+      ? behaviourFlags.set(input.data.key, input.data.value)
+      : "invalid";
+    if (outcome === "invalid")
+      return apiError(
+        context,
+        400,
+        "invalid_behaviour_flag",
+        "The change names a flag and one of its values.",
+      );
+    if (outcome === "environment")
+      return apiError(
+        context,
+        409,
+        "flag_set_by_environment",
+        "This flag is set by the environment.",
+      );
+    return context.json({ flags: behaviourFlags.list() });
   });
 
   // The coach's transcript: read by the coach, written by a live session (as

@@ -1118,3 +1118,108 @@ describe("a figure said with or without a space before its unit", () => {
     ]);
   });
 });
+
+// ---- Who asked, in a panel ------------------------------------------------------
+
+describe("who asked", () => {
+  const PANEL = ["Priya", "Marcus", "Tom", "Elena", "Aisha"];
+  const asked = (from: string, voices?: readonly string[]) =>
+    parseCoachReply(
+      reply(
+        "KIND: technical",
+        "SAME: no",
+        "ASK: Charged only once",
+        ...(from ? [from] : []),
+        "SAY: I key the ledger by correlation id.",
+      ),
+      true,
+      undefined,
+      "conversation",
+      voices,
+    )?.note;
+
+  it("is carried on the note when the name is one the coach was given", () => {
+    expect(asked("FROM: Marcus", PANEL)?.from).toBe("Marcus");
+  });
+
+  it("is in the given name's own spelling, whatever case the model wrote", () => {
+    expect(asked("FROM: MARCUS", PANEL)?.from).toBe("Marcus");
+    expect(asked("FROM: marcus.", PANEL)?.from).toBe("Marcus");
+  });
+
+  it("takes a first name for a full one, and a name followed by what they do", () => {
+    expect(asked("FROM: Marcus", ["Marcus Lee", "Tom Park"])?.from).toBe(
+      "Marcus Lee",
+    );
+    expect(asked("FROM: Marcus (staff engineer)", PANEL)?.from).toBe("Marcus");
+  });
+
+  it("is dropped when the name is nobody the coach was given", () => {
+    const note = asked("FROM: Dana", PANEL);
+    expect(note).toBeDefined();
+    expect(note && "from" in note).toBe(false);
+  });
+
+  it("is dropped when a first name could be two people", () => {
+    expect(
+      asked("FROM: Sam", ["Sam Okoro", "Sam Lindqvist"])?.from,
+    ).toBeUndefined();
+  });
+
+  it.each([
+    "FROM: the interviewer",
+    "FROM: Marcus and Elena",
+    "FROM: unknown",
+    "FROM: ",
+    "",
+  ])("is absent for %j", (from) => {
+    expect(asked(from, PANEL)?.from).toBeUndefined();
+  });
+
+  it("is never carried when the coach was given no names: a two-person call names nobody", () => {
+    expect(asked("FROM: Marcus")?.from).toBeUndefined();
+    expect(asked("FROM: Marcus", [])?.from).toBeUndefined();
+  });
+
+  it("leaves the rest of the note exactly as it is without the line", () => {
+    const { from: _from, ...withName } = asked("FROM: Marcus", PANEL) ?? {};
+    expect(withName).toEqual(asked("", PANEL));
+    expect(asked("FROM: Dana", PANEL)).toEqual(asked("", PANEL));
+  });
+
+  it("is never read as a line to say, and makes no note by itself", () => {
+    expect(
+      parseCoachReply("FROM: Marcus", true, undefined, "conversation", PANEL),
+    ).toBeNull();
+    expect(
+      asked("FROM: Marcus", PANEL)?.sections?.flatMap((section) =>
+        section.lines.map((line) => line.segments[0]?.text),
+      ),
+    ).toEqual(["I key the ledger by correlation id."]);
+  });
+
+  it("is shown as soon as its line is whole, and not before", () => {
+    const partial = (text: string) =>
+      parseCoachReply(text, false, undefined, "conversation", PANEL)?.note;
+    expect(
+      partial("ASK: Charged once\nFROM: Marcus\nSAY: I key it.\nSAY: An")?.from,
+    ).toBe("Marcus");
+    expect(
+      partial("ASK: Charged once\nSAY: I key it.\nFROM: Mar")?.from,
+    ).toBeUndefined();
+  });
+
+  it("gives a note the contract takes, in every kind of round", () => {
+    for (const mode of COACH_MODES) {
+      const parsed = parseCoachReply(
+        reply("ASK: Charged once", "FROM: Elena", "SAY: I key it."),
+        true,
+        undefined,
+        mode,
+        PANEL,
+      );
+      expect(parsed?.note.from).toBe("Elena");
+      expect(coachNoteInputSchema.safeParse(parsed?.note).success).toBe(true);
+    }
+  });
+});

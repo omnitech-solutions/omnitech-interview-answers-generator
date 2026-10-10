@@ -8,8 +8,20 @@ import { z } from "zod";
 // goes when the coach's notes are cleared.
 export const COACH_SPEAKERS = ["interviewer", "candidate", "unknown"] as const;
 
+// [DOMAIN] WHO on a side spoke, where the source of the line truly knows it:
+// a recorder's label, a diarizer. In a panel the interviewer side is several
+// people, and the name is what tells their voices apart. It is a label from
+// the source, never a verified identity, and it is never made up: a line
+// whose source cannot tell (one stream of call audio) carries none.
+// [GUARD] A name is put in front of a line the model reads, so it is letters,
+// digits, spaces and the marks a name has: never a colon or a line break.
+const COACH_VOICE_NAME = /^\p{L}[\p{L}\p{N} .'’-]{0,39}$/u;
+export const coachVoiceNameSchema = z.string().trim().regex(COACH_VOICE_NAME);
+
 export const coachTranscriptLineInputSchema = z.strictObject({
   speaker: z.enum(COACH_SPEAKERS).default("unknown"),
+  // Who on that side, when the source knows. Absent: not known.
+  name: coachVoiceNameSchema.optional(),
   text: z.string().trim().min(1).max(4_000),
   // When it was said; now, when not given.
   at: z.iso.datetime().optional(),
@@ -29,6 +41,7 @@ export const coachTranscriptLineSchema = z.strictObject({
   // The line's place in the transcript: rises by one, never reused.
   seq: z.number().int().positive(),
   speaker: z.enum(COACH_SPEAKERS),
+  name: coachVoiceNameSchema.optional(),
   text: z.string(),
   at: z.iso.datetime(),
 });

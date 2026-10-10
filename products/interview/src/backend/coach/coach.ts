@@ -31,6 +31,7 @@ import {
   designDiagram,
   parseCoachReply,
 } from "./reply";
+import { rosterOf } from "./roster";
 import {
   type ActReason,
   decide,
@@ -38,6 +39,7 @@ import {
   shouldRecall,
   type TurnTiming,
   turnsOf,
+  voicesIn,
 } from "./turns";
 
 export type CoachPorts = {
@@ -456,8 +458,24 @@ export function createCoach(ports: CoachPorts, options: CoachOptions = {}) {
     const designing = mode === "system-design";
     const noteKey = designing ? `coach-${epoch.slice(0, 8)}-design` : key;
     revision = revisions.get(noteKey) ?? 0;
+    // [SAFETY] Who a note may say asked. Where the lines of the turn name
+    // their speakers, only someone who spoke in it; where they do not (a call
+    // heard live), only someone on the plan's roster. A look at the
+    // candidate's own answer, or at the screen, was asked by nobody.
+    // One name is no panel: the call then reads as any two-person call.
+    const listed = rosterOf(callPlan);
+    const roster = listed.length > 1 ? listed : [];
+    const asking = reason !== "answer-check" && reason !== "screen-change";
+    const inTurn = voicesIn(
+      lines.filter((line) => line.seq >= from && line.seq <= until.seq),
+    );
+    const voices = !asking
+      ? []
+      : inTurn.length > 0
+        ? inTurn
+        : roster.map((panelist) => panelist.name);
     const post = async (final: boolean) => {
-      const parsed = parseCoachReply(text, final, known, mode);
+      const parsed = parseCoachReply(text, final, known, mode, voices);
       if (!parsed) return;
       const edges = designing ? withEdges(design.edges, parsed.draw) : [];
       const diagram = designDiagram(edges);
@@ -480,9 +498,17 @@ export function createCoach(ports: CoachPorts, options: CoachOptions = {}) {
         designing && (fresh.sections ?? []).length === 0 && design.sections
           ? { ...fresh, sections: design.sections }
           : fresh;
+      // A turn in which one named interviewer spoke was asked by them: the
+      // source says so, whether or not the model wrote it down.
+      const asker =
+        worded.from ?? (asking && inTurn.length === 1 ? inTurn[0] : undefined);
       const reply = {
         ...parsed,
-        note: nudge ? oneLine(worded) : worded,
+        note: nudge
+          ? oneLine(worded)
+          : asker
+            ? { ...worded, from: asker }
+            : worded,
       };
       const askId = designing
         ? `${noteKey}-ask`
@@ -575,6 +601,7 @@ export function createCoach(ports: CoachPorts, options: CoachOptions = {}) {
       mode,
       ...(designing ? { design } : {}),
       ...(screen ? { screen: screen.text } : {}),
+      ...(roster.length > 0 ? { roster } : {}),
     });
     // One session per conversation, begun again every so often so that it
     // does not grow without bound: the background then says where things are.

@@ -74,7 +74,7 @@ Posting by hand (`node scripts/coach-transcript.mjs`) sends this body to `POST /
 { "lines": [ { "speaker": "interviewer", "text": "So, tell me, um, how do you decide when a feature should be its own service?", "at": "2026-10-09T10:00:34.000Z" } ] }
 ```
 
-`GET /api/v1/coach-transcript?after=3` returns `{ "epoch": "1a2b3c4d-…", "cursor": 5, "lines": [{ "seq": 4, "speaker": "interviewer", "text": "…", "at": "…" }], "session": { "tenantId", "actorId", "sessionId" }, "screen": { "text", "at" } }`. `session` and `screen` are present only when known. A new `epoch` (clear or restart) makes the coach forget everything.
+`GET /api/v1/coach-transcript?after=3` returns `{ "epoch": "1a2b3c4d-…", "cursor": 5, "lines": [{ "seq": 4, "speaker": "interviewer", "text": "…", "at": "…" }], "session": { "tenantId", "actorId", "sessionId" }, "screen": { "text", "at" } }`. `session` and `screen` are present only when known. A line may also carry `name`, the interviewer who spoke, when its source knew (see "Scenario 4: a panel"); a live session's lines never do. A new `epoch` (clear or restart) makes the coach forget everything.
 
 ## Step 2: the turn decision
 
@@ -99,7 +99,7 @@ Which engine method: `engine.stream` (promise: the execution as it happens, endi
 engine.stream(
   { profileId: "interview-live-coach",
     messages: [
-      { role: "system", parts: [{ type: "text", text: COACH_SYSTEM /* prompt version live-coach-8 */ }] },
+      { role: "system", parts: [{ type: "text", text: COACH_SYSTEM /* prompt version live-coach-9 */ }] },
       { role: "user",   parts: [{ type: "text", text: coachPrompt({...}) }] } ] },
   { scope: { tenantId, actorId, productId: "omnitech.interview" },
     permissions: ["interview.read"],
@@ -222,6 +222,72 @@ flowchart LR
 
 Observed: each revision replaces the note's sections, so the stage-1 questions are gone from the note once stage 2 posts; only the diagram accumulates. The next call's prompt says `THE DESIGN SO FAR (stage: requirements):` and lists arrows as `A -> B: label`.
 
+## Scenario 4: a panel
+
+Several interviewers are one side to the turn decision: the candidate answers the panel, so "has the other side finished" is asked of all of them together, and when the coach acts is the same with and without names (`turns.ts`; a test replays the fixture both ways and compares). What a name changes is what the model reads and what a note may say.
+
+Where a name comes from. A transcript line may carry `name` (`coachTranscriptLineSchema`: letters, digits, spaces, `.`, `'`, `-`, at most 40 characters, so it can never hold a colon or a line break). It is set only by a source that knows:
+
+| Source | Names? |
+|---|---|
+| `pnpm coach:replay` with more than one `--interviewer` label (or a fixture with several) | Yes: each interviewer block keeps its label (`castBlocks`). `--no-names` drops them |
+| `node scripts/coach-transcript.mjs <file> --interviewer "Priya,Marcus,Tom" --candidate "Me"` and `parseTranscriptFile` | Yes, when more than one label is the interviewer |
+| `POST /api/v1/coach-transcript` | Whatever the poster sends in `name` |
+| A live session (`onHeard`) | No: the call's audio is one stream. Nothing in the code makes a name up |
+
+With one interviewer label no name is carried, so a two-person replay reads `INTERVIEWER:` as before.
+
+The plan names the panel in one line, read by `rosterOf` (`coach/roster.ts`):
+
+```text
+panel: Priya (hiring manager, runs the panel), Marcus (staff engineer: reliability, payments, data), Tom (engineering director: interrupts and pushes back)
+```
+
+The line may start with `panel:`, `panelists:`, `interviewers:` or `who is there:` (any case). People are separated by commas or semicolons outside brackets; what a person judges follows the name in brackets, or after ` - ` or `: `. An entry that is not a capitalised name of at most three words is left out; at most eight people. A plan without the line has no roster.
+
+When there is a roster, or any line is named, the user message gains a block after the plan (and nothing else changes; the system message is the same for every call):
+
+```text
+THE PANEL: more than one interviewer is on this call.
+- Priya: hiring manager, runs the panel
+- Marcus: staff engineer: reliability, payments, data
+Rules for a panel:
+- Aim the answer at what the person who asked is judging (THE PANEL and the plan say what that is); the others are listening.
+- Talk between panelists is nothing to coach: a handover, an audio check ("can you hear me?"), "are we at time", one giving way to another, one answering another. Reply NONE unless the candidate was asked something. When two start at once, answer the one who goes on to ask.
+```
+
+The rule for who asked is said with every turn, straight before `NEW LINES` (a model kept in one session is told the block above once, and stopped writing the line when the rule was only there):
+
+```text
+PANEL: straight after ASK, add the line FROM: the first name of the interviewer who asked, as the lines name them.
+```
+
+With no names on the lines it reads instead: `PANEL: the lines do not say which interviewer spoke (Priya, Marcus, …). Straight after ASK add the line FROM: their first name, but ONLY when the words themselves make it certain who is asking: they were handed to by name, they introduced themselves, or someone addressed them by name around the question, and nobody else has taken over since. Otherwise write no FROM line. Never guess from what was asked.`
+
+Two panelists starting at once, replayed with names (the benchmark's `charged-once`). These lines of the turn reach the model as:
+
+```text
+ELENA (interviewer): Can I ask about,
+ELENA (interviewer): um,
+MARCUS (interviewer): And what about idempotency,
+ELENA (interviewer): how you work with product when—
+MARCUS (interviewer): if a—
+MARCUS (interviewer): Sorry,
+MARCUS (interviewer): go ahead,
+MARCUS (interviewer): Elena.
+ELENA (interviewer): No,
+ELENA (interviewer): no,
+ELENA (interviewer): you go,
+ELENA (interviewer): mine is a longer one.
+MARCUS (interviewer): Okay.
+MARCUS (interviewer): If a broker double-clicks submit and we get the same payment request twice,
+MARCUS (interviewer): how do you make sure they are only charged once?
+```
+
+Heard live, the same stretch is fifteen `INTERVIEWER:` lines.
+
+The reply may carry `FROM: Marcus`. `parseCoachReply` keeps it only if it is a name the coach was given for this call (`voiceAmong`): where the turn's lines are named, someone who spoke in that turn; otherwise someone on the plan's roster. Any other name is dropped. A turn in which exactly one named interviewer spoke is marked as asked by them whether or not the model wrote the line. A look at the candidate's own answer (`answer-check`) or at the screen never names anyone. The posted note carries `"from": "Marcus"`, and the notes pane shows it in the note's quiet line: `Technical · from Marcus · 10:44:28`.
+
 ## What is kept
 
 | What | Where | Notes |
@@ -294,7 +360,14 @@ pnpm -s coach:fixture panel-round   # remake a scripted call's transcript from s
 
 A run prints, per question: whether it was acted on whole, acts on part of it, question end to first line, and looks and nudges during the answer; per quiet stretch: acts and notes shown. It ends with one line in short, keeps its result in `.dev-local/benchmarks/` and compares with the last run of the same call on the same runtime. The `call fixtures` suite in `pnpm test` runs both calls with no model and fails when a question is no longer acted on whole or the early and wasted acts exceed the fixture's `budget`.
 
-In a panel every interviewer reaches the coach as "INTERVIEWER": call audio is one stream, so who asked is not known, and two panelists talking over each other arrive as one muddled turn.
+`panel-round` names its five interviewers, so a replay of it gives the coach each line under its speaker's name. A call heard live is one stream of call audio with nobody named; `--no-names` replays the panel that way, as a benchmark of its own (`panel-round-unnamed`), so the two are never compared with each other:
+
+```bash
+pnpm -s coach:bench:panel:unnamed:timing   # the same decisions: names never change when the coach acts
+pnpm -s coach:bench:panel:unnamed:claude   # live, about 10 minutes; also :codex
+```
+
+Each question in a panel fixture says who asks it (`from`). A live run prints, per question, who asked and who the note says asked, and ends with how many notes named the right person, the wrong person, and nobody. A note that names nobody is safe; one that names the wrong person is the failure.
 
 ## Limits and decisions
 

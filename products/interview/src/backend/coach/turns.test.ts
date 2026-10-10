@@ -14,6 +14,7 @@ import {
   TURN_TIMING,
   type TurnTiming,
   turnsOf,
+  voicesIn,
 } from "./turns";
 
 type Speaker = CoachTranscriptLine["speaker"];
@@ -1318,5 +1319,280 @@ describe("conversations where the feed says who is speaking", () => {
     });
     expect(withActivity).toEqual(without);
     expect(withActivity.map((act) => act.reason)).toContain("answer-check");
+  });
+});
+
+// ---- A panel: several interviewers, where the lines name who spoke ----------
+
+// The same pairs with the interviewer's name: [name, text]. "me" is the
+// candidate, who is never named.
+type Voiced = readonly [string, string];
+const panel = (pairs: readonly Voiced[], first = 1): CoachTranscriptLine[] =>
+  pairs.map(([who, text], at) => ({
+    seq: first + at,
+    speaker: who === "me" ? "candidate" : "interviewer",
+    ...(who === "me" ? {} : { name: who }),
+    text,
+    at: AT,
+  }));
+// The same lines as a call heard live: one stream, nobody named.
+const unnamed = (lines: readonly CoachTranscriptLine[]) =>
+  lines.map(({ name: _name, ...line }) => line);
+const withoutVoices = (lines: readonly CoachTranscriptLine[]) =>
+  turnsOf(lines).map(({ voices: _voices, ...turn }) => turn);
+
+describe("a panel whose lines name who spoke", () => {
+  const OVERLAP = panel([
+    ["Elena", "Can I ask about, um, how you work with product when"],
+    ["Marcus", "And what about idempotency, if a"],
+    ["Marcus", "Sorry, go ahead, Elena."],
+    ["Elena", "No, no, you go, mine is a longer one."],
+    [
+      "Marcus",
+      "If a broker double-clicks submit, how do you make sure they are only charged once?",
+    ],
+  ]);
+
+  describe("turns", () => {
+    it("keeps several interviewers as one turn of the interviewer's, and says whose voices it holds in the order first heard", () => {
+      expect(turnsOf(OVERLAP)).toEqual([
+        {
+          side: "interviewer",
+          text: OVERLAP.map((line) => line.text).join(" "),
+          words: expect.any(Number),
+          until: 5,
+          voices: ["Elena", "Marcus"],
+        },
+      ]);
+    });
+
+    it("cuts the same turns, with the same words and ends, as the lines do unnamed", () => {
+      const call = panel([
+        ["Priya", "Great, thank you. I'm going to hand over to Marcus now."],
+        ["Marcus", "Thanks, Priya. Can everyone hear me okay?"],
+        ["Elena", "You're a little quiet, Marcus."],
+        ["Marcus", QUESTION],
+        ["me", `I would start from the access pattern. ${points(12)}`],
+        ["Tom", "Right."],
+        ["me", points(8)],
+        ["Tom", "Sorry to jump in, why not put a queue in front of it?"],
+      ]);
+      expect(withoutVoices(call)).toEqual(turnsOf(unnamed(call)));
+      expect(turnsOf(call).map((turn) => turn.voices)).toEqual([
+        ["Priya", "Marcus", "Elena"],
+        undefined,
+        ["Tom"],
+      ]);
+    });
+
+    it("leaves a turn of unnamed lines without voices at all", () => {
+      const turns = turnsOf(
+        heard([
+          ["interviewer", QUESTION],
+          ["candidate", "By region first, then by tenant inside a region."],
+        ]),
+      );
+      expect(turns.every((turn) => !("voices" in turn))).toBe(true);
+    });
+
+    it("does not count a back-channel noise from a panelist as a voice of the turn", () => {
+      const turns = turnsOf(
+        panel([
+          ["Marcus", QUESTION],
+          ["Tom", "Mm, yeah."],
+          ["Marcus", "And how would you move a tenant between shards?"],
+        ]),
+      );
+      expect(turns).toHaveLength(1);
+      expect(turns[0]?.voices).toEqual(["Marcus"]);
+    });
+
+    it("counts a panelist who says even one word of content in the turn", () => {
+      const turns = turnsOf(
+        panel([
+          ["Marcus", QUESTION],
+          ["Tom", "Kafka?"],
+        ]),
+      );
+      expect(turns).toHaveLength(1);
+      expect(turns[0]?.voices).toEqual(["Marcus", "Tom"]);
+    });
+
+    it("does not add a panelist's few words inside the candidate's answer to the candidate's turn", () => {
+      const turns = turnsOf(
+        panel([
+          ["me", `I would fan out with a deadline. ${points(10)}`],
+          ["Tom", "Right."],
+          ["me", points(6)],
+        ]),
+      );
+      expect(turns).toHaveLength(1);
+      expect(turns[0]?.side).toBe("candidate");
+      expect(turns[0]?.voices).toBeUndefined();
+    });
+
+    it("never takes a name from a line that is not the interviewer's", () => {
+      const lines: CoachTranscriptLine[] = [
+        {
+          seq: 1,
+          speaker: "candidate",
+          name: "Jordan",
+          text: QUESTION,
+          at: AT,
+        },
+        {
+          seq: 2,
+          speaker: "unknown",
+          name: "Someone",
+          text: "How would you move a tenant between shards?",
+          at: AT,
+        },
+      ];
+      expect(turnsOf(lines).map((turn) => turn.voices)).toEqual([
+        undefined,
+        undefined,
+      ]);
+      expect(voicesIn(lines)).toEqual([]);
+    });
+  });
+
+  describe("the voices in some lines", () => {
+    it("names each interviewer once, in the order first heard", () => {
+      expect(voicesIn(OVERLAP)).toEqual(["Elena", "Marcus"]);
+    });
+
+    it("is empty for lines nobody named", () => {
+      expect(voicesIn(unnamed(OVERLAP))).toEqual([]);
+      expect(voicesIn([])).toEqual([]);
+    });
+  });
+
+  describe("the decision", () => {
+    // [DOMAIN] When the coach acts is the same with and without names: the
+    // panel is one side. Every clock that matters is tried on each stretch.
+    const STRETCHES: readonly (readonly [string, CoachTranscriptLine[]])[] = [
+      ["two start at once, then one asks", OVERLAP],
+      ["only the two false starts", OVERLAP.slice(0, 2)],
+      ["one gives way", OVERLAP.slice(0, 4)],
+      [
+        "a handover and an audio check",
+        panel([
+          ["Priya", "I'm going to hand over to Marcus now."],
+          ["Marcus", "Thanks, Priya. Can everyone hear me okay?"],
+          ["Elena", "You're a little quiet, Marcus."],
+        ]),
+      ],
+      [
+        "a question the candidate has begun to answer",
+        panel([
+          ["Tom", "Sorry to jump in, why not put a queue in front of it?"],
+          ["me", "A queue hides the slow carrier, it does not remove it."],
+        ]),
+      ],
+      [
+        "a question from one and a follow-on from another",
+        panel([
+          ["Aisha", "Are you legally able to work here?"],
+          ["Priya", "And what notice period do you have?"],
+        ]),
+      ],
+      [
+        "the candidate answering, with a noise from the panel",
+        panel([
+          ["me", points(40)],
+          ["Marcus", "Mm-hm."],
+          ["me", points(30)],
+        ]),
+      ],
+    ];
+    const SILENCES = [0, 300, 800, 1_200, 2_500, 6_000];
+    const SPEAKING: readonly (Speaking | undefined)[] = [
+      undefined,
+      { interviewer: false, candidate: false },
+      { interviewer: true, candidate: false },
+    ];
+
+    it.each(STRETCHES)(
+      "decides %s exactly as it does when nobody is named",
+      (_what, lines) => {
+        for (const silenceMs of SILENCES)
+          for (const speaking of SPEAKING) {
+            const input = {
+              silenceMs,
+              sinceActMs: LONG_AGO,
+              ...(speaking ? { speaking } : {}),
+            };
+            expect(decide({ fresh: lines, ...input })).toEqual(
+              decide({ fresh: unnamed(lines), ...input }),
+            );
+          }
+      },
+    );
+
+    it("waits through two panelists starting at once, and acts when the one who went on has asked", () => {
+      expect(
+        decide({
+          fresh: OVERLAP.slice(0, 2),
+          silenceMs: 1_000,
+          sinceActMs: LONG_AGO,
+        }),
+      ).toEqual({
+        action: "wait",
+        why: "the interviewer has not finished the sentence",
+      });
+      expect(
+        decide({
+          fresh: OVERLAP,
+          silenceMs: TURN_TIMING.finishedMs,
+          sinceActMs: LONG_AGO,
+        }),
+      ).toEqual({
+        action: "act",
+        reason: "question-finished",
+        until: 5,
+        about: "interviewer",
+      });
+    });
+
+    it("does not act while any panelist is still speaking, whoever asked", () => {
+      expect(
+        decide({
+          fresh: OVERLAP,
+          silenceMs: LONG_AGO,
+          sinceActMs: LONG_AGO,
+          speaking: { interviewer: true, candidate: false },
+        }),
+      ).toEqual({ action: "wait", why: "the interviewer is still speaking" });
+    });
+  });
+
+  describe("making a call again", () => {
+    it("is made again when ANOTHER panelist adds to the question, as when the same one does", () => {
+      const added = panel(
+        [["Priya", "And what notice period do you have?"]],
+        2,
+      );
+      expect(shouldRecall(added, "Are you legally able to work here?")).toBe(
+        true,
+      );
+      expect(
+        shouldRecall(unnamed(added), "Are you legally able to work here?"),
+      ).toBe(true);
+    });
+
+    it("is not made again once the candidate has begun to answer, whoever speaks next", () => {
+      expect(
+        shouldRecall(
+          panel(
+            [
+              ["me", "Yes, I am a citizen, so there is nothing to sponsor."],
+              ["Priya", "And what notice period do you have?"],
+            ],
+            2,
+          ),
+          "Are you legally able to work here?",
+        ),
+      ).toBe(false);
+    });
   });
 });

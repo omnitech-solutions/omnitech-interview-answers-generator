@@ -7,6 +7,24 @@ export {
   interviewProvenanceSchema,
 } from "./assistant";
 export {
+  BEHAVIOUR_FLAGS,
+  type BehaviourFlagDefinition,
+  type BehaviourFlagEnvironment,
+  type BehaviourFlagKey,
+  type BehaviourFlagState,
+  type BehaviourFlagsResponse,
+  type BehaviourFlagValue,
+  behaviourFlag,
+  behaviourFlagInputSchema,
+  behaviourFlagsResponseSchema,
+  behaviourFlagValue,
+  resolveBehaviourFlag,
+  resolveBehaviourFlags,
+  type StoredBehaviourFlags,
+  storedBehaviourFlags,
+  withBehaviourFlags,
+} from "./behaviour-flags";
+export {
   type Brief,
   type BriefKind,
   type BriefRequest,
@@ -108,6 +126,7 @@ export {
   coachTranscriptLineSchema,
   coachTranscriptResponseSchema,
   coachTranscriptSessionSchema,
+  coachVoiceNameSchema,
 } from "./coach-transcript";
 export {
   CONTEXT_PROJECTIONS,

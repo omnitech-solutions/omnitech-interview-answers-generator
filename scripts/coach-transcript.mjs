@@ -4,6 +4,8 @@
 //   Speaker 1: So tell me about a time you led a migration.
 //
 //   node scripts/coach-transcript.mjs <file> --interviewer "Speaker 1" --candidate "Speaker 2"
+//   node scripts/coach-transcript.mjs <file> --interviewer "Priya,Marcus,Tom" --candidate "Me"
+//                                                            a panel: each interviewer's lines carry their name
 //   node scripts/coach-transcript.mjs <file> --speed 20      replayed, 20x faster than it was said
 //   node scripts/coach-transcript.mjs <file> --all           the whole of it at once
 //   node scripts/coach-transcript.mjs --clear
@@ -68,10 +70,22 @@ if (!file) {
   console.error("Give the transcript file, or --clear.");
   process.exit(1);
 }
+// A panel: --interviewer may name several labels ("Priya,Marcus,Tom"). Each
+// of their lines then carries its label as the speaker's name, because the
+// recorder told those voices apart. With one interviewer no name is sent.
+const interviewers = (option("--interviewer") ?? "")
+  .split(",")
+  .map((label) => label.trim())
+  .filter(Boolean);
 const speakers = {
-  ...(option("--interviewer") ? { [option("--interviewer")]: "interviewer" } : {}),
+  ...Object.fromEntries(interviewers.map((label) => [label, "interviewer"])),
   ...(option("--candidate") ? { [option("--candidate")]: "candidate" } : {}),
 };
+const NAME = /^\p{L}[\p{L}\p{N} .'’-]{0,39}$/u;
+const nameOf = (label) =>
+  interviewers.length > 1 && interviewers.includes(label) && NAME.test(label)
+    ? { name: label }
+    : {};
 
 // The same reading as the Studio's own parser (coach-transcript.ts): a time
 // line sets the offset, a "Label: text" line is something said, and
@@ -116,6 +130,7 @@ if (said.length === 0) {
 const started = Date.now();
 const lineOf = (each, at) => ({
   speaker: speakers[each.label] ?? "unknown",
+  ...nameOf(each.label),
   text: each.text.slice(0, 4000),
   at: new Date(at).toISOString(),
 });

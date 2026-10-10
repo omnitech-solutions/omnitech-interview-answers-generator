@@ -7,7 +7,10 @@
 //   - plain text:           one unlabelled speaker
 // [DOMAIN] Nothing is joined here: a replay wants each fragment at the moment
 // it was said, because when the coach acts depends on exactly that.
-import type { CoachSpeaker } from "@omnitech/interview-contracts";
+import {
+  type CoachSpeaker,
+  coachVoiceNameSchema,
+} from "@omnitech/interview-contracts";
 
 export type SpokenBlock = {
   // The label the recorder gave ("Speaker 1", "Unknown"); "" when none.
@@ -108,11 +111,26 @@ export type Cast = Readonly<Record<string, SpeakerRole>>;
 // The blocks the coach is to hear, each as a speaker it knows. A label the
 // cast does not name is unknown. `hideMe` leaves the coached person's own
 // lines out as well, to see what the coach does from the questions alone.
+//
+// [DOMAIN] A panel: when the cast names more than one label as the
+// interviewer, each of their blocks keeps its label as the voice's `name`,
+// because the recorder told those voices apart and the coach can then say who
+// asked. With one interviewer there is nothing to tell apart, so a two-person
+// replay reads exactly as it always has. `names: false` drops them, to replay
+// a panel the way a live call is heard: one stream, nobody named.
 export function castBlocks(
   blocks: readonly SpokenBlock[],
   cast: Cast,
-  options: { hideMe?: boolean; fromMs?: number; toMs?: number } = {},
-): (SpokenBlock & { speaker: CoachSpeaker })[] {
+  options: {
+    hideMe?: boolean;
+    fromMs?: number;
+    toMs?: number;
+    names?: boolean;
+  } = {},
+): (SpokenBlock & { speaker: CoachSpeaker; name?: string })[] {
+  const named =
+    options.names !== false &&
+    Object.values(cast).filter((role) => role === "interviewer").length > 1;
   return blocks.flatMap((block) => {
     if (options.fromMs !== undefined && block.endMs < options.fromMs) return [];
     if (options.toMs !== undefined && block.startMs > options.toMs) return [];
@@ -120,6 +138,17 @@ export function castBlocks(
       ? (cast[block.label] as SpeakerRole)
       : "unknown";
     if (role === "leave-out" || (role === "me" && options.hideMe)) return [];
-    return [{ ...block, speaker: role === "me" ? "candidate" : role }];
+    return [
+      {
+        ...block,
+        speaker: role === "me" ? "candidate" : role,
+        // [GUARD] Only a label that reads as a name is one.
+        ...(named &&
+        role === "interviewer" &&
+        coachVoiceNameSchema.safeParse(block.label).success
+          ? { name: block.label }
+          : {}),
+      },
+    ];
   });
 }

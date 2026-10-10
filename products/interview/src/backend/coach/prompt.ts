@@ -6,9 +6,10 @@ import type {
 } from "@omnitech/interview-contracts";
 import type { CoachFact } from "./context";
 import { type CoachMode, type DesignEdge, SILENT } from "./reply";
+import type { Panelist } from "./roster";
 import type { ActReason } from "./turns";
 
-export const COACH_PROMPT_VERSION = "live-coach-8";
+export const COACH_PROMPT_VERSION = "live-coach-9";
 
 // How much of the conversation the model reads: the recent part, in full.
 const WINDOW_CHARS = 12_000;
@@ -105,8 +106,53 @@ const SPEAKER_LABEL = {
   unknown: "SPEAKER",
 } as const;
 
+// [DOMAIN] A line whose source named the interviewer who spoke reads
+// "MARCUS (interviewer): …", so each voice of a panel is its own speaker to
+// the model and two people talking at once read as two people. A line with
+// no name reads as it always has.
 const said = (line: CoachTranscriptLine): string =>
-  `${SPEAKER_LABEL[line.speaker]}: ${line.text}`;
+  `${
+    line.speaker === "interviewer" && line.name
+      ? `${line.name.toUpperCase()} (interviewer)`
+      : SPEAKER_LABEL[line.speaker]
+  }: ${line.text}`;
+
+// [DOMAIN] What changes when more than one interviewer is on the call. It is
+// said only then (a roster in the plan, or names on the lines), so a call
+// with one interviewer is asked exactly what it was asked before.
+function panelLines(
+  roster: readonly Panelist[],
+  named: boolean,
+): readonly string[] {
+  if (roster.length === 0 && !named) return [];
+  return [
+    "THE PANEL: more than one interviewer is on this call.",
+    ...roster.map(
+      (panelist) =>
+        `- ${panelist.name}${panelist.judges ? `: ${panelist.judges}` : ""}`,
+    ),
+    "Rules for a panel:",
+    `- Aim the answer at what the person who asked is judging${roster.length > 0 ? " (THE PANEL and the plan say what that is)" : ""}; the others are listening.`,
+    `- Talk between panelists is nothing to coach: a handover, an audio check ("can you hear me?"), "are we at time", one giving way to another, one answering another. Reply ${SILENT} unless the candidate was asked something. When two start at once, answer the one who goes on to ask.`,
+    "",
+  ];
+}
+
+// [DOMAIN] Who asked is written on a line of the reply (FROM), and the rule
+// for it is said with every turn, not once: a model kept in one session for
+// the call is told the panel when the session opens and would otherwise stop
+// writing the line a few questions in. With names on the lines it is asked
+// for; without them (a call heard live) it is allowed only on a cue in the
+// words themselves, and a guess is forbidden.
+function fromRule(roster: readonly Panelist[], named: boolean): string[] {
+  if (roster.length === 0 && !named) return [];
+  return [
+    named
+      ? "PANEL: straight after ASK, add the line FROM: the first name of the interviewer who asked, as the lines name them."
+      : `PANEL: the lines do not say which interviewer spoke (${roster.map((panelist) => panelist.name).join(", ")}). Straight after ASK add the line FROM: their first name, but ONLY when the words themselves make it certain who is asking: they were handed to by name, they introduced themselves, or someone addressed them by name around the question, and nobody else has taken over since. Otherwise write no FROM line. Never guess from what was asked.`,
+    "",
+  ];
+}
 
 export type CoachPromptInput = {
   // The whole conversation held, oldest first.
@@ -129,6 +175,8 @@ export type CoachPromptInput = {
   // The kind of round, and for a design the arrows drawn so far.
   mode?: CoachMode;
   design?: { stage?: string; edges: readonly DesignEdge[] };
+  // The panel, as the plan names it (roster.ts). Absent or empty: none named.
+  roster?: readonly Panelist[];
 };
 
 export function coachPromptParts(input: CoachPromptInput) {
@@ -153,7 +201,14 @@ export function coachPromptParts(input: CoachPromptInput) {
   const record = [...cited("candidate"), ...cited("preference")];
   const employer = cited("employer");
   const plan = input.plan?.trim();
-  const planLines = plan ? ["THE PLAN FOR THIS CALL:", plan, ""] : [];
+  const roster = input.roster ?? [];
+  const named = input.lines.some(
+    (line) => line.speaker === "interviewer" && line.name,
+  );
+  const planLines = [
+    ...(plan ? ["THE PLAN FOR THIS CALL:", plan, ""] : []),
+    ...panelLines(roster, named),
+  ];
   const logLines =
     input.log && input.log.length > 0
       ? [
@@ -232,6 +287,7 @@ export function coachPromptParts(input: CoachPromptInput) {
       ...givenLines,
       ...earlierLines,
       ...screenLines,
+      ...fromRule(roster, named),
       ...nowLines,
     ].join("\n"),
     // [DOMAIN] For a model kept in one session for the call: `background` is
@@ -244,9 +300,13 @@ export function coachPromptParts(input: CoachPromptInput) {
       ...givenLines,
       ...earlierLines,
     ].join("\n"),
-    turn: [...recordLines, ...employerLines, ...screenLines, ...nowLines].join(
-      "\n",
-    ),
+    turn: [
+      ...recordLines,
+      ...employerLines,
+      ...screenLines,
+      ...fromRule(roster, named),
+      ...nowLines,
+    ].join("\n"),
   };
 }
 

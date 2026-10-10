@@ -17,6 +17,9 @@
 //     "turn": "the words of the turn to answer",
 //     "new": [ { "speaker", "text" } ],          the lines not yet coached
 //     "before": [ { "speaker", "text" } ],       the last of the conversation
+//                                                (a line also carries "name",
+//                                                the interviewer who spoke,
+//                                                when its source knew: a panel)
 //     "plan": "the plan for the call, if one is set",
 //     "key": "a key for the note, so a second note for this turn replaces the first" }
 // Exit 0 with a moment, 2 when nothing happened in time, 1 on an error.
@@ -32,6 +35,13 @@ type Line = Awaited<
   ReturnType<CoachPorts["transcript"]["since"]>
 >["lines"][number];
 
+// A line as the agent is given it: who spoke is named only when the line's
+// source knew (a recorder's labels in a panel), never otherwise.
+const said = ({ speaker, name, text }: Line) => ({
+  speaker,
+  ...(name ? { name } : {}),
+  text,
+});
 const STATE = new URL("../../../.dev-local/coach-listen.json", import.meta.url);
 const WAIT_MS = 10 * 60_000;
 const BEFORE = 40;
@@ -112,11 +122,11 @@ try {
           reason: decision.reason,
           about: decision.about,
           turn: turn?.text ?? "",
-          new: stretch.map(({ speaker, text }) => ({ speaker, text })),
+          new: stretch.map(said),
           before: lines
             .filter((line) => line.seq < from)
             .slice(-BEFORE)
-            .map(({ speaker, text }) => ({ speaker, text })),
+            .map(said),
           ...(plan ? { plan } : {}),
           key: `agent-${state.epoch.slice(0, 8)}-${from}`,
         }),

@@ -34,7 +34,13 @@ const SECOND = "And how would you roll that change back safely?";
 
 // The Studio's side: what it holds, and what it was asked.
 type Held = {
-  lines: { seq: number; speaker: string; text: string; at: string }[];
+  lines: {
+    seq: number;
+    speaker: string;
+    name?: string;
+    text: string;
+    at: string;
+  }[];
   plan: string;
   // Answers every request with this status instead, when set.
   refuse?: number;
@@ -333,6 +339,49 @@ describe("pnpm coach:listen", () => {
       ]);
     } finally {
       delete held.refuse;
+    }
+  }, 60_000);
+  it("in a panel, gives each line the interviewer its source named, and no name where the source gave none", async () => {
+    const earlier = held.lines;
+    const HANDOVER = "I'm going to hand over to Ravi now.";
+    const THANKS = "Thank you, Dana, that was a helpful overview of the team.";
+    held.lines = [
+      { ...line(1, "interviewer", HANDOVER), name: "Dana" },
+      line(2, "candidate", THANKS),
+      { ...line(3, "interviewer", SECOND), name: "Ravi" },
+    ];
+    held.plan = "panel: Dana (hiring manager), Ravi (staff engineer)";
+    try {
+      const first = await listen(["--reset"]);
+      expect(first.stderr).toBe("");
+      expect(first.code).toBe(0);
+      expect(JSON.parse(first.stdout)).toEqual({
+        reason: "speaker-change",
+        about: "interviewer",
+        turn: HANDOVER,
+        new: [{ speaker: "interviewer", name: "Dana", text: HANDOVER }],
+        before: [],
+        // The plan, with its roster line, is given as it was written.
+        plan: held.plan,
+        key: "agent-1a2b3c4d-1",
+      });
+      const second = await listen([]);
+      expect(second.code).toBe(0);
+      expect(JSON.parse(second.stdout)).toEqual({
+        reason: "question-finished",
+        about: "interviewer",
+        turn: SECOND,
+        new: [
+          { speaker: "candidate", text: THANKS },
+          { speaker: "interviewer", name: "Ravi", text: SECOND },
+        ],
+        before: [{ speaker: "interviewer", name: "Dana", text: HANDOVER }],
+        plan: held.plan,
+        key: "agent-1a2b3c4d-2",
+      });
+    } finally {
+      held.lines = earlier;
+      held.plan = "";
     }
   }, 60_000);
 });

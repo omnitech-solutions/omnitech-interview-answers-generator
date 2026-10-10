@@ -14,7 +14,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  castBlocks,
   readTranscript,
+  rosterOf,
   speakersOf,
 } from "@omnitech/product-interview/session-worker";
 import { afterAll, describe, expect, it } from "vitest";
@@ -29,17 +31,30 @@ const names = readdirSync(CALLS, { withFileTypes: true })
 type Expected = {
   interviewer: string[];
   me: string[];
-  questions: { id: string; optional?: boolean; completeWhenSaid: string }[];
+  questions: {
+    id: string;
+    optional?: boolean;
+    completeWhenSaid: string;
+    // In a panel: the interviewer who asks it.
+    from?: string;
+  }[];
   quiet?: { id: string; said: string }[];
   budget: { actsOnPart: number; actsOnQuiet: number };
 };
 type Result = {
+  benchmark: string;
   failed: number;
+  // Whether the coach was told which interviewer spoke each line.
+  names: boolean;
+  askers: { of: number; right: number; wrong: number; unnamed: number };
   questions: {
     id: string;
     optional: boolean;
+    askedBy: string | null;
+    notedFrom: string | null;
     answeredWhole: boolean;
     prematureActs: number;
+    toActS: number | null;
   }[];
   quiet: { id: string; acts: number }[];
 };
@@ -47,9 +62,9 @@ type Result = {
 const kept = mkdtempSync(join(tmpdir(), "call-fixtures-"));
 afterAll(() => rmSync(kept, { recursive: true, force: true }));
 
-const timing = (name: string) =>
+const timing = (name: string, ...flags: string[]) =>
   new Promise<Result>((resolve, reject) => {
-    const results = join(kept, name);
+    const results = join(kept, [name, ...flags].join(""));
     execFile(
       process.execPath,
       [
@@ -61,6 +76,7 @@ const timing = (name: string) =>
         "--timing",
         "--results",
         results,
+        ...flags,
       ],
       { cwd: WORKER, timeout: 50_000 },
       (error, _stdout, stderr) => {
@@ -116,6 +132,63 @@ describe.each(names)("call fixture %s", (name) => {
       expect(where(stretch.said), stretch.id).toBeGreaterThanOrEqual(0);
   });
 
+  it("says who asks each question when there is more than one interviewer, and nobody when there is one", () => {
+    const panel = expected.interviewer.length > 1;
+    for (const question of expected.questions) {
+      if (!panel) {
+        expect(question.from, question.id).toBeUndefined();
+        continue;
+      }
+      expect(expected.interviewer, question.id).toContain(question.from);
+      // The words that complete the question are said by that person.
+      const completes = blocks.find(
+        (block) =>
+          expected.interviewer.includes(block.label) &&
+          block.text
+            .toLowerCase()
+            .includes(question.completeWhenSaid.toLowerCase()),
+      );
+      expect(completes?.label, question.id).toBe(question.from);
+    }
+  });
+
+  it("gives the coach each interviewer's name in a panel, and no name at all with one interviewer", () => {
+    const cast = Object.fromEntries([
+      ...expected.interviewer.map((label) => [label, "interviewer"] as const),
+      ...expected.me.map((label) => [label, "me"] as const),
+    ]);
+    const heard = castBlocks(blocks, cast);
+    const named = [
+      ...new Set(heard.flatMap((each) => (each.name ? [each.name] : []))),
+    ];
+    if (expected.interviewer.length > 1) {
+      expect(named.sort()).toEqual([...expected.interviewer].sort());
+      expect(
+        heard.every(
+          (each) =>
+            (each.speaker === "interviewer") === (each.name !== undefined),
+        ),
+      ).toBe(true);
+    } else expect(named).toEqual([]);
+    expect(
+      castBlocks(blocks, cast, { names: false }).some((each) => "name" in each),
+    ).toBe(false);
+  });
+
+  it.runIf(existsSync(at("plan.md")))(
+    "has a plan whose roster is the fixture's interviewers when it is a panel, and none otherwise",
+    () => {
+      const roster = rosterOf(readFileSync(at("plan.md"), "utf8"));
+      if (expected.interviewer.length > 1) {
+        expect(roster.map((panelist) => panelist.name)).toEqual(
+          expected.interviewer,
+        );
+        // Each is said to judge something: that is what an answer is aimed at.
+        expect(roster.every((panelist) => panelist.judges)).toBe(true);
+      } else expect(roster).toEqual([]);
+    },
+  );
+
   it.runIf(existsSync(at("script.json")))(
     "has the transcript its script makes (pnpm coach:fixture on drift)",
     () => {
@@ -162,6 +235,63 @@ describe.each(names)("call fixture %s", (name) => {
     ).toBeLessThanOrEqual(expected.budget.actsOnQuiet);
   }, 60_000);
 });
+
+// [DOMAIN] A panel replayed with nobody named is how it is heard live: one
+// stream of call audio. When the coach acts must not depend on the names.
+it("the panel round, replayed with nobody named, is acted on exactly as it is with names, as a benchmark of its own", async () => {
+  const [named, unnamed] = await Promise.all([
+    timing("panel-round", "--retain"),
+    timing("panel-round", "--no-names"),
+  ]);
+  expect(named.benchmark).toBe("panel-round");
+  expect(named.names).toBe(true);
+  expect(unnamed.benchmark).toBe("panel-round-unnamed");
+  expect(unnamed.names).toBe(false);
+  const decisions = (result: Result) =>
+    result.questions.map(({ id, answeredWhole, prematureActs, toActS }) => ({
+      id,
+      answeredWhole,
+      prematureActs,
+      toActS,
+    }));
+  expect(decisions(unnamed)).toEqual(decisions(named));
+  expect(unnamed.quiet).toEqual(named.quiet);
+  expect(unnamed.failed).toBe(0);
+  // Who asked is in the result; who a note named is scored only when a model
+  // wrote notes, which no test does.
+  expect(named.questions.map((question) => question.askedBy)).toEqual([
+    "Priya",
+    "Priya",
+    "Marcus",
+    "Tom",
+    "Tom",
+    "Marcus",
+    "Elena",
+    "Tom",
+    "Elena",
+    "Marcus",
+    "Marcus",
+    "Priya",
+    "Aisha",
+    "Aisha",
+    "Priya",
+  ]);
+  expect(named.questions.every((question) => question.notedFrom === null)).toBe(
+    true,
+  );
+  for (const result of [named, unnamed])
+    expect(result.askers).toEqual({ of: 0, right: 0, wrong: 0, unnamed: 0 });
+}, 60_000);
+
+it("the two-person call names nobody: its result says so", async () => {
+  const result = await timing("screening-services", "--no-activity");
+  expect(result.names).toBe(false);
+  expect(result.benchmark).toBe("screening-services");
+  expect(result.questions.map((question) => question.askedBy)).toEqual([
+    null,
+    null,
+  ]);
+}, 60_000);
 
 it("the panel round is ten minutes of five interviewers and one candidate", () => {
   const blocks = readTranscript(

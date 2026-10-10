@@ -430,6 +430,15 @@ describe("the coach's standing instructions", () => {
     expect(COACH_SYSTEM).toContain("THE PLAN FOR THIS CALL");
   });
 
+  it("say nothing of a panel or of FROM: that is told only on a call that has one", () => {
+    expect(COACH_SYSTEM).not.toContain("PANEL");
+    expect(COACH_SYSTEM).not.toContain("FROM:");
+  });
+
+  it("carry the version that came with the panel (live-coach-9)", () => {
+    expect(COACH_PROMPT_VERSION).toBe("live-coach-9");
+  });
+
   it("carry a version that has moved on with the reason line (live-coach-3) and since", () => {
     expect(COACH_PROMPT_VERSION).toMatch(/^live-coach-\d+$/);
     expect(
@@ -871,5 +880,277 @@ describe("the prompt in two parts, for a model kept in one session", () => {
     expect(turn).toContain("c".repeat(4_000));
     expect(background).toContain("b".repeat(7_000));
     expect(background).not.toContain("a".repeat(100));
+  });
+});
+
+// ---- A panel ------------------------------------------------------------------
+
+describe("a panel in the prompt", () => {
+  const PANEL_HEAD = "THE PANEL: more than one interviewer is on this call.";
+  const PLAN_HEAD = "THE PLAN FOR THIS CALL:";
+  const named = (
+    seq: number,
+    name: string,
+    text: string,
+  ): CoachTranscriptLine => ({
+    seq,
+    speaker: "interviewer",
+    name,
+    text,
+    at: AT,
+  });
+  const ROSTER = [
+    { name: "Priya", judges: "hiring manager, runs the panel" },
+    { name: "Marcus", judges: "staff engineer: reliability" },
+    { name: "Tom" },
+  ];
+  const overlap: CoachTranscriptLine[] = [
+    named(1, "Priya", "I'm going to hand over to Marcus now."),
+    line(2, "candidate", "Thank you."),
+    named(3, "Elena", "Can I ask about, um, how you work with product when"),
+    named(4, "Marcus", "And what about idempotency, if a"),
+    named(5, "Marcus", "Sorry, go ahead, Elena."),
+    named(6, "Elena", "No, no, you go, mine is a longer one."),
+    named(7, "Marcus", "How do you make sure they are only charged once?"),
+  ];
+  const unnamedLines = overlap.map(({ name: _name, ...each }) => each);
+  // The block, from its heading to the blank line that ends it.
+  const block = (prompt: string) => {
+    const all = prompt.split("\n");
+    const from = all.indexOf(PANEL_HEAD);
+    return from < 0 ? [] : all.slice(from, all.indexOf("", from));
+  };
+
+  describe("the lines", () => {
+    it("reads a named interviewer's line under their own name, so two at once are two people", () => {
+      const prompt = coachPrompt({ lines: overlap, readTo: 2, notes: [] });
+      const read = parts(prompt.slice(prompt.indexOf(NOTES_HEAD)));
+      // The rule for FROM stands between the conversation and the new lines.
+      expect(read.soFar.slice(2)).toEqual([
+        "",
+        expect.stringMatching(/^PANEL: straight after ASK/),
+      ]);
+      expect({ ...read, soFar: read.soFar.slice(0, 2) }).toEqual({
+        notes: ["(none)"],
+        soFar: [
+          "PRIYA (interviewer): I'm going to hand over to Marcus now.",
+          "CANDIDATE: Thank you.",
+        ],
+        fresh: [
+          "ELENA (interviewer): Can I ask about, um, how you work with product when",
+          "MARCUS (interviewer): And what about idempotency, if a",
+          "MARCUS (interviewer): Sorry, go ahead, Elena.",
+          "ELENA (interviewer): No, no, you go, mine is a longer one.",
+          "MARCUS (interviewer): How do you make sure they are only charged once?",
+        ],
+      });
+    });
+
+    it("reads the same lines, unnamed, as INTERVIEWER, exactly as before", () => {
+      const prompt = coachPrompt({ lines: unnamedLines, readTo: 2, notes: [] });
+      expect(parts(prompt).fresh).toEqual(
+        unnamedLines.slice(2).map((each) => `INTERVIEWER: ${each.text}`),
+      );
+      expect(prompt).not.toContain("(interviewer)");
+    });
+
+    it("never puts a name on a line that is not the interviewer's", () => {
+      const prompt = coachPrompt({
+        lines: [
+          {
+            seq: 1,
+            speaker: "candidate",
+            name: "Jordan",
+            text: "Hello.",
+            at: AT,
+          },
+          {
+            seq: 2,
+            speaker: "unknown",
+            name: "Sam",
+            text: "Hi there.",
+            at: AT,
+          },
+        ],
+        readTo: 0,
+        notes: [],
+      });
+      expect(parts(prompt).fresh).toEqual([
+        "CANDIDATE: Hello.",
+        "SPEAKER: Hi there.",
+      ]);
+      expect(prompt).not.toContain(PANEL_HEAD);
+    });
+  });
+
+  describe("the rules of a panel", () => {
+    it("are not said at all on a call with no roster and no named line: the prompt is what it was", () => {
+      const prompt = coachPrompt({
+        lines: unnamedLines,
+        readTo: 2,
+        notes: [],
+        plan: "Land the ledger story.",
+        roster: [],
+      });
+      expect(prompt).toBe(
+        coachPrompt({
+          lines: unnamedLines,
+          readTo: 2,
+          notes: [],
+          plan: "Land the ledger story.",
+        }),
+      );
+      expect(prompt).not.toContain("PANEL");
+      expect(prompt).not.toContain("FROM");
+      expect(prompt.split("\n").slice(0, 4)).toEqual([
+        PLAN_HEAD,
+        "Land the ledger story.",
+        "",
+        NOTES_HEAD,
+      ]);
+    });
+
+    it("follow the plan, list the roster with what each judges, and end before the notes given", () => {
+      const prompt = coachPrompt({
+        lines: unnamedLines,
+        readTo: 2,
+        notes: [],
+        plan: "Land the ledger story.",
+        roster: ROSTER,
+      });
+      const all = prompt.split("\n");
+      expect(all.slice(0, 7)).toEqual([
+        PLAN_HEAD,
+        "Land the ledger story.",
+        "",
+        PANEL_HEAD,
+        "- Priya: hiring manager, runs the panel",
+        "- Marcus: staff engineer: reliability",
+        "- Tom",
+      ]);
+      expect(all[7]).toBe("Rules for a panel:");
+      expect(all[all.indexOf("", 4) + 1]).toBe(NOTES_HEAD);
+    });
+
+    it("tell the model to aim at what the asker judges and to stay silent for talk between panelists", () => {
+      const rules = block(
+        coachPrompt({
+          lines: unnamedLines,
+          readTo: 2,
+          notes: [],
+          roster: ROSTER,
+        }),
+      ).join("\n");
+      expect(rules).toContain(
+        "Aim the answer at what the person who asked is judging (THE PANEL and the plan say what that is)",
+      );
+      expect(rules).toContain("Talk between panelists is nothing to coach");
+      expect(rules).toContain("a handover");
+      expect(rules).toContain("an audio check");
+      expect(rules).toContain('"are we at time"');
+      expect(rules).toContain(`Reply ${SILENT} unless the candidate was asked`);
+      expect(rules).toContain("answer the one who goes on to ask");
+    });
+
+    // The rule for FROM: the line that starts "PANEL:", said with each turn.
+    const fromRule = (prompt: string) =>
+      prompt.split("\n").filter((each) => each.startsWith("PANEL: "));
+
+    it("with a roster and no names on the lines, allow FROM only on an explicit cue and forbid a guess", () => {
+      const said = fromRule(
+        coachPrompt({
+          lines: unnamedLines,
+          readTo: 2,
+          notes: [],
+          roster: ROSTER,
+        }),
+      );
+      expect(said).toHaveLength(1);
+      const rules = said[0] ?? "";
+      expect(rules).toContain(
+        "the lines do not say which interviewer spoke (Priya, Marcus, Tom).",
+      );
+      expect(rules).toContain("ONLY when the words themselves make it certain");
+      expect(rules).toContain("handed to by name");
+      expect(rules).toContain("introduced themselves");
+      expect(rules).toContain("nobody else has taken over since");
+      expect(rules).toContain("Otherwise write no FROM line.");
+      expect(rules).toContain("Never guess from what was asked.");
+      expect(rules).not.toContain("as the lines name them");
+    });
+
+    it("with names on the lines, ask for FROM as the lines name them", () => {
+      expect(
+        fromRule(
+          coachPrompt({ lines: overlap, readTo: 2, notes: [], roster: ROSTER }),
+        ),
+      ).toEqual([
+        "PANEL: straight after ASK, add the line FROM: the first name of the interviewer who asked, as the lines name them.",
+      ]);
+    });
+
+    it("say the rule for FROM straight before the new lines, apart from the block that is said once", () => {
+      const prompt = coachPrompt({
+        lines: overlap,
+        readTo: 2,
+        notes: [],
+        roster: ROSTER,
+      });
+      const all = prompt.split("\n");
+      const at = all.findIndex((each) => each.startsWith("PANEL: "));
+      expect(all.slice(at + 1, at + 3)).toEqual(["", NEW_HEAD]);
+      expect(block(prompt).join("\n")).not.toContain("FROM");
+    });
+
+    it("are said for named lines even with no roster and no plan, without a list and without pointing at one", () => {
+      const prompt = coachPrompt({ lines: overlap, readTo: 2, notes: [] });
+      expect(prompt.split("\n").slice(0, 2)).toEqual([
+        PANEL_HEAD,
+        "Rules for a panel:",
+      ]);
+      expect(block(prompt).join("\n")).toContain(
+        "- Aim the answer at what the person who asked is judging; the others are listening.",
+      );
+      expect(prompt).not.toContain(PLAN_HEAD);
+    });
+
+    it("are said once a named line is anywhere in the conversation held, new or earlier", () => {
+      expect(coachPrompt({ lines: overlap, readTo: 7, notes: [] })).toContain(
+        PANEL_HEAD,
+      );
+      expect(
+        coachPrompt({ lines: overlap.slice(1, 2), readTo: 0, notes: [] }),
+      ).not.toContain(PANEL_HEAD);
+    });
+
+    it("are part of what the session is told once (the background); the rule for FROM alone is said with every turn", () => {
+      const both = coachPromptParts({
+        lines: overlap,
+        readTo: 2,
+        notes: [],
+        plan: "Land the ledger story.",
+        roster: ROSTER,
+        reason: "question-finished",
+      });
+      expect(both.background).toContain(PANEL_HEAD);
+      expect(both.background.indexOf(PANEL_HEAD)).toBeGreaterThan(
+        both.background.indexOf(PLAN_HEAD),
+      );
+      expect(both.turn).not.toContain(PANEL_HEAD);
+      expect(both.turn).not.toContain("Rules for a panel");
+      expect(both.background).not.toContain("FROM");
+      expect(fromRule(both.turn)).toHaveLength(1);
+      expect(fromRule(both.whole)).toEqual(fromRule(both.turn));
+      expect(both.turn).toContain(
+        "MARCUS (interviewer): How do you make sure they are only charged once?",
+      );
+      // A call with no panel has no such line in its turn.
+      expect(
+        fromRule(
+          coachPromptParts({ lines: unnamedLines, readTo: 2, notes: [] }).turn,
+        ),
+      ).toEqual([]);
+      expect(both.whole).toContain(PANEL_HEAD);
+    });
   });
 });

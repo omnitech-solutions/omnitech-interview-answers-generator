@@ -4,6 +4,7 @@
 // a half-written JSON object cannot be shown. STRATEGY: the model writes one
 // labelled line per piece ("SAY: …"), so every completed line is a whole,
 // valid part of the note and the note so far can be posted as it grows.
+
 import {
   COACH_NOTE_KINDS,
   type CoachNoteInput,
@@ -11,6 +12,7 @@ import {
   type CoachSectionKind,
   TALKING_POINT_LENGTH,
 } from "@omnitech/interview-contracts";
+import { voiceAmong } from "./roster";
 
 // The model's whole reply when nothing is worth saying.
 export const SILENT = "NONE";
@@ -263,6 +265,10 @@ export function parseCoachReply(
   // The person's own facts the model was given, by pointer: only these verify.
   known: KnownFacts = NO_FACTS,
   mode: CoachMode = "conversation",
+  // [SAFETY] The interviewers a note may name as who asked ("FROM: Marcus"):
+  // those the turn's lines named, or else the plan's roster. A name that is
+  // not one of them is dropped, never shown. None given: no note names anyone.
+  voices: readonly string[] = [],
 ): CoachReply | null {
   const lines = text.split(/\r?\n/);
   if (!final) lines.pop();
@@ -305,6 +311,7 @@ export function parseCoachReply(
     : "direct-answer";
   const ask = fields["ASK"] ? cut(fields["ASK"], 80) : undefined;
   const heard = fields["HEARD"] ? cut(fields["HEARD"], 600) : undefined;
+  const from = voiceAmong(fields["FROM"], voices);
   return {
     sameQuestion: /^(yes|true)$/i.test(fields["SAME"] ?? ""),
     draw,
@@ -321,6 +328,7 @@ export function parseCoachReply(
           : "say",
       ...(ask ? { ask } : {}),
       ...(heard ? { heard } : {}),
+      ...(from ? { from } : {}),
       sections: shown,
     },
   };

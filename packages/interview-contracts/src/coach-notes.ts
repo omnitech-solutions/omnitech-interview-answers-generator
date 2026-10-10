@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { coachVoiceNameSchema } from "./coach-transcript";
 
 // [DOMAIN] Coach notes: short prompts pushed to the live session's window while
 // the person is speaking (what to mention next, a figure to use, a link to the
@@ -122,6 +123,10 @@ export const coachNoteInputSchema = z.strictObject({
   kind: z.enum(COACH_NOTE_KINDS).default("direct-answer"),
   // What was asked, as it was heard (the transcript line, tidied).
   heard: z.string().trim().min(1).max(600).optional(),
+  // [DOMAIN] Who asked, in a panel: the interviewer's name, when the coach
+  // could tell and a check in code found the name among those it was given.
+  // Absent: not known, which is the usual case for a call heard live.
+  from: coachVoiceNameSchema.optional(),
   sections: z.array(coachNoteSectionSchema).max(4).default([]),
   // A flow or architecture sketch, as Mermaid source (no code fence).
   diagram: z.string().trim().min(1).max(1_500).optional(),

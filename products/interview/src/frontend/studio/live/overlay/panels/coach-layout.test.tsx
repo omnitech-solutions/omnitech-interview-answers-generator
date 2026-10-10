@@ -991,6 +991,24 @@ describe("how a note is drawn", () => {
     expect(sectionsOf(watch)).toEqual(["caution"]);
   });
 
+  it("in a panel, a note that says who asked names them in its quiet line, after its kind", async () => {
+    post(
+      note(3, 80, {
+        title: "Then the Saga",
+        kind: "technical",
+        from: "Marcus",
+        askId: "q-consistency",
+      }),
+    );
+    await show("coach");
+    const [plain, asked] = blocks();
+    expect(metaOf(asked)).toMatch(/^Technical · from Marcus · \d/);
+    expect(metaOf(asked)).toContain("Then the Saga");
+    // A note that names nobody reads as it always has: kind, then the time.
+    expect(metaOf(plain)).toMatch(/^Answer · \d/);
+    expect(metaOf(plain)).not.toContain("from");
+  });
+
   it("a follow-up that names the question is added beneath the earlier note, never in its place", async () => {
     await show("coach");
     expect(blocks()).toHaveLength(1);
