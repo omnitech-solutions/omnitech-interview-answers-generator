@@ -5,9 +5,9 @@
 // session identity.
 import type { PlatformDatabase } from "@omnitech/database";
 import type { PostgresAgentJobRepository } from "@omnitech/platform-storage";
-import { sql } from "drizzle-orm";
 import { SessionError } from "./errors";
-import { inOwnerScope, type OwnerScope, rowsOf } from "./scope";
+import { listNamedJobs } from "./repositories/job.repository";
+import { inOwnerScope, type OwnerScope } from "./scope";
 
 // What the session layer needs from the job repository. The platform-storage
 // repository satisfies it, so a test can pass the real one.
@@ -23,16 +23,9 @@ export function namedJobs(
   scope: OwnerScope,
   sessionId: string,
 ): Promise<NamedJob[]> {
-  return inOwnerScope(database, scope, async (tx) => {
-    const rows = await rowsOf<{ job_id: string; job_created: boolean }>(
-      tx,
-      sql`SELECT job_id, job_created FROM interview.session_actions
-          WHERE tenant_id = ${scope.tenantId}::uuid
-            AND owner_user_id = ${scope.actorId}::uuid
-            AND session_id = ${sessionId}::uuid AND job_id IS NOT NULL`,
-    );
-    return rows.map((row) => ({ jobId: row.job_id, created: row.job_created }));
-  });
+  return inOwnerScope(database, scope, (tx) =>
+    listNamedJobs(tx, scope, sessionId),
+  );
 }
 
 export type CancellationSummary = { requested: number; alreadyEnded: number };

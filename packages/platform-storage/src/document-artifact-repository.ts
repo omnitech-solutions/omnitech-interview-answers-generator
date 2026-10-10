@@ -1,67 +1,43 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import {
   enterTenant,
   type PlatformDatabase,
   type TenantDatabase,
+  withTenant,
 } from "@omnitech/database";
-import { sql } from "drizzle-orm";
+import { and, eq, isNull, or, type SQL, sql } from "drizzle-orm";
+import {
+  assertBuiltInProvisionable,
+  assertBuiltInProvisionableInTransaction,
+  assertCreatable,
+  BUILT_IN_TEMPLATE_TYPE,
+  builtInId,
+  builtInMetadata,
+  type CreateDocumentArtifact,
+  DOCUMENT_PRODUCT_ID,
+  type ProvisionBuiltInTemplateSource,
+  payloadReference,
+  type ReadDocumentArtifact,
+} from "./document-artifact-rules";
+import { artifactPayloads, artifacts } from "./schema/platform";
 
-export const MAX_DOCUMENT_ARTIFACT_BYTES = 10 * 1024 * 1024;
+export {
+  type CreateDocumentArtifact,
+  type DocumentArtifactType,
+  MAX_DOCUMENT_ARTIFACT_BYTES,
+  type ProvisionBuiltInTemplateSource,
+  type ReadDocumentArtifact,
+} from "./document-artifact-rules";
 
-export type DocumentArtifactType =
-  | "interview.document-template-source"
-  | "interview.document-export";
-
-export interface CreateDocumentArtifact {
-  tenantId: string;
-  actorId: string;
-  artifactType: DocumentArtifactType;
-  title: string;
-  bytes: Uint8Array;
-  metadata?: Record<string, unknown>;
-}
-
-export interface ReadDocumentArtifact {
-  tenantId: string;
-  actorId: string;
-  artifactId: string;
-  expectedType: DocumentArtifactType | "interview.document-template-builtin";
-}
-
-export interface ProvisionBuiltInTemplateSource {
-  tenantId: string;
-  key: string;
-  title: string;
-  bytes: Uint8Array;
-  metadata?: Record<string, unknown>;
-}
-
-function builtInId(tenantId: string, key: string): string {
-  const digest = createHash("sha256")
-    .update(`omnitech.interview/document-template-builtin/${tenantId}/${key}`)
-    .digest("hex");
-  return `${digest.slice(0, 8)}-${digest.slice(8, 12)}-5${digest.slice(13, 16)}-a${digest.slice(17, 20)}-${digest.slice(20, 32)}`;
-}
+const differentContent = "Built-in template key already has different content.";
 
 // Platform storage owns bytes and metadata. The caller must first resolve the
 // template revision or export under Interview's actor-scoped repository; an
 // arbitrary artifact ID from a request is not proof of that relationship.
+// What may be stored is decided in ./document-artifact-rules; this class only
+// persists, in the caller's transaction or in one of its own.
 export class DocumentArtifactRepository {
   constructor(private readonly database: PlatformDatabase) {}
-
-  private validate(input: CreateDocumentArtifact): void {
-    if (
-      input.artifactType !== "interview.document-template-source" &&
-      input.artifactType !== "interview.document-export"
-    )
-      throw new Error("Unsupported document artifact type.");
-    if (input.bytes.byteLength > MAX_DOCUMENT_ARTIFACT_BYTES)
-      throw new Error("Document artifact exceeds the 10 MiB size limit.");
-    if (input.bytes.byteLength === 0)
-      throw new Error("Document artifact cannot be empty.");
-    if (!input.title.trim())
-      throw new Error("Document artifact needs a title.");
-  }
 
   /** Store bytes inside the caller's actor-scoped transaction so a failed
    * template or export link rolls back the artifact and payload together. */
@@ -69,80 +45,54 @@ export class DocumentArtifactRepository {
     db: TenantDatabase,
     input: CreateDocumentArtifact,
   ): Promise<string> {
-    this.validate(input);
+    assertCreatable(input);
     const artifactId = randomUUID();
-    await db.execute(sql`INSERT INTO platform.artifacts
-      (id, tenant_id, owner_user_id, product_id, artifact_type, title, metadata, payload_reference)
-      VALUES (${artifactId}::uuid, ${input.tenantId}::uuid, ${input.actorId}::uuid,
-        'omnitech.interview', ${input.artifactType}, ${input.title.trim()},
-        ${JSON.stringify(input.metadata ?? {})}::jsonb, ${`platform.artifact_payloads/${artifactId}`})`);
-    await db.execute(sql`INSERT INTO platform.artifact_payloads
-      (tenant_id, artifact_id, bytes, byte_length)
-      VALUES (${input.tenantId}::uuid, ${artifactId}::uuid,
-        ${Buffer.from(input.bytes)}, ${input.bytes.byteLength})`);
-    return artifactId;
-  }
-
-  async create(input: CreateDocumentArtifact): Promise<string> {
-    this.validate(input);
-    const artifactId = randomUUID();
-    await this.database.transaction(async (client) => {
-      await enterTenant(client, {
-        tenantId: input.tenantId,
-        actorId: input.actorId,
-      });
-      await client.query(
-        `INSERT INTO platform.artifacts
-           (id, tenant_id, owner_user_id, product_id, artifact_type,
-            title, metadata, payload_reference)
-         VALUES ($1, $2, $3, 'omnitech.interview', $4, $5, $6, $7)`,
-        [
-          artifactId,
-          input.tenantId,
-          input.actorId,
-          input.artifactType,
-          input.title.trim(),
-          input.metadata ?? {},
-          `platform.artifact_payloads/${artifactId}`,
-        ],
-      );
-      await client.query(
-        `INSERT INTO platform.artifact_payloads
-           (tenant_id, artifact_id, bytes, byte_length)
-         VALUES ($1, $2, $3, $4)`,
-        [
-          input.tenantId,
-          artifactId,
-          Buffer.from(input.bytes),
-          input.bytes.byteLength,
-        ],
-      );
+    await db.insert(artifacts).values({
+      id: artifactId,
+      tenantId: input.tenantId,
+      ownerUserId: input.actorId,
+      productId: DOCUMENT_PRODUCT_ID,
+      artifactType: input.artifactType,
+      title: input.title.trim(),
+      metadata: input.metadata ?? {},
+      payloadReference: payloadReference(artifactId),
+    });
+    await db.insert(artifactPayloads).values({
+      tenantId: input.tenantId,
+      artifactId,
+      bytes: Buffer.from(input.bytes),
+      byteLength: input.bytes.byteLength,
     });
     return artifactId;
   }
 
+  // The same write in a transaction of its own, as the owning actor.
+  async create(input: CreateDocumentArtifact): Promise<string> {
+    assertCreatable(input);
+    return withTenant(
+      { tenantId: input.tenantId, actorId: input.actorId },
+      (db) => this.createInTenantTransaction(db, input),
+      { database: this.database },
+    );
+  }
+
   // Called only by trusted tenant catalog provisioning. No product route
-  // accepts a client-provided key or invokes this method.
+  // accepts a client-provided key or invokes this method. It runs with no
+  // actor, and a tenant-scoped Drizzle handle exists only for an actor
+  // (withTenant), so its statements stay raw on the pg client.
   async provisionBuiltIn(
     input: ProvisionBuiltInTemplateSource,
   ): Promise<string> {
-    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(input.key))
-      throw new Error("Built-in template key is invalid.");
-    if (!input.title.trim())
-      throw new Error("Built-in template needs a title.");
-    if (
-      input.bytes.byteLength === 0 ||
-      input.bytes.byteLength > MAX_DOCUMENT_ARTIFACT_BYTES
-    )
-      throw new Error("Built-in template source size is invalid.");
-
+    assertBuiltInProvisionable(input);
     const artifactId = builtInId(input.tenantId, input.key);
     const bytes = Buffer.from(input.bytes);
     await this.database.transaction(async (client) => {
       await enterTenant(client, { tenantId: input.tenantId });
+      // Raw: set_config of a cross-tenant setting (ADR-0023 Decision 1).
       await client.query(
         "SELECT set_config('app.document_catalog_provisioner', 'on', true)",
       );
+      // Raw: no actor, so no Drizzle handle (see above).
       await client.query(
         `INSERT INTO platform.artifacts
            (id, tenant_id, owner_user_id, product_id, artifact_type,
@@ -154,10 +104,11 @@ export class DocumentArtifactRepository {
           artifactId,
           input.tenantId,
           input.title.trim(),
-          { ...input.metadata, builtInKey: input.key },
-          `platform.artifact_payloads/${artifactId}`,
+          builtInMetadata(input),
+          payloadReference(artifactId),
         ],
       );
+      // Raw: no actor, so no Drizzle handle.
       await client.query(
         `INSERT INTO platform.artifact_payloads
            (tenant_id, artifact_id, bytes, byte_length)
@@ -165,6 +116,7 @@ export class DocumentArtifactRepository {
          ON CONFLICT (tenant_id, artifact_id) DO NOTHING`,
         [input.tenantId, artifactId, bytes, bytes.byteLength],
       );
+      // Raw: no actor, so no Drizzle handle.
       const saved = await client.query<{ bytes: Buffer }>(
         `SELECT p.bytes FROM platform.artifact_payloads p
           JOIN platform.artifacts a ON a.tenant_id = p.tenant_id AND a.id = p.artifact_id
@@ -175,7 +127,7 @@ export class DocumentArtifactRepository {
         [input.tenantId, artifactId],
       );
       if (!saved.rows[0]?.bytes.equals(bytes))
-        throw new Error("Built-in template key already has different content.");
+        throw new Error(differentContent);
     });
     return artifactId;
   }
@@ -185,62 +137,104 @@ export class DocumentArtifactRepository {
     db: TenantDatabase,
     input: ProvisionBuiltInTemplateSource,
   ): Promise<string> {
-    if (
-      !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(input.key) ||
-      !input.title.trim() ||
-      input.bytes.byteLength === 0 ||
-      input.bytes.byteLength > MAX_DOCUMENT_ARTIFACT_BYTES
-    )
-      throw new Error("Built-in template source is invalid.");
+    assertBuiltInProvisionableInTransaction(input);
     const artifactId = builtInId(input.tenantId, input.key);
+    const bytes = Buffer.from(input.bytes);
+    // Raw: set_config of a cross-tenant setting has no builder form
+    // (ADR-0023 Decision 1); this file is one of its two named owners.
     await db.execute(
       sql`SELECT set_config('app.document_catalog_provisioner', 'on', true)`,
     );
-    await db.execute(sql`INSERT INTO platform.artifacts
-      (id, tenant_id, owner_user_id, product_id, artifact_type, title, metadata, payload_reference)
-      VALUES (${artifactId}::uuid, ${input.tenantId}::uuid, NULL, 'omnitech.interview',
-        'interview.document-template-builtin', ${input.title.trim()},
-        ${JSON.stringify({ ...input.metadata, builtInKey: input.key })}::jsonb,
-        ${`platform.artifact_payloads/${artifactId}`})
-      ON CONFLICT (id) DO NOTHING`);
-    await db.execute(sql`INSERT INTO platform.artifact_payloads
-      (tenant_id, artifact_id, bytes, byte_length)
-      VALUES (${input.tenantId}::uuid, ${artifactId}::uuid,
-        ${Buffer.from(input.bytes)}, ${input.bytes.byteLength})
-      ON CONFLICT (tenant_id, artifact_id) DO NOTHING`);
-    const saved =
-      await db.execute(sql`SELECT p.bytes FROM platform.artifact_payloads p
-      JOIN platform.artifacts a ON a.tenant_id=p.tenant_id AND a.id=p.artifact_id
-      WHERE p.tenant_id=${input.tenantId}::uuid AND p.artifact_id=${artifactId}::uuid
-        AND a.product_id='omnitech.interview'
-        AND a.artifact_type='interview.document-template-builtin'
-        AND a.owner_user_id IS NULL`);
-    const bytes = saved.rows[0]?.["bytes"];
-    if (!Buffer.isBuffer(bytes) || !bytes.equals(Buffer.from(input.bytes)))
-      throw new Error("Built-in template key already has different content.");
+    // Idempotent on the derived id: a second provisioning writes nothing and
+    // the content check below decides whether it was the same source.
+    await db
+      .insert(artifacts)
+      .values({
+        id: artifactId,
+        tenantId: input.tenantId,
+        ownerUserId: null,
+        productId: DOCUMENT_PRODUCT_ID,
+        artifactType: BUILT_IN_TEMPLATE_TYPE,
+        title: input.title.trim(),
+        metadata: builtInMetadata(input),
+        payloadReference: payloadReference(artifactId),
+      })
+      .onConflictDoNothing({ target: artifacts.id });
+    await db
+      .insert(artifactPayloads)
+      .values({
+        tenantId: input.tenantId,
+        artifactId,
+        bytes,
+        byteLength: bytes.byteLength,
+      })
+      .onConflictDoNothing({
+        target: [artifactPayloads.tenantId, artifactPayloads.artifactId],
+      });
+    const saved = await payloadBytes(
+      db,
+      input.tenantId,
+      artifactId,
+      and(
+        eq(artifacts.artifactType, BUILT_IN_TEMPLATE_TYPE),
+        isNull(artifacts.ownerUserId),
+      ),
+    );
+    if (!saved?.equals(bytes)) throw new Error(differentContent);
     return artifactId;
   }
 
+  // An artifact reads only as its expected type, and only for its owner or,
+  // when it is a tenant's built-in template source, for any member.
   async read(input: ReadDocumentArtifact): Promise<Buffer | null> {
-    return this.database.transaction(async (client) => {
-      await enterTenant(client, {
-        tenantId: input.tenantId,
-        actorId: input.actorId,
-      });
-      const result = await client.query<{ bytes: Buffer }>(
-        `SELECT p.bytes
-           FROM platform.artifact_payloads p
-           JOIN platform.artifacts a
-             ON a.tenant_id = p.tenant_id AND a.id = p.artifact_id
-          WHERE p.tenant_id = $1 AND p.artifact_id = $2
-            AND a.product_id = 'omnitech.interview'
-            AND a.artifact_type = $3
-            AND (a.owner_user_id = $4 OR
-                 (a.owner_user_id IS NULL AND
-                  a.artifact_type = 'interview.document-template-builtin'))`,
-        [input.tenantId, input.artifactId, input.expectedType, input.actorId],
-      );
-      return result.rows[0]?.bytes ?? null;
-    });
+    return withTenant(
+      { tenantId: input.tenantId, actorId: input.actorId },
+      (db) =>
+        payloadBytes(
+          db,
+          input.tenantId,
+          input.artifactId,
+          and(
+            eq(artifacts.artifactType, input.expectedType),
+            or(
+              eq(artifacts.ownerUserId, input.actorId),
+              and(
+                isNull(artifacts.ownerUserId),
+                eq(artifacts.artifactType, BUILT_IN_TEMPLATE_TYPE),
+              ),
+            ),
+          ),
+        ),
+      { database: this.database },
+    );
   }
+}
+
+// The bytes of one document artifact of a tenant, when `admitted` holds for
+// its metadata row.
+async function payloadBytes(
+  db: TenantDatabase,
+  tenantId: string,
+  artifactId: string,
+  admitted: SQL | undefined,
+): Promise<Buffer | null> {
+  const rows = await db
+    .select({ bytes: artifactPayloads.bytes })
+    .from(artifactPayloads)
+    .innerJoin(
+      artifacts,
+      and(
+        eq(artifacts.tenantId, artifactPayloads.tenantId),
+        eq(artifacts.id, artifactPayloads.artifactId),
+      ),
+    )
+    .where(
+      and(
+        eq(artifactPayloads.tenantId, tenantId),
+        eq(artifactPayloads.artifactId, artifactId),
+        eq(artifacts.productId, DOCUMENT_PRODUCT_ID),
+        admitted,
+      ),
+    );
+  return rows[0]?.bytes ?? null;
 }

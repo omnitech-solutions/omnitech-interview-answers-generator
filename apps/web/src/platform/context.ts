@@ -9,6 +9,7 @@ import { auth } from "@/auth";
 import { LOCAL_USER_EMAIL, localSignInBypass } from "./fake-auth";
 import { REQUESTED_PATH_HEADER } from "./request-path";
 import { safeReturnTarget, signInPath } from "./return-target";
+import { platformRepository } from "./store";
 
 const localContext: PlatformContext = {
   user: {
@@ -46,13 +47,10 @@ const localContext: PlatformContext = {
 // The bootstrapped local owner and tenant, for fake sign-in in development,
 // resolved through the same tenant-scoped membership read as a real sign-in.
 async function resolveLocalContext(): Promise<PlatformContext | null> {
-  const [{ getPlatformDatabase }, { PlatformRepository }] = await Promise.all([
-    import("@omnitech/database"),
-    import("@omnitech/platform-storage"),
-  ]);
-  const resolved = await new PlatformRepository(
-    getPlatformDatabase(),
-  ).resolveContext(localContext.user.email, localContext.tenant.slug);
+  const resolved = await (await platformRepository()).resolveContext(
+    localContext.user.email,
+    localContext.tenant.slug,
+  );
   if (!resolved) return null;
   return {
     ...localContext,
@@ -87,11 +85,7 @@ export const resolvePlatformContext = cache(async function resolve(
 
   const session = await auth();
   if (!session?.user?.email) return null;
-  const [{ getPlatformDatabase }, { PlatformRepository }] = await Promise.all([
-    import("@omnitech/database"),
-    import("@omnitech/platform-storage"),
-  ]);
-  return new PlatformRepository(getPlatformDatabase()).resolveContext(
+  return (await platformRepository()).resolveContext(
     session.user.email,
     tenantSlug,
   );

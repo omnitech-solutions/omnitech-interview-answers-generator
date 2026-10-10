@@ -7,6 +7,7 @@ import { PostgresAgentJobRepository } from "@omnitech/platform-storage";
 import { SessionError } from "./errors";
 import { createSessionJob, FencedSessionWrites } from "./fenced-writes";
 import type { SessionClaimPort, SessionStorePort } from "./processor-ports";
+import { readSession } from "./repositories/session.repository";
 import { ActiveSessionRepository } from "./repository";
 import { inOwnerScope } from "./scope";
 import {
@@ -21,7 +22,6 @@ import { sessionDraftPurger } from "./session-drafts";
 import { cancelSessionJobs, type SessionJobs } from "./session-jobs";
 import { purgeSession, type SessionDraftPurger } from "./session-purge";
 import { listActionsNewest } from "./session-reads";
-import { readSession } from "./session-record";
 
 export type DatabasePortOptions = {
   workerId: string;

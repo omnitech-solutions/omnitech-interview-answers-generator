@@ -2,6 +2,8 @@ import { createReadStream, realpathSync, statSync } from "node:fs";
 import { extname, resolve, sep } from "node:path";
 import { Readable } from "node:stream";
 
+import { hostSettings } from "@/src/platform/settings";
+
 // The on-device (WebGPU) model's packed files, streamed with HTTP Range so a
 // 2 GB download can resume. Served only when ON_DEVICE_MODEL_DIR is set,
 // which `pnpm dev` does when a packed model is present; the browser checks
@@ -18,7 +20,7 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ path: string[] }> },
 ) {
-  const root = process.env["ON_DEVICE_MODEL_DIR"];
+  const root = hostSettings().onDeviceModelDirectory;
   if (!root) return new Response(null, { status: 404 });
   // [GUARD] Only files inside the model directory, never a path out of it.
   const { path } = await context.params;

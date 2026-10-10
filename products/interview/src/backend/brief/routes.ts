@@ -5,25 +5,18 @@
 //
 // PROBLEM: one application's stages, transcripts, employer-said entries and
 // research must be read and edited whole by its owner. STRATEGY: each route
-// parses its body against the contract (every size is bounded there), opens
-// one tenant transaction, and lets the repository settle ownership first.
+// parses its body against the contract (every size is bounded there) and
+// hands it to the brief's service, which opens one tenant transaction and lets
+// the repository settle ownership first.
 // [SAFETY] A refusal is a code alone. Nothing a person typed, uploaded or
 // recorded is ever logged or echoed in an error.
-import { readdir, readFile, stat } from "node:fs/promises";
-import { join } from "node:path";
+import type { PlatformDatabase } from "@omnitech/database";
 import {
-  type PlatformDatabase,
-  type TenantDatabase,
-  withTenant,
-} from "@omnitech/database";
-import {
-  CARRIED_RESEARCH_ID,
   employerSaidInputSchema,
   employerSaidUpdateSchema,
   INTERVIEW_BRIEF_BOUNDS,
   researchCreateSchema,
   researchUpdateSchema,
-  type StageRecording,
   stageCreateSchema,
   stageOrderSchema,
   stageUpdateSchema,
@@ -33,34 +26,10 @@ import {
   transcriptPasteSchema,
   transcriptUpdateSchema,
 } from "@omnitech/interview-contracts";
-import { and, desc, eq } from "drizzle-orm";
 import type { Context, Hono } from "hono";
 import { z } from "zod";
-import { activeSessions } from "../db/live-session";
-import {
-  addEmployerSaid,
-  addResearch,
-  addStage,
-  addTranscript,
-  attachedRecordings,
-  BriefError,
-  type BriefScope,
-  isReferenced,
-  keepCarriedResearch,
-  moveApplicationNotes,
-  orderStages,
-  readBrief,
-  readResearch,
-  readTranscriptDetail,
-  removeEmployerSaid,
-  removeResearch,
-  removeStage,
-  removeTranscript,
-  updateEmployerSaid,
-  updateResearch,
-  updateStage,
-  updateTranscript,
-} from "./repository";
+import { BriefError, type BriefScope, isReferenced } from "./repository";
+import { createBriefService } from "./services/brief.service";
 import { decodeTranscript } from "./transcript";
 
 const BOUNDS = INTERVIEW_BRIEF_BOUNDS;
@@ -155,15 +124,8 @@ export function registerBriefRoutes(
 ): void {
   const app = host as Hono<{ Variables: { documentScope: BriefScope } }>;
   const base = `${options.prefix}/candidacies/:id`;
-  const scoped = <Result>(
-    c: ScopedContext,
-    work: (db: TenantDatabase, scope: BriefScope) => Promise<Result>,
-  ) => {
-    const scope = c.get("documentScope");
-    return withTenant(scope, (db) => work(db, scope), {
-      database: options.database,
-    });
-  };
+  const brief = createBriefService(options);
+  const memberOf = (c: ScopedContext) => c.get("documentScope");
   // Every route answers a refusal by its code, and nothing else.
   const route =
     (work: (c: ScopedContext) => Promise<Response>) =>
@@ -178,9 +140,7 @@ export function registerBriefRoutes(
     };
   const id = (c: ScopedContext, name = "id") => uuid.parse(c.req.param(name));
   const briefOf = (c: ScopedContext, status: 200 | 201 = 200) =>
-    scoped(c, (db, scope) => readBrief(db, scope, id(c))).then((brief) =>
-      c.json(brief, status),
-    );
+    brief.readBrief(memberOf(c), id(c)).then((brief) => c.json(brief, status));
 
   app.get(
     `${base}/interview-brief`,
@@ -192,7 +152,7 @@ export function registerBriefRoutes(
     `${base}/stages`,
     route(async (c) => {
       const input = stageCreateSchema.parse(await jsonBody(c.req.raw));
-      await scoped(c, (db, scope) => addStage(db, scope, id(c), input));
+      await brief.addStage(memberOf(c), id(c), input);
       return briefOf(c, 201);
     }),
   );
@@ -200,7 +160,7 @@ export function registerBriefRoutes(
     `${base}/stages/order`,
     route(async (c) => {
       const { order } = stageOrderSchema.parse(await jsonBody(c.req.raw));
-      await scoped(c, (db, scope) => orderStages(db, scope, id(c), order));
+      await brief.orderStages(memberOf(c), id(c), order);
       return briefOf(c);
     }),
   );
@@ -208,9 +168,7 @@ export function registerBriefRoutes(
     `${base}/stages/:stageId`,
     route(async (c) => {
       const input = stageUpdateSchema.parse(await jsonBody(c.req.raw));
-      await scoped(c, (db, scope) =>
-        updateStage(db, scope, id(c), id(c, "stageId"), input),
-      );
+      await brief.updateStage(memberOf(c), id(c), id(c, "stageId"), input);
       return briefOf(c);
     }),
   );
@@ -218,9 +176,7 @@ export function registerBriefRoutes(
     `${base}/stages/:stageId`,
     route(async (c) => {
       try {
-        await scoped(c, (db, scope) =>
-          removeStage(db, scope, id(c), id(c, "stageId")),
-        );
+        await brief.removeStage(memberOf(c), id(c), id(c, "stageId"));
       } catch (error) {
         // A live session or a document was made for this stage.
         if (isReferenced(error)) throw new BriefError("stage-in-use");
@@ -233,7 +189,7 @@ export function registerBriefRoutes(
   app.post(
     `${base}/notes/move`,
     route(async (c) => {
-      await scoped(c, (db, scope) => moveApplicationNotes(db, scope, id(c)));
+      await brief.moveApplicationNotes(memberOf(c), id(c));
       return briefOf(c);
     }),
   );
@@ -252,14 +208,17 @@ export function registerBriefRoutes(
       const input = transcriptPasteSchema.parse(
         await jsonBody(c.req.raw, TRANSCRIPT_JSON),
       );
-      const transcript = await scoped(c, (db, scope) =>
-        addTranscript(db, scope, id(c), id(c, "stageId"), {
+      const transcript = await brief.addTranscript(
+        memberOf(c),
+        id(c),
+        id(c, "stageId"),
+        {
           title: input.title ?? "Pasted transcript",
           origin: "pasted",
           capturePolicy: policyOf(input.capturePolicy),
           occurredAt: input.occurredAt,
           text: input.text,
-        }),
+        },
       );
       return c.json({ transcript }, 201);
     }),
@@ -274,8 +233,11 @@ export function registerBriefRoutes(
       const text = decodeTranscript(file.bytes);
       if (text === null) throw new BriefError("invalid-transcript");
       const occurredAt = file.field("occurredAt");
-      const transcript = await scoped(c, (db, scope) =>
-        addTranscript(db, scope, id(c), id(c, "stageId"), {
+      const transcript = await brief.addTranscript(
+        memberOf(c),
+        id(c),
+        id(c, "stageId"),
+        {
           title: (file.field("title") ?? titleOf(file.name)).slice(
             0,
             BOUNDS.nameChars,
@@ -287,78 +249,16 @@ export function registerBriefRoutes(
             ? z.iso.datetime({ offset: true }).parse(occurredAt)
             : undefined,
           text,
-        }),
+        },
       );
       return c.json({ transcript }, 201);
     }),
   );
 
-  // [SAFETY] The Studio's recordings are files named for the moment record
-  // was pressed and the first eight characters of the session's id. A file is
-  // the member's own only when that session is: the session rows are private
-  // to their owner under forced row-level security, so a recording of another
-  // member's session is never listed and never read.
-  const RECORDING =
-    /^(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})-([0-9a-f]{8})\.txt$/;
-  async function ownRecordings(db: TenantDatabase, scope: BriefScope) {
-    const directory = options.recordingsDirectory;
-    if (!directory) return [];
-    const names = await readdir(directory).catch(() => [] as string[]);
-    const sessions = await db
-      .select({
-        id: activeSessions.id,
-        processingPolicy: activeSessions.processingPolicy,
-      })
-      .from(activeSessions)
-      .where(
-        and(
-          eq(activeSessions.tenantId, scope.tenantId),
-          eq(activeSessions.ownerUserId, scope.actorId),
-        ),
-      )
-      .orderBy(desc(activeSessions.createdAt))
-      .limit(500);
-    const found: Array<Omit<StageRecording, "attached"> & { path: string }> =
-      [];
-    for (const file of names.sort().reverse()) {
-      const named = RECORDING.exec(file);
-      if (!named) continue;
-      const session = sessions.find((each) =>
-        each.id.startsWith(`${named[6]}`),
-      );
-      if (!session) continue;
-      const path = join(directory, file);
-      const size = await stat(path).then(
-        (entry) => entry.size,
-        () => null,
-      );
-      // An empty file is a recording nothing was said in.
-      if (size === null || size === 0) continue;
-      found.push({
-        file,
-        startedAt: `${named[1]}T${named[2]}:${named[3]}:${named[4]}.${named[5]}Z`,
-        bytes: size,
-        capturePolicy:
-          session.processingPolicy === "permitted_remote"
-            ? "permitted-remote"
-            : "device-only",
-        path,
-      });
-    }
-    return found;
-  }
   app.get(
     `${base}/recordings`,
     route(async (c) => {
-      const recordings = await scoped(c, async (db, scope) => {
-        const attached = await attachedRecordings(db, scope, id(c));
-        return (await ownRecordings(db, scope)).map(
-          ({ path: _path, ...recording }) => ({
-            ...recording,
-            attached: attached.has(recording.file),
-          }),
-        );
-      });
+      const recordings = await brief.listRecordings(memberOf(c), id(c));
       return c.json({ recordings });
     }),
   );
@@ -367,25 +267,12 @@ export function registerBriefRoutes(
     `${stagePath}/recordings`,
     route(async (c) => {
       const input = transcriptAttachSchema.parse(await jsonBody(c.req.raw));
-      const transcript = await scoped(c, async (db, scope) => {
-        const recording = (await ownRecordings(db, scope)).find(
-          (each) => each.file === input.file,
-        );
-        if (!recording) throw new BriefError("not-found");
-        if (recording.bytes > BOUNDS.transcriptUploadBytes)
-          throw new BriefError("body-too-large");
-        const text = decodeTranscript(await readFile(recording.path));
-        if (text === null) throw new BriefError("invalid-transcript");
-        return addTranscript(db, scope, id(c), id(c, "stageId"), {
-          title: input.title ?? `Recorded ${recording.startedAt.slice(0, 10)}`,
-          origin: "recorded",
-          originName: recording.file,
-          // The policy of the session it was recorded in, never a choice.
-          capturePolicy: recording.capturePolicy,
-          occurredAt: recording.startedAt,
-          text,
-        });
-      });
+      const transcript = await brief.attachRecording(
+        memberOf(c),
+        c.req.param("id") ?? "",
+        c.req.param("stageId") ?? "",
+        input,
+      );
       return c.json({ transcript }, 201);
     }),
   );
@@ -393,14 +280,11 @@ export function registerBriefRoutes(
     `${stagePath}/:transcriptId`,
     route(async (c) =>
       c.json({
-        transcript: await scoped(c, (db, scope) =>
-          readTranscriptDetail(
-            db,
-            scope,
-            id(c),
-            id(c, "stageId"),
-            id(c, "transcriptId"),
-          ),
+        transcript: await brief.readTranscriptDetail(
+          memberOf(c),
+          id(c),
+          id(c, "stageId"),
+          id(c, "transcriptId"),
         ),
       }),
     ),
@@ -410,15 +294,12 @@ export function registerBriefRoutes(
     route(async (c) => {
       const input = transcriptUpdateSchema.parse(await jsonBody(c.req.raw));
       return c.json({
-        transcript: await scoped(c, (db, scope) =>
-          updateTranscript(
-            db,
-            scope,
-            id(c),
-            id(c, "stageId"),
-            id(c, "transcriptId"),
-            input,
-          ),
+        transcript: await brief.updateTranscript(
+          memberOf(c),
+          id(c),
+          id(c, "stageId"),
+          id(c, "transcriptId"),
+          input,
         ),
       });
     }),
@@ -426,14 +307,11 @@ export function registerBriefRoutes(
   app.delete(
     `${stagePath}/:transcriptId`,
     route(async (c) => {
-      await scoped(c, (db, scope) =>
-        removeTranscript(
-          db,
-          scope,
-          id(c),
-          id(c, "stageId"),
-          id(c, "transcriptId"),
-        ),
+      await brief.removeTranscript(
+        memberOf(c),
+        id(c),
+        id(c, "stageId"),
+        id(c, "transcriptId"),
       );
       return briefOf(c);
     }),
@@ -444,7 +322,7 @@ export function registerBriefRoutes(
     `${base}/employer-said`,
     route(async (c) => {
       const input = employerSaidInputSchema.parse(await jsonBody(c.req.raw));
-      await scoped(c, (db, scope) => addEmployerSaid(db, scope, id(c), input));
+      await brief.addEmployerSaid(memberOf(c), id(c), input);
       return briefOf(c, 201);
     }),
   );
@@ -452,8 +330,11 @@ export function registerBriefRoutes(
     `${base}/employer-said/:entryId`,
     route(async (c) => {
       const input = employerSaidUpdateSchema.parse(await jsonBody(c.req.raw));
-      await scoped(c, (db, scope) =>
-        updateEmployerSaid(db, scope, id(c), id(c, "entryId"), input),
+      await brief.updateEmployerSaid(
+        memberOf(c),
+        id(c),
+        id(c, "entryId"),
+        input,
       );
       return briefOf(c);
     }),
@@ -461,9 +342,7 @@ export function registerBriefRoutes(
   app.delete(
     `${base}/employer-said/:entryId`,
     route(async (c) => {
-      await scoped(c, (db, scope) =>
-        removeEmployerSaid(db, scope, id(c), id(c, "entryId")),
-      );
+      await brief.removeEmployerSaid(memberOf(c), id(c), id(c, "entryId"));
       return briefOf(c);
     }),
   );
@@ -475,15 +354,13 @@ export function registerBriefRoutes(
       const input = researchCreateSchema.parse(
         await jsonBody(c.req.raw, RESEARCH_JSON),
       );
-      await scoped(c, (db, scope) =>
-        addResearch(db, scope, id(c), {
-          scope: input.scope ?? "application",
-          title: input.title,
-          origin: input.origin ?? (input.originRef ? "url" : "pasted"),
-          originRef: input.originRef,
-          text: input.text,
-        }),
-      );
+      await brief.addResearch(memberOf(c), id(c), {
+        scope: input.scope ?? "application",
+        title: input.title,
+        origin: input.origin ?? (input.originRef ? "url" : "pasted"),
+        originRef: input.originRef,
+        text: input.text,
+      });
       return briefOf(c, 201);
     }),
   );
@@ -500,18 +377,16 @@ export function registerBriefRoutes(
       const scopeOf = z
         .enum(["company", "application"])
         .parse(file.field("scope") ?? "application");
-      await scoped(c, (db, scope) =>
-        addResearch(db, scope, id(c), {
-          scope: scopeOf,
-          title: (file.field("title") ?? titleOf(file.name)).slice(
-            0,
-            BOUNDS.nameChars,
-          ),
-          origin: "file",
-          originRef: file.name.slice(0, BOUNDS.originChars),
-          text,
-        }),
-      );
+      await brief.addResearch(memberOf(c), id(c), {
+        scope: scopeOf,
+        title: (file.field("title") ?? titleOf(file.name)).slice(
+          0,
+          BOUNDS.nameChars,
+        ),
+        origin: "file",
+        originRef: file.name.slice(0, BOUNDS.originChars),
+        text,
+      });
       return briefOf(c, 201);
     }),
   );
@@ -519,7 +394,7 @@ export function registerBriefRoutes(
   app.post(
     `${base}/research/keep-carried`,
     route(async (c) => {
-      await scoped(c, (db, scope) => keepCarriedResearch(db, scope, id(c)));
+      await brief.keepCarriedResearch(memberOf(c), id(c));
       return briefOf(c);
     }),
   );
@@ -530,13 +405,11 @@ export function registerBriefRoutes(
     `${base}/research/:documentId`,
     route(async (c) =>
       c.json({
-        document: await scoped(c, (db, scope) => {
-          const wanted = documentId(c);
-          // [GUARD] Anything that is neither names no document.
-          if (wanted !== CARRIED_RESEARCH_ID && !uuid.safeParse(wanted).success)
-            throw new BriefError("not-found");
-          return readResearch(db, scope, id(c), wanted);
-        }),
+        document: await brief.readResearchDocument(
+          memberOf(c),
+          c.req.param("id") ?? "",
+          documentId(c),
+        ),
       }),
     ),
   );
@@ -546,8 +419,11 @@ export function registerBriefRoutes(
       const input = researchUpdateSchema.parse(
         await jsonBody(c.req.raw, RESEARCH_JSON),
       );
-      await scoped(c, (db, scope) =>
-        updateResearch(db, scope, id(c), uuid.parse(documentId(c)), input),
+      await brief.updateResearch(
+        memberOf(c),
+        id(c),
+        uuid.parse(documentId(c)),
+        input,
       );
       return briefOf(c);
     }),
@@ -555,9 +431,7 @@ export function registerBriefRoutes(
   app.delete(
     `${base}/research/:documentId`,
     route(async (c) => {
-      await scoped(c, (db, scope) =>
-        removeResearch(db, scope, id(c), uuid.parse(documentId(c))),
-      );
+      await brief.removeResearch(memberOf(c), id(c), uuid.parse(documentId(c)));
       return briefOf(c);
     }),
   );

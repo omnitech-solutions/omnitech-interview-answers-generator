@@ -29,12 +29,13 @@ import {
   type StageUpdate,
   type TranscriptPolicy,
 } from "@omnitech/interview-contracts";
-import { and, asc, eq, inArray, isNull, max, ne, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, max, ne, or } from "drizzle-orm";
 import {
   employerSaidEntries,
   interviewTranscripts,
   researchDocuments,
 } from "../db/brief";
+import { activeSessions } from "../db/live-session";
 import {
   candidacies,
   companies,
@@ -43,6 +44,12 @@ import {
   memberPeople,
   people,
 } from "../db/schema";
+import {
+  carriedNotes,
+  isCompleteOrder,
+  loosensRecording,
+  parkingOrdinal,
+} from "./domain/policy";
 import { sha256Of, turnsOf } from "./transcript";
 
 const BOUNDS = INTERVIEW_BRIEF_BOUNDS;
@@ -611,15 +618,18 @@ export async function orderStages(
 ): Promise<void> {
   await ownedCandidacy(db, scope, candidacyId);
   const rows = await stageRows(db, scope, candidacyId);
-  const known = new Set(rows.map((row) => row.id));
   // [GUARD] Exactly the application's stages, each once.
   if (
-    order.length !== rows.length ||
-    new Set(order).size !== order.length ||
-    order.some((id) => !known.has(id))
+    !isCompleteOrder(
+      order,
+      rows.map((row) => row.id),
+    )
   )
     throw new BriefError("invalid-request");
-  const away = Math.max(0, ...rows.map((row) => row.ordinal)) + order.length;
+  const away = parkingOrdinal(
+    rows.map((row) => row.ordinal),
+    order.length,
+  );
   const place = (id: string, ordinal: number) =>
     db
       .update(interviews)
@@ -641,11 +651,14 @@ export async function moveApplicationNotes(
 ): Promise<void> {
   const candidacy = await ownedCandidacy(db, scope, candidacyId);
   const [first] = await stageRows(db, scope, candidacyId);
-  const notes = blank(candidacy.notes);
-  if (!notes || !first) throw new BriefError("nothing-to-carry");
-  const held = blank(first.notes);
-  const moved = held ? `${held}\n\n${notes}` : notes;
-  if (moved.length > BOUNDS.notesChars) throw new BriefError("limit-reached");
+  const carried = carriedNotes(
+    blank(candidacy.notes),
+    first && blank(first.notes),
+    Boolean(first),
+  );
+  if ("refused" in carried) throw new BriefError(carried.refused);
+  if (!first) throw new BriefError("nothing-to-carry");
+  const moved = carried.moved;
   await db
     .update(interviews)
     .set({ notes: moved, updatedAt: new Date() })
@@ -777,11 +790,7 @@ export async function updateTranscript(
   // [SAFETY] The policy a transcript was RECORDED under is a fact about the
   // recording: a device-only recording is never made sendable afterwards.
   // What the person uploaded or pasted is theirs to decide either way.
-  if (
-    current.origin === "recorded" &&
-    current.capturePolicy === "device-only" &&
-    input.capturePolicy === "permitted-remote"
-  )
+  if (loosensRecording(current, input.capturePolicy))
     throw new BriefError("loosening-refused");
   const [saved] = await db
     .update(interviewTranscripts)
@@ -1304,4 +1313,23 @@ export async function readBriefMaterial(
       carried: document.carried,
     })),
   };
+}
+
+// The member's own live sessions, newest first, as the recordings list reads
+// them: a recording file is the member's only when its session is.
+export function ownSessionPolicies(db: TenantDatabase, scope: BriefScope) {
+  return db
+    .select({
+      id: activeSessions.id,
+      processingPolicy: activeSessions.processingPolicy,
+    })
+    .from(activeSessions)
+    .where(
+      and(
+        eq(activeSessions.tenantId, scope.tenantId),
+        eq(activeSessions.ownerUserId, scope.actorId),
+      ),
+    )
+    .orderBy(desc(activeSessions.createdAt))
+    .limit(500);
 }

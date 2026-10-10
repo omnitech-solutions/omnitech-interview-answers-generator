@@ -1,6 +1,4 @@
 import "@/src/platform/server-only";
-import { getPlatformDatabase } from "@omnitech/database";
-import { PlatformRepository } from "@omnitech/platform-storage";
 import NextAuth from "next-auth";
 import type { Provider } from "next-auth/providers";
 import Credentials from "next-auth/providers/credentials";
@@ -12,6 +10,7 @@ import {
   resolveTrustHost,
 } from "@/src/platform/auth-settings";
 import { allowLocalSignIn, LOCAL_USER_EMAIL } from "@/src/platform/fake-auth";
+import { platformRepository } from "@/src/platform/store";
 
 const providers: Provider[] = [
   ...(process.env["FAKE_AUTH_ENABLED"] === "true"
@@ -82,8 +81,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
       ) {
         return true;
       }
-      const repository = new PlatformRepository(getPlatformDatabase());
-      await repository.upsertIdentity({
+      await (await platformRepository()).upsertIdentity({
         provider: account.provider,
         providerAccountId: account.providerAccountId,
         email: user.email,

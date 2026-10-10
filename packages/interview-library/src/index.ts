@@ -1,5 +1,4 @@
 import type {
-  LibraryFacets,
   LibraryItem,
   LibrarySearchQuery,
   LibrarySearchResponse,
@@ -9,9 +8,23 @@ import {
   persistToFile,
   restoreFromFile,
 } from "@orama/plugin-data-persistence/server";
-import GithubSlugger from "github-slugger";
+import {
+  buildWhere,
+  facetsFrom,
+  retriesWithTolerance,
+  SEARCH_BOOST,
+  SEARCH_FACETS,
+  SEARCH_PROPERTIES,
+  searchableTechnicalTerm,
+  toHit,
+} from "./library-ranking";
+import { type LibrarySection, toSearchSections } from "./library-sections";
 
 export { interviewLibrarySeed } from "./catalog";
+export {
+  extractLibrarySections,
+  type LibrarySectionDraft,
+} from "./library-sections";
 
 const indexFormatVersion = 3;
 
@@ -36,25 +49,6 @@ const librarySectionSchema = {
 
 type LibraryDatabase = ReturnType<typeof create<typeof librarySectionSchema>>;
 
-interface LibrarySection {
-  itemId: string;
-  slug: string;
-  title: string;
-  summary: string;
-  body: string;
-  heading: string;
-  headingPath: string;
-  anchor: string;
-  contentType: LibraryItem["contentType"];
-  collection: string;
-  tags: string[];
-  tagsText: string;
-  official: boolean;
-  primary: boolean;
-  publisher: string;
-  canonicalUrl: string;
-}
-
 export interface LibrarySearchIndex {
   persist(filePath: string): Promise<void>;
   rebuild(items: LibraryItem[], revision: number): Promise<void>;
@@ -63,12 +57,9 @@ export interface LibrarySearchIndex {
   sourceRevision(): number;
 }
 
-export interface LibrarySectionDraft {
-  anchor: string;
-  body: string;
-  headingPath: string[];
-}
-
+// The Orama index of the library: building, keeping on disk and querying.
+// What a section is lives in ./library-sections; what a search admits and how
+// a hit ranks lives in ./library-ranking.
 export class OramaLibrarySearchIndex implements LibrarySearchIndex {
   private database: LibraryDatabase = create({ schema: librarySectionSchema });
   private revision = -1;
@@ -136,74 +127,21 @@ export class OramaLibrarySearchIndex implements LibrarySearchIndex {
       search(this.database, {
         mode: "fulltext",
         term: searchTerm,
-        properties: [
-          "title",
-          "heading",
-          "tagsText",
-          "summary",
-          "publisher",
-          "body",
-        ],
-        boost: {
-          title: 8,
-          heading: 6,
-          tagsText: 4,
-          summary: 3,
-          publisher: 2,
-          body: 1,
-        },
+        properties: SEARCH_PROPERTIES,
+        boost: SEARCH_BOOST,
         tolerance,
         ...(where ? { where } : {}),
-        facets: {
-          contentType: { limit: 20 },
-          collection: { limit: 50 },
-          tags: { limit: 100 },
-        },
+        facets: SEARCH_FACETS,
         offset: query.offset,
         limit: query.limit,
       });
-    // [STRATEGY] Exact before fuzzy: typo tolerance treats "nextjs" and
-    // "nestjs" as the same word, and the fuzzy title matches then crowd the
-    // exact ones off the first page. Tolerance is used only when the exact
-    // term finds nothing (a real typo).
     const exact = await run(0);
-    const result =
-      exact.count > 0 || searchTerm.length < 5 ? exact : await run(1);
-    const normalizedQuery = query.query.trim().toLocaleLowerCase();
-    // [STRATEGY] A query that IS a technology's tag ("nextjs") ranks that
-    // technology's articles first. Typo tolerance treats near spellings as
-    // matches, so without this "nextjs" surfaces NestJS ahead of Next.js.
-    const exactTag = (section: LibrarySection) =>
-      normalizedQuery !== "" &&
-      (section.collection === normalizedQuery ||
-        section.tags.includes(normalizedQuery))
-        ? 50
-        : 0;
-    const hits = result.hits.map(({ document, score }) => {
-      const section = document as unknown as LibrarySection;
-      const exactTitle =
-        normalizedQuery && section.title.toLocaleLowerCase() === normalizedQuery
-          ? 100
-          : 0;
-      return {
-        itemId: section.itemId,
-        slug: section.slug,
-        title: section.title,
-        summary: section.summary,
-        contentType: section.contentType,
-        collection: section.collection,
-        tags: section.tags,
-        official: section.official,
-        ...(section.publisher ? { publisher: section.publisher } : {}),
-        ...(section.canonicalUrl ? { canonicalUrl: section.canonicalUrl } : {}),
-        anchor: section.anchor,
-        headingPath: section.headingPath
-          .split("\u001f")
-          .filter((value) => value.length > 0),
-        excerpt: excerpt(section.body, query.query),
-        score: score + exactTitle + exactTag(section),
-      };
-    });
+    const result = retriesWithTolerance(exact.count, searchTerm)
+      ? await run(1)
+      : exact;
+    const hits = result.hits.map(({ document, score }) =>
+      toHit(document as unknown as LibrarySection, score, query.query),
+    );
     hits.sort((left, right) => right.score - left.score);
     return {
       hits,
@@ -212,122 +150,6 @@ export class OramaLibrarySearchIndex implements LibrarySearchIndex {
       facets: facetsFrom(result.facets),
     };
   }
-}
-
-function searchableTechnicalTerm(value: string): string {
-  return value
-    .replace(/[_\\:]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-export function extractLibrarySections(
-  markdown: string,
-): LibrarySectionDraft[] {
-  const slugger = new GithubSlugger();
-  const headings: string[] = [];
-  const sections: LibrarySectionDraft[] = [];
-  let current: LibrarySectionDraft = {
-    anchor: "",
-    headingPath: [],
-    body: "",
-  };
-
-  for (const line of markdown.split(/\r?\n/)) {
-    const match = /^(#{1,6})\s+(.+?)\s*$/.exec(line);
-    if (!match) {
-      current.body += `${line}\n`;
-      continue;
-    }
-    if (current.body.trim() || current.headingPath.length > 0) {
-      sections.push({ ...current, body: current.body.trim() });
-    }
-    const level = match[1]?.length ?? 1;
-    const heading = plainText(match[2] ?? "");
-    headings.splice(level - 1);
-    headings[level - 1] = heading;
-    current = {
-      anchor: slugger.slug(heading),
-      headingPath: headings.filter(Boolean),
-      body: "",
-    };
-  }
-  if (current.body.trim() || current.headingPath.length > 0) {
-    sections.push({ ...current, body: current.body.trim() });
-  }
-  return sections.length > 0
-    ? sections
-    : [{ anchor: "", headingPath: [], body: markdown.trim() }];
-}
-
-function toSearchSections(item: LibraryItem): LibrarySection[] {
-  return extractLibrarySections(item.body).map((section, index) => ({
-    itemId: item.id,
-    slug: item.slug,
-    title: item.title,
-    summary: item.summary,
-    body: plainText(section.body),
-    heading: section.headingPath.at(-1) ?? item.title,
-    headingPath: section.headingPath.join("\u001f"),
-    anchor: section.anchor,
-    contentType: item.contentType,
-    collection: item.collection,
-    tags: item.tags,
-    tagsText: item.tags.join(" "),
-    official: item.source?.official ?? false,
-    primary: index === 0,
-    publisher: item.source?.publisher ?? "",
-    canonicalUrl: item.source?.canonicalUrl ?? "",
-  }));
-}
-
-function buildWhere(query: LibrarySearchQuery) {
-  const conditions: Array<Record<string, unknown>> = [];
-  if (!query.query) conditions.push({ primary: true });
-  if (query.contentTypes.length > 0) {
-    conditions.push({ contentType: { in: query.contentTypes } });
-  }
-  if (query.collections.length > 0) {
-    conditions.push({ collection: { in: query.collections } });
-  }
-  if (query.tags.length > 0) {
-    conditions.push({ tags: { containsAll: query.tags } });
-  }
-  if (query.officialOnly) conditions.push({ official: true });
-  if (conditions.length === 0) return undefined;
-  return conditions.length === 1 ? conditions[0] : { and: conditions };
-}
-
-function facetsFrom(
-  facets:
-    | Record<string, { count: number; values: Record<string, number> }>
-    | undefined,
-): LibraryFacets {
-  return {
-    contentTypes: facets?.["contentType"]?.values ?? {},
-    collections: facets?.["collection"]?.values ?? {},
-    tags: facets?.["tags"]?.values ?? {},
-  };
-}
-
-function excerpt(body: string, query: string): string {
-  const clean = plainText(body).replace(/\s+/g, " ").trim();
-  if (!query.trim()) return clean.slice(0, 220);
-  const index = clean.toLocaleLowerCase().indexOf(query.toLocaleLowerCase());
-  const start = Math.max(0, index < 0 ? 0 : index - 80);
-  return `${start > 0 ? "…" : ""}${clean.slice(start, start + 220)}${
-    start + 220 < clean.length ? "…" : ""
-  }`;
-}
-
-function plainText(value: string): string {
-  return value
-    .replace(/```[\s\S]*?```/g, " code example ")
-    .replace(/`([^`]+)`/g, "$1")
-    .replace(/!\[([^\]]*)]\([^)]*\)/g, "$1")
-    .replace(/\[([^\]]+)]\([^)]*\)/g, "$1")
-    .replace(/[*_~>#-]/g, " ")
-    .trim();
 }
 
 function createRevisionDatabase(revision: number): LibraryDatabase {

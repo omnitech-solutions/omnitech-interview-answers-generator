@@ -42,7 +42,11 @@ import type { CodeStates } from "./code-states";
 import { CODING_ACTION_KIND, type CodingSolution } from "./coding-stage";
 import type { PublishEffect } from "./fenced-writes";
 import type { WorkspaceDraftKey } from "./mapping";
-import { firstRow } from "./scope";
+import { lastPublishedDraftRevision } from "./repositories/action.repository";
+import {
+  deleteSessionOwnedDrafts,
+  lockDraftRevision,
+} from "./repositories/draft.repository";
 import type { SessionDraftPurger } from "./session-purge";
 
 export const sessionWorkspaceId = (sessionId: string): string =>
@@ -218,35 +222,25 @@ export function sessionDraftEffect(input: {
 
     // The revision this session last wrote for the task: the newest earlier
     // result that actually wrote the draft.
-    const last = await firstRow<{ revision: string | number | null }>(
+    const last = await lastPublishedDraftRevision(
       tx,
-      sql`SELECT result->'workspace'->>'artifactRevision' AS revision
-          FROM interview.session_actions
-          WHERE tenant_id = ${scope.tenantId}::uuid
-            AND owner_user_id = ${scope.actorId}::uuid
-            AND session_id = ${sessionId}::uuid
-            AND task_id = ${taskId}
-            AND action_kind = ${CODING_ACTION_KIND}
-            AND dispatch_status = 'succeeded'
-            AND result->'workspace'->>'published' = 'true'
-          ORDER BY task_revision DESC, created_at DESC
-          LIMIT 1`,
+      scope,
+      sessionId,
+      taskId,
+      CODING_ACTION_KIND,
     );
     const expected =
       last?.revision === null || last?.revision === undefined
         ? null
         : Number(last.revision);
 
-    const stored = await firstRow<{ revision: string | number }>(
-      tx,
-      sql`SELECT revision FROM interview.assistant_drafts
-          WHERE tenant_id = ${scope.tenantId}
-            AND actor_id = ${scope.actorId}
-            AND product_id = ${INTERVIEW_PRODUCT_ID}
-            AND workspace_id = ${key.workspaceId}
-            AND artifact_id = ${key.artifactId}
-          FOR UPDATE`,
-    );
+    const stored = await lockDraftRevision(tx, {
+      tenantId: scope.tenantId,
+      actorId: scope.actorId,
+      productId: INTERVIEW_PRODUCT_ID,
+      workspaceId: key.workspaceId,
+      artifactId: key.artifactId,
+    });
     const found = stored === undefined ? null : Number(stored.revision);
     const conflict = (
       reason: "owner_edited" | "draft_removed" | "draft_exists",
@@ -325,40 +319,14 @@ export function sessionDraftEffect(input: {
 // reference it), so it stays too.
 export const sessionDraftPurger: SessionDraftPurger = {
   async purge(client, target) {
-    const result = await client.query(
-      `DELETE FROM interview.assistant_drafts d
-       WHERE d.tenant_id = $1 AND d.actor_id = $2 AND d.product_id = $3
-         AND d.workspace_id = $4
-         AND starts_with(COALESCE(d.provenance->>'proposalId', ''), $5)
-         AND d.revision = (
-           SELECT max((a.result->'workspace'->>'artifactRevision')::int)
-           FROM interview.session_actions a
-           WHERE a.tenant_id = $1::uuid AND a.owner_user_id = $2::uuid
-             AND a.session_id = $6::uuid
-             AND a.action_kind = $7
-             AND a.dispatch_status = 'succeeded'
-             AND a.result->'workspace'->>'published' = 'true'
-             AND 'coding:' || a.task_id = d.artifact_id)
-         AND NOT EXISTS (
-           SELECT 1 FROM interview.assistant_answer_revisions r
-           WHERE r.tenant_id = d.tenant_id AND r.actor_id = d.actor_id
-             AND r.product_id = d.product_id AND r.workspace_id = d.workspace_id
-             AND r.artifact_id = d.artifact_id)
-         AND NOT EXISTS (
-           SELECT 1 FROM interview.assistant_reverts v
-           WHERE v.tenant_id = d.tenant_id AND v.actor_id = d.actor_id
-             AND v.product_id = d.product_id AND v.workspace_id = d.workspace_id
-             AND v.artifact_id = d.artifact_id)`,
-      [
-        target.tenantId,
-        target.ownerUserId,
-        INTERVIEW_PRODUCT_ID,
-        sessionWorkspaceId(target.sessionId),
-        sessionProposalId(target.sessionId),
-        target.sessionId,
-        CODING_ACTION_KIND,
-      ],
-    );
-    return result.rowCount ?? 0;
+    return deleteSessionOwnedDrafts(client, {
+      tenantId: target.tenantId,
+      ownerUserId: target.ownerUserId,
+      productId: INTERVIEW_PRODUCT_ID,
+      workspaceId: sessionWorkspaceId(target.sessionId),
+      proposalId: sessionProposalId(target.sessionId),
+      sessionId: target.sessionId,
+      actionKind: CODING_ACTION_KIND,
+    });
   },
 };

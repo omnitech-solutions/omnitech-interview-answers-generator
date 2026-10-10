@@ -16,14 +16,14 @@ import {
   type WorkspaceScope,
 } from "../assistant/workspace";
 import { generateChecked, type StructuredGenerate } from "../structured";
+import {
+  deleteBriefRow,
+  findBriefRow,
+  insertBriefRow,
+  listBriefRows,
+} from "./repository";
 
 const prefix = "/api/interview/briefs";
-const scoped = "tenant_id=$1 AND actor_id=$2 AND product_id=$3";
-const ids = (scope: WorkspaceScope) => [
-  scope.tenantId,
-  scope.actorId,
-  scope.productId,
-];
 const iso = (value: unknown) =>
   value instanceof Date ? value.toISOString() : String(value);
 
@@ -99,21 +99,15 @@ export function createBriefsApi(options: {
   app.get(prefix, async (context) => {
     const scope = context.get("briefScope");
     const rows = await workspace.transaction(scope, (tx) =>
-      tx.query(
-        `SELECT id,kind,topic,updated_at FROM interview.concept_briefs WHERE ${scoped} ORDER BY updated_at DESC LIMIT 100`,
-        ids(scope),
-      ),
+      listBriefRows(tx, scope),
     );
     return context.json({ briefs: rows.map(summary) });
   });
 
   app.get(`${prefix}/:id`, async (context) => {
     const scope = context.get("briefScope");
-    const [row] = await workspace.transaction(scope, (tx) =>
-      tx.query(
-        `SELECT * FROM interview.concept_briefs WHERE ${scoped} AND id=$4`,
-        [...ids(scope), context.req.param("id")],
-      ),
+    const row = await workspace.transaction(scope, (tx) =>
+      findBriefRow(tx, scope, context.req.param("id")),
     );
     if (!row) throw new WorkspaceError("not-found");
     const brief: Brief = {
@@ -134,28 +128,21 @@ export function createBriefsApi(options: {
       conceptBriefSchema,
       scope,
     );
-    const [row] = await workspace.transaction(scope, (tx) =>
-      tx.query(
-        "INSERT INTO interview.concept_briefs(tenant_id,actor_id,product_id,id,kind,topic,value) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb) RETURNING *",
-        [
-          ...ids(scope),
-          randomUUID(),
-          request.kind,
-          request.topic,
-          JSON.stringify(brief),
-        ],
-      ),
+    const row = await workspace.transaction(scope, (tx) =>
+      insertBriefRow(tx, scope, {
+        id: randomUUID(),
+        kind: request.kind,
+        topic: request.topic,
+        value: brief,
+      }),
     );
-    return context.json({ ...summary(row!), brief } satisfies Brief);
+    return context.json({ ...summary(row), brief } satisfies Brief);
   });
 
   app.delete(`${prefix}/:id`, async (context) => {
     const scope = context.get("briefScope");
     const rows = await workspace.transaction(scope, (tx) =>
-      tx.query(
-        `DELETE FROM interview.concept_briefs WHERE ${scoped} AND id=$4 RETURNING id`,
-        [...ids(scope), context.req.param("id")],
-      ),
+      deleteBriefRow(tx, scope, context.req.param("id")),
     );
     if (!rows.length) throw new WorkspaceError("not-found");
     return context.json({ ok: true });

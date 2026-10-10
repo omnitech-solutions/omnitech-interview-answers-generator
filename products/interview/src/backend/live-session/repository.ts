@@ -16,10 +16,7 @@ import {
   liveSessionStartRequestSchema,
 } from "@omnitech/interview-contracts";
 import { PostgresAgentJobRepository } from "@omnitech/platform-storage";
-import { and, eq, sql } from "drizzle-orm";
 import type { z } from "zod";
-import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
-import { activeSessions } from "../db/live-session";
 import { readCaptureRequest, submitCaptureRequest } from "./capture-request";
 import { getCompanionCapability } from "./companion-capability";
 import {
@@ -47,7 +44,23 @@ import {
   OWNER_STOP_BODY,
   storeOwnerInput,
 } from "./owner-input";
-import { firstRow, inOwnerScope, type OwnerScope } from "./scope";
+import { lockSession, readSession } from "./repositories/session.repository";
+import {
+  candidacyIsOwned,
+  findProfileCurrentRevision,
+  hasOpenSession,
+  insertSession,
+  interviewBelongsToCandidacy,
+  profileRevisionExists,
+  readClockMs,
+  replaceCredential,
+  stampCredentialRevoked,
+  workspaceDraftExists,
+  writeProcessingPolicy,
+  writeRetentionMode,
+  writeScreenshotSend,
+} from "./repositories/session-lifecycle.repository";
+import { inOwnerScope, type OwnerScope } from "./scope";
 import { getSessionChoices } from "./session-choices";
 import { mintSessionCredential } from "./session-credential";
 import {
@@ -66,14 +79,7 @@ import {
   listTaskScreenshots,
   readScreenshot,
 } from "./session-reads";
-import {
-  lockSession,
-  readSession,
-  type SessionRecord,
-  type SessionView,
-  toRecord,
-  toView,
-} from "./session-record";
+import { type SessionRecord, type SessionView, toView } from "./session-record";
 import {
   CANCELS_JOBS,
   type ReconcileOptions,
@@ -159,65 +165,50 @@ export class ActiveSessionRepository {
     const refuse = () => new SessionError("link_refused");
     let candidacyId: string | null = null;
     if (input.candidacyId) {
-      const own = await firstRow(
-        tx,
-        sql`SELECT 1 AS ok FROM interview.candidacies c
-            JOIN interview.member_people mp
-              ON mp.tenant_id = c.tenant_id AND mp.person_id = c.candidate_person_id
-            WHERE c.tenant_id = ${scope.tenantId}::uuid
-              AND c.id = ${input.candidacyId}::uuid
-              AND mp.user_id = ${scope.actorId}::uuid`,
-      );
-      if (!own) throw refuse();
+      if (!(await candidacyIsOwned(tx, scope, input.candidacyId)))
+        throw refuse();
       candidacyId = input.candidacyId;
     }
     let interviewId: string | null = null;
     if (input.interviewId) {
       // An interview is linked only through its candidacy.
       if (!candidacyId) throw refuse();
-      const own = await firstRow(
-        tx,
-        sql`SELECT 1 AS ok FROM interview.interviews
-            WHERE tenant_id = ${scope.tenantId}::uuid
-              AND id = ${input.interviewId}::uuid
-              AND candidacy_id = ${candidacyId}::uuid`,
-      );
-      if (!own) throw refuse();
+      if (
+        !(await interviewBelongsToCandidacy(
+          tx,
+          scope,
+          input.interviewId,
+          candidacyId,
+        ))
+      )
+        throw refuse();
       interviewId = input.interviewId;
     }
     let profile: LinkPlan["profile"] = null;
     if (input.profile) {
-      const row = await firstRow<{ revision: string | number }>(
+      const current = await findProfileCurrentRevision(
         tx,
-        sql`SELECT p.revision FROM interview.candidate_profiles p
-            WHERE p.tenant_id = ${scope.tenantId} AND p.actor_id = ${scope.actorId}
-              AND p.product_id = ${INTERVIEW_PRODUCT_ID}
-              AND p.id = ${input.profile.id} AND p.revoked_at IS NULL`,
+        scope,
+        input.profile.id,
       );
-      if (!row) throw refuse();
-      const revision = input.profile.revision ?? Number(row.revision);
-      const pinned = await firstRow(
-        tx,
-        sql`SELECT 1 AS ok FROM interview.candidate_profile_revisions r
-            WHERE r.tenant_id = ${scope.tenantId} AND r.actor_id = ${scope.actorId}
-              AND r.product_id = ${INTERVIEW_PRODUCT_ID}
-              AND r.id = ${input.profile.id} AND r.revision = ${revision}`,
-      );
-      if (!pinned) throw refuse();
+      if (current === undefined) throw refuse();
+      const revision = input.profile.revision ?? current;
+      if (!(await profileRevisionExists(tx, scope, input.profile.id, revision)))
+        throw refuse();
       profile = { id: input.profile.id, revision };
     }
     if (input.workspaceDraft) {
       // The draft is a text key with no foreign key, so existence for this
       // owner is checked here, in the same transaction.
-      const draft = await firstRow(
-        tx,
-        sql`SELECT 1 AS ok FROM interview.assistant_drafts
-            WHERE tenant_id = ${scope.tenantId} AND actor_id = ${scope.actorId}
-              AND product_id = ${INTERVIEW_PRODUCT_ID}
-              AND workspace_id = ${input.workspaceDraft.workspaceId}
-              AND artifact_id = ${input.workspaceDraft.artifactId}`,
-      );
-      if (!draft) throw refuse();
+      if (
+        !(await workspaceDraftExists(
+          tx,
+          scope,
+          input.workspaceDraft.workspaceId,
+          input.workspaceDraft.artifactId,
+        ))
+      )
+        throw refuse();
     }
     return { candidacyId, interviewId, profile };
   }
@@ -249,48 +240,38 @@ export class ActiveSessionRepository {
     try {
       return await inOwnerScope(this.database, scope, async (tx) => {
         const links = await this.confirmLinks(tx, scope, input);
-        const open = await firstRow(
-          tx,
-          sql`SELECT 1 AS ok FROM interview.active_sessions
-              WHERE tenant_id = ${scope.tenantId}::uuid
-                AND owner_user_id = ${scope.actorId}::uuid
-                AND status NOT IN ('ended', 'purging')`,
-        );
-        if (open) throw new SessionError("open_session_exists");
-        const clock = await firstRow<{ now_ms: number }>(
-          tx,
-          sql`SELECT (extract(epoch from now()) * 1000)::float8 AS now_ms`,
-        );
-        const nowMs = Number(clock?.now_ms);
+        if (await hasOpenSession(tx, scope))
+          throw new SessionError("open_session_exists");
+        const nowMs = await readClockMs(tx);
         const expiresAt = new Date(nowMs + duration);
         // The credential never outlives the session's duration cap.
         const credential = await mintSessionCredential(
           nowMs,
           expiresAt.getTime(),
         );
-        const row = await firstRow<Record<string, unknown>>(
-          tx,
-          sql`INSERT INTO interview.active_sessions (
-                tenant_id, owner_user_id, status, retention_mode,
-                processing_policy, screenshot_send, credential_hash,
-                credential_expires_at, sources, rehearsal_run_id, strict, interview_id, candidacy_id,
-                profile_id, profile_revision, workspace_draft_id, expires_at)
-              VALUES (
-                ${scope.tenantId}::uuid, ${scope.actorId}::uuid,
-                ${started.status}, ${retentionToDb(retention)},
-                ${policyToDb(policy)}, ${input.screenshotSend ?? "always"},
-                ${credential.hash}, ${credential.expiresAt.toISOString()}::timestamptz,
-                ${JSON.stringify({ captureSources, liveAssistance })}::jsonb,
-                ${input.rehearsal?.runId ?? null}, ${strict},
-                ${links.interviewId}::uuid, ${links.candidacyId}::uuid,
-                ${links.profile?.id ?? null}, ${links.profile?.revision ?? null},
-                ${input.workspaceDraft ? encodeDraftKey(input.workspaceDraft) : null},
-                ${expiresAt.toISOString()}::timestamptz)
-              RETURNING *, ${nowMs}::float8 AS now_ms`,
-        );
+        const row = await insertSession(tx, scope, {
+          status: started.status,
+          retentionMode: retentionToDb(retention),
+          processingPolicy: policyToDb(policy),
+          screenshotSend: input.screenshotSend ?? "always",
+          credentialHash: credential.hash,
+          credentialExpiresAt: credential.expiresAt.toISOString(),
+          sources: { captureSources, liveAssistance },
+          rehearsalRunId: input.rehearsal?.runId ?? null,
+          strict,
+          interviewId: links.interviewId,
+          candidacyId: links.candidacyId,
+          profileId: links.profile?.id ?? null,
+          profileRevision: links.profile?.revision ?? null,
+          workspaceDraftId: input.workspaceDraft
+            ? encodeDraftKey(input.workspaceDraft)
+            : null,
+          expiresAt: expiresAt.toISOString(),
+          nowMs,
+        });
         if (!row) throw new SessionError("invalid_input");
         return {
-          session: toView(toRecord(row)),
+          session: toView(row),
           credential: {
             value: credential.plaintext,
             expiresAt: credential.expiresAt.toISOString(),
@@ -461,13 +442,13 @@ export class ActiveSessionRepository {
         row.nowMs,
         row.expiresAt.getTime(),
       );
-      await tx.execute(sql`
-        UPDATE interview.active_sessions SET
-          credential_hash = ${credential.hash},
-          credential_expires_at = ${credential.expiresAt.toISOString()}::timestamptz,
-          credential_revoked_at = NULL
-        WHERE tenant_id = ${scope.tenantId}::uuid
-          AND owner_user_id = ${scope.actorId}::uuid AND id = ${sessionId}::uuid`);
+      await replaceCredential(
+        tx,
+        scope,
+        sessionId,
+        credential.hash,
+        credential.expiresAt.toISOString(),
+      );
       return {
         value: credential.plaintext,
         expiresAt: credential.expiresAt.toISOString(),
@@ -482,11 +463,7 @@ export class ActiveSessionRepository {
     const paused = await inOwnerScope(this.database, scope, async (tx) => {
       const row = await lockSession(tx, scope, sessionId);
       if (!row || row.purgedAt !== null) throw new SessionError("not_found");
-      await tx.execute(sql`
-        UPDATE interview.active_sessions
-        SET credential_revoked_at = COALESCE(credential_revoked_at, now())
-        WHERE tenant_id = ${scope.tenantId}::uuid
-          AND owner_user_id = ${scope.actorId}::uuid AND id = ${sessionId}::uuid`);
+      await stampCredentialRevoked(tx, scope, sessionId);
       if (row.status !== "active") return false;
       await transitionLocked(tx, row, "pause", "owner-control");
       return true;
@@ -509,11 +486,12 @@ export class ActiveSessionRepository {
       const decision = tightenPolicy(row.policy, requested);
       if (!decision.ok) throw new SessionError("loosening_refused");
       if (decision.policy !== row.policy)
-        await tx.execute(sql`
-          UPDATE interview.active_sessions
-          SET processing_policy = ${policyToDb(decision.policy)}
-          WHERE tenant_id = ${scope.tenantId}::uuid
-            AND owner_user_id = ${scope.actorId}::uuid AND id = ${sessionId}::uuid`);
+        await writeProcessingPolicy(
+          tx,
+          scope,
+          sessionId,
+          policyToDb(decision.policy),
+        );
       const after = await readSession(tx, scope, sessionId);
       return toView(after as SessionRecord);
     });
@@ -546,16 +524,7 @@ export class ActiveSessionRepository {
       if (row.status === "ended" || row.status === "purging")
         throw new SessionError("status_refused");
       if (requested !== row.screenshotSend)
-        await tx
-          .update(activeSessions)
-          .set({ screenshotSend: requested })
-          .where(
-            and(
-              eq(activeSessions.tenantId, scope.tenantId),
-              eq(activeSessions.ownerUserId, scope.actorId),
-              eq(activeSessions.id, sessionId),
-            ),
-          );
+        await writeScreenshotSend(tx, scope, sessionId, requested);
       const after = await readSession(tx, scope, sessionId);
       return toView(after as SessionRecord);
     });
@@ -576,11 +545,12 @@ export class ActiveSessionRepository {
       if (retentionRank(requested) > retentionRank(row.retention))
         throw new SessionError("retention_lengthening_refused");
       if (requested !== row.retention)
-        await tx.execute(sql`
-          UPDATE interview.active_sessions
-          SET retention_mode = ${retentionToDb(requested)}
-          WHERE tenant_id = ${scope.tenantId}::uuid
-            AND owner_user_id = ${scope.actorId}::uuid AND id = ${sessionId}::uuid`);
+        await writeRetentionMode(
+          tx,
+          scope,
+          sessionId,
+          retentionToDb(requested),
+        );
       const after = await readSession(tx, scope, sessionId);
       return toView(after as SessionRecord);
     });

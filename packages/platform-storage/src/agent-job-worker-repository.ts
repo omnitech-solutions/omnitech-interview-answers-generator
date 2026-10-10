@@ -22,6 +22,10 @@ export class PostgresAgentJobWorkerRepository
   // (scripts/tenant-context-boundary.test.ts). A job's identity, tenant,
   // profile and prompt can never change under it (agent_jobs_identity
   // trigger), so the flag only advances a job's lifecycle.
+  // Raw by necessity: the worker has no tenant when it claims, so no Drizzle
+  // handle exists for it; and the claim (FOR UPDATE SKIP LOCKED), the sweep
+  // and the event append are single data-modifying CTEs, and every other
+  // write is one update fenced on claimed_by and an unexpired lease.
   private asWorker<Result>(
     work: (client: DatabaseClient) => Promise<Result>,
   ): Promise<Result> {

@@ -1,41 +1,24 @@
 import {
   interviewPlanInputSchema,
-  type PlanItem,
   type PlanItemStatus,
-  type PlanResponse,
   planItemInputSchema,
   planItemPatchSchema,
 } from "@omnitech/interview-contracts";
 import { Hono } from "hono";
 import { ZodError } from "zod";
 import {
-  type DraftSummary,
   InterviewWorkspaceRepository,
   type WorkspaceDatabasePort,
   WorkspaceError,
   type WorkspaceScope,
 } from "../assistant/workspace";
 import { BriefingRepository } from "../briefing/repository";
-import { InterviewPlanRepository, type StoredPlanItem } from "./repository";
+import { InterviewPlanRepository } from "./repository";
+import { addItemToCurrentPlan, currentPlan } from "./services/plan.service";
 
 const prefix = "/api/interview/plan";
 
-// What a question's latest run says, in the words the plan shows.
-export function questionStatus(
-  draft: DraftSummary | undefined,
-): PlanItemStatus {
-  if (!draft) return { label: "Question not found", tone: "warn" };
-  const run = draft.lastRun;
-  if (!run) return { label: "Tests not run yet", tone: "neutral" };
-  if (run.total !== null && run.passed !== null)
-    return {
-      label: `${run.passed} of ${run.total} tests passing`,
-      tone: run.passed === run.total && run.ok ? "good" : "warn",
-    };
-  return run.ok
-    ? { label: "Tests passing", tone: "good" }
-    : { label: "Tests failing", tone: "warn" };
-}
+export { questionStatus } from "./domain/status";
 
 // The plan API: the current interview, its items and each item's live status.
 export function createPlanApi(options: {
@@ -83,48 +66,8 @@ export function createPlanApi(options: {
     throw error;
   });
 
-  async function withStatus(
-    scope: WorkspaceScope,
-    items: StoredPlanItem[],
-  ): Promise<PlanItem[]> {
-    const needs = (kind: StoredPlanItem["kind"]) =>
-      items.some((entry) => entry.kind === kind);
-    const [questions, savedBriefings] = await Promise.all([
-      needs("question")
-        ? drafts.listDrafts(scope, options.questionsWorkspace)
-        : [],
-      needs("briefing") ? briefings.listArtifacts(scope) : [],
-    ]);
-    return Promise.all(
-      items.map(async (entry): Promise<PlanItem> => {
-        let status: PlanItemStatus | null = null;
-        if (entry.kind === "question")
-          status = questionStatus(
-            questions.find((draft) => draft.artifactId === entry.ref),
-          );
-        else if (entry.kind === "briefing") {
-          const briefing = savedBriefings.find((item) => item.id === entry.ref);
-          status = !briefing
-            ? { label: "Briefing not found", tone: "warn" }
-            : briefing.savedRevision > 0
-              ? { label: "Saved", tone: "good" }
-              : { label: "Draft · not saved yet", tone: "warn" };
-        } else if (entry.kind === "rehearsal")
-          status = (await options.rehearsalStatus?.(scope, entry.ref)) ?? null;
-        return { ...entry, status };
-      }),
-    );
-  }
-
-  async function current(scope: WorkspaceScope): Promise<PlanResponse> {
-    const interview = await plans.current(scope);
-    return {
-      interview,
-      items: interview
-        ? await withStatus(scope, await plans.items(scope, interview.id))
-        : [],
-    };
-  }
+  const plan = { plans, drafts, briefings, ...options };
+  const current = (scope: WorkspaceScope) => currentPlan(plan, scope);
 
   app.get(prefix, async (context) =>
     context.json(await current(context.get("planScope"))),
@@ -140,11 +83,7 @@ export function createPlanApi(options: {
   });
   app.post(`${prefix}/items`, async (context) => {
     const scope = context.get("planScope");
-    const interview = await plans.current(scope);
-    if (!interview) throw new WorkspaceError("not-found");
-    await plans.addItem(
-      scope,
-      interview.id,
+    await addItemToCurrentPlan(plan, scope, async () =>
       planItemInputSchema.parse(await context.req.json()),
     );
     return context.json(await current(scope));

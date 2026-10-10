@@ -1,42 +1,69 @@
-import { getPlatformDatabase } from "@omnitech/database";
 import {
-  exchangeAuthorizationCode,
-  getProviderConfiguration,
   type IntegrationProvider,
   pkceCookieName,
-  verifierFromCookie,
-  verifyIntegrationState,
 } from "@omnitech/platform-integrations";
-import {
-  ConnectedAccountVault,
-  PlatformRepository,
-} from "@omnitech/platform-storage";
 import { NextResponse } from "next/server";
 
-import { resolvePlatformContext } from "@/src/platform/context";
+import {
+  type ConnectionRefusal,
+  callbackPath,
+  completeConnection,
+  integrationSecrets,
+  providerFrom,
+} from "@/src/platform/integrations";
 
+// [SAFETY] The verifier cookie is cleared on every outcome that got as far as
+// reading it, so the same callback URL cannot be replayed.
 function withSpentVerifier(
   response: NextResponse,
   provider: IntegrationProvider,
 ) {
   response.cookies.set(pkceCookieName(provider), "", {
     httpOnly: true,
-    path: `/api/integrations/${provider}/callback`,
+    path: callbackPath(provider),
     maxAge: 0,
   });
   return response;
 }
 
-function providerFrom(value: string): IntegrationProvider | null {
-  return value === "google" || value === "linkedin" ? value : null;
-}
+// What each refusal answers, and whether the attempt's verifier is spent.
+const REFUSALS: Readonly<
+  Record<
+    ConnectionRefusal,
+    {
+      status: number;
+      error: (provider: IntegrationProvider) => string;
+      spent: boolean;
+    }
+  >
+> = {
+  "invalid-context": {
+    status: 403,
+    error: () => "The integration context is invalid.",
+    spent: false,
+  },
+  "not-configured": {
+    status: 503,
+    error: (provider) => `The ${provider} integration is not configured.`,
+    spent: false,
+  },
+  "unverified-attempt": {
+    status: 403,
+    error: () => "The integration context is invalid.",
+    spent: true,
+  },
+  "provider-refused": {
+    status: 502,
+    error: () => "The provider did not complete the connection.",
+    spent: true,
+  },
+};
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ provider: string }> },
 ) {
-  const { provider: providerValue } = await params;
-  const provider = providerFrom(providerValue);
+  const provider = providerFrom((await params).provider);
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const signedState = url.searchParams.get("state");
@@ -46,99 +73,32 @@ export async function GET(
       { status: 400 },
     );
   }
-  // ADR-0006 D3: a missing signing or vault secret is an operator gap.
-  const stateSecret = process.env["INTEGRATION_STATE_SECRET"];
-  const tokenSecret = process.env["CONNECTED_ACCOUNT_SECRET"];
-  if (!stateSecret || !tokenSecret) {
+  const secrets = integrationSecrets();
+  if (!secrets) {
     return NextResponse.json(
       { error: "Integration secrets are not configured." },
       { status: 503 },
     );
   }
-  // [SAFETY] A tampered, malformed or expired state is refused, as is one
-  // signed for another workspace or member.
-  let state: ReturnType<typeof verifyIntegrationState>;
-  try {
-    state = verifyIntegrationState(signedState, stateSecret);
-  } catch {
-    return NextResponse.json(
-      { error: "The integration context is invalid." },
-      { status: 403 },
-    );
-  }
-  const context = await resolvePlatformContext(state.tenantSlug);
-  if (
-    !context ||
-    state.provider !== provider ||
-    context?.tenant.id !== state.tenantId ||
-    context.user.id !== state.userId
-  ) {
-    return NextResponse.json(
-      { error: "The integration context is invalid." },
-      { status: 403 },
-    );
-  }
-  // The same operator configuration gap as authorize: report it before
-  // exchanging the code.
-  const configuration = getProviderConfiguration(provider);
-  if (!configuration) {
-    return NextResponse.json(
-      { error: `The ${provider} integration is not configured.` },
-      { status: 503 },
-    );
-  }
-  const redirectUri = new URL(
-    `/api/integrations/${provider}/callback`,
-    url.origin,
-  ).toString();
-  // [SAFETY] RFC 9700 PKCE: refuse before any token request unless the
-  // verifier cookie belongs to this attempt. The cookie is cleared on every
-  // outcome below, so the same callback URL cannot be replayed.
-  const verifier = verifierFromCookie(
-    request.headers.get("cookie"),
+  const connected = await completeConnection({
     provider,
-    state.pkceChallenge,
-  );
-  if (configuration.pkce && !verifier) {
-    return withSpentVerifier(
-      NextResponse.json(
-        { error: "The integration context is invalid." },
-        { status: 403 },
-      ),
-      provider,
-    );
-  }
-  let grant: Awaited<ReturnType<typeof exchangeAuthorizationCode>>;
-  try {
-    grant = await exchangeAuthorizationCode(
-      configuration,
-      code,
-      redirectUri,
-      configuration.pkce ? verifier : undefined,
-    );
-  } catch {
-    // The provider's reply can quote the code; none of it is surfaced.
-    return withSpentVerifier(
-      NextResponse.json(
-        { error: "The provider did not complete the connection." },
-        { status: 502 },
-      ),
-      provider,
-    );
-  }
-  const vault = new ConnectedAccountVault(tokenSecret);
-  await new PlatformRepository(getPlatformDatabase()).saveConnectedAccount({
-    userId: context.user.id,
-    provider,
-    providerAccountId: grant.providerAccountId,
-    scopes: grant.scopes,
-    accessToken: vault.encrypt(grant.accessToken),
-    refreshToken: grant.refreshToken ? vault.encrypt(grant.refreshToken) : null,
-    expiresAt: grant.expiresAt,
+    code,
+    signedState,
+    origin: url.origin,
+    cookie: request.headers.get("cookie"),
+    secrets,
   });
+  if (!connected.ok) {
+    const refusal = REFUSALS[connected.refusal];
+    const response = NextResponse.json(
+      { error: refusal.error(provider) },
+      { status: refusal.status },
+    );
+    return refusal.spent ? withSpentVerifier(response, provider) : response;
+  }
   return withSpentVerifier(
     NextResponse.redirect(
-      new URL(`/t/${context.tenant.slug}/settings/integrations`, url.origin),
+      new URL(`/t/${connected.tenantSlug}/settings/integrations`, url.origin),
     ),
     provider,
   );

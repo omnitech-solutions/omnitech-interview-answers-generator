@@ -3,6 +3,7 @@ import { encode } from "next-auth/jwt";
 
 import { authSecret, sessionCookieName } from "@/auth";
 import { isTenantSlug, nativeHandoffs } from "@/src/platform/native-handoff";
+import { hostSettings } from "@/src/platform/settings";
 
 const SESSION_SECONDS = 30 * 24 * 60 * 60;
 
@@ -16,7 +17,7 @@ const SESSION_SECONDS = 30 * 24 * 60 * 60;
 // cookie set as plain there is never found by Auth.js over https (verified by
 // experiment): the person would be silently signed out.
 function secureCookies(request: Request, url: URL): boolean {
-  const configured = process.env["AUTH_URL"] ?? process.env["NEXTAUTH_URL"];
+  const configured = hostSettings().authUrl;
   if (configured) {
     try {
       return new URL(configured).protocol === "https:";

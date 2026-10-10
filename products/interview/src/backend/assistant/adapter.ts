@@ -31,6 +31,7 @@ import { z } from "zod";
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
 import { userEditedBriefing } from "../briefing/edits";
 import { BriefingRepository } from "../briefing/repository";
+import { findBriefSourceRow } from "../briefs/repository";
 import {
   answerProse,
   type EvidenceAuthority,
@@ -567,10 +568,7 @@ export function createInterviewAdapter(
     getContext: async (scope, origin) =>
       workspace.transaction(scope, async (tx, scope) => {
         if (origin.workspaceId === CONCEPT_BRIEFS_WORKSPACE) {
-          const [row] = await tx.query(
-            "SELECT kind,topic,value FROM interview.concept_briefs WHERE tenant_id=$1 AND actor_id=$2 AND product_id=$3 AND id=$4",
-            [scope.tenantId, scope.actorId, scope.productId, origin.artifactId],
-          );
+          const row = await findBriefSourceRow(tx, scope, origin.artifactId);
           if (!row) throw new WorkspaceError("not-found");
           return {
             origin: { ...origin, artifactRevision: 0 },

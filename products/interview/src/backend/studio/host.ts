@@ -32,7 +32,12 @@ import {
   createInterviewAdapter,
   interviewPatchJsonSchema,
 } from "../assistant/adapter";
+import {
+  evidenceUsableBy,
+  workspaceReadableBy,
+} from "../assistant/domain/evidence-access";
 import { interviewRunVersions } from "../assistant/prompt";
+import { latestEvidenceAccessRows } from "../assistant/repositories/evidence.repository";
 import {
   InterviewWorkspaceRepository,
   interviewDraftPatchSchema,
@@ -110,8 +115,7 @@ export function createInterviewStudio(options: InterviewStudioOptions) {
   const product = createInterviewAdapter(database, {
     runner: options.runner,
     authorizeEvidence: async (scope, item) =>
-      item.audience.includes(scope.actorId) &&
-      item.classification !== "restricted",
+      evidenceUsableBy(scope.actorId, item),
     verifyTechnicalReference: async (_scope, item) =>
       createHash("sha256").update(item.text).digest("hex") === item.sha256,
   });
@@ -121,17 +125,9 @@ export function createInterviewStudio(options: InterviewStudioOptions) {
   async function readable(scope: Scope) {
     if (scope.productId !== INTERVIEW_PRODUCT_ID) return false;
     const rows = await workspace.transaction(scope, (tx) =>
-      tx.query(
-        "SELECT classification,audience FROM (SELECT DISTINCT ON(id) id,classification,audience FROM interview.assistant_evidence WHERE tenant_id=$1 AND actor_id=$2 AND product_id=$3 ORDER BY id,revision DESC) latest",
-        [scope.tenantId, scope.actorId, scope.productId],
-      ),
+      latestEvidenceAccessRows(tx, scope),
     );
-    return rows.every(
-      (row) =>
-        row["classification"] !== "restricted" &&
-        Array.isArray(row["audience"]) &&
-        row["audience"].includes(scope.actorId),
-    );
+    return workspaceReadableBy(scope.actorId, rows);
   }
 
   const core: CoreDependencies = {

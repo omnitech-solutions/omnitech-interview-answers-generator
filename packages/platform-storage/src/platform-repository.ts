@@ -5,20 +5,7 @@ import type {
   UserPreferences,
 } from "@omnitech/platform-contracts";
 import type { EncryptedValue } from "./connected-account-vault";
-
-type ContextRow = {
-  user_id: string;
-  email: string;
-  display_name: string;
-  avatar_url: string | null;
-  tenant_id: string;
-  tenant_slug: string;
-  tenant_name: string;
-  role: "owner" | "admin" | "member";
-  theme: "system" | "light" | "dark";
-  locale: string;
-  ai_profile_id: string | null;
-};
+import { type ContextRow, toPlatformContext } from "./platform-context";
 
 type InstallationRow = {
   product_id: string;
@@ -36,6 +23,12 @@ export interface IdentityProfile {
   avatarUrl: string | null;
 }
 
+// People, sign-in identities, preferences, connected accounts and a tenant's
+// installed products. What a context grants is decided in ./platform-context.
+// Raw by necessity: users, identities, preferences and connected accounts are
+// not tenant-owned and a context's tenant is known only after its first read,
+// while the database package hands out a Drizzle handle only for a known
+// tenant and actor (withTenant). The upserts name their conflict targets.
 export class PlatformRepository {
   constructor(private readonly database: PlatformDatabase) {}
 
@@ -100,34 +93,10 @@ export class PlatformRepository {
       return role ? { ...found, role } : undefined;
     });
     if (!row) return null;
-    const products = await this.listInstalledProducts(row.tenant_id);
-    return {
-      user: {
-        id: row.user_id,
-        email: row.email,
-        displayName: row.display_name,
-        avatarUrl: row.avatar_url,
-      },
-      tenant: {
-        id: row.tenant_id,
-        slug: row.tenant_slug,
-        name: row.tenant_name,
-      },
-      membership: {
-        tenantId: row.tenant_id,
-        userId: row.user_id,
-        role: row.role,
-      },
-      preferences: {
-        theme: row.theme ?? "system",
-        locale: row.locale ?? "en",
-        ...(row.ai_profile_id === null
-          ? {}
-          : { aiProfileId: row.ai_profile_id }),
-      },
-      permissions: rolePermissions(row.role),
-      products,
-    };
+    return toPlatformContext(
+      row,
+      await this.listInstalledProducts(row.tenant_id),
+    );
   }
 
   async listInstalledProducts(
@@ -205,34 +174,4 @@ export class PlatformRepository {
       ],
     );
   }
-}
-
-function rolePermissions(role: ContextRow["role"]): string[] {
-  const common = [
-    "platform.read",
-    "artifact.read",
-    "interview.read",
-    "interview.documents.write",
-    "presentation.read",
-  ];
-  if (role === "member") return common;
-  if (role === "admin") {
-    return [
-      ...common,
-      "artifact.write",
-      "interview.write",
-      "presentation.write",
-      "presentation.share",
-      "tenant.manage",
-    ];
-  }
-  return [
-    ...common,
-    "artifact.write",
-    "interview.write",
-    "presentation.write",
-    "presentation.share",
-    "tenant.manage",
-    "tenant.delete",
-  ];
 }

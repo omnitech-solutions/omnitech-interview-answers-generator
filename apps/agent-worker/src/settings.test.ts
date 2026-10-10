@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { workerSettings } from "./main";
+import { workerSettings } from "./worker-loops";
 
 describe("workerSettings", () => {
   it("runs six jobs at once with a 30 s lease unless told otherwise", () => {
@@ -29,5 +29,17 @@ describe("workerSettings", () => {
     expect(() => workerSettings({ [name]: value })).toThrow(
       new RegExp(`^${name} must be a whole number`),
     );
+  });
+});
+
+// The loop table is the worker's registration: these loops, in this order.
+describe("WORKER_LOOPS", () => {
+  it("registers the agent-job, session and coach loops in start order", async () => {
+    const { WORKER_LOOPS } = await import("./worker-loops");
+    expect(WORKER_LOOPS.map(({ name }) => name)).toEqual([
+      "agent-job",
+      "session",
+      "coach",
+    ]);
   });
 });

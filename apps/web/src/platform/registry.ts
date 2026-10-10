@@ -10,12 +10,16 @@ import {
 } from "@omnitech/product-presentation/manifest";
 
 // Build-time registration: every trusted product, its manifest and pages.
+// Adding a product to the shell is a row here and a row in products.ts.
+const REGISTERED_PRODUCTS: readonly Parameters<
+  ProductRegistry["register"]
+>[0][] = [
+  { manifest: interviewManifest, frontend: interviewFrontend },
+  { manifest: presentationManifest, frontend: presentationFrontend },
+];
+
 const registry = new ProductRegistry();
-registry.register({ manifest: interviewManifest, frontend: interviewFrontend });
-registry.register({
-  manifest: presentationManifest,
-  frontend: presentationFrontend,
-});
+for (const product of REGISTERED_PRODUCTS) registry.register(product);
 
 export function getProductRegistry(): ProductRegistry {
   return registry;

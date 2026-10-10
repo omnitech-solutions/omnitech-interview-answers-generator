@@ -916,6 +916,20 @@ export const candidacyContextSchema = z.object({
 });
 export type CandidacyContext = z.infer<typeof candidacyContextSchema>;
 
+// What a person types for an interview's context, whole: the fields of the
+// context form in the order it shows them. The form's schema, its validation
+// and what it saves are all read from here, so reshaping the context (towards
+// the context pack's records) is a change to this one object.
+// [GUARD] Bounds are the routes' own: a company and a role are one short line
+// each; the notes and the posting are kept as typed, only bounded.
+export const candidacyContextInputSchema = z.strictObject({
+  companyName: z.string().trim().min(1).max(200),
+  title: z.string().trim().min(1).max(200),
+  notes: z.string().max(20_000).default(""),
+  jobDescription: z.string().max(20_000).default(""),
+});
+export type CandidacyContextInput = z.infer<typeof candidacyContextInputSchema>;
+
 // ---- Companion capability ---------------------------------------------------
 
 // GET .../sessions/companion-capability: the capture companion's latest

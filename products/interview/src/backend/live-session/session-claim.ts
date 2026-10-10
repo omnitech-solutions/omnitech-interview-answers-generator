@@ -8,6 +8,14 @@
 // in a separate actor-scoped transaction (rule:tenant-scoped-worker-access).
 import type { DatabaseClient, PlatformDatabase } from "@omnitech/database";
 import { type Lease, renewLease as renewLeaseDecision } from "./core/index";
+import {
+  acquireLeases,
+  clearLease,
+  extendLease,
+  lockLease,
+  selectCapExpired,
+  selectPurgeCandidates,
+} from "./repositories/claim.repository";
 
 // [SAFETY] The explicit claim projection. It is read from the
 // interview.active_session_claims view, which omits credential_hash, the
@@ -77,26 +85,14 @@ export function claimSessions(
   options: { includeOwnLive?: boolean } = {},
 ): Promise<SessionClaim[]> {
   return asSessionWorker(database, async (client) => {
-    const result = await client.query<Row & { fence: string | number }>(
-      `UPDATE interview.active_sessions s SET
-         fence = s.fence + 1,
-         lease_holder_id = $1,
-         lease_expires_at = now() + ($2 * interval '1 millisecond')
-       FROM (
-         SELECT id FROM interview.active_session_claims
-         WHERE status = 'active' AND purged_at IS NULL
-           AND (lease_holder_id IS NULL OR lease_expires_at IS NULL
-                OR lease_expires_at <= now()
-                OR ($4::boolean AND lease_holder_id = $1))
-         ORDER BY lease_expires_at NULLS FIRST, id
-         LIMIT $3
-         FOR UPDATE SKIP LOCKED
-       ) c
-       WHERE s.id = c.id
-       RETURNING s.tenant_id, s.owner_user_id, s.id, s.fence`,
-      [workerId, leaseMs, Math.max(0, limit), options.includeOwnLive === true],
+    const rows = await acquireLeases(
+      client,
+      workerId,
+      leaseMs,
+      limit,
+      options.includeOwnLive === true,
     );
-    return result.rows.map((row) => ({
+    return rows.map((row) => ({
       ...target(row),
       fence: Number(row.fence),
     }));
@@ -117,20 +113,7 @@ export function renewLease(
   leaseMs: number,
 ): Promise<LeaseRenewal> {
   return asSessionWorker(database, async (client) => {
-    const current = await client.query<{
-      fence: string | number;
-      lease_holder_id: string | null;
-      lease_expires_at: Date | null;
-      now_ms: number;
-    }>(
-      `SELECT fence, lease_holder_id, lease_expires_at,
-              (extract(epoch from now()) * 1000)::float8 AS now_ms
-       FROM interview.active_sessions
-       WHERE tenant_id = $1 AND owner_user_id = $2 AND id = $3
-       FOR UPDATE`,
-      [claim.tenantId, claim.ownerUserId, claim.sessionId],
-    );
-    const row = current.rows[0];
+    const row = await lockLease(client, claim);
     if (!row) return { renewed: false, reason: "fence_superseded" };
     const lease: Lease = {
       fence: Number(row.fence),
@@ -147,20 +130,7 @@ export function renewLease(
       leaseMs,
     );
     if (!decision.renewed) return { renewed: false, reason: decision.reason };
-    await client.query(
-      `UPDATE interview.active_sessions
-       SET lease_expires_at = now() + ($4 * interval '1 millisecond')
-       WHERE tenant_id = $1 AND owner_user_id = $2 AND id = $3
-         AND fence = $5 AND lease_holder_id = $6`,
-      [
-        claim.tenantId,
-        claim.ownerUserId,
-        claim.sessionId,
-        leaseMs,
-        claim.fence,
-        workerId,
-      ],
-    );
+    await extendLease(client, claim, workerId, leaseMs);
     return { renewed: true };
   });
 }
@@ -173,20 +143,7 @@ export function releaseLease(
   workerId: string,
 ): Promise<boolean> {
   return asSessionWorker(database, async (client) => {
-    const result = await client.query(
-      `UPDATE interview.active_sessions
-       SET lease_holder_id = NULL, lease_expires_at = NULL
-       WHERE tenant_id = $1 AND owner_user_id = $2 AND id = $3
-         AND fence = $4 AND lease_holder_id = $5`,
-      [
-        claim.tenantId,
-        claim.ownerUserId,
-        claim.sessionId,
-        claim.fence,
-        workerId,
-      ],
-    );
-    return (result.rowCount ?? 0) === 1;
+    return clearLease(client, claim, workerId);
   });
 }
 
@@ -199,20 +156,8 @@ export function claimPurgeCandidates(
   limit: number,
 ): Promise<SessionTarget[]> {
   return asSessionWorker(database, async (client) => {
-    const result = await client.query<Row>(
-      `SELECT tenant_id, owner_user_id, id
-       FROM interview.active_session_claims
-       WHERE purged_at IS NULL
-         AND (status = 'purging'
-              OR (status = 'ended'
-                  AND (retention_mode = 'delete_at_end'
-                       OR (retention_mode = 'thirty_days'
-                           AND ended_at <= now() - ($2 * interval '1 millisecond')))))
-       ORDER BY ended_at NULLS FIRST, id
-       LIMIT $1`,
-      [Math.max(0, limit), THIRTY_DAYS_MS],
-    );
-    return result.rows.map(target);
+    const rows = await selectPurgeCandidates(client, limit, THIRTY_DAYS_MS);
+    return rows.map(target);
   });
 }
 
@@ -223,15 +168,7 @@ export function claimCapExpired(
   limit: number,
 ): Promise<SessionTarget[]> {
   return asSessionWorker(database, async (client) => {
-    const result = await client.query<Row>(
-      `SELECT tenant_id, owner_user_id, id
-       FROM interview.active_session_claims
-       WHERE status IN ('created', 'active', 'paused')
-         AND purged_at IS NULL AND expires_at <= now()
-       ORDER BY expires_at, id
-       LIMIT $1`,
-      [Math.max(0, limit)],
-    );
-    return result.rows.map(target);
+    const rows = await selectCapExpired(client, limit);
+    return rows.map(target);
   });
 }

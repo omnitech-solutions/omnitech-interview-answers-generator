@@ -11,18 +11,13 @@
 // does not answer, material the recipe refuses) is "no pack": the reader
 // falls back, and never fails for want of one.
 import type { AiEngine } from "@omnitech/ai-engine";
-import { type PlatformDatabase, withTenant } from "@omnitech/database";
+import type { PlatformDatabase } from "@omnitech/database";
 import {
   type BriefingContext,
   type CandidateMatrix,
   employerBriefSchema,
 } from "@omnitech/interview-contracts";
-import {
-  type BriefScope,
-  findCandidacy,
-  readBriefMaterial,
-  readEmployerBrief,
-} from "../brief/repository";
+import type { BriefScope } from "../brief/repository";
 import { briefSources, withStageBrief } from "./brief-sources";
 import { type ContextPack, contextSources, prepareContextPack } from "./pack";
 import { loadKeptPack, type PackStore } from "./prepare";
@@ -32,6 +27,10 @@ import {
   documentPack,
   stageBriefing,
 } from "./readers";
+import {
+  findApplication,
+  readApplicationMaterial,
+} from "./services/application-material";
 
 export type ApplicationPacks = {
   // What a document's writing call is given of the application's pack, for
@@ -87,16 +86,13 @@ export function createApplicationPacks(options: {
     if (!kept) return null;
     // [SAFETY] Read in the member's own scope: another member's application,
     // and another workspace's, is not found, and no pack is read for it.
-    const { interview, brief } = await withTenant(
+    const stored = await readApplicationMaterial(
+      options.database,
       scope,
-      async (db) => ({
-        interview: await readBriefMaterial(db, scope, candidacyId),
-        brief: employerBriefSchema.safeParse(
-          await readEmployerBrief(db, scope, candidacyId),
-        ),
-      }),
-      { database: options.database },
+      candidacyId,
     );
+    const interview = stored.interview;
+    const brief = employerBriefSchema.safeParse(stored.brief);
     const ordinal = stage(interview.stages);
     const base = contextSources({
       ...(matrix ? { matrix } : {}),
@@ -159,15 +155,10 @@ export function createApplicationPacks(options: {
         // [GUARD] A briefing is not tied to an application: it names a
         // company and a role. The pack is read only when exactly one of the
         // member's applications is to that company for that role.
-        const candidacyId = await withTenant(
-          scope,
-          (db) =>
-            findCandidacy(db, scope, {
-              company: context.company,
-              role: context.role,
-            }),
-          { database: options.database },
-        );
+        const candidacyId = await findApplication(options.database, scope, {
+          company: context.company,
+          role: context.role,
+        });
         if (!candidacyId) return [];
         const matrix =
           (await options.loadMatrix?.(scope).catch(() => null)) ?? null;

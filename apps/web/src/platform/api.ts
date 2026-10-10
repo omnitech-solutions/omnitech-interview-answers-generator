@@ -5,6 +5,7 @@ import { createPlatformAiEngine } from "./ai";
 import { apiErrorHandler, originGuard } from "./api-safety";
 import { resolvePlatformContext } from "./context";
 import { createProductBackends } from "./products";
+import { platformRepository } from "./store";
 
 export function createApplicationApi() {
   const api = new Hono();
@@ -16,17 +17,11 @@ export function createApplicationApi() {
     "/",
     createPlatformApi({
       resolveContext: resolvePlatformContext,
-      savePreferences: async (context, preferences) => {
-        const [{ getPlatformDatabase }, { PlatformRepository }] =
-          await Promise.all([
-            import("@omnitech/database"),
-            import("@omnitech/platform-storage"),
-          ]);
-        await new PlatformRepository(getPlatformDatabase()).savePreferences(
+      savePreferences: async (context, preferences) =>
+        (await platformRepository()).savePreferences(
           context.user.id,
           preferences,
-        );
-      },
+        ),
     }),
   );
   api.get("/api/platform/v1/ai-targets", async (request) => {

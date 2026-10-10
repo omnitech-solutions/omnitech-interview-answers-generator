@@ -13,6 +13,9 @@ import {
   type StoredBehaviourFlags,
 } from "@omnitech/interview-contracts";
 import { speakerOfSource } from "../coach-transcript";
+import type { VoiceActivityHeard } from "./contracts/events";
+
+export type { VoiceActivityHeard };
 
 // `on` lets a session's audio sources say who is speaking. Anything else (and
 // unset) keeps it off: the companion is told so on its first report, sends no
@@ -27,16 +30,6 @@ export const voiceActivityEnabled = (
   stored: StoredBehaviourFlags = {},
 ): boolean =>
   behaviourFlagValue(env, "ACTIVE_SESSION_VOICE_ACTIVITY", stored) === "on";
-
-// One audio source of a live session started or stopped hearing a voice. Told
-// only for a session whose owner allows processing off this device.
-export type VoiceActivityHeard = {
-  // The audio source the session registered ("microphone", "application-audio").
-  source: "microphone" | "application-audio";
-  speaking: boolean;
-  // The session it was heard in and its owner, from the row found.
-  session: { tenantId: string; actorId: string; sessionId: string };
-};
 
 // [DOMAIN] Who a source's voice is, to the coach, and the telling of it: the
 // call's audio is the interviewer and the microphone the person being coached

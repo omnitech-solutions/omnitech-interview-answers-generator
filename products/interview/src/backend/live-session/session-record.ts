@@ -1,8 +1,7 @@
-// The session row as the repository reads it, and the public view of it. The
-// view never carries the credential hash (rule:credential-storage).
-import type { TenantDatabase } from "@omnitech/database";
+// The session row as the repository reads it (repositories/session.repository.ts
+// locks and reads it), and the public view of it. The view never carries the
+// credential hash (rule:credential-storage).
 import type { LiveScreenshotSend } from "@omnitech/interview-contracts";
-import { sql } from "drizzle-orm";
 import type { ProcessingPolicy, SessionStatus } from "./core/index";
 import {
   decodeDraftKey,
@@ -12,7 +11,6 @@ import {
   screenshotSendFromDb,
   type WorkspaceDraftKey,
 } from "./mapping";
-import { firstRow, type OwnerScope } from "./scope";
 
 export type SessionRecord = {
   id: string;
@@ -104,42 +102,6 @@ export function toRecord(row: Raw): SessionRecord {
     captureRequest: row["capture_request"] ?? null,
     nowMs: Number(row["now_ms"] ?? Date.now()),
   };
-}
-
-// Locks the owner's session row. Every status change, ingest write and fenced
-// write starts here, so they serialize per session (ADR-0012 job creation and
-// purge also take this lock).
-export async function lockSession(
-  tx: TenantDatabase,
-  scope: OwnerScope,
-  sessionId: string,
-): Promise<SessionRecord | undefined> {
-  const row = await firstRow<Raw>(
-    tx,
-    sql`SELECT *, (extract(epoch from now()) * 1000)::float8 AS now_ms
-        FROM interview.active_sessions
-        WHERE tenant_id = ${scope.tenantId}::uuid
-          AND owner_user_id = ${scope.actorId}::uuid
-          AND id = ${sessionId}::uuid
-        FOR UPDATE`,
-  );
-  return row ? toRecord(row) : undefined;
-}
-
-export async function readSession(
-  tx: TenantDatabase,
-  scope: OwnerScope,
-  sessionId: string,
-): Promise<SessionRecord | undefined> {
-  const row = await firstRow<Raw>(
-    tx,
-    sql`SELECT *, (extract(epoch from now()) * 1000)::float8 AS now_ms
-        FROM interview.active_sessions
-        WHERE tenant_id = ${scope.tenantId}::uuid
-          AND owner_user_id = ${scope.actorId}::uuid
-          AND id = ${sessionId}::uuid`,
-  );
-  return row ? toRecord(row) : undefined;
 }
 
 export type SessionView = {

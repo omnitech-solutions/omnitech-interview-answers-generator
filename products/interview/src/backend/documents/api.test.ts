@@ -2749,3 +2749,280 @@ describe("the employer brief and a stage's notes", () => {
     );
   });
 });
+
+// [SAFETY] Characterisation: the editing protocol as it stands, pinned at the
+// HTTP boundary so the split of routes, use cases and persistence cannot
+// change it (bionic/inbox/target-architecture-boundaries-and-vertical-slice.md
+// section 5).
+describe("the editing protocol, pinned at the HTTP boundary", () => {
+  type Shown = {
+    document: { status: string; currentRevision: number };
+    revision: {
+      revision: number;
+      values: Record<string, string>;
+      validation: Array<{ key: string; code: string }>;
+      provenance: Record<string, unknown>;
+    };
+  };
+  let documentId: string;
+  let first: Record<string, string>;
+  const mine = () => app(ownerId);
+  const read = async (query = "") =>
+    (await (
+      await mine().request(`${url}/${documentId}${query}`, { headers })
+    ).json()) as Shown;
+
+  beforeAll(async () => {
+    const candidacy = await mine().request(
+      `${url}/candidacies`,
+      post({ companyName: "Pinned Co", title: "Engineer" }),
+    );
+    const { candidacyId } = (await candidacy.json()) as {
+      candidacyId: string;
+    };
+    const form = new FormData();
+    form.set("name", "Pinned template");
+    form.set("kind", "resume");
+    form.set("format", "md");
+    form.set("instructions", "");
+    form.set(
+      "file",
+      new File(
+        [
+          "# {full_name}\n{company_name}\n{summary}\n{experience_2_company}\n{experience_2_bullet_1}\n",
+        ],
+        "pinned.md",
+      ),
+    );
+    const uploaded = await mine().request(`${url}/templates`, {
+      method: "POST",
+      headers,
+      body: form,
+    });
+    const templateId = ((await uploaded.json()) as { template: { id: string } })
+      .template.id;
+    const created = await mine().request(
+      url,
+      post({
+        title: "Pinned resume",
+        templateId,
+        templateRevision: 1,
+        profileId: "profile",
+        profileRevision: 1,
+        candidacyId,
+        interviewId: null,
+        mode: "manual",
+      }),
+    );
+    expect(created.status, await created.clone().text()).toBe(201);
+    const made = (await created.json()) as {
+      document: { id: string };
+      revision: { values: Record<string, string> };
+    };
+    documentId = made.document.id;
+    first = made.revision.values;
+  });
+
+  it("validates an absent optional block as nothing missing", async () => {
+    const shown = await read();
+    expect(first["experience_2_company"]).toBe("");
+    expect(shown.revision.validation).toEqual([
+      { key: "summary", code: "missing" },
+    ]);
+    expect(shown.document.status).toBe("invalid");
+  });
+
+  it("refuses a crafted change to a source-bound field, saved or previewed, and writes nothing", async () => {
+    const crafted = { ...first, company_name: "Another Co" };
+    for (const path of ["revisions", "preview"]) {
+      const refused = await mine().request(
+        `${url}/${documentId}/${path}`,
+        post({ baseRevision: 1, values: crafted }),
+      );
+      expect(refused.status).toBe(400);
+      expect((await refused.json()).error.code).toBe(
+        "invalid-field-or-template",
+      );
+    }
+    expect((await read()).document.currentRevision).toBe(1);
+  });
+
+  it("makes exactly one revision from one edit, and a stale base revision cannot overwrite it", async () => {
+    const values = { ...first, summary: "Written by hand" };
+    const saved = await mine().request(
+      `${url}/${documentId}/revisions`,
+      post({ baseRevision: 1, values }),
+    );
+    expect(saved.status, await saved.clone().text()).toBe(201);
+    expect(((await saved.json()) as { revision: number }).revision).toBe(2);
+    const stale = await mine().request(
+      `${url}/${documentId}/revisions`,
+      post({ baseRevision: 1, values: { ...first, summary: "Overwrite" } }),
+    );
+    expect(stale.status).toBe(409);
+    expect((await stale.json()).error.code).toBe("revision-conflict");
+    const shown = await read();
+    expect(shown.document).toMatchObject({
+      currentRevision: 2,
+      status: "ready",
+    });
+    expect(shown.revision.values["summary"]).toBe("Written by hand");
+    expect(
+      (await mine().request(`${url}/${documentId}?revision=3`, { headers }))
+        .status,
+    ).toBe(404);
+    // A stale confirm, restore and refresh are refused the same way.
+    for (const [path, body] of [
+      ["confirm", { baseRevision: 1 }],
+      ["restore", { baseRevision: 1, sourceRevision: 1 }],
+      ["refresh-sources", { baseRevision: 1 }],
+    ] as const) {
+      const refused = await mine().request(
+        `${url}/${documentId}/${path}`,
+        post(body),
+      );
+      expect(refused.status, path).toBe(409);
+      expect((await refused.json()).error.code).toBe("revision-conflict");
+    }
+    expect((await read()).document.currentRevision).toBe(2);
+  });
+
+  it("exports a document whose optional block is absent", async () => {
+    const exported = await mine().request(
+      `${url}/${documentId}/exports`,
+      post({ revision: 2, format: "md" }),
+    );
+    expect(exported.status, await exported.clone().text()).toBe(201);
+    const record = (await exported.json()) as { id: string; draft: boolean };
+    expect(record.draft).toBe(true);
+    const text = await (
+      await mine().request(
+        `${url}/${documentId}/exports/${record.id}/download`,
+        { headers },
+      )
+    ).text();
+    expect(text).toContain("Written by hand");
+    expect(text).not.toContain("experience_2");
+  });
+
+  it("leaves the last revision intact when a regeneration is cancelled", async () => {
+    const controller = new AbortController();
+    const entered = new Promise<void>((resolve) => {
+      enteredGeneration = resolve;
+    });
+    waitForAbort = true;
+    try {
+      const pending = mine().request(`${url}/${documentId}/regenerate`, {
+        ...post({
+          baseRevision: 2,
+          fieldKey: "summary",
+          aiTargetId: "test-model",
+        }),
+        signal: controller.signal,
+      });
+      await entered;
+      controller.abort();
+      const cancelled = await pending;
+      expect(cancelled.status).toBe(409);
+      expect((await cancelled.json()).error.code).toBe("cancelled");
+    } finally {
+      waitForAbort = false;
+      enteredGeneration = null;
+    }
+    const shown = await read();
+    expect(shown.document.currentRevision).toBe(2);
+    expect(shown.revision.values["summary"]).toBe("Written by hand");
+    // The revision is free to be regenerated again: the claim was released.
+    const again = await mine().request(
+      `${url}/${documentId}/regenerate`,
+      post({ baseRevision: 2, fieldKey: "summary", aiTargetId: "test-model" }),
+    );
+    expect(again.status, await again.clone().text()).toBe(201);
+    expect((await read()).document.currentRevision).toBe(3);
+  });
+
+  it("keeps an older revision as it was, and restores it only as a new revision", async () => {
+    const older = await read("?revision=2");
+    expect(older.revision.values["summary"]).toBe("Written by hand");
+    expect(older.document.currentRevision).toBe(3);
+    const restored = await mine().request(
+      `${url}/${documentId}/restore`,
+      post({ baseRevision: 3, sourceRevision: 2 }),
+    );
+    expect(restored.status, await restored.clone().text()).toBe(201);
+    const shown = await read();
+    expect(shown.document.currentRevision).toBe(4);
+    expect(shown.revision.values).toEqual(older.revision.values);
+    expect(shown.revision.provenance).toMatchObject({
+      restoredFromRevision: 2,
+      claimState: "unverified",
+    });
+    // Revision 2 is still what it was.
+    expect((await read("?revision=2")).revision.values).toEqual(
+      older.revision.values,
+    );
+  });
+
+  it("gives another tenant's member nothing to read and nothing to write", async () => {
+    const elsewhere = (
+      await pg.owner.query<{ id: string }>(
+        "INSERT INTO platform.tenants(slug,name) VALUES ('elsewhere','Elsewhere') RETURNING id",
+      )
+    ).rows[0]!.id;
+    const visitor = (
+      await pg.owner.query<{ id: string }>(
+        "INSERT INTO platform.users(email,display_name) VALUES ('visitor@example.invalid','Visitor') RETURNING id",
+      )
+    ).rows[0]!.id;
+    await pg.owner.query(
+      "INSERT INTO platform.tenant_memberships(tenant_id,user_id,role) VALUES($1,$2,'member')",
+      [elsewhere, visitor],
+    );
+    const theirs = createDocumentsApi({
+      database,
+      engine,
+      resolveScope: async (request) =>
+        resolveDocumentsScope(
+          {
+            ...context(visitor),
+            tenant: { id: elsewhere, slug: "elsewhere", name: "Elsewhere" },
+            membership: {
+              tenantId: elsewhere,
+              userId: visitor,
+              role: "member",
+            },
+          } as PlatformContext,
+          request.headers.get("x-omnitech-tenant") ?? "",
+          request.method,
+        ),
+    });
+    const own = { "x-omnitech-tenant": "elsewhere" };
+    const before = (await read()).document.currentRevision;
+    expect(
+      (await theirs.request(`${url}/${documentId}`, { headers: own })).status,
+    ).toBe(404);
+    expect(
+      (
+        await theirs.request(`${url}/${documentId}/revisions`, {
+          method: "POST",
+          headers: { ...own, "content-type": "application/json" },
+          body: JSON.stringify({ baseRevision: before, values: first }),
+        })
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await theirs.request(`${url}/${documentId}/exports`, {
+          method: "POST",
+          headers: { ...own, "content-type": "application/json" },
+          body: JSON.stringify({ revision: 1, format: "md" }),
+        })
+      ).status,
+    ).toBe(404);
+    // Naming the other tenant in the request is refused before any lookup.
+    expect(
+      (await theirs.request(`${url}/${documentId}`, { headers })).status,
+    ).toBe(401);
+    expect((await read()).document.currentRevision).toBe(before);
+  });
+});

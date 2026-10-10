@@ -23,8 +23,6 @@ import {
   employerBriefSchema,
   employerSaidLine,
 } from "@omnitech/interview-contracts";
-import { sql } from "drizzle-orm";
-import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
 import {
   BriefError,
   type BriefMaterial,
@@ -37,8 +35,13 @@ import {
 } from "./context-snapshot";
 import { assertUuid, SessionError } from "./errors";
 import { decodeDraftKey } from "./mapping";
-import { firstRow, inOwnerScope, type OwnerScope } from "./scope";
-import { readSession } from "./session-record";
+import {
+  readCandidacyWithCompany,
+  readPinnedProfileRevision,
+  readWorkspaceDraft,
+} from "./repositories/context.repository";
+import { readSession } from "./repositories/session.repository";
+import { inOwnerScope, type OwnerScope } from "./scope";
 
 const BRIEF_LINE_CHARS = 360;
 // The most research text the snapshot takes from the research documents, so a
@@ -135,8 +138,6 @@ export class SessionContextUnavailable extends Error {
   }
 }
 
-type DraftRow = { revision: unknown; value: unknown };
-
 export async function loadSessionContext(
   database: PlatformDatabase,
   scope: OwnerScope,
@@ -151,19 +152,11 @@ export async function loadSessionContext(
     let matrix: CandidateMatrix | null = null;
     let profile: { id: string; revision: number; sha256: string } | null = null;
     if (record.profileId !== null && record.profileRevision !== null) {
-      const row = await firstRow<{ matrix: unknown; sha256: string }>(
+      const row = await readPinnedProfileRevision(
         tx,
-        sql`SELECT r.matrix, r.sha256
-            FROM interview.candidate_profile_revisions r
-            JOIN interview.candidate_profiles p
-              ON (p.tenant_id, p.actor_id, p.product_id, p.id)
-               = (r.tenant_id, r.actor_id, r.product_id, r.id)
-            WHERE r.tenant_id = ${scope.tenantId}
-              AND r.actor_id = ${scope.actorId}
-              AND r.product_id = ${INTERVIEW_PRODUCT_ID}
-              AND r.id = ${record.profileId}
-              AND r.revision = ${record.profileRevision}
-              AND p.revoked_at IS NULL`,
+        scope,
+        record.profileId,
+        record.profileRevision,
       );
       if (!row) throw new SessionContextUnavailable("profile_unreadable");
       const parsed = candidateMatrixSchema.safeParse(row.matrix);
@@ -192,16 +185,7 @@ export async function loadSessionContext(
       | undefined;
     let cleanBrief: NonNullable<SessionContext["material"]>["brief"] = null;
     if (record.candidacyId) {
-      const row = await firstRow<Record<string, unknown>>(
-        tx,
-        sql`SELECT c.title, c.job_description, c.notes, c.employer_brief,
-                   co.name AS company_name, co.research AS company_research
-            FROM interview.candidacies c
-            JOIN interview.companies co
-              ON co.tenant_id = c.tenant_id AND co.id = c.company_id
-            WHERE c.tenant_id = ${scope.tenantId}::uuid
-              AND c.id = ${record.candidacyId}::uuid`,
-      );
+      const row = await readCandidacyWithCompany(tx, scope, record.candidacyId);
       if (row) {
         const brief = employerBriefSchema.safeParse(row["employer_brief"]);
         if (brief.success)
@@ -289,14 +273,11 @@ export async function loadSessionContext(
       key = null;
     }
     if (key) {
-      const draft = await firstRow<DraftRow>(
+      const draft = await readWorkspaceDraft(
         tx,
-        sql`SELECT revision, value FROM interview.assistant_drafts
-            WHERE tenant_id = ${scope.tenantId}
-              AND actor_id = ${scope.actorId}
-              AND product_id = ${INTERVIEW_PRODUCT_ID}
-              AND workspace_id = ${key.workspaceId}
-              AND artifact_id = ${key.artifactId}`,
+        scope,
+        key.workspaceId,
+        key.artifactId,
       );
       const briefing = briefingDraftSchema.safeParse(
         (draft?.value as { briefing?: unknown } | undefined)?.briefing,

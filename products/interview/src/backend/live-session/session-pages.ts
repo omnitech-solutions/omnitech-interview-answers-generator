@@ -6,27 +6,21 @@
 // transcript, draft or answer content except the action result the stream
 // already returns to its owner.
 import type { PlatformDatabase } from "@omnitech/database";
-import { sql } from "drizzle-orm";
 import { assertUuid, isUuid, SessionError } from "./errors";
 import { policyFromDb, retentionFromDb } from "./mapping";
-import { firstRow, inOwnerScope, type OwnerScope, rowsOf } from "./scope";
+import { readSession } from "./repositories/session.repository";
 import {
-  ACTION_COLUMNS,
-  MAX_PAGE,
-  REVISION_REASON,
-  SNAPSHOT_EVENT_IDS,
-  type StoredAction,
-  toStoredAction,
-} from "./session-reads";
-import { readSession, type SessionView } from "./session-record";
+  NIL_ID,
+  readActionChangeRows,
+  readDatabaseClock,
+  readSessionHistoryRows,
+} from "./repositories/session-read.repository";
+import { inOwnerScope, type OwnerScope } from "./scope";
+import { MAX_PAGE, type StoredAction, toStoredAction } from "./session-reads";
+import type { SessionView } from "./session-record";
 
-// Microsecond-exact UTC text: a JavaScript Date would truncate to the
-// millisecond, and a keyset that rounds its own key can return the same row
-// forever.
-const EXACT = sql`'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
+// The exact-microsecond keyset text a cursor carries.
 const EXACT_TS = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/;
-// A cursor for "before every row" sorts below any id.
-const NIL_ID = "00000000-0000-0000-0000-000000000000";
 
 type Keyset = { at: string; id: string };
 
@@ -91,21 +85,7 @@ export async function listSessions(
   // [GUARD] A bad cursor is refused before any database work.
   const after = options.cursor ? decodeKeyset(options.cursor) : null;
   return inOwnerScope(database, scope, async (tx) => {
-    const rows = await rowsOf<Record<string, unknown>>(
-      tx,
-      sql`SELECT id, status, retention_mode, processing_policy, created_at,
-                 ended_at, purged_at, interview_id, candidacy_id,
-                 rehearsal_run_id, shown_draft_count,
-                 to_char(created_at AT TIME ZONE 'UTC', ${EXACT}) AS key_at
-          FROM interview.active_sessions
-          WHERE tenant_id = ${scope.tenantId}::uuid
-            AND owner_user_id = ${scope.actorId}::uuid
-            AND (${after === null}
-                 OR (created_at, id) < (${after?.at ?? null}::timestamptz,
-                                        ${after?.id ?? NIL_ID}::uuid))
-          ORDER BY created_at DESC, id DESC
-          LIMIT ${limit + 1}`,
-    );
+    const rows = await readSessionHistoryRows(tx, scope, after, limit + 1);
     const page = rows.slice(0, limit);
     const last = page.at(-1);
     return {
@@ -166,29 +146,17 @@ export async function listActionChanges(
     if (!(await readSession(tx, scope, sessionId)))
       throw new SessionError("not_found");
     const after = options.cursor ? decodeKeyset(options.cursor) : null;
-    const rows = await rowsOf<Record<string, unknown>>(
+    const rows = await readActionChangeRows(
       tx,
-      sql`SELECT ${ACTION_COLUMNS}, ${SNAPSHOT_EVENT_IDS}, ${REVISION_REASON},
-                 to_char(updated_at AT TIME ZONE 'UTC', ${EXACT}) AS key_at
-          FROM interview.session_actions
-          WHERE tenant_id = ${scope.tenantId}::uuid
-            AND owner_user_id = ${scope.actorId}::uuid
-            AND session_id = ${sessionId}::uuid
-            AND (${after === null}
-                 OR (updated_at, id) > (${after?.at ?? null}::timestamptz,
-                                        ${after?.id ?? NIL_ID}::uuid))
-          ORDER BY updated_at, id
-          LIMIT ${limit + 1}`,
+      scope,
+      sessionId,
+      after,
+      limit + 1,
     );
     const page = rows.slice(0, limit);
     const hasMore = rows.length > limit;
     const last = page.at(-1);
-    const clock = await firstRow<{ now_text: string; margin_text: string }>(
-      tx,
-      sql`SELECT to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS now_text,
-                 to_char((now() - make_interval(secs => ${ACTION_CURSOR_OVERLAP_SECONDS}))
-                         AT TIME ZONE 'UTC', ${EXACT}) AS margin_text`,
-    );
+    const clock = await readDatabaseClock(tx, ACTION_CURSOR_OVERLAP_SECONDS);
     let next: Keyset;
     if (hasMore && last) {
       // More to read: continue exactly after the last row.

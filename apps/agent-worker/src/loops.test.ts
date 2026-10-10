@@ -2,14 +2,14 @@ import { chmod, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { agentEnvironment } from "./agent-environment";
+import { sweepStagingBase } from "./session-agent-port";
 import {
-  agentEnvironment,
   runWorkerLoops,
   sessionLoop,
   sessionSweepLoop,
   sweepStagingAtStartup,
-} from "./main";
-import { sweepStagingBase } from "./session-agent-port";
+} from "./worker-loops";
 
 const CANARY = "canary-question-text";
 const gate = () => {

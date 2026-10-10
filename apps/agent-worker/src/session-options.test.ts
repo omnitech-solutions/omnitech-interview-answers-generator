@@ -8,7 +8,7 @@ import {
   sessionAgentEscalation,
   sessionLoop,
   sessionRunnerOptions,
-} from "./main";
+} from "./worker-loops";
 
 describe("sessionRunnerOptions", () => {
   it("configures no runner by default", () => {

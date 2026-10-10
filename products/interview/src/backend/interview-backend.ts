@@ -42,6 +42,7 @@ import {
   loadLocalTemplates,
   localMatrixPath,
 } from "./local-seeds";
+import { markRunWorker, tenantMembershipExists } from "./membership-repository";
 import { createCodeRunner } from "./services";
 import { createInterviewStudio } from "./studio/host";
 
@@ -223,7 +224,7 @@ async function build(
     workerDatabase: {
       transaction: (fn) =>
         platform.transaction(async (client) => {
-          await client.query("SELECT set_config('app.run_worker', 'on', true)");
+          await markRunWorker(client);
           return fn(rowsOf(client));
         }),
     },
@@ -232,15 +233,9 @@ async function build(
     // Memberships are tenant-owned rows: read inside the scope's tenant.
     isMember: async (scope) => {
       if (!UUID.test(scope.tenantId)) return false;
-      const result = await platform.tenantTransaction(
-        scope.tenantId,
-        (client) =>
-          client.query(
-            "SELECT 1 FROM platform.tenant_memberships WHERE tenant_id::text=$1 AND user_id::text=$2",
-            [scope.tenantId, scope.actorId],
-          ),
+      return platform.tenantTransaction(scope.tenantId, (client) =>
+        tenantMembershipExists(client, scope.tenantId, scope.actorId),
       );
-      return result.rows.length > 0;
     },
     // The model a turn runs on is the one picked in the assistant.
     model: assistantModels.port,

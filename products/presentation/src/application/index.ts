@@ -7,6 +7,7 @@ import type {
 import { PresentationNotFoundError } from "../domain/index";
 import { exportPresentation } from "../export/index";
 import type { PresentationRepository } from "../repositories/index";
+import { importPowerPointTheme } from "../theme-import";
 
 export class PresentationService {
   constructor(private readonly repository: PresentationRepository) {}
@@ -99,16 +100,17 @@ export class PresentationService {
     return this.repository.createTheme(context, input);
   }
 
-  importTheme(
+  // A PowerPoint file's theme, stored once per import id.
+  async importPowerPointTheme(
     context: TenantContext,
-    input: {
-      name: string;
-      description: string;
-      definition: Readonly<Record<string, unknown>>;
-      sourceImportId?: string;
-    },
+    input: { file: Uint8Array; name: string; sourceImportId: string },
   ) {
-    return this.repository.createTheme(context, input);
+    const theme = await importPowerPointTheme(input.file, input.name);
+    const id = await this.repository.createTheme(context, {
+      ...theme,
+      sourceImportId: input.sourceImportId,
+    });
+    return { id, theme };
   }
 
   setThemeReaction(

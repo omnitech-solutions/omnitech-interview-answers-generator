@@ -1,20 +1,20 @@
-import {
-  AgentJobService,
-  type AgentProfile,
-  validateAgentProfile,
-} from "@omnitech/ai-engine";
-import { getPlatformDatabase } from "@omnitech/database";
+// The platform agent-job HTTP routes (profiles, create, events, cancel,
+// resume): Hono wiring only. Each resolves the tenant member, validates the
+// request and delegates to agent-jobs.ts.
 import { readBoundedJson } from "@omnitech/platform-contracts";
-import { resolveAgentProfiles } from "@omnitech/platform-runtime/ai-config";
-import {
-  AgentPayloadStore,
-  agentPayloadSecret,
-  PostgresAgentJobRepository,
-} from "@omnitech/platform-storage";
 import { Hono } from "hono";
 import { z } from "zod";
+import {
+  createAgentJobs,
+  jobProfiles,
+  mayStartJobFor,
+  readJob,
+  resumeJob,
+  startJob,
+} from "./agent-jobs";
 import { resolvePlatformContext } from "./context";
 import { getProductRegistry } from "./registry";
+import { hostSettings } from "./settings";
 
 const createSchema = z.object({
   productId: z.string().trim().min(1),
@@ -22,14 +22,9 @@ const createSchema = z.object({
   prompt: z.string().trim().min(1).max(500_000),
 });
 
-// The profiles a product may start a job with, by id; their definitions are
-// central (@omnitech/platform-runtime/ai-config).
-const JOB_PROFILES = [
-  "coding-fast",
-  "coding-quality",
-  "document-quality",
-  "presentation-editor",
-] as const;
+const resumeSchema = z.object({
+  prompt: z.string().trim().min(1).max(500_000),
+});
 
 // A prompt is at most 500k characters; the body bound leaves room for UTF-8.
 const AGENT_BODY_LIMIT_BYTES = 2 * 1024 * 1024;
@@ -53,32 +48,17 @@ async function readAgentBody(request: Request) {
     : ({ ok: false, status: 400, error: "Invalid request body." } as const);
 }
 
-function profiles(): ReadonlyMap<string, AgentProfile> {
-  const all = resolveAgentProfiles();
-  return new Map(
-    JOB_PROFILES.flatMap((id) => {
-      const profile = all.get(id);
-      return profile ? [[id, profile] as const] : [];
-    }),
-  );
-}
-
 export function createAgentApi() {
   const api = new Hono();
-  const database = getPlatformDatabase();
-  const repository = new PostgresAgentJobRepository(database);
-  const service = new AgentJobService(repository);
-  const payloadSecret = agentPayloadSecret(process.env);
-  const payloads = payloadSecret
-    ? new AgentPayloadStore(database, payloadSecret)
-    : undefined;
+  const jobs = createAgentJobs();
+  const { repository, service, payloads } = jobs;
 
   api.get("/platform/v1/agent-profiles", async (context) => {
     const tenantSlug = context.req.query("tenant") ?? "";
     const platformContext = await resolvePlatformContext(tenantSlug);
     if (!platformContext) return context.json({ error: "Unauthorized" }, 401);
     return context.json(
-      [...profiles().values()].map((profile) => ({
+      [...jobProfiles().values()].map((profile) => ({
         id: profile.id,
         runtime: profile.runtime,
         model: profile.model,
@@ -101,34 +81,18 @@ export function createAgentApi() {
     if (!body.ok) return context.json({ error: body.error }, body.status);
     try {
       const input = createSchema.parse(body.value);
-      // [SAFETY] A job is started for a product the member has installed and
-      // may use (INV-0004); every miss is a 404, before anything is written.
-      const installed = platformContext.products.some(
-        (product) => product.productId === input.productId && product.enabled,
-      );
-      const product = getProductRegistry()
-        .list()
-        .find(({ manifest }) => manifest.id === input.productId);
-      const permitted = product?.manifest.routes.some((route) =>
-        platformContext.permissions.includes(route.requiredPermission),
-      );
-      if (!installed || !permitted) {
+      // [SAFETY] Every miss is a 404, before anything is written.
+      if (
+        !mayStartJobFor(
+          platformContext,
+          input.productId,
+          getProductRegistry().list(),
+        )
+      ) {
         return context.json({ error: "Not found." }, 404);
       }
-      const profile = profiles().get(input.profileId);
-      if (!profile) return context.json({ error: "Unknown profile." }, 400);
-      validateAgentProfile(profile);
-      const promptReference = await payloads.save(
-        platformContext.tenant.id,
-        input.prompt,
-      );
-      const job = await service.create({
-        tenantId: platformContext.tenant.id,
-        userId: platformContext.user.id,
-        productId: input.productId,
-        profile,
-        promptReference,
-      });
+      const job = await startJob({ service, payloads }, platformContext, input);
+      if (!job) return context.json({ error: "Unknown profile." }, 400);
       return context.json({ id: job.id, status: job.status }, 201);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -140,7 +104,7 @@ export function createAgentApi() {
   });
 
   api.get("/platform/v1/agent-jobs/:id/events", async (context) => {
-    const serviceToken = process.env["AGENT_SERVICE_TOKEN"];
+    const serviceToken = hostSettings().agentServiceToken;
     const internal =
       serviceToken &&
       context.req.header("authorization") === `Bearer ${serviceToken}`;
@@ -193,25 +157,9 @@ export function createAgentApi() {
     const tenantSlug = context.req.query("tenant") ?? "";
     const platformContext = await resolvePlatformContext(tenantSlug);
     if (!platformContext) return context.json({ error: "Unauthorized" }, 401);
-    const job = await service.get(
-      platformContext.tenant.id,
-      platformContext.user.id,
-      context.req.param("id"),
-    );
+    const job = await readJob(jobs, platformContext, context.req.param("id"));
     if (!job) return context.json({ error: "Agent job was not found." }, 404);
-    let result: unknown;
-    if (job.resultReference && payloads) {
-      try {
-        result = JSON.parse(await payloads.load(job.resultReference));
-      } catch {
-        result = undefined;
-      }
-    }
-    return context.json({
-      id: job.id,
-      status: job.status,
-      ...(job.resultReference && result !== undefined ? { result } : {}),
-    });
+    return context.json(job);
   });
 
   api.delete("/platform/v1/agent-jobs/:id", async (context) => {
@@ -242,18 +190,12 @@ export function createAgentApi() {
     const body = await readAgentBody(context.req.raw);
     if (!body.ok) return context.json({ error: body.error }, body.status);
     try {
-      const input = z
-        .object({ prompt: z.string().trim().min(1).max(500_000) })
-        .parse(body.value);
-      const promptReference = await payloads.save(
-        platformContext.tenant.id,
-        input.prompt,
-      );
-      await service.resume(
-        platformContext.tenant.id,
-        platformContext.user.id,
+      const input = resumeSchema.parse(body.value);
+      await resumeJob(
+        { service, payloads },
+        platformContext,
         context.req.param("id"),
-        promptReference,
+        input.prompt,
       );
       return context.json({ status: "queued" }, 202);
     } catch (error) {

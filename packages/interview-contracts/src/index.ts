@@ -218,6 +218,8 @@ export {
 } from "./interview-brief";
 export {
   type CandidacyContext,
+  type CandidacyContextInput,
+  candidacyContextInputSchema,
   candidacyContextSchema,
   type EmployerBrief,
   employerBriefSchema,

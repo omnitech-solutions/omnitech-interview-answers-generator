@@ -23,19 +23,23 @@
 // Nothing here logs; regions, hints and ids never appear in an error.
 import type {
   CaptureFailureCode,
-  CaptureRequest,
   CompanionDeclaration,
   Observation,
 } from "@omnitech/active-session-contracts";
 import type { PlatformDatabase, TenantDatabase } from "@omnitech/database";
 import {
   LIVE_CAPTURE_REQUEST_TTL_MS,
-  type LiveCaptureRequest,
   type LiveCaptureState,
   liveCaptureRequestSchema,
 } from "@omnitech/interview-contracts";
-import { sql } from "drizzle-orm";
-import { readDeclaration } from "./companion-capability";
+import {
+  captureStateOf,
+  decodeCaptureRequest,
+  failedByCompanion,
+  failedBySelectionChange,
+  isPendingRequest,
+  type StoredCaptureRequest,
+} from "./domain/capture-request";
 import { assertUuid, SessionError } from "./errors";
 import {
   findStoredOwnerInput,
@@ -44,92 +48,19 @@ import {
   type OwnerInputBody,
   sameBody,
 } from "./owner-input";
-import { firstRow, inOwnerScope, type OwnerScope } from "./scope";
-import { lockSession, type SessionRecord } from "./session-record";
+import { readDeclaration } from "./repositories/capability.repository";
+import {
+  readStoredCaptureRequest,
+  writeCaptureRequest,
+} from "./repositories/capture.repository";
+import { countOwnerInputs } from "./repositories/observation.repository";
+import { lockSession } from "./repositories/session.repository";
+import { inOwnerScope, type OwnerScope } from "./scope";
+import type { SessionRecord } from "./session-record";
 
 const CAPTURE_REFUSED_DEVICE_ONLY = "vision_device_only";
 const CAPTURE_REFUSED_UPDATE_REQUIRED = "companion_update_required";
 const CAPTURE_REFUSED_SOURCE_CHANGED = "source_changed";
-
-// The stored shape: the validated request plus its lifecycle.
-type StoredCaptureRequest = {
-  request: LiveCaptureRequest;
-  // The screen selection a region request is bound to: the owner's, else the
-  // companion's declared one at submission. Absent for the other modes.
-  selection?: string;
-  status: "pending" | "captured" | "refused" | "failed";
-  reason?: string;
-  createdAt: string;
-  expiresAt: string;
-  snapshot?: { sourceId: string; eventId: string };
-};
-
-function decode(raw: unknown): StoredCaptureRequest | null {
-  if (typeof raw !== "object" || raw === null) return null;
-  const stored = raw as StoredCaptureRequest;
-  return typeof stored.request?.requestId === "string" &&
-    typeof stored.expiresAt === "string"
-    ? stored
-    : null;
-}
-
-// What the owner sees: pending turns expired once its time has passed.
-function stateOf(
-  stored: StoredCaptureRequest,
-  nowMs: number,
-): LiveCaptureState {
-  const expired =
-    stored.status === "pending" && Date.parse(stored.expiresAt) <= nowMs;
-  return {
-    requestId: stored.request.requestId,
-    status: expired ? "expired" : stored.status,
-    expiresAt: stored.expiresAt,
-    ...(stored.reason ? { reason: stored.reason } : {}),
-  };
-}
-
-// The request the companion may be handed: pending, unexpired, only while the
-// session is capturing, and only to a companion that declared it can read it. A
-// region goes only to a companion whose declared screen selection is still the
-// one the region was bound to. Nothing but id, mode, region, selection and
-// deadline leaves Studio.
-export function pendingCaptureOf(
-  row: SessionRecord,
-  status: SessionRecord["status"],
-  declaration: CompanionDeclaration,
-): CaptureRequest | undefined {
-  if (status !== "active" || !declaration.captureRequests) return undefined;
-  const stored = decode(row.captureRequest);
-  if (stored?.status !== "pending" || Date.parse(stored.expiresAt) <= row.nowMs)
-    return undefined;
-  if (stored.request.mode === "region") {
-    const selection = stored.selection;
-    if (!selection || selection !== declaration.screenSelection)
-      return undefined;
-  }
-  return {
-    requestId: stored.request.requestId,
-    mode: stored.request.mode,
-    ...(stored.request.region ? { region: stored.request.region } : {}),
-    ...(stored.request.mode === "region" && stored.selection
-      ? { selection: stored.selection }
-      : {}),
-    expiresAt: stored.expiresAt,
-  };
-}
-
-const writeStored = (
-  tx: TenantDatabase,
-  scope: OwnerScope,
-  sessionId: string,
-  stored: StoredCaptureRequest,
-) =>
-  tx.execute(sql`
-    UPDATE interview.active_sessions
-    SET capture_request = ${JSON.stringify(stored)}::jsonb
-    WHERE tenant_id = ${scope.tenantId}::uuid
-      AND owner_user_id = ${scope.actorId}::uuid
-      AND id = ${sessionId}::uuid`);
 
 // A region request whose bound selection is no longer the companion's declared
 // one is failed at once (the mask is never applied to another source). Returns
@@ -140,29 +71,14 @@ export async function failIfSelectionChanged(
   row: SessionRecord,
   declaration: CompanionDeclaration,
 ): Promise<SessionRecord> {
-  const stored = decode(row.captureRequest);
-  if (
-    !declaration.captureRequests ||
-    !declaration.screenSelection ||
-    !stored ||
-    stored.status !== "pending" ||
-    stored.request.mode !== "region" ||
-    stored.selection === declaration.screenSelection
-  )
-    return row;
-  const failed: StoredCaptureRequest = {
-    ...stored,
-    status: "failed",
-    reason: "source-changed",
-  };
-  await writeStored(tx, scope, row.id, failed);
+  const failed = failedBySelectionChange(row, declaration);
+  if (!failed) return row;
+  await writeCaptureRequest(tx, scope, row.id, failed);
   return { ...row, captureRequest: failed };
 }
 
-// The companion's own report that it could not capture for this request. Only
-// the session's pending, unexpired request of that exact id changes; anything
-// else is a harmless no-op, so a credential can neither fail a request it was
-// not handed nor revive a finished one.
+// The companion's own report that it could not capture for this request
+// (failedByCompanion decides whether anything changes).
 export async function failCaptureRequest(
   tx: TenantDatabase,
   scope: OwnerScope,
@@ -170,18 +86,8 @@ export async function failCaptureRequest(
   requestId: string,
   code: CaptureFailureCode,
 ): Promise<void> {
-  const stored = decode(row.captureRequest);
-  if (
-    stored?.status !== "pending" ||
-    stored.request.requestId !== requestId ||
-    Date.parse(stored.expiresAt) <= row.nowMs
-  )
-    return;
-  await writeStored(tx, scope, row.id, {
-    ...stored,
-    status: "failed",
-    reason: code,
-  });
+  const failed = failedByCompanion(row, requestId, code);
+  if (failed) await writeCaptureRequest(tx, scope, row.id, failed);
 }
 
 export async function submitCaptureRequest(
@@ -201,11 +107,11 @@ export async function submitCaptureRequest(
     // [SAFETY] Dedup on the request id comes first: an identical resend
     // reports the request's current state; the same id with different content
     // is refused and the stored original stays.
-    const existing = decode(row.captureRequest);
+    const existing = decodeCaptureRequest(row.captureRequest);
     if (existing && existing.request.requestId === request.requestId) {
       if (!sameBody(existing.request, request))
         throw new SessionError("invalid_input");
-      return stateOf(existing, row.nowMs);
+      return captureStateOf(existing, row.nowMs);
     }
 
     // [GUARD] Only a capturing session with live assistance and a screen
@@ -260,8 +166,8 @@ export async function submitCaptureRequest(
       ).toISOString(),
     };
     // A newer request replaces the older one whatever its state.
-    await writeStored(tx, scope, sessionId, stored);
-    return stateOf(stored, row.nowMs);
+    await writeCaptureRequest(tx, scope, sessionId, stored);
+    return captureStateOf(stored, row.nowMs);
   });
 }
 
@@ -275,28 +181,16 @@ export async function readCaptureRequest(
 ): Promise<LiveCaptureState> {
   assertUuid(sessionId);
   return inOwnerScope(database, scope, async (tx) => {
-    const row = await firstRow<{
-      capture_request: unknown;
-      now_ms: number;
-      purged_at: Date | null;
-    }>(
-      tx,
-      sql`SELECT capture_request, purged_at,
-                 (extract(epoch from now()) * 1000)::float8 AS now_ms
-          FROM interview.active_sessions
-          WHERE tenant_id = ${scope.tenantId}::uuid
-            AND owner_user_id = ${scope.actorId}::uuid
-            AND id = ${sessionId}::uuid`,
-    );
-    const stored = row ? decode(row.capture_request) : null;
+    const row = await readStoredCaptureRequest(tx, scope, sessionId);
+    const stored = row ? decodeCaptureRequest(row.captureRequest) : null;
     if (
       !row ||
-      row.purged_at !== null ||
+      row.purgedAt !== null ||
       !stored ||
       stored.request.requestId !== requestId
     )
       throw new SessionError("not_found");
-    return stateOf(stored, Number(row.now_ms));
+    return captureStateOf(stored, row.nowMs);
   });
 }
 
@@ -313,23 +207,13 @@ export async function checkSnapshotRequest(
   row: SessionRecord,
   requestId: string,
 ): Promise<SnapshotRequestCheck> {
-  const stored = decode(row.captureRequest);
   if (
-    stored?.status !== "pending" ||
-    stored.request.requestId !== requestId ||
-    Date.parse(stored.expiresAt) <= row.nowMs ||
+    !isPendingRequest(row, requestId) ||
     (await findStoredOwnerInput(tx, scope, sessionId, requestId))
   )
     return "stale";
-  const inputs = await firstRow<{ n: number }>(
-    tx,
-    sql`SELECT count(*)::int AS n FROM interview.session_observations
-        WHERE tenant_id = ${scope.tenantId}::uuid
-          AND owner_user_id = ${scope.actorId}::uuid
-          AND session_id = ${sessionId}::uuid
-          AND kind = 'owner.input'`,
-  );
-  return Number(inputs?.n ?? 0) >= OWNER_INPUT_MAX_PER_SESSION ? "limit" : "ok";
+  const inputs = await countOwnerInputs(tx, scope, sessionId);
+  return inputs >= OWNER_INPUT_MAX_PER_SESSION ? "limit" : "ok";
 }
 
 // Called by ingest, under the session lock, right after it stored a screen
@@ -345,7 +229,7 @@ export async function fulfilCaptureRequest(
 ): Promise<boolean> {
   const requestId = observation.content.requestId;
   if (requestId === undefined) return false;
-  const stored = decode(row.captureRequest);
+  const stored = decodeCaptureRequest(row.captureRequest);
   if (stored?.status !== "pending" || stored.request.requestId !== requestId)
     return false;
   const snapshot = {
@@ -378,7 +262,7 @@ export async function fulfilCaptureRequest(
     snapshotSequence + 1,
     body,
   );
-  await writeStored(tx, scope, sessionId, {
+  await writeCaptureRequest(tx, scope, sessionId, {
     ...stored,
     status: "captured",
     snapshot,

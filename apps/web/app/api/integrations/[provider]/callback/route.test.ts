@@ -11,6 +11,19 @@ vi.mock("@/src/platform/context", () => ({
   resolvePlatformContext: async () => ({ tenant, user }),
 }));
 
+// The store is replaced so the success path can be pinned without a database:
+// what is saved is what the route handed the platform repository.
+const saved = vi.hoisted(() => [] as Record<string, unknown>[]);
+vi.mock("@omnitech/database", () => ({ getPlatformDatabase: () => ({}) }));
+vi.mock("@omnitech/platform-storage", async (original) => ({
+  ...(await original<typeof import("@omnitech/platform-storage")>()),
+  PlatformRepository: class {
+    async saveConnectedAccount(account: Record<string, unknown>) {
+      saved.push(account);
+    }
+  },
+}));
+
 const { GET } = await import("./route");
 const stateSecret = "integration-state-secret-at-least-32";
 
@@ -202,4 +215,44 @@ it("with the matching verifier, sends it on the token exchange, then spends the 
   expect(response.headers.get("set-cookie")).toMatch(
     /integration_pkce_google=;.*Max-Age=0/i,
   );
+});
+
+// Characterisation of the success path: the grant is stored for the member
+// with both tokens encrypted, the attempt is spent, and the browser goes to
+// the workspace's integration settings.
+it("stores the encrypted grant for the member and redirects to the integration settings", async () => {
+  vi.stubEnv("INTEGRATION_GOOGLE_ID", "client-id");
+  vi.stubEnv("INTEGRATION_GOOGLE_SECRET", "client-secret");
+  saved.length = 0;
+  const { verifier, challenge } = createPkcePair();
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) =>
+    init?.method === "POST"
+      ? Response.json({
+          access_token: "access-canary",
+          refresh_token: "refresh-canary",
+          expires_in: 3600,
+          scope: "openid email",
+        })
+      : Response.json({ sub: "provider-account-7" }),
+  );
+  const response = await pkceCallback(verifier, challenge);
+  expect(response.status).toBe(307);
+  expect(response.headers.get("location")).toBe(
+    "https://app.test/t/acme/settings/integrations",
+  );
+  expect(response.headers.get("set-cookie")).toMatch(
+    /integration_pkce_google=;.*Max-Age=0/i,
+  );
+  expect(saved).toHaveLength(1);
+  expect(saved[0]).toMatchObject({
+    userId: user.id,
+    provider: "google",
+    providerAccountId: "provider-account-7",
+    scopes: ["openid", "email"],
+  });
+  expect(saved[0]?.["expiresAt"]).toBeInstanceOf(Date);
+  // [SAFETY] Neither token is stored as it arrived.
+  expect(JSON.stringify(saved[0])).not.toContain("canary");
+  expect(saved[0]?.["accessToken"]).toBeTruthy();
+  expect(saved[0]?.["refreshToken"]).toBeTruthy();
 });

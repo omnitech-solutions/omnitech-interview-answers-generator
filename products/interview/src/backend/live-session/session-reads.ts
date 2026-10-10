@@ -14,20 +14,32 @@ import {
   liveRevisionReasonSchema,
   liveScreenshotSentSchema,
 } from "@omnitech/interview-contracts";
-import { sql } from "drizzle-orm";
 import { z } from "zod";
-import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
-import {
-  OWNER_INPUT_SOURCE_ID,
-  SESSION_SCREENSHOT_ARTIFACT_TYPE,
-} from "../db/live-session";
 import { assertUuid, SessionError } from "./errors";
 import { sanitizeMissingContext } from "./missing-context";
 import { parseSnapshotProvenanceId } from "./owner-input";
-import { firstRow, inOwnerScope, type OwnerScope, rowsOf } from "./scope";
+import { readScreenshotArtifact } from "./repositories/screenshot.repository";
+import { readSession } from "./repositories/session.repository";
+import {
+  ACTION_COLUMNS,
+  findActionJob,
+  findOpenSessionId,
+  REVISION_REASON,
+  readActionRowsNewest,
+  readActionRowsOldest,
+  readObservationRows,
+  readPinnedProfileRevision,
+  readScreenshotsSentRows,
+  readTaskScreenshotRows,
+  SNAPSHOT_EVENT_IDS,
+} from "./repositories/session-read.repository";
+import { inOwnerScope, type OwnerScope } from "./scope";
 import type { SessionJobs } from "./session-jobs";
-import { readSession, type SessionView, toView } from "./session-record";
+import { type SessionView, toView } from "./session-record";
 import { decodeWithheldReason } from "./withheld";
+
+// The column fragments live with the queries; the paging reads import them here.
+export { ACTION_COLUMNS, REVISION_REASON, SNAPSHOT_EVENT_IDS };
 
 export const MAX_PAGE = 500;
 // A page is at most MAX_PAGE; one more row may be asked for (MAX_PAGE + 1) so
@@ -53,14 +65,7 @@ export async function getOpenSession(
   scope: OwnerScope,
 ): Promise<SessionView | null> {
   return inOwnerScope(database, scope, async (tx) => {
-    const row = await firstRow<{ id: string }>(
-      tx,
-      sql`SELECT id FROM interview.active_sessions
-          WHERE tenant_id = ${scope.tenantId}::uuid
-            AND owner_user_id = ${scope.actorId}::uuid
-            AND status NOT IN ('ended', 'purging')
-          LIMIT 1`,
-    );
+    const row = await findOpenSessionId(tx, scope);
     if (!row) return null;
     const record = await readSession(tx, scope, row.id);
     return record ? toView(record) : null;
@@ -97,17 +102,11 @@ export async function listObservations(
   return inOwnerScope(database, scope, async (tx) => {
     if (!(await readSession(tx, scope, sessionId)))
       throw new SessionError("not_found");
-    const rows = await rowsOf<Record<string, unknown>>(
-      tx,
-      sql`SELECT sequence, source_id, event_id, kind, received_at, content,
-                 screenshot_artifact_id
-          FROM interview.session_observations
-          WHERE tenant_id = ${scope.tenantId}::uuid
-            AND owner_user_id = ${scope.actorId}::uuid
-            AND session_id = ${sessionId}::uuid AND sequence > ${after}
-            ${options.excludeOwnerInput ? sql`AND kind <> 'owner.input'` : sql``}
-          ORDER BY sequence LIMIT ${limit}`,
-    );
+    const rows = await readObservationRows(tx, scope, sessionId, {
+      after,
+      limit,
+      excludeOwnerInput: options.excludeOwnerInput === true,
+    });
     return rows.map((row) => ({
       sequence: Number(row["sequence"]),
       sourceId: String(row["source_id"]),
@@ -182,42 +181,12 @@ export async function listTaskScreenshots(
   return inOwnerScope(database, scope, async (tx) => {
     if (!(await readSession(tx, scope, sessionId)))
       throw new SessionError("not_found");
-    const rows = await rowsOf<Record<string, unknown>>(
+    const rows = await readTaskScreenshotRows(tx, scope, sessionId, taskId);
+    const recorded = await readScreenshotsSentRows(
       tx,
-      sql`SELECT o.ordinal, o.source_id, o.event_id, o.sequence, o.received_at,
-                 o.screenshot_artifact_id, o.ocr_engine, o.display,
-                 array_agg(DISTINCT a.task_revision
-                           ORDER BY a.task_revision) AS revisions
-          FROM (SELECT sequence, source_id, event_id, received_at,
-                       screenshot_artifact_id, session_id, tenant_id,
-                       owner_user_id, content->'ocr'->>'engine' AS ocr_engine,
-                       content->'display' AS display,
-                       row_number() OVER (ORDER BY sequence)::int AS ordinal
-                FROM interview.session_observations
-                WHERE tenant_id = ${scope.tenantId}::uuid
-                  AND owner_user_id = ${scope.actorId}::uuid
-                  AND session_id = ${sessionId}::uuid
-                  AND kind = 'screen.snapshot') o
-          JOIN interview.session_actions a
-            ON a.tenant_id = o.tenant_id AND a.owner_user_id = o.owner_user_id
-           AND a.session_id = o.session_id AND a.task_id = ${taskId}
-           AND 'snap/' || a.session_id || '/' || o.source_id || '/' || o.event_id
-               = ANY(a.source_event_ids)
-          GROUP BY o.ordinal, o.source_id, o.event_id, o.sequence,
-                   o.received_at, o.screenshot_artifact_id, o.ocr_engine,
-                   o.display
-          ORDER BY o.sequence`,
-    );
-    const recorded = await rowsOf<Record<string, unknown>>(
-      tx,
-      sql`SELECT task_revision, result->'screenshotsSent' AS sent
-          FROM interview.session_actions
-          WHERE tenant_id = ${scope.tenantId}::uuid
-            AND owner_user_id = ${scope.actorId}::uuid
-            AND session_id = ${sessionId}::uuid AND task_id = ${taskId}
-            AND dispatch_status = 'succeeded'
-            AND result->'screenshotsSent' IS NOT NULL
-          ORDER BY task_revision, created_at`,
+      scope,
+      sessionId,
+      taskId,
     );
     // ordinal -> revision -> outcome (the later action of a revision wins).
     const sentOf = new Map<number, Map<number, LiveScreenshotSent>>();
@@ -303,10 +272,6 @@ export type StoredAction = {
   updatedAt: string;
 };
 
-export const ACTION_COLUMNS = sql`id, task_id, task_revision, action_kind,
-  dispatch_status, attempt, fence_at_dispatch, job_id, job_created, result,
-  progress, shown, suppression_reason, created_at, updated_at`;
-
 // The draft's text so far on an in-flight action (recordProgress), when well
 // formed; a settled action carries none.
 function progressOf(
@@ -355,39 +320,6 @@ function noQuestionOf(result: unknown): true | undefined {
     ? true
     : undefined;
 }
-
-// Column that gives the browser's feed the snapshot provenance ids only: the
-// spoken segment ids and owner input ids in source_event_ids stay server-side.
-export const SNAPSHOT_EVENT_IDS = sql`ARRAY(
-    SELECT source_id FROM unnest(source_event_ids) WITH ORDINALITY AS u(source_id, n)
-    WHERE source_id LIKE 'snap/%' ORDER BY n) AS snapshot_event_ids`;
-
-// Column that tells the browser WHY a task revision exists when the owner's own
-// input made it: the newest owner input the revision rests on that no earlier
-// revision of the task did (a regeneration, or a screenshot added to the task).
-// The input's content stays server-side; only the closed word leaves.
-export const REVISION_REASON = sql`(
-    SELECT CASE o.content->'body'->>'operation'
-             WHEN 'regenerate' THEN 'regenerate'
-             WHEN 'analyze' THEN CASE WHEN o.content->'body'->'target' IS NOT NULL
-                                      THEN 'added-screenshot' END
-           END
-    FROM interview.session_observations o
-    WHERE session_actions.task_revision > 1
-      AND o.tenant_id = session_actions.tenant_id
-      AND o.owner_user_id = session_actions.owner_user_id
-      AND o.session_id = session_actions.session_id
-      AND o.source_id = ${OWNER_INPUT_SOURCE_ID}
-      AND 'input/' || o.event_id = ANY(session_actions.source_event_ids)
-      AND NOT EXISTS (
-        SELECT 1 FROM interview.session_actions p
-        WHERE p.tenant_id = session_actions.tenant_id
-          AND p.owner_user_id = session_actions.owner_user_id
-          AND p.session_id = session_actions.session_id
-          AND p.task_id = session_actions.task_id
-          AND p.task_revision < session_actions.task_revision
-          AND 'input/' || o.event_id = ANY(p.source_event_ids))
-    ORDER BY o.sequence DESC LIMIT 1) AS revision_reason`;
 
 function sourceSnapshotsOf(
   row: Record<string, unknown>,
@@ -465,15 +397,7 @@ export async function listActions(
   return inOwnerScope(database, scope, async (tx) => {
     if (!(await readSession(tx, scope, sessionId)))
       throw new SessionError("not_found");
-    const rows = await rowsOf<Record<string, unknown>>(
-      tx,
-      sql`SELECT ${ACTION_COLUMNS}, source_event_ids
-          FROM interview.session_actions
-          WHERE tenant_id = ${scope.tenantId}::uuid
-            AND owner_user_id = ${scope.actorId}::uuid
-            AND session_id = ${sessionId}::uuid
-          ORDER BY created_at, id LIMIT ${limit}`,
-    );
+    const rows = await readActionRowsOldest(tx, scope, sessionId, limit);
     return rows.map(toStoredAction);
   });
 }
@@ -491,14 +415,11 @@ export async function listActionsNewest(
   return inOwnerScope(database, scope, async (tx) => {
     if (!(await readSession(tx, scope, sessionId)))
       throw new SessionError("not_found");
-    const rows = await rowsOf<Record<string, unknown>>(
+    const rows = await readActionRowsNewest(
       tx,
-      sql`SELECT ${ACTION_COLUMNS}, source_event_ids
-          FROM interview.session_actions
-          WHERE tenant_id = ${scope.tenantId}::uuid
-            AND owner_user_id = ${scope.actorId}::uuid
-            AND session_id = ${sessionId}::uuid
-          ORDER BY created_at DESC, id DESC LIMIT ${Math.max(1, limit)}`,
+      scope,
+      sessionId,
+      Math.max(1, limit),
     );
     return rows.map(toStoredAction).reverse();
   });
@@ -517,19 +438,7 @@ export async function readScreenshot(
   assertUuid(sessionId);
   assertUuid(artifactId);
   return inOwnerScope(database, scope, async (tx) => {
-    const row = await firstRow<{ bytes: Uint8Array; metadata: unknown }>(
-      tx,
-      sql`SELECT p.bytes, a.metadata
-          FROM platform.artifacts a
-          JOIN platform.artifact_payloads p
-            ON p.tenant_id = a.tenant_id AND p.artifact_id = a.id
-          WHERE a.tenant_id = ${scope.tenantId}::uuid
-            AND a.id = ${artifactId}::uuid
-            AND a.product_id = ${INTERVIEW_PRODUCT_ID}
-            AND a.artifact_type = ${SESSION_SCREENSHOT_ARTIFACT_TYPE}
-            AND a.owner_user_id = ${scope.actorId}::uuid
-            AND a.metadata->>'session_id' = ${sessionId}`,
-    );
+    const row = await readScreenshotArtifact(tx, scope, sessionId, artifactId);
     if (!row) return null;
     const mediaType = (row.metadata as { media_type?: string } | null)
       ?.media_type;
@@ -564,14 +473,10 @@ export async function getSessionContext(
     if (!record) return null;
     let profile: SessionContext["profile"] = null;
     if (record.profileId !== null && record.profileRevision !== null) {
-      const row = await firstRow<{ sha256: string; matrix: unknown }>(
-        tx,
-        sql`SELECT sha256, matrix FROM interview.candidate_profile_revisions
-            WHERE tenant_id = ${scope.tenantId} AND actor_id = ${scope.actorId}
-              AND product_id = ${INTERVIEW_PRODUCT_ID}
-              AND id = ${record.profileId}
-              AND revision = ${record.profileRevision}`,
-      );
+      const row = await readPinnedProfileRevision(tx, scope, {
+        profileId: record.profileId,
+        revision: record.profileRevision,
+      });
       if (row)
         profile = {
           id: record.profileId,
@@ -596,13 +501,7 @@ export async function getSessionJob(
   assertUuid(sessionId);
   assertUuid(jobId);
   const named = await inOwnerScope(database, scope, (tx) =>
-    firstRow<{ job_id: string }>(
-      tx,
-      sql`SELECT job_id FROM interview.session_actions
-          WHERE tenant_id = ${scope.tenantId}::uuid
-            AND owner_user_id = ${scope.actorId}::uuid
-            AND session_id = ${sessionId}::uuid AND job_id = ${jobId}::uuid`,
-    ),
+    findActionJob(tx, scope, sessionId, jobId),
   );
   if (!named) return undefined;
   return jobs.get(scope.tenantId, scope.actorId, jobId);

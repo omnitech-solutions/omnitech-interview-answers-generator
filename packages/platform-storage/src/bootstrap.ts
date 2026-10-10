@@ -1,4 +1,9 @@
+// `pnpm db:bootstrap`: the first user, tenant, owner membership and installed
+// products of a fresh database. It runs before any tenant or actor exists, on
+// the raw client with enterTenant, so its statements are raw upserts with
+// conflict targets; what it installs is data in ./bootstrap-installations.
 import { createPlatformDatabase, enterTenant } from "@omnitech/database";
+import { BOOTSTRAP_INSTALLATIONS } from "./bootstrap-installations";
 
 const database = createPlatformDatabase();
 const userEmail =
@@ -37,95 +42,28 @@ try {
        ON CONFLICT (tenant_id, user_id) DO UPDATE SET role = 'owner'`,
       [tenantId, userId],
     );
-    await client.query(
-      `INSERT INTO platform.product_installations
-         (tenant_id, product_id, display_name, description, icon, sort_order,
-          configuration)
-       VALUES ($1, 'omnitech.presentation', 'Presentations',
-         'Create, edit, present, and share visual documents.', 'presentation',
-         20, $2)
-       ON CONFLICT (tenant_id, product_id) DO UPDATE SET
-         configuration = EXCLUDED.configuration,
-         updated_at = now()`,
-      [
-        tenantId,
-        {
-          enabled: true,
-          routePrefix: "/p/presentation",
-          navigation: {
-            group: "Products",
-            order: 20,
-            hidden: false,
-            routes: {
-              "presentation.library": {
-                label: "Presentations",
-                description: "Browse and manage visual documents",
-                path: "/p/presentation/library",
-                hidden: false,
-              },
-              "presentation.create": {
-                label: "Create",
-                description: "Start a presentation",
-                path: "/p/presentation/create",
-                hidden: false,
-              },
-              "presentation.themes": {
-                label: "Themes",
-                description: "Manage reusable visual systems",
-                path: "/p/presentation/themes",
-                hidden: false,
-              },
-              "presentation.image-studio": {
-                label: "Image Studio",
-                description: "Generate and manage images",
-                path: "/p/presentation/images",
-                hidden: false,
-              },
-            },
-          },
-          featureFlags: {
-            sharing: true,
-            recording: true,
-            exports: true,
-            imageStudio: true,
-          },
-          settings: {},
-          revision: 1,
-        },
-      ],
-    );
-    await client.query(
-      `INSERT INTO platform.product_installations
-         (tenant_id, product_id, display_name, description, icon, configuration)
-       VALUES ($1, 'omnitech.interview', 'Interview',
-         'Create, practise, and organize interview material.', 'sparkles', $2)
-       ON CONFLICT (tenant_id, product_id) DO UPDATE SET
-         configuration = EXCLUDED.configuration,
-         updated_at = now()`,
-      [
-        tenantId,
-        {
-          enabled: true,
-          routePrefix: "/p/interview",
-          navigation: {
-            group: "Products",
-            order: 10,
-            hidden: false,
-            routes: {
-              "interview.home": {
-                label: "Interview Studio",
-                description: "Prepare, practise and rehearse interviews",
-                path: "/p/interview",
-                hidden: false,
-              },
-            },
-          },
-          featureFlags: {},
-          settings: {},
-          revision: 1,
-        },
-      ],
-    );
+    // One row per product the tenant starts with; a re-run refreshes only the
+    // configuration, so labels and order an owner changed are kept.
+    for (const installation of BOOTSTRAP_INSTALLATIONS) {
+      await client.query(
+        `INSERT INTO platform.product_installations
+           (tenant_id, product_id, display_name, description, icon, sort_order,
+            configuration)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (tenant_id, product_id) DO UPDATE SET
+           configuration = EXCLUDED.configuration,
+           updated_at = now()`,
+        [
+          tenantId,
+          installation.productId,
+          installation.displayName,
+          installation.description,
+          installation.icon,
+          installation.sortOrder,
+          installation.configuration,
+        ],
+      );
+    }
   });
 } finally {
   await database.close();

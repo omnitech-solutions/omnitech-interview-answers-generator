@@ -12,7 +12,6 @@
 import { randomUUID } from "node:crypto";
 import type { PlatformDatabase, TenantDatabase } from "@omnitech/database";
 import type { LiveScreenshotSend } from "@omnitech/interview-contracts";
-import { sql } from "drizzle-orm";
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
 import {
   canPublish,
@@ -31,9 +30,16 @@ import {
   type TaskState,
 } from "./core/index";
 import { assertUuid, SessionError } from "./errors";
-import { firstRow, inOwnerScope, type OwnerScope, rowsOf } from "./scope";
+import * as actions from "./repositories/action.repository";
+import {
+  type GuardTransaction,
+  lockSessionForJob,
+  lockSessionOfJob,
+} from "./repositories/lease.repository";
+import { lockSession } from "./repositories/session.repository";
+import { inOwnerScope, type OwnerScope } from "./scope";
 import type { SessionJobs } from "./session-jobs";
-import { lockSession, type SessionRecord } from "./session-record";
+import type { SessionRecord } from "./session-record";
 import { MAX_REASON_CHARS } from "./withheld";
 
 // The lease token a worker holds: the id it claimed under and the fence its
@@ -147,32 +153,24 @@ const refused = (reason: WriteRefusalReason, recorded: boolean): Refused => ({
   suppressionRecorded: recorded,
 });
 
-type ActionRow = {
-  attempt: number;
-  dispatch_status: string;
-};
-
 // The dispatch ledger for one key, rebuilt from the persisted rows: succeeded
 // and in-flight dedup, a failed dispatch may be retried with the next attempt.
-function ledgerOf(request: DispatchRequest, rows: ActionRow[]): DispatchLedger {
+function ledgerOf(
+  request: DispatchRequest,
+  rows: actions.StoredAttempt[],
+): DispatchLedger {
   const attempts = rows.reduce((max, r) => Math.max(max, Number(r.attempt)), 0);
-  const status = rows.some((r) => r.dispatch_status === "succeeded")
+  const status = rows.some((r) => r.dispatchStatus === "succeeded")
     ? "succeeded"
-    : rows.some((r) => r.dispatch_status === "in_flight")
+    : rows.some((r) => r.dispatchStatus === "in_flight")
       ? "in-flight"
-      : rows.some((r) => r.dispatch_status === "failed")
+      : rows.some((r) => r.dispatchStatus === "failed")
         ? "failed"
         : null;
   if (status === null) return { entries: {} };
   const key = dispatchKey(request);
   return { entries: { [key]: { key, status, attempts } } };
 }
-
-// A text[] value from ids (never text content); null stays null.
-const textArray = (ids: readonly string[] | null) =>
-  ids === null
-    ? sql`NULL::text[]`
-    : sql`ARRAY(SELECT jsonb_array_elements_text(${JSON.stringify(ids)}::jsonb))`;
 
 export class FencedSessionWrites {
   constructor(private readonly database: PlatformDatabase) {}
@@ -208,16 +206,7 @@ export class FencedSessionWrites {
         revision: input.revision,
         actionKind: input.actionKind,
       };
-      const existing = await rowsOf<ActionRow>(
-        tx,
-        sql`SELECT attempt, dispatch_status FROM interview.session_actions
-            WHERE tenant_id = ${input.scope.tenantId}::uuid
-              AND owner_user_id = ${input.scope.actorId}::uuid
-              AND session_id = ${input.sessionId}::uuid
-              AND task_id = ${input.taskId}
-              AND task_revision = ${input.revision}
-              AND action_kind = ${input.actionKind}`,
-      );
+      const existing = await actions.listAttempts(tx, input.scope, request);
       const decision = decideDispatch(
         ledgerOf(request, existing),
         input.tasks,
@@ -237,22 +226,19 @@ export class FencedSessionWrites {
         );
         return { outcome: "suppressed", reason: decision.suppression.reason };
       }
-      const inserted = await firstRow<{ id: string }>(
-        tx,
-        sql`INSERT INTO interview.session_actions
-              (tenant_id, owner_user_id, session_id, task_id, task_revision,
-               action_kind, dispatch_status, attempt, job_id, fence_at_dispatch,
-               source_event_ids)
-            VALUES (${input.scope.tenantId}::uuid, ${input.scope.actorId}::uuid,
-              ${input.sessionId}::uuid, ${input.taskId}, ${input.revision},
-              ${input.actionKind}, 'in_flight', ${decision.attempt},
-              ${input.jobId ?? null}::uuid, ${row.fence},
-              ${textArray(sourceIdsOf(input.tasks, input.taskId, input.revision))})
-            RETURNING id`,
-      );
+      const insertedId = await actions.insertInFlightAction(tx, input.scope, {
+        sessionId: input.sessionId,
+        taskId: input.taskId,
+        revision: input.revision,
+        actionKind: input.actionKind,
+        attempt: decision.attempt,
+        jobId: input.jobId ?? null,
+        fence: row.fence,
+        sourceEventIds: sourceIdsOf(input.tasks, input.taskId, input.revision),
+      });
       return {
         outcome: "dispatched",
-        actionId: String(inserted?.id),
+        actionId: String(insertedId),
         attempt: decision.attempt,
         jobId: input.jobId ?? null,
       };
@@ -270,15 +256,15 @@ export class FencedSessionWrites {
     // The purging mark refuses every new action at the database; the purge is
     // about to delete them all, so nothing is recorded.
     if (row.status === "purging") return;
-    await tx.execute(sql`
-      INSERT INTO interview.session_actions
-        (tenant_id, owner_user_id, session_id, task_id, task_revision,
-         action_kind, dispatch_status, attempt, fence_at_dispatch,
-         suppression_reason, source_event_ids)
-      VALUES (${scope.tenantId}::uuid, ${scope.actorId}::uuid, ${row.id}::uuid,
-        ${request.taskId}, ${request.revision}, ${request.actionKind},
-        'suppressed', 1, ${row.fence}, ${suppression.reason},
-        ${textArray(sourceEventIds)})`);
+    await actions.insertSuppressedAction(tx, scope, {
+      sessionId: row.id,
+      taskId: request.taskId,
+      revision: request.revision,
+      actionKind: request.actionKind,
+      fence: row.fence,
+      reason: suppression.reason,
+      sourceEventIds,
+    });
   }
 
   // A suppression the processor's own policy decided (for example a locality
@@ -345,12 +331,12 @@ export class FencedSessionWrites {
         input.holder,
       );
       if (!guard.ok) return guard.refused;
-      await tx.execute(sql`
-        UPDATE interview.active_sessions
-        SET processed_through = GREATEST(COALESCE(processed_through, 0), ${input.through})
-        WHERE tenant_id = ${input.scope.tenantId}::uuid
-          AND owner_user_id = ${input.scope.actorId}::uuid
-          AND id = ${input.sessionId}::uuid`);
+      await actions.raiseProcessedThrough(
+        tx,
+        input.scope,
+        input.sessionId,
+        input.through,
+      );
       return { outcome: "recorded" };
     });
   }
@@ -380,46 +366,38 @@ export class FencedSessionWrites {
       );
       if (!guard.ok) return guard.refused;
       const { row } = guard;
-      const action = await firstRow<{
-        task_id: string;
-        task_revision: number;
-        dispatch_status: string;
-      }>(
+      const action = await actions.lockAction(
         tx,
-        sql`SELECT task_id, task_revision, dispatch_status
-            FROM interview.session_actions
-            WHERE tenant_id = ${input.scope.tenantId}::uuid
-              AND owner_user_id = ${input.scope.actorId}::uuid
-              AND session_id = ${input.sessionId}::uuid
-              AND id = ${input.actionId}::uuid
-            FOR UPDATE`,
+        input.scope,
+        input.sessionId,
+        input.actionId,
       );
       if (!action) return refused("action_not_found", false);
-      if (action.dispatch_status !== "in_flight")
+      if (action.dispatchStatus !== "in_flight")
         return refused("action_settled", false);
-      const task = input.tasks.tasks[action.task_id];
+      const task = input.tasks.tasks[action.taskId];
       const eligibility = task
         ? canPublish({
             sessionStatus: row.status,
             leaseFence: row.fence,
             holderFence: input.holder.fence,
-            taskRevision: Number(action.task_revision),
+            taskRevision: Number(action.taskRevision),
             currentTaskRevision: task.revision,
             sourceSuperseded:
               revisionStanding(
                 input.tasks,
-                action.task_id,
-                Number(action.task_revision),
+                action.taskId,
+                Number(action.taskRevision),
               ) === "source_superseded",
           })
         : { eligible: false as const, reason: "revision_stale" as const };
       if (!eligibility.eligible) {
-        await tx.execute(sql`
-          UPDATE interview.session_actions SET
-            dispatch_status = 'suppressed', suppression_reason = ${eligibility.reason}
-          WHERE tenant_id = ${input.scope.tenantId}::uuid
-            AND owner_user_id = ${input.scope.actorId}::uuid
-            AND id = ${input.actionId}::uuid`);
+        await actions.suppressAction(
+          tx,
+          input.scope,
+          input.actionId,
+          eligibility.reason,
+        );
         return refused(eligibility.reason, true);
       }
       const merged = input.effect
@@ -428,28 +406,23 @@ export class FencedSessionWrites {
             scope: input.scope,
             sessionId: input.sessionId,
             actionId: input.actionId,
-            taskId: action.task_id,
-            taskRevision: Number(action.task_revision),
+            taskId: action.taskId,
+            taskRevision: Number(action.taskRevision),
           })
         : undefined;
       const stored = merged
         ? { ...(input.result as Record<string, unknown>), ...merged }
         : input.result;
       const show = input.show === true;
-      await tx.execute(sql`
-        UPDATE interview.session_actions SET
-          dispatch_status = 'succeeded', result = ${JSON.stringify(stored)}::jsonb,
-          progress = NULL, shown = ${show}
-        WHERE tenant_id = ${input.scope.tenantId}::uuid
-          AND owner_user_id = ${input.scope.actorId}::uuid
-          AND id = ${input.actionId}::uuid`);
+      await actions.markSucceeded(
+        tx,
+        input.scope,
+        input.actionId,
+        stored,
+        show,
+      );
       if (show)
-        await tx.execute(sql`
-          UPDATE interview.active_sessions
-          SET shown_draft_count = shown_draft_count + 1
-          WHERE tenant_id = ${input.scope.tenantId}::uuid
-            AND owner_user_id = ${input.scope.actorId}::uuid
-            AND id = ${input.sessionId}::uuid`);
+        await actions.incrementShownDrafts(tx, input.scope, input.sessionId);
       return { outcome: "published" };
     });
   }
@@ -506,14 +479,14 @@ export class FencedSessionWrites {
         input.holder,
       );
       if (!guard.ok) return guard.refused;
-      const updated = await tx.execute(sql`
-        UPDATE interview.session_actions SET
-          progress = ${JSON.stringify(input.progress)}::jsonb
-        WHERE tenant_id = ${input.scope.tenantId}::uuid
-          AND owner_user_id = ${input.scope.actorId}::uuid
-          AND session_id = ${input.sessionId}::uuid
-          AND id = ${input.actionId}::uuid AND dispatch_status = 'in_flight'`);
-      return (updated.rowCount ?? 0) === 1
+      const updated = await actions.writeProgress(
+        tx,
+        input.scope,
+        input.sessionId,
+        input.actionId,
+        input.progress,
+      );
+      return updated
         ? { outcome: "recorded" }
         : refused("action_settled", false);
     });
@@ -541,14 +514,14 @@ export class FencedSessionWrites {
         input.holder,
       );
       if (!guard.ok) return guard.refused;
-      const updated = await tx.execute(sql`
-        UPDATE interview.session_actions SET
-          dispatch_status = 'suppressed', suppression_reason = ${input.reason}
-        WHERE tenant_id = ${input.scope.tenantId}::uuid
-          AND owner_user_id = ${input.scope.actorId}::uuid
-          AND session_id = ${input.sessionId}::uuid
-          AND id = ${input.actionId}::uuid AND dispatch_status = 'in_flight'`);
-      return (updated.rowCount ?? 0) === 1
+      const updated = await actions.abandonInFlight(
+        tx,
+        input.scope,
+        input.sessionId,
+        input.actionId,
+        input.reason,
+      );
+      return updated
         ? { outcome: "recorded" }
         : refused("action_settled", false);
     });
@@ -572,13 +545,13 @@ export class FencedSessionWrites {
         input.holder,
       );
       if (!guard.ok) return guard.refused;
-      const updated = await tx.execute(sql`
-        UPDATE interview.session_actions SET dispatch_status = 'failed'
-        WHERE tenant_id = ${input.scope.tenantId}::uuid
-          AND owner_user_id = ${input.scope.actorId}::uuid
-          AND session_id = ${input.sessionId}::uuid
-          AND id = ${input.actionId}::uuid AND dispatch_status = 'in_flight'`);
-      return (updated.rowCount ?? 0) === 1
+      const updated = await actions.failInFlight(
+        tx,
+        input.scope,
+        input.sessionId,
+        input.actionId,
+      );
+      return updated
         ? { outcome: "recorded" }
         : refused("action_settled", false);
     });
@@ -621,20 +594,12 @@ export async function createSessionJob(
     },
     {
       beforeInsert: async (transaction) => {
-        const result = await transaction.query(
-          `SELECT s.status, s.processing_policy, s.fence, s.lease_holder_id,
-                  (s.lease_expires_at IS NOT NULL AND s.lease_expires_at > now()) AS lease_live,
-                  EXISTS (
-                    SELECT 1 FROM interview.session_actions a
-                    WHERE a.tenant_id = s.tenant_id AND a.owner_user_id = s.owner_user_id
-                      AND a.session_id = s.id AND a.job_id = $4::uuid
-                  ) AS reserved
-           FROM interview.active_sessions s
-           WHERE s.tenant_id = $1::uuid AND s.owner_user_id = $2::uuid AND s.id = $3::uuid
-           FOR UPDATE`,
-          [scope.tenantId, scope.actorId, input.sessionId, input.jobId],
+        const row = await lockSessionForJob(
+          transaction,
+          scope,
+          input.sessionId,
+          input.jobId,
         );
-        const row = result.rows[0];
         if (
           row?.["status"] !== "active" ||
           // [SAFETY] A remote agent job is never created for a session that
@@ -650,22 +615,10 @@ export async function createSessionJob(
     },
   );
   await inOwnerScope(database, scope, async (tx) => {
-    await tx.execute(sql`
-      UPDATE interview.session_actions SET job_created = true
-      WHERE tenant_id = ${scope.tenantId}::uuid
-        AND owner_user_id = ${scope.actorId}::uuid
-        AND session_id = ${input.sessionId}::uuid
-        AND job_id = ${input.jobId}::uuid AND NOT job_created`);
+    await actions.markJobCreated(tx, scope, input.sessionId, input.jobId);
   });
   return job;
 }
-
-type GuardTransaction = {
-  query(
-    text: string,
-    values?: unknown[],
-  ): Promise<{ rows: Record<string, unknown>[]; rowCount: number | null }>;
-};
 
 // [SAFETY] The resume guard: finds the session through the action that names
 // the job and requires it active, under the session-row lock, so no job resumes
@@ -676,20 +629,11 @@ export function sessionJobResumeGuard(
   jobId: string,
 ): (transaction: GuardTransaction) => Promise<boolean> {
   return async (transaction) => {
-    const result = await transaction.query(
-      `SELECT s.status, s.processing_policy
-       FROM interview.session_actions a
-       JOIN interview.active_sessions s
-         ON s.tenant_id = a.tenant_id AND s.owner_user_id = a.owner_user_id
-        AND s.id = a.session_id
-       WHERE a.tenant_id = $1::uuid AND a.job_id = $2::uuid
-       FOR UPDATE OF s`,
-      [tenantId, jobId],
-    );
+    const row = await lockSessionOfJob(transaction, tenantId, jobId);
     // [SAFETY] A device-only session never resumes a remote agent job.
     return (
-      result.rows[0]?.["status"] === "active" &&
-      result.rows[0]?.["processing_policy"] === "permitted_remote"
+      row?.["status"] === "active" &&
+      row?.["processing_policy"] === "permitted_remote"
     );
   };
 }

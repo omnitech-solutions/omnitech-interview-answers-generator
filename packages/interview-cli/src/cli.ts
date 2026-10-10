@@ -11,7 +11,6 @@ import {
   saveAnswerRequestSchema,
 } from "@omnitech/interview-contracts";
 import {
-  type PlaygroundAnswerLanguage,
   type PlaygroundPatch,
   parsePlaygroundPatch,
 } from "@omnitech/interview-playground-control";
@@ -23,6 +22,12 @@ import {
   createConfiguredClient,
   createConfiguredPlaygroundControlClient,
 } from "./index";
+import {
+  answerIntent,
+  controlsFrom,
+  type PlaygroundSetOptions,
+  readsJsonPatch,
+} from "./playground-patch";
 
 type OutputFormat = "json" | "text";
 
@@ -383,79 +388,33 @@ export function createProgram(): Command {
     .option("--test-code-file <path>")
     .option("--clear-answer", "remove the answer from the Playground")
     .option("--quiet", "apply the patch without printing the resulting state")
-    .action(async (options) => {
+    .action(async (options: PlaygroundSetOptions) => {
       const globals = globalOptions(program);
       let patch: PlaygroundPatch;
-      const hasNamedOptions = [
-        options.question,
-        options.language,
-        options.notes,
-        options.panel,
-        options.title,
-        options.guideFile,
-        options.codeFile,
-        options.usageCodeFile,
-        options.testCodeFile,
-        options.clearAnswer,
-        options.view,
-      ].some((value) => value !== undefined && value !== false);
 
-      if (options.file || (!hasNamedOptions && !process.stdin.isTTY)) {
+      if (readsJsonPatch(options, Boolean(process.stdin.isTTY))) {
         const json = options.file
           ? await readFile(options.file, "utf8")
           : await readQuestion({});
         patch = parsePlaygroundPatch(JSON.parse(json));
       } else {
-        patch = parsePlaygroundPatch({
-          ...(options.question === undefined
-            ? {}
-            : { question: options.question }),
-          ...(options.language === undefined
-            ? {}
-            : { language: options.language }),
-          ...(options.notes === undefined ? {} : { notes: options.notes }),
-          ...(options.panel === undefined ? {} : { panel: options.panel }),
-          ...(options.view === undefined ? {} : { view: options.view }),
-        });
-
-        const hasAnswerFields =
-          options.title !== undefined ||
-          options.guideFile !== undefined ||
-          options.codeFile !== undefined ||
-          options.usageCodeFile !== undefined ||
-          options.testCodeFile !== undefined;
-        if (options.clearAnswer && hasAnswerFields) {
-          throw new Error(
-            "--clear-answer cannot be combined with answer field options.",
-          );
-        }
-        if (options.clearAnswer) patch.answer = null;
-
-        if (hasAnswerFields) {
-          if (
-            !options.title ||
-            !options.guideFile ||
-            !options.codeFile ||
-            !options.language ||
-            options.language === "auto"
-          ) {
-            throw new Error(
-              "An answer requires --title, --guide-file, --code-file, and a non-auto --language.",
-            );
-          }
+        patch = parsePlaygroundPatch(controlsFrom(options));
+        const answer = answerIntent(options);
+        if (answer.kind === "clear") patch.answer = null;
+        if (answer.kind === "replace") {
           patch.answer = {
-            title: options.title,
-            language: options.language as PlaygroundAnswerLanguage,
+            title: answer.title,
+            language: answer.language,
             // The Playground renders the answer's Markdown from the guide.
             answerMarkdown: "",
-            code: await readFile(options.codeFile, "utf8"),
-            usageCode: options.usageCodeFile
-              ? await readFile(options.usageCodeFile, "utf8")
+            code: await readFile(answer.codeFile, "utf8"),
+            usageCode: answer.usageCodeFile
+              ? await readFile(answer.usageCodeFile, "utf8")
               : "",
-            testCode: options.testCodeFile
-              ? await readFile(options.testCodeFile, "utf8")
+            testCode: answer.testCodeFile
+              ? await readFile(answer.testCodeFile, "utf8")
               : "",
-            guide: JSON.parse(await readFile(options.guideFile, "utf8")),
+            guide: JSON.parse(await readFile(answer.guideFile, "utf8")),
           };
         }
       }

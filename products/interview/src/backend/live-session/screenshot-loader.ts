@@ -21,13 +21,11 @@ import {
   type ScreenshotMediaType,
 } from "@omnitech/active-session-contracts";
 import type { PlatformDatabase } from "@omnitech/database";
-import { sql } from "drizzle-orm";
-import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
-import { SESSION_SCREENSHOT_ARTIFACT_TYPE } from "../db/live-session";
 import type { SessionAttachment } from "./engine-call";
 import { isUuid } from "./errors";
 import { parseSnapshotProvenanceId } from "./owner-input";
-import { firstRow, inOwnerScope } from "./scope";
+import { readSnapshotRow } from "./repositories/screenshot.repository";
+import { inOwnerScope } from "./scope";
 
 export const SCREENSHOT_LOAD_LIMITS = Object.freeze({
   // What ingest accepts; never more than a runtime's own image bound.
@@ -244,33 +242,7 @@ export async function loadVerifiedScreenshot(
 function createSnapshotRead(database: PlatformDatabase): SnapshotRead {
   return (owner, ref) =>
     inOwnerScope(database, owner, async (tx) => {
-      const row = await firstRow<{
-        status: string;
-        bytes: Uint8Array;
-        metadata: { media_type?: string; sha256?: string } | null;
-        content: { body?: { mediaType?: string } } | null;
-      }>(
-        tx,
-        sql`SELECT s.status, p.bytes, a.metadata, o.content
-            FROM interview.session_observations o
-            JOIN interview.active_sessions s
-              ON s.tenant_id = o.tenant_id AND s.owner_user_id = o.owner_user_id
-             AND s.id = o.session_id
-            JOIN platform.artifacts a
-              ON a.tenant_id = o.tenant_id AND a.id = o.screenshot_artifact_id
-            JOIN platform.artifact_payloads p
-              ON p.tenant_id = a.tenant_id AND p.artifact_id = a.id
-            WHERE o.tenant_id = ${owner.tenantId}::uuid
-              AND o.owner_user_id = ${owner.actorId}::uuid
-              AND o.session_id = ${ref.sessionId}::uuid
-              AND o.source_id = ${ref.sourceId}
-              AND o.event_id = ${ref.eventId}
-              AND o.kind = 'screen.snapshot'
-              AND a.owner_user_id = ${owner.actorId}::uuid
-              AND a.product_id = ${INTERVIEW_PRODUCT_ID}
-              AND a.artifact_type = ${SESSION_SCREENSHOT_ARTIFACT_TYPE}
-              AND a.metadata->>'session_id' = ${ref.sessionId}`,
-      );
+      const row = await readSnapshotRow(tx, owner, ref);
       if (!row) return null;
       if (row.status !== "active") return "session_closed";
       return {

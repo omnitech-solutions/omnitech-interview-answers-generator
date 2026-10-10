@@ -28,11 +28,7 @@
 // a briefing, a document) reads the pack as a remote reader and is given
 // none of that (pack.ts).
 import type { AiEngine, ProfileSummary } from "@omnitech/ai-engine";
-import {
-  type PlatformDatabase,
-  type TenantDatabase,
-  withTenant,
-} from "@omnitech/database";
+import type { PlatformDatabase } from "@omnitech/database";
 import {
   type CandidateMatrix,
   employerBriefSchema,
@@ -44,12 +40,7 @@ import {
 import type { Context, Hono } from "hono";
 import { z } from "zod";
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
-import {
-  BriefError,
-  type BriefScope,
-  readBriefMaterial,
-  readEmployerBrief,
-} from "../brief/repository";
+import { BriefError, type BriefScope } from "../brief/repository";
 import { createInFlight, linkedAbort, ndjsonResponse } from "../work-guards";
 import { ContextPackError } from "./pack";
 import {
@@ -63,6 +54,7 @@ import {
   reviewPack,
   runsOnDevice,
 } from "./prepare";
+import { readApplicationMaterial } from "./services/application-material";
 
 const uuid = z.uuid();
 const SMALL_JSON = 64 * 1024;
@@ -107,10 +99,6 @@ export function registerPackRoutes(
   const app = host as Hono<{ Variables: { documentScope: BriefScope } }>;
   const base = `${options.prefix}/candidacies/:id/context-pack`;
   const preparing = createInFlight();
-  const scoped = <Result>(
-    scope: BriefScope,
-    work: (db: TenantDatabase) => Promise<Result>,
-  ) => withTenant(scope, work, { database: options.database });
   const asking = (scope: BriefScope) => ({
     scope: {
       tenantId: scope.tenantId,
@@ -127,10 +115,11 @@ export function registerPackRoutes(
     scope: BriefScope,
     candidacyId: string,
   ): Promise<ApplicationMaterial> {
-    const { interview, brief } = await scoped(scope, async (db) => ({
-      interview: await readBriefMaterial(db, scope, candidacyId),
-      brief: await readEmployerBrief(db, scope, candidacyId),
-    }));
+    const { interview, brief } = await readApplicationMaterial(
+      options.database,
+      scope,
+      candidacyId,
+    );
     const parsed = employerBriefSchema.safeParse(brief);
     const matrix =
       (await options.loadMatrix?.(scope).catch(() => null)) ?? null;

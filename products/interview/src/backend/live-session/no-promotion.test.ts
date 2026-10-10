@@ -73,6 +73,10 @@ const FORBIDDEN_IMPORTS = [
   "local-seeds",
 ];
 
+// The live session's own use cases (live-session/services/<name>.service) are
+// not the product's `services` module, which stays forbidden.
+const OWN_USE_CASE = /^\.{1,2}\/services\/[a-z-]+\.service$/;
+
 describe("no promotion: static scan", () => {
   const sources = productionSources().map((path) => ({
     path,
@@ -114,8 +118,10 @@ describe("no promotion: static scan", () => {
     const offenders = sources.flatMap((source) =>
       [...source.text.matchAll(/from\s+"([^"]+)"/g)]
         .map((match) => String(match[1]))
-        .filter((specifier) =>
-          FORBIDDEN_IMPORTS.some((fragment) => specifier.includes(fragment)),
+        .filter(
+          (specifier) =>
+            !OWN_USE_CASE.test(specifier) &&
+            FORBIDDEN_IMPORTS.some((fragment) => specifier.includes(fragment)),
         )
         .map(
           (specifier) => `${source.path.slice(here.length + 1)}: ${specifier}`,

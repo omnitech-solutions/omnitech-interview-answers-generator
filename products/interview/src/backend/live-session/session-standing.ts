@@ -6,10 +6,10 @@
 // session or any read failure answers a typed verdict, never "permitted" (fail
 // closed).
 import type { PlatformDatabase } from "@omnitech/database";
-import { sql } from "drizzle-orm";
 import { isUuid } from "./errors";
 import { policyFromDb } from "./mapping";
-import { firstRow, inOwnerScope } from "./scope";
+import { readStanding } from "./repositories/lease.repository";
+import { inOwnerScope } from "./scope";
 
 // `true` permits, `false` is a real policy denial (final: the session is not
 // remote-permitted, or the request names no session), and the two strings are
@@ -40,13 +40,7 @@ export function createSessionStillPermitted(database: PlatformDatabase) {
     try {
       const scope = { tenantId: request.tenantId, actorId: request.actorId };
       const row = await inOwnerScope(database, scope, (tx) =>
-        firstRow<{ status: string; processing_policy: string }>(
-          tx,
-          sql`SELECT status, processing_policy FROM interview.active_sessions
-              WHERE tenant_id = ${scope.tenantId}::uuid
-                AND owner_user_id = ${scope.actorId}::uuid
-                AND id = ${sessionId}::uuid`,
-        ),
+        readStanding(tx, scope, sessionId),
       );
       return standingVerdictOf(row);
     } catch {

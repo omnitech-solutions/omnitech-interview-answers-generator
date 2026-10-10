@@ -1,253 +1,104 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { enterTenant } from "@omnitech/database";
 import {
-  briefingDraftSchema,
-  generatedAnswerSchema,
   type InterviewProvenance,
-  interviewMetricSchema,
   interviewProvenanceSchema,
-  renderGuideMarkdown,
-  stageProgressSchema,
 } from "@omnitech/interview-contracts";
-import {
-  jsonValueSchema,
-  type ProductErrorStatus,
-  ProductOperationError,
-} from "@omnitech-assistant/contracts";
+import { jsonValueSchema } from "@omnitech-assistant/contracts";
 import { z } from "zod";
+import {
+  canonicalJson,
+  draftTitle,
+  fingerprintOf,
+  runSummary,
+  saveRefusal,
+  textMatchesHash,
+} from "./domain/draft";
+import {
+  bindProduct,
+  incrementSavedRevision,
+  insertAnswerRevision,
+  insertDraft,
+  listAnswerRevisionRows,
+  listDraftRows,
+  markReverted,
+  restoreDraft,
+  selectAnswerRevision,
+  selectDraft,
+  selectDraftRevisionForUpdate,
+  selectRevertedRevision,
+  selectRevertForUpdate,
+  updateDraftProvenance,
+  updateDraftValue,
+  upsertRevert,
+} from "./repositories/drafts.repository";
+import {
+  completeEffectReceipt,
+  insertEffectReceipt,
+  interruptRunCodeReceipt,
+  latestCompletedRunRows,
+  lockEffect,
+  selectEffectReceiptForUpdate,
+} from "./repositories/effect-receipts.repository";
+import {
+  currentEvidenceRows,
+  insertEvidence,
+  lockEvidence,
+  searchEvidenceRows,
+  selectEvidenceRevision,
+  selectLatestEvidence,
+  selectNewerEvidence,
+} from "./repositories/evidence.repository";
 
-// Structural host ports: compatible with the portable package's built exports,
-// with no dependency on another checkout's TypeScript source or global store.
-export interface WorkspaceTransaction {
-  query(
-    sql: string,
-    values?: readonly unknown[],
-  ): Promise<readonly Record<string, unknown>[]>;
-}
-export interface WorkspaceDatabasePort {
-  tenantTransaction<T>(
-    tenantId: string,
-    fn: (tx: WorkspaceTransaction) => Promise<T>,
-  ): Promise<T>;
-}
-const id = z.string().max(256).trim().min(1);
-const revision = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
-const scopeSchema = z.strictObject({
-  tenantId: id,
-  actorId: id,
-  productId: id,
-});
-const originSchema = z.strictObject({
-  workspaceId: id,
-  artifactId: id,
-  artifactRevision: revision,
-});
-const boundedAnswerSchema = generatedAnswerSchema
-  .extend({
-    title: z.string().max(256).trim().min(1),
-    answerMarkdown: z.string().max(100_000).trim().min(1),
-    code: z.string().max(100_000),
-    usageCode: z.string().max(100_000).default(""),
-    testCode: z.string().max(100_000).default(""),
-  })
-  .strict();
-export const interviewDraftSchema = z
-  .strictObject({
-    question: z.string().max(32_000).trim().min(1),
-    notes: z.string().max(100_000).default(""),
-    answer: boundedAnswerSchema.nullable().default(null),
-    briefing: briefingDraftSchema.nullable().optional(),
-    // Where the person is in the Workspace stages; never part of the answer.
-    progress: stageProgressSchema.optional(),
-  })
-  .refine(
-    (value) => !(value.answer && value.briefing),
-    "Coding answer and briefing cannot coexist",
-  );
-// A patch must not inherit creation defaults: omitting notes/answer preserves
-// the existing fields rather than resetting them during a proposal edit.
-export const interviewDraftPatchSchema = z.strictObject({
-  question: z.string().max(32_000).trim().min(1).optional(),
-  notes: z.string().max(100_000).optional(),
-  answer: boundedAnswerSchema.nullable().optional(),
-  briefing: briefingDraftSchema.nullable().optional(),
-  progress: stageProgressSchema.optional(),
-});
-const evidenceSchema = z.strictObject({
+import {
+  type AnswerRevisionRecord,
+  type DraftSummary,
+  draft,
+  evidenceSchema,
+  type InterviewDraft,
+  type InterviewDraftPatch,
+  type InterviewEvidence,
   id,
+  interviewDraftPatchSchema,
+  interviewDraftSchema,
+  originSchema,
   revision,
-  sha256: z.string().regex(/^[a-f0-9]{64}$/),
-  locator: z.string().min(1).max(2048),
-  text: z.string().max(100_000),
-  sourceKind: z.enum(["candidate", "technical-reference"]),
-  classification: z.enum(["public", "internal", "confidential", "restricted"]),
-  audience: z.array(id).min(1).max(64),
-  metrics: z.array(interviewMetricSchema).max(128).optional(),
-});
-export type WorkspaceScope = Readonly<z.infer<typeof scopeSchema>>;
-export type WorkspaceOrigin = Readonly<z.infer<typeof originSchema>>;
-export type InterviewDraft = Readonly<z.infer<typeof interviewDraftSchema>>;
-export type InterviewDraftPatch = Readonly<
-  z.infer<typeof interviewDraftPatchSchema>
->;
-export type InterviewEvidence = Readonly<
-  Omit<z.infer<typeof evidenceSchema>, "audience"> & {
-    audience: readonly string[];
-  }
->;
-// The outcome of a question's latest test run. passed/total count tests when
-// the framework reported them; ok is whether the run as a whole passed.
-export type RunSummary = Readonly<{
-  ok: boolean;
-  passed: number | null;
-  total: number | null;
-  at: string;
-}>;
-export type DraftSummary = Readonly<{
-  artifactId: string;
-  title: string;
-  kind: "coding" | "briefing";
-  language: string | null;
-  revision: number;
-  updatedAt: string;
-  lastRun: RunSummary | null;
-}>;
+  scopeSchema,
+  source,
+  timestamp,
+  type WorkspaceDatabasePort,
+  type WorkspaceDraftRecord,
+  WorkspaceError,
+  type WorkspaceOrigin,
+  type WorkspaceScope,
+  type WorkspaceTransaction,
+  withRenderedAnswer,
+} from "./workspace-contracts";
 
-function runSummary(execution: unknown, at: unknown): RunSummary | null {
-  const run = execution as {
-    exitCode?: number | null;
-    timedOut?: boolean;
-    tests?: { status?: string }[];
-  } | null;
-  if (!run || typeof run !== "object") return null;
-  const tests = Array.isArray(run.tests) ? run.tests : null;
-  return {
-    ok: run.exitCode === 0 && run.timedOut !== true,
-    passed: tests
-      ? tests.filter((test) => test.status === "passed").length
-      : null,
-    total: tests ? tests.length : null,
-    at: timestamp(at),
-  };
-}
-export type WorkspaceDraftRecord = Readonly<{
-  origin: WorkspaceOrigin;
-  value: InterviewDraft;
-  updatedAt: string;
-  provenance: InterviewProvenance | null;
-}>;
-export type AnswerRevisionRecord = Readonly<{
-  workspaceId: string;
-  artifactId: string;
-  savedRevision: number;
-  draftRevision: number;
-  value: InterviewDraft;
-  createdAt: string;
-  provenance: InterviewProvenance | null;
-}>;
-// The answer's Markdown is always its guide's rendering, whatever was sent.
-function withRenderedAnswer(draft: z.infer<typeof interviewDraftSchema>) {
-  return draft.answer
-    ? {
-        ...draft,
-        answer: {
-          ...draft.answer,
-          answerMarkdown: renderGuideMarkdown(draft.answer.guide),
-        },
-      }
-    : draft;
-}
-// Advice the model sees when a proposal is refused, so it can fix the next one.
-const refusalHints: Readonly<Record<string, string>> = {
-  "missing-citation":
-    'Add a top-level `claims` list beside `answer` in the arguments. Each claim is {"field":"guide","text":"<exact words from that answer field>","source":"<evidence id>","quote":"<passage from that evidence that supports the text>"}. You do not supply hashes or revisions.',
-  "citation-quote-conflict":
-    "Each citation quote must be copied exactly, character for character, from that evidence's text.",
-  "evidence-hash-conflict":
-    "Copy each citation's sha256 exactly from the evidence you were given.",
-  "claim-text-conflict":
-    "Each claim's text must appear exactly in the answer field it names.",
-  "claim-answer-required":
-    "Claims describe an answer; include the answer in the same patch.",
-  "unsupported-metric":
-    "Do not state numbers or metrics that are not in the provided candidate evidence.",
-  "candidate-fact-conflict":
-    "Facts about the candidate need candidate evidence; remove them or mark them uncertain.",
-  "no-change":
-    "The proposal equals the current draft. Tell the user nothing needs to change.",
-  "changed-since":
-    "The draft was edited after this change was applied, so undoing it would overwrite those edits.",
-};
-export class WorkspaceError extends ProductOperationError {
-  constructor(code: string, hint?: string) {
-    const status: ProductErrorStatus =
-      code === "not-found"
-        ? 404
-        : code === "evidence-forbidden"
-          ? 403
-          : code === "runner-unavailable"
-            ? 501
-            : [
-                  "revision-conflict",
-                  "idempotency-conflict",
-                  "effect-interrupted",
-                  "effect-conflict",
-                  "evidence-revision-conflict",
-                  "changed-since",
-                ].includes(code)
-              ? 409
-              : 400;
-    super(code, status, hint ?? refusalHints[code]);
-  }
-}
-const where = "tenant_id=$1 AND actor_id=$2 AND product_id=$3";
-const values = (scope: WorkspaceScope) => [
-  scope.tenantId,
-  scope.actorId,
-  scope.productId,
-];
-const timestamp = (value: unknown) =>
-  value instanceof Date ? value.toISOString() : String(value);
-const draft = (row: Record<string, unknown>): WorkspaceDraftRecord => ({
-  origin: originSchema.parse({
-    workspaceId: row["workspace_id"],
-    artifactId: row["artifact_id"],
-    artifactRevision: Number(row["revision"]),
-  }),
-  value: interviewDraftSchema.parse(row["value"]),
-  updatedAt: timestamp(row["updated_at"]),
-  provenance: row["provenance"]
-    ? interviewProvenanceSchema.parse(row["provenance"])
-    : null,
-});
-const source = (row: Record<string, unknown>): InterviewEvidence =>
-  evidenceSchema.parse({
-    id: row["id"],
-    revision: Number(row["revision"]),
-    sha256: row["sha256"],
-    locator: row["locator"],
-    text: row["text"],
-    sourceKind: row["source_kind"],
-    classification: row["classification"],
-    audience: row["audience"],
-    ...(Array.isArray(row["metrics"]) && row["metrics"].length
-      ? { metrics: row["metrics"] }
-      : {}),
-  });
+// Only what this module exported before its contracts moved out: the row
+// mappers and schemas beside them stay internal.
+export {
+  type AnswerRevisionRecord,
+  type DraftSummary,
+  type InterviewDraft,
+  type InterviewDraftPatch,
+  type InterviewEvidence,
+  interviewDraftPatchSchema,
+  interviewDraftSchema,
+  type RunSummary,
+  type WorkspaceDatabasePort,
+  type WorkspaceDraftRecord,
+  WorkspaceError,
+  type WorkspaceOrigin,
+  type WorkspaceScope,
+  type WorkspaceTransaction,
+} from "./workspace-contracts";
 
-function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  if (value && typeof value === "object")
-    return (
-      "{" +
-      Object.entries(value)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`)
-        .join(",") +
-      "}"
-    );
-  return JSON.stringify(value);
-}
+// The Workspace's use cases over one person's drafts, evidence and effect
+// receipts. Each public method is one tenant transaction bound to the scope;
+// the `*Transaction` methods join a transaction the caller already holds. The
+// statements live in ./repositories, the rules that need no database in
+// ./domain.
 export class InterviewWorkspaceRepository {
   constructor(private readonly database: WorkspaceDatabasePort) {}
   // Workspace rows are pinned to tenant, actor and product by row-level
@@ -255,9 +106,7 @@ export class InterviewWorkspaceRepository {
   // (ADR-0005); the product id is this product's own narrow setting.
   private async bind(tx: WorkspaceTransaction, scope: WorkspaceScope) {
     await enterTenant(tx, { tenantId: scope.tenantId, actorId: scope.actorId });
-    await tx.query("SELECT set_config('app.product_id',$1,true)", [
-      scope.productId,
-    ]);
+    await bindProduct(tx, scope.productId);
   }
   transaction<T>(
     scope: WorkspaceScope,
@@ -300,14 +149,12 @@ export class InterviewWorkspaceRepository {
     if (origin.artifactRevision !== 0)
       throw new WorkspaceError("revision-conflict");
     const value = withRenderedAnswer(interviewDraftSchema.parse(initial));
-    const [row] = await tx.query(
-      "INSERT INTO interview.assistant_drafts (tenant_id,actor_id,product_id,workspace_id,artifact_id,value) VALUES ($1,$2,$3,$4,$5,$6::jsonb) RETURNING *",
-      [
-        ...values(scope),
-        origin.workspaceId,
-        origin.artifactId,
-        JSON.stringify(value),
-      ],
+    const [row] = await insertDraft(
+      tx,
+      scope,
+      origin.workspaceId,
+      origin.artifactId,
+      value,
     );
     return draft(row!);
   }
@@ -333,10 +180,7 @@ export class InterviewWorkspaceRepository {
     workspaceId = id.parse(workspaceId);
     artifactId = id.parse(artifactId);
     await this.bind(tx, scope);
-    const [row] = await tx.query(
-      `SELECT * FROM interview.assistant_drafts WHERE ${where} AND workspace_id=$4 AND artifact_id=$5${lock ? " FOR UPDATE" : ""}`,
-      [...values(scope), workspaceId, artifactId],
-    );
+    const [row] = await selectDraft(tx, scope, workspaceId, artifactId, lock);
     if (!row) throw new WorkspaceError("not-found");
     return draft(row);
   }
@@ -362,9 +206,12 @@ export class InterviewWorkspaceRepository {
     await this.bind(tx, scope);
     origin = originSchema.parse(origin);
     const validated = interviewDraftPatchSchema.parse(patch);
-    const [row] = await tx.query(
-      `SELECT * FROM interview.assistant_drafts WHERE ${where} AND workspace_id=$4 AND artifact_id=$5 FOR UPDATE`,
-      [...values(scope), origin.workspaceId, origin.artifactId],
+    const [row] = await selectDraft(
+      tx,
+      scope,
+      origin.workspaceId,
+      origin.artifactId,
+      true,
     );
     if (!row) throw new WorkspaceError("not-found");
     if (Number(row["revision"]) !== origin.artifactRevision)
@@ -373,18 +220,14 @@ export class InterviewWorkspaceRepository {
     const value = withRenderedAnswer(
       interviewDraftSchema.parse({ ...current, ...validated }),
     );
-    const [updated] = await tx.query(
-      `UPDATE interview.assistant_drafts SET value=$7::jsonb,revision=revision+1,updated_at=now(),provenance=CASE WHEN $8::boolean THEN NULL WHEN provenance IS NOT NULL THEN jsonb_set(provenance,'{draftRevision}',to_jsonb(revision+1)) ELSE NULL END WHERE ${where} AND workspace_id=$4 AND artifact_id=$5 AND revision=$6 RETURNING *`,
-      [
-        ...values(scope),
-        origin.workspaceId,
-        origin.artifactId,
-        origin.artifactRevision,
-        JSON.stringify(value),
-        validated.answer !== undefined ||
-          validated.briefing !== undefined ||
-          validated.question !== undefined,
-      ],
+    const [updated] = await updateDraftValue(
+      tx,
+      scope,
+      origin,
+      value,
+      validated.answer !== undefined ||
+        validated.briefing !== undefined ||
+        validated.question !== undefined,
     );
     if (!updated) throw new WorkspaceError("revision-conflict");
     return draft(updated);
@@ -400,20 +243,14 @@ export class InterviewWorkspaceRepository {
   ): Promise<void> {
     scope = scopeSchema.parse(scope);
     await this.bind(tx, scope);
-    await tx.query(
-      `INSERT INTO interview.assistant_reverts (tenant_id,actor_id,product_id,proposal_id,workspace_id,artifact_id,applied_revision,previous_value,previous_provenance)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb)
-       ON CONFLICT (tenant_id,actor_id,product_id,proposal_id) DO UPDATE SET applied_revision=EXCLUDED.applied_revision,previous_value=EXCLUDED.previous_value,previous_provenance=EXCLUDED.previous_provenance,reverted_revision=NULL`,
-      [
-        ...values(scope),
-        id.parse(proposalId),
-        applied.origin.workspaceId,
-        applied.origin.artifactId,
-        applied.origin.artifactRevision,
-        JSON.stringify(previous.value),
-        previous.provenance ? JSON.stringify(previous.provenance) : null,
-      ],
-    );
+    await upsertRevert(tx, scope, {
+      proposalId: id.parse(proposalId),
+      workspaceId: applied.origin.workspaceId,
+      artifactId: applied.origin.artifactId,
+      appliedRevision: applied.origin.artifactRevision,
+      previousValue: previous.value,
+      previousProvenance: previous.provenance,
+    });
   }
   // Put back what a proposal replaced, unless the draft changed since.
   async revertTransaction(
@@ -423,38 +260,35 @@ export class InterviewWorkspaceRepository {
   ): Promise<WorkspaceDraftRecord> {
     scope = scopeSchema.parse(scope);
     await this.bind(tx, scope);
-    const [stored] = await tx.query(
-      `SELECT * FROM interview.assistant_reverts WHERE ${where} AND proposal_id=$4 FOR UPDATE`,
-      [...values(scope), id.parse(proposalId)],
+    const [stored] = await selectRevertForUpdate(
+      tx,
+      scope,
+      id.parse(proposalId),
     );
     if (!stored) throw new WorkspaceError("not-found");
-    const [row] = await tx.query(
-      `SELECT revision FROM interview.assistant_drafts WHERE ${where} AND workspace_id=$4 AND artifact_id=$5 FOR UPDATE`,
-      [...values(scope), stored["workspace_id"], stored["artifact_id"]],
+    const [row] = await selectDraftRevisionForUpdate(
+      tx,
+      scope,
+      stored["workspace_id"],
+      stored["artifact_id"],
     );
     if (!row) throw new WorkspaceError("not-found");
     if (Number(row["revision"]) !== Number(stored["applied_revision"]))
       throw new WorkspaceError("changed-since");
-    const [updated] = await tx.query(
-      `UPDATE interview.assistant_drafts SET value=$6::jsonb,provenance=$7::jsonb,revision=revision+1,updated_at=now() WHERE ${where} AND workspace_id=$4 AND artifact_id=$5 RETURNING *`,
-      [
-        ...values(scope),
-        stored["workspace_id"],
-        stored["artifact_id"],
-        JSON.stringify(stored["previous_value"]),
-        stored["previous_provenance"]
-          ? JSON.stringify(stored["previous_provenance"])
-          : null,
-      ],
+    const [updated] = await restoreDraft(
+      tx,
+      scope,
+      stored["workspace_id"],
+      stored["artifact_id"],
+      stored["previous_value"],
+      stored["previous_provenance"],
     );
     const restored = draft(updated!);
-    await tx.query(
-      `UPDATE interview.assistant_reverts SET reverted_revision=$5 WHERE ${where} AND proposal_id=$4`,
-      [
-        ...values(scope),
-        id.parse(proposalId),
-        restored.origin.artifactRevision,
-      ],
+    await markReverted(
+      tx,
+      scope,
+      id.parse(proposalId),
+      restored.origin.artifactRevision,
     );
     return restored;
   }
@@ -466,10 +300,7 @@ export class InterviewWorkspaceRepository {
   ): Promise<number | undefined> {
     scope = scopeSchema.parse(scope);
     await this.bind(tx, scope);
-    const [row] = await tx.query(
-      `SELECT reverted_revision FROM interview.assistant_reverts WHERE ${where} AND proposal_id=$4`,
-      [...values(scope), id.parse(proposalId)],
-    );
+    const [row] = await selectRevertedRevision(tx, scope, id.parse(proposalId));
     return row?.["reverted_revision"] == null
       ? undefined
       : Number(row["reverted_revision"]);
@@ -505,42 +336,33 @@ export class InterviewWorkspaceRepository {
         throw new WorkspaceError("effect-interrupted");
       return effect.result as AnswerRevisionRecord;
     }
-    const [row] = await tx.query(
-      `SELECT * FROM interview.assistant_drafts WHERE ${where} AND workspace_id=$4 AND artifact_id=$5 FOR UPDATE`,
-      [...values(scope), origin.workspaceId, origin.artifactId],
+    const [row] = await selectDraft(
+      tx,
+      scope,
+      origin.workspaceId,
+      origin.artifactId,
+      true,
     );
     if (!row) throw new WorkspaceError("not-found");
     if (Number(row["revision"]) !== origin.artifactRevision)
       throw new WorkspaceError("revision-conflict");
     const value = interviewDraftSchema.parse(row["value"]);
-    if (!value.answer && !value.briefing)
-      throw new WorkspaceError("answer-required");
-    if (
-      value.briefing &&
-      (!value.briefing.questions.length ||
-        value.briefing.questions.some(
-          (question) =>
-            !question.answerMarkdown.trim() ||
-            question.talkingPoints.some((point) => !point.trim()),
-        ))
-    )
-      throw new WorkspaceError("briefing-incomplete");
-    const [counter] = await tx.query(
-      `UPDATE interview.assistant_drafts SET saved_revision=saved_revision+1 WHERE ${where} AND workspace_id=$4 AND artifact_id=$5 RETURNING saved_revision`,
-      [...values(scope), origin.workspaceId, origin.artifactId],
+    const refusal = saveRefusal(value);
+    if (refusal) throw new WorkspaceError(refusal);
+    const [counter] = await incrementSavedRevision(
+      tx,
+      scope,
+      origin.workspaceId,
+      origin.artifactId,
     );
-    const [saved] = await tx.query(
-      "INSERT INTO interview.assistant_answer_revisions (tenant_id,actor_id,product_id,workspace_id,artifact_id,saved_revision,draft_revision,value,provenance) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb) RETURNING *",
-      [
-        ...values(scope),
-        origin.workspaceId,
-        origin.artifactId,
-        counter!["saved_revision"],
-        origin.artifactRevision,
-        JSON.stringify(value),
-        JSON.stringify(row["provenance"] ?? null),
-      ],
-    );
+    const [saved] = await insertAnswerRevision(tx, scope, {
+      workspaceId: origin.workspaceId,
+      artifactId: origin.artifactId,
+      savedRevision: counter!["saved_revision"],
+      draftRevision: origin.artifactRevision,
+      value,
+      provenance: row["provenance"],
+    });
     const result = this.answerRevision(saved!);
     await this.completeEffectTransaction(tx, scope, "save", requestId, result);
     return result;
@@ -568,9 +390,12 @@ export class InterviewWorkspaceRepository {
     artifactId = id.parse(artifactId);
     revision.parse(savedRevision);
     return this.transaction(scope, async (tx, scope) => {
-      const [row] = await tx.query(
-        `SELECT * FROM interview.assistant_answer_revisions WHERE ${where} AND workspace_id=$4 AND artifact_id=$5 AND saved_revision=$6`,
-        [...values(scope), workspaceId, artifactId, savedRevision],
+      const [row] = await selectAnswerRevision(
+        tx,
+        scope,
+        workspaceId,
+        artifactId,
+        savedRevision,
       );
       if (!row) throw new WorkspaceError("not-found");
       return this.answerRevision(row);
@@ -582,9 +407,11 @@ export class InterviewWorkspaceRepository {
     artifactId: string,
   ): Promise<readonly AnswerRevisionRecord[]> {
     return this.transaction(scope, async (tx, scope) => {
-      const rows = await tx.query(
-        `SELECT * FROM interview.assistant_answer_revisions WHERE ${where} AND workspace_id=$4 AND artifact_id=$5 ORDER BY saved_revision DESC LIMIT 100`,
-        [...values(scope), id.parse(workspaceId), id.parse(artifactId)],
+      const rows = await listAnswerRevisionRows(
+        tx,
+        scope,
+        id.parse(workspaceId),
+        id.parse(artifactId),
       );
       return rows.map((row) => this.answerRevision(row));
     });
@@ -597,31 +424,20 @@ export class InterviewWorkspaceRepository {
   ): Promise<readonly DraftSummary[]> {
     return this.transaction(scope, async (tx, scope) => {
       const workspace = id.parse(workspaceId);
-      const rows = await tx.query(
-        `SELECT artifact_id,revision,updated_at,value FROM interview.assistant_drafts WHERE ${where} AND workspace_id=$4 ORDER BY updated_at DESC, artifact_id LIMIT 50`,
-        [...values(scope), workspace],
-      );
+      const rows = await listDraftRows(tx, scope, workspace);
       // [DOMAIN] The latest completed run per question, from its receipts.
-      const runs = await tx.query(
-        `SELECT DISTINCT ON (payload->'origin'->>'artifactId') payload->'origin'->>'artifactId' AS artifact_id, result->'execution' AS execution, updated_at FROM interview.assistant_effect_receipts WHERE ${where} AND operation='run-code' AND state='completed' AND payload->'origin'->>'workspaceId'=$4 ORDER BY payload->'origin'->>'artifactId', updated_at DESC`,
-        [...values(scope), workspace],
-      );
+      const runs = await latestCompletedRunRows(tx, scope, workspace);
       const lastRuns = new Map(
         runs.map((run) => [
           String(run["artifact_id"]),
-          runSummary(run["execution"], run["updated_at"]),
+          runSummary(run["execution"], timestamp(run["updated_at"])),
         ]),
       );
       return rows.map((row) => {
         const value = row["value"] as InterviewDraft;
-        const line =
-          value.question
-            .split("\n")
-            .map((text) => text.trim())
-            .find(Boolean) ?? "";
         return {
           artifactId: String(row["artifact_id"]),
-          title: line.length > 80 ? `${line.slice(0, 79)}…` : line,
+          title: draftTitle(value.question),
           kind: value.briefing ? "briefing" : "coding",
           language: value.answer?.language ?? null,
           revision: Number(row["revision"]),
@@ -647,27 +463,10 @@ export class InterviewWorkspaceRepository {
     scope = scopeSchema.parse(scope);
     await this.bind(tx, scope);
     const validated = evidenceSchema.parse(evidence);
-    if (
-      createHash("sha256").update(validated.text).digest("hex") !==
-      validated.sha256
-    )
+    if (!textMatchesHash(validated.text, validated.sha256))
       throw new WorkspaceError("evidence-hash-conflict");
-    await this.lockEvidence(tx, scope, validated.id);
-    await tx.query(
-      "INSERT INTO interview.assistant_evidence (tenant_id,actor_id,product_id,id,revision,sha256,locator,text,source_kind,classification,audience,metrics) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb)",
-      [
-        ...values(scope),
-        validated.id,
-        validated.revision,
-        validated.sha256,
-        validated.locator,
-        validated.text,
-        validated.sourceKind,
-        validated.classification,
-        validated.audience,
-        JSON.stringify(validated.metrics ?? []),
-      ],
-    );
+    await lockEvidence(tx, scope, validated.id);
+    await insertEvidence(tx, scope, validated);
   }
   async readEvidence(
     scope: WorkspaceScope,
@@ -680,15 +479,6 @@ export class InterviewWorkspaceRepository {
       this.readEvidenceTransaction(tx, scope, evidenceId, evidenceRevision),
     );
   }
-  private async lockEvidence(
-    tx: WorkspaceTransaction,
-    scope: WorkspaceScope,
-    evidenceId: string,
-  ): Promise<void> {
-    await tx.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [
-      JSON.stringify([...values(scope), "evidence", evidenceId]),
-    ]);
-  }
   async readEvidenceTransaction(
     tx: WorkspaceTransaction,
     scope: WorkspaceScope,
@@ -700,18 +490,22 @@ export class InterviewWorkspaceRepository {
     evidenceId = id.parse(evidenceId);
     revision.parse(evidenceRevision);
     await this.bind(tx, scope);
-    await this.lockEvidence(tx, scope, evidenceId);
-    const [row] = await tx.query(
-      `SELECT * FROM interview.assistant_evidence WHERE ${where} AND id=$4 AND revision=$5`,
-      [...values(scope), evidenceId, evidenceRevision],
+    await lockEvidence(tx, scope, evidenceId);
+    const [row] = await selectEvidenceRevision(
+      tx,
+      scope,
+      evidenceId,
+      evidenceRevision,
     );
     if (!row) throw new WorkspaceError("not-found");
     const evidence = source(row);
     if (!evidence.audience.includes(scope.actorId))
       throw new WorkspaceError("evidence-forbidden");
-    const newer = await tx.query(
-      `SELECT revision FROM interview.assistant_evidence WHERE ${where} AND id=$4 AND revision>$5 LIMIT 1`,
-      [...values(scope), evidenceId, evidenceRevision],
+    const newer = await selectNewerEvidence(
+      tx,
+      scope,
+      evidenceId,
+      evidenceRevision,
     );
     if (currentOnly && newer.length)
       throw new WorkspaceError("evidence-revision-conflict");
@@ -725,11 +519,8 @@ export class InterviewWorkspaceRepository {
     scope = scopeSchema.parse(scope);
     evidenceId = id.parse(evidenceId);
     await this.bind(tx, scope);
-    await this.lockEvidence(tx, scope, evidenceId);
-    const [row] = await tx.query(
-      `SELECT * FROM interview.assistant_evidence WHERE ${where} AND id=$4 ORDER BY revision DESC LIMIT 1`,
-      [...values(scope), evidenceId],
-    );
+    await lockEvidence(tx, scope, evidenceId);
+    const [row] = await selectLatestEvidence(tx, scope, evidenceId);
     if (!row) throw new WorkspaceError("not-found");
     const evidence = source(row);
     if (!evidence.audience.includes(scope.actorId))
@@ -743,10 +534,7 @@ export class InterviewWorkspaceRepository {
   ): Promise<readonly InterviewEvidence[]> {
     scope = scopeSchema.parse(scope);
     await this.bind(tx, scope);
-    const rows = await tx.query(
-      `SELECT * FROM interview.assistant_evidence e WHERE ${where} AND $2=ANY(audience) AND ($4::text IS NULL OR to_tsvector('english',text) @@ plainto_tsquery('english',$4)) AND NOT EXISTS (SELECT 1 FROM interview.assistant_evidence newer WHERE (newer.tenant_id,newer.actor_id,newer.product_id,newer.id)=(e.tenant_id,e.actor_id,e.product_id,e.id) AND newer.revision>e.revision) ORDER BY id LIMIT 64`,
-      [...values(scope), query ?? null],
-    );
+    const rows = await currentEvidenceRows(tx, scope, query ?? null);
     return rows.map(source);
   }
   async setProvenanceTransaction(
@@ -761,16 +549,7 @@ export class InterviewWorkspaceRepository {
     await this.bind(tx, scope);
     if (provenance.draftRevision !== origin.artifactRevision)
       throw new WorkspaceError("revision-conflict");
-    const rows = await tx.query(
-      `UPDATE interview.assistant_drafts SET provenance=$7::jsonb WHERE ${where} AND workspace_id=$4 AND artifact_id=$5 AND revision=$6 RETURNING revision`,
-      [
-        ...values(scope),
-        origin.workspaceId,
-        origin.artifactId,
-        origin.artifactRevision,
-        JSON.stringify(provenance),
-      ],
-    );
+    const rows = await updateDraftProvenance(tx, scope, origin, provenance);
     if (!rows.length) throw new WorkspaceError("revision-conflict");
   }
   async beginEffectTransaction(
@@ -785,7 +564,7 @@ export class InterviewWorkspaceRepository {
     await this.bind(tx, scope);
     jsonValueSchema.parse(payload);
     const encoded = canonicalJson(payload);
-    const fingerprint = createHash("sha256").update(encoded).digest("hex");
+    const fingerprint = fingerprintOf(encoded);
     const existing = await this.readEffectTransaction(
       tx,
       scope,
@@ -798,10 +577,13 @@ export class InterviewWorkspaceRepository {
       return { fresh: false, ...existing };
     }
     const receiptId = randomUUID();
-    await tx.query(
-      "INSERT INTO interview.assistant_effect_receipts(tenant_id,actor_id,product_id,operation,request_id,id,fingerprint,payload,state) VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,'started')",
-      [...values(scope), operation, requestId, receiptId, fingerprint, encoded],
-    );
+    await insertEffectReceipt(tx, scope, {
+      operation,
+      requestId,
+      id: receiptId,
+      fingerprint,
+      payload: encoded,
+    });
     return {
       fresh: true,
       id: receiptId,
@@ -819,18 +601,16 @@ export class InterviewWorkspaceRepository {
     scope = scopeSchema.parse(scope);
     requestId = id.parse(requestId);
     await this.bind(tx, scope);
-    await tx.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [
-      JSON.stringify([...values(scope), operation, requestId]),
-    ]);
-    const [row] = await tx.query(
-      `SELECT * FROM interview.assistant_effect_receipts WHERE ${where} AND operation=$4 AND request_id=$5 FOR UPDATE`,
-      [...values(scope), operation, requestId],
+    await lockEffect(tx, scope, operation, requestId);
+    const [row] = await selectEffectReceiptForUpdate(
+      tx,
+      scope,
+      operation,
+      requestId,
     );
     if (!row) return null;
     jsonValueSchema.parse(row["payload"]);
-    const fingerprint = createHash("sha256")
-      .update(canonicalJson(row["payload"]))
-      .digest("hex");
+    const fingerprint = fingerprintOf(canonicalJson(row["payload"]));
     if (fingerprint !== row["fingerprint"])
       throw new WorkspaceError("effect-fingerprint-conflict");
     return {
@@ -852,9 +632,12 @@ export class InterviewWorkspaceRepository {
     requestId = id.parse(requestId);
     await this.bind(tx, scope);
     jsonValueSchema.parse(result);
-    const rows = await tx.query(
-      `UPDATE interview.assistant_effect_receipts SET state='completed',result=$6::jsonb,updated_at=now() WHERE ${where} AND operation=$4 AND request_id=$5 AND state='started' RETURNING id`,
-      [...values(scope), operation, requestId, JSON.stringify(result)],
+    const rows = await completeEffectReceipt(
+      tx,
+      scope,
+      operation,
+      requestId,
+      result,
     );
     if (!rows.length) throw new WorkspaceError("effect-conflict");
   }
@@ -864,10 +647,7 @@ export class InterviewWorkspaceRepository {
   ): Promise<void> {
     requestId = id.parse(requestId);
     await this.transaction(scope, async (tx, scope) => {
-      await tx.query(
-        `UPDATE interview.assistant_effect_receipts SET state='interrupted',updated_at=now() WHERE ${where} AND operation='run-code' AND request_id=$4 AND state='started'`,
-        [...values(scope), requestId],
-      );
+      await interruptRunCodeReceipt(tx, scope, requestId);
     });
   }
   async searchEvidence(
@@ -878,10 +658,7 @@ export class InterviewWorkspaceRepository {
     z.string().max(2048).trim().min(1).parse(query);
     z.number().int().min(1).max(100).parse(limit);
     return this.transaction(scope, async (tx, scope) => {
-      const rows = await tx.query(
-        `SELECT * FROM interview.assistant_evidence e WHERE ${where} AND $2=ANY(audience) AND to_tsvector('english',text) @@ plainto_tsquery('english',$4) AND NOT EXISTS (SELECT 1 FROM interview.assistant_evidence newer WHERE (newer.tenant_id,newer.actor_id,newer.product_id,newer.id)=(e.tenant_id,e.actor_id,e.product_id,e.id) AND newer.revision>e.revision) ORDER BY id LIMIT $5`,
-        [...values(scope), query, limit],
-      );
+      const rows = await searchEvidenceRows(tx, scope, query, limit);
       return rows.map(source);
     });
   }

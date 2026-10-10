@@ -9,8 +9,6 @@ import {
   type DocumentTemplateKind,
   documentFieldsSchema,
   documentTemplateCreateSchema,
-  documentValuesSchema,
-  validateDocumentValues,
   withFieldGroups,
 } from "@omnitech/interview-contracts";
 import { DocumentArtifactRepository } from "@omnitech/platform-storage";
@@ -25,6 +23,11 @@ import {
   documentTemplateRevisions,
   documentTemplates,
 } from "../db/documents";
+import {
+  documentStatus,
+  restoredDraft,
+  revisionContent,
+} from "./document.domain";
 
 export type DocumentScope = { tenantId: string; actorId: string };
 export type TemplateRow = typeof documentTemplates.$inferSelect;
@@ -191,22 +194,6 @@ const documentKey = (scope: DocumentScope, documentId: string) =>
 // before blocks existed gets the ones its field keys name.
 function fieldsOf(revision: TemplateRevisionRow): DocumentField[] {
   return withFieldGroups(documentFieldsSchema.parse(revision.fields));
-}
-
-function checkedContent(
-  fields: readonly DocumentField[],
-  content: RevisionContent,
-) {
-  const values = documentValuesSchema.parse(content.values);
-  return {
-    values,
-    provenance: content.provenance,
-    validation: [
-      ...validateDocumentValues(fields, values),
-      ...(content.unsupported ?? []),
-    ],
-    aiUsage: content.aiUsage ?? null,
-  };
 }
 
 export class InterviewDocumentRepository {
@@ -955,7 +942,7 @@ export class InterviewDocumentRepository {
           )
           .limit(1);
         if (!templateRevision) throw new DocumentNotFound();
-        const content = checkedContent(fieldsOf(templateRevision), input);
+        const content = revisionContent(fieldsOf(templateRevision), input);
         const documentId = randomUUID();
         ensureActive();
         const [document] = await db
@@ -971,7 +958,7 @@ export class InterviewDocumentRepository {
             candidacyId: input.candidacyId,
             interviewId: input.interviewId,
             title: input.title.trim(),
-            status: content.validation.length ? "invalid" : "ready",
+            status: documentStatus(content.validation),
             currentRevision: 1,
           })
           .returning();
@@ -1028,12 +1015,12 @@ export class InterviewDocumentRepository {
       )
       .limit(1);
     if (!templateRevision) throw new DocumentNotFound();
-    const content = checkedContent(fieldsOf(templateRevision), input);
+    const content = revisionContent(fieldsOf(templateRevision), input);
     const [advanced] = await db
       .update(documents)
       .set({
         currentRevision: input.baseRevision + 1,
-        status: content.validation.length ? "invalid" : "ready",
+        status: documentStatus(content.validation),
         updatedAt: new Date(),
       })
       .where(
@@ -1096,18 +1083,7 @@ export class InterviewDocumentRepository {
       return this.appendInTransaction(db, scope, {
         documentId: input.documentId,
         baseRevision: input.baseRevision,
-        values: source.values as Record<string, string>,
-        provenance: {
-          ...(source.provenance as Record<string, unknown>),
-          restoredFromRevision: input.sourceRevision,
-          claimState: "unverified",
-        },
-        aiUsage: null,
-        // The same text against the same matrix: what was unsupported still is.
-        unsupported: (Array.isArray(source.validation)
-          ? (source.validation as DocumentFieldError[])
-          : []
-        ).filter((issue) => issue?.code === "unsupported"),
+        ...restoredDraft(source, input.sourceRevision),
       });
     });
   }

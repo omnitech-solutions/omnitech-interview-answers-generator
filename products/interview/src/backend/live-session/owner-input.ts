@@ -18,15 +18,25 @@ import {
   liveHeardRequestSchema,
   liveOwnerInputRequestSchema,
 } from "@omnitech/interview-contracts";
-import { sql } from "drizzle-orm";
 import {
   OWNER_INPUT_SOURCE_ID,
   OWNER_MICROPHONE_SOURCE_ID,
 } from "../db/live-session";
 import { canonicalJson } from "./canonical-json";
 import { assertUuid, SessionError } from "./errors";
-import { firstRow, inOwnerScope, type OwnerScope, rowsOf } from "./scope";
-import { lockSession, type SessionRecord } from "./session-record";
+import {
+  countSnapshotsWithImage,
+  findStoredHeardRow,
+  findStoredOwnerInputRow,
+  insertOwnerObservation,
+  readHeardCounts,
+  readNewestTaskRevision,
+  readOwnerInputCounts,
+  taskRestsOnSnapshot,
+} from "./repositories/owner-input.repository";
+import { lockSession } from "./repositories/session.repository";
+import { inOwnerScope, type OwnerScope } from "./scope";
+import type { SessionRecord } from "./session-record";
 
 // The stored body of an `owner.input` observation: the validated request
 // without its id (the id is the observation's event id).
@@ -98,25 +108,6 @@ export function assertAcceptsOwnerInput(
     throw new SessionError("status_refused");
 }
 
-// The newest revision the task has an action row for, or null when it has none.
-async function newestStoredRevision(
-  tx: TenantDatabase,
-  scope: OwnerScope,
-  sessionId: string,
-  taskId: string,
-): Promise<number | null> {
-  const row = await firstRow<{ newest: number | null }>(
-    tx,
-    sql`SELECT max(task_revision)::int AS newest
-        FROM interview.session_actions
-        WHERE tenant_id = ${scope.tenantId}::uuid
-          AND owner_user_id = ${scope.actorId}::uuid
-          AND session_id = ${sessionId}::uuid
-          AND task_id = ${taskId}`,
-  );
-  return row?.newest ?? null;
-}
-
 // [SAFETY] A request aimed at a task revision the owner saw is refused when the
 // task has moved on (a newer revision has an action), so a double-click or a
 // stale page never stacks a second revision. A task with no action yet is not
@@ -132,7 +123,7 @@ export async function assertTargetNotStale(
   target: { taskId: string; revision: number },
   options: { mustExist?: boolean } = {},
 ): Promise<void> {
-  const newest = await newestStoredRevision(
+  const newest = await readNewestTaskRevision(
     tx,
     scope,
     sessionId,
@@ -159,18 +150,8 @@ async function assertRegenerableHere(
   taskId: string,
 ): Promise<void> {
   if (row.policy !== "device-only") return;
-  const shot = await firstRow<{ found: number }>(
-    tx,
-    sql`SELECT 1 AS found FROM interview.session_actions
-        WHERE tenant_id = ${scope.tenantId}::uuid
-          AND owner_user_id = ${scope.actorId}::uuid
-          AND session_id = ${sessionId}::uuid
-          AND task_id = ${taskId}
-          AND EXISTS (SELECT 1 FROM unnest(source_event_ids) AS s(id)
-                      WHERE s.id LIKE 'snap/%')
-        LIMIT 1`,
-  );
-  if (shot) throw new SessionError("status_refused", [], "vision_device_only");
+  if (await taskRestsOnSnapshot(tx, scope, sessionId, taskId))
+    throw new SessionError("status_refused", [], "vision_device_only");
 }
 
 export const sameBody = (a: unknown, b: unknown): boolean =>
@@ -182,16 +163,7 @@ export const findStoredOwnerInput = (
   scope: OwnerScope,
   sessionId: string,
   requestId: string,
-) =>
-  firstRow<{ sequence: string | number; content: unknown }>(
-    tx,
-    sql`SELECT sequence, content FROM interview.session_observations
-        WHERE tenant_id = ${scope.tenantId}::uuid
-          AND owner_user_id = ${scope.actorId}::uuid
-          AND session_id = ${sessionId}::uuid
-          AND source_id = ${OWNER_INPUT_SOURCE_ID}
-          AND event_id = ${requestId}`,
-  );
+) => findStoredOwnerInputRow(tx, scope, sessionId, requestId);
 
 // The per-session cap and the next sequence number.
 export async function nextOwnerSequence(
@@ -200,21 +172,10 @@ export async function nextOwnerSequence(
   sessionId: string,
   extra = 0,
 ): Promise<number> {
-  const counts = await firstRow<{
-    inputs: number;
-    max_sequence: string | number;
-  }>(
-    tx,
-    sql`SELECT (count(*) FILTER (WHERE kind = 'owner.input'))::int AS inputs,
-               COALESCE(max(sequence), 0) AS max_sequence
-        FROM interview.session_observations
-        WHERE tenant_id = ${scope.tenantId}::uuid
-          AND owner_user_id = ${scope.actorId}::uuid
-          AND session_id = ${sessionId}::uuid`,
-  );
-  if (Number(counts?.inputs ?? 0) + extra >= OWNER_INPUT_MAX_PER_SESSION)
+  const counts = await readOwnerInputCounts(tx, scope, sessionId);
+  if (counts.inputs + extra >= OWNER_INPUT_MAX_PER_SESSION)
     throw new SessionError("status_refused");
-  return Number(counts?.max_sequence ?? 0) + 1;
+  return counts.maxSequence + 1;
 }
 
 export async function insertOwnerInput(
@@ -227,18 +188,18 @@ export async function insertOwnerInput(
   body: OwnerInputBody,
 ): Promise<OwnerInputAck> {
   const ack: OwnerInputAck = { requestId, sequence };
-  await tx.execute(sql`
-      INSERT INTO interview.session_observations
-        (tenant_id, owner_user_id, session_id, source_id, event_id, sequence,
-         kind, content, ack)
-      VALUES (${scope.tenantId}::uuid, ${scope.actorId}::uuid, ${sessionId}::uuid,
-        ${OWNER_INPUT_SOURCE_ID}, ${requestId}, ${sequence}, 'owner.input',
-        ${JSON.stringify({
-          occurredAt: new Date(row.nowMs).toISOString(),
-          sourceSequence: 0,
-          body,
-        })}::jsonb,
-        ${JSON.stringify(ack)}::jsonb)`);
+  await insertOwnerObservation(tx, scope, sessionId, {
+    sourceId: OWNER_INPUT_SOURCE_ID,
+    eventId: requestId,
+    sequence,
+    kind: "owner.input",
+    content: {
+      occurredAt: new Date(row.nowMs).toISOString(),
+      sourceSequence: 0,
+      body,
+    },
+    ack,
+  });
   return ack;
 }
 
@@ -266,62 +227,40 @@ async function storeHeard(
     // [SAFETY] Speech is only heard while the session is capturing.
     if (row.status === "paused") throw new SessionError("status_refused");
 
-    const stored = await firstRow<{
-      sequence: string | number;
-      content: unknown;
-    }>(
-      tx,
-      sql`SELECT sequence, content FROM interview.session_observations
-          WHERE tenant_id = ${scope.tenantId}::uuid
-            AND owner_user_id = ${scope.actorId}::uuid
-            AND session_id = ${sessionId}::uuid
-            AND source_id = ${OWNER_MICROPHONE_SOURCE_ID}
-            AND event_id = ${requestId}`,
-    );
+    const stored = await findStoredHeardRow(tx, scope, sessionId, requestId);
     if (stored) {
       const body = (stored.content as { body?: { text?: unknown } }).body;
       if (body?.text !== text) throw new SessionError("invalid_input");
       return { requestId, sequence: Number(stored.sequence) };
     }
 
-    const counts = await firstRow<{
-      heard: number;
-      max_sequence: string | number;
-    }>(
-      tx,
-      sql`SELECT (count(*) FILTER (WHERE source_id = ${OWNER_MICROPHONE_SOURCE_ID}))::int AS heard,
-                 COALESCE(max(sequence), 0) AS max_sequence
-          FROM interview.session_observations
-          WHERE tenant_id = ${scope.tenantId}::uuid
-            AND owner_user_id = ${scope.actorId}::uuid
-            AND session_id = ${sessionId}::uuid`,
-    );
-    if (Number(counts?.heard ?? 0) >= OWNER_HEARD_MAX_PER_SESSION)
+    const counts = await readHeardCounts(tx, scope, sessionId);
+    if (counts.heard >= OWNER_HEARD_MAX_PER_SESSION)
       throw new SessionError("status_refused");
-    const sequence = Number(counts?.max_sequence ?? 0) + 1;
+    const sequence = counts.maxSequence + 1;
     // Media time is the time since the session was created, so utterances
     // coalesce and order as they would from a companion.
     // The transcript wire carries whole milliseconds (the page's schema is
     // strict): round at this boundary, never below zero.
     const atMs = Math.max(0, Math.round(row.nowMs - row.createdAt.getTime()));
     const ack: OwnerInputAck = { requestId, sequence };
-    await tx.execute(sql`
-      INSERT INTO interview.session_observations
-        (tenant_id, owner_user_id, session_id, source_id, event_id, sequence,
-         kind, content, ack)
-      VALUES (${scope.tenantId}::uuid, ${scope.actorId}::uuid, ${sessionId}::uuid,
-        ${OWNER_MICROPHONE_SOURCE_ID}, ${requestId}, ${sequence}, 'transcript.final',
-        ${JSON.stringify({
-          occurredAt: new Date(row.nowMs).toISOString(),
-          sourceSequence: sequence,
-          body: {
-            speaker: "microphone",
-            text,
-            startMs: atMs,
-            endMs: atMs,
-          },
-        })}::jsonb,
-        ${JSON.stringify(ack)}::jsonb)`);
+    await insertOwnerObservation(tx, scope, sessionId, {
+      sourceId: OWNER_MICROPHONE_SOURCE_ID,
+      eventId: requestId,
+      sequence,
+      kind: "transcript.final",
+      content: {
+        occurredAt: new Date(row.nowMs).toISOString(),
+        sourceSequence: sequence,
+        body: {
+          speaker: "microphone",
+          text,
+          startMs: atMs,
+          endMs: atMs,
+        },
+      },
+      ack,
+    });
     return ack;
   });
 }
@@ -376,29 +315,16 @@ export async function storeOwnerInput(
     // screen snapshots (with a stored image): an unknown, foreign or
     // non-snapshot id is one refusal that discloses nothing.
     if (body.snapshots.length > 0) {
-      const found = await rowsOf<{ source_id: string; event_id: string }>(
+      const found = await countSnapshotsWithImage(
         tx,
-        sql`SELECT source_id, event_id FROM interview.session_observations
-            WHERE tenant_id = ${scope.tenantId}::uuid
-              AND owner_user_id = ${scope.actorId}::uuid
-              AND session_id = ${sessionId}::uuid
-              AND kind = 'screen.snapshot'
-              AND screenshot_artifact_id IS NOT NULL
-              AND (source_id, event_id) IN (${sql.join(
-                body.snapshots.map(
-                  (snapshot) =>
-                    sql`(${snapshot.sourceId}, ${snapshot.eventId})`,
-                ),
-                sql`, `,
-              )})`,
+        scope,
+        sessionId,
+        body.snapshots,
       );
       const distinct = new Set(
         body.snapshots.map((s) => `${s.sourceId}/${s.eventId}`),
       );
-      if (
-        found.length !== distinct.size ||
-        distinct.size !== body.snapshots.length
-      )
+      if (found !== distinct.size || distinct.size !== body.snapshots.length)
         throw new SessionError("invalid_input");
     }
 

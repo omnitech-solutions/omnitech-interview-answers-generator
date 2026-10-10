@@ -28,10 +28,8 @@ import {
   liveOwnerCaptureRequestSchema,
   liveOwnerInputRequestSchema,
 } from "@omnitech/interview-contracts";
-import { sql } from "drizzle-orm";
 import { OWNER_CAPTURE_SOURCE_ID } from "../db/live-session";
 import { assertUuid, type InvalidReason, SessionError } from "./errors";
-import { storeScreenshot } from "./ingest";
 import {
   assertAcceptsOwnerInput,
   assertTargetNotStale,
@@ -41,10 +39,16 @@ import {
   type OwnerInputBody,
   sameBody,
 } from "./owner-input";
-import { firstRow, inOwnerScope, type OwnerScope } from "./scope";
+import { storeScreenshot } from "./repositories/capture.repository";
+import {
+  countOwnerCaptures,
+  insertOwnerObservation,
+  readSnapshotForResend,
+} from "./repositories/owner-input.repository";
+import { lockSession } from "./repositories/session.repository";
+import { inOwnerScope, type OwnerScope } from "./scope";
 import { readImageSize, SCREENSHOT_LOAD_LIMITS } from "./screenshot-loader";
 import { normalizeOcrText } from "./screenshot-text";
-import { lockSession } from "./session-record";
 
 // Owner captures (images) one session accepts: each may hold up to 2 MiB, so
 // this bounds stored bytes (400 x 2 MiB is the companion's own bound).
@@ -181,21 +185,7 @@ export async function storeOwnerCapture(
       const storedBody = (stored.content as { body?: unknown }).body;
       if (!sameBody(storedBody, body)) throw invalid();
       for (const [index, ref] of snapshotRefs.entries()) {
-        const snapshot = await firstRow<{
-          sha256: string | null;
-          content: unknown;
-        }>(
-          tx,
-          sql`SELECT a.metadata->>'sha256' AS sha256, o.content
-              FROM interview.session_observations o
-              LEFT JOIN platform.artifacts a
-                ON a.tenant_id = o.tenant_id AND a.id = o.screenshot_artifact_id
-              WHERE o.tenant_id = ${scope.tenantId}::uuid
-                AND o.owner_user_id = ${scope.actorId}::uuid
-                AND o.session_id = ${sessionId}::uuid
-                AND o.source_id = ${ref.sourceId}
-                AND o.event_id = ${ref.eventId}`,
-        );
+        const snapshot = await readSnapshotForResend(tx, scope, sessionId, ref);
         const snapshotBody = (
           snapshot?.content as { body?: unknown } | undefined
         )?.body;
@@ -227,18 +217,8 @@ export async function storeOwnerCapture(
         revision: targetRevision,
       });
 
-    const captures = await firstRow<{ n: number }>(
-      tx,
-      sql`SELECT count(*)::int AS n FROM interview.session_observations
-          WHERE tenant_id = ${scope.tenantId}::uuid
-            AND owner_user_id = ${scope.actorId}::uuid
-            AND session_id = ${sessionId}::uuid
-            AND source_id = ${OWNER_CAPTURE_SOURCE_ID}`,
-    );
-    if (
-      Number(captures?.n ?? 0) + images.length >
-      OWNER_CAPTURE_MAX_PER_SESSION
-    )
+    const captures = await countOwnerCaptures(tx, scope, sessionId);
+    if (captures + images.length > OWNER_CAPTURE_MAX_PER_SESSION)
       throw new SessionError("status_refused");
 
     // [STRATEGY] The snapshots take the next sequences in order and the input
@@ -252,22 +232,21 @@ export async function storeOwnerCapture(
         bytes: images[index] as Uint8Array,
         mediaType: (checked[index] as (typeof checked)[number]).mediaType,
       });
-      await tx.execute(sql`
-        INSERT INTO interview.session_observations
-          (tenant_id, owner_user_id, session_id, source_id, event_id, sequence,
-           kind, content, ack, screenshot_artifact_id)
-        VALUES (${scope.tenantId}::uuid, ${scope.actorId}::uuid, ${sessionId}::uuid,
-          ${ref.sourceId}, ${ref.eventId}, ${sequence},
-          'screen.snapshot',
-          ${JSON.stringify({
-            occurredAt,
-            sourceSequence: 0,
-            body: snapshotBodyOf(index),
-            ...(ocrs[index] ? { ocr: ocrs[index] } : {}),
-            ...(displays[index] ? { display: displays[index] } : {}),
-          })}::jsonb,
-          ${JSON.stringify({ ...ref, sequence })}::jsonb,
-          ${artifactId}::uuid)`);
+      await insertOwnerObservation(tx, scope, sessionId, {
+        sourceId: ref.sourceId,
+        eventId: ref.eventId,
+        sequence,
+        kind: "screen.snapshot",
+        content: {
+          occurredAt,
+          sourceSequence: 0,
+          body: snapshotBodyOf(index),
+          ...(ocrs[index] ? { ocr: ocrs[index] } : {}),
+          ...(displays[index] ? { display: displays[index] } : {}),
+        },
+        ack: { ...ref, sequence },
+        screenshotArtifactId: artifactId,
+      });
     }
     const ack = await insertOwnerInput(
       tx,
