@@ -106,14 +106,29 @@ The macOS app (step 7) also needs Xcode's Swift toolchain.
 
 7. **Optional: the native macOS app** (a glass panel for Active Session).
 
+   `pnpm dev` keeps it built: beside the servers (never before them) it compiles
+   the Swift sources of `apps/studio-shell` and `apps/capture-companion/macos`
+   when they changed since the last build, and again when you save one during the
+   session. Its lines start with `[native]`; the compiler's output is in
+   `.dev-local/native-app/build.log`. With nothing changed it takes a few
+   milliseconds; a failed build prints the error and leaves `pnpm dev` running.
+   `pnpm dev:native` does the same once, by hand.
+
    ```bash
-   cd apps/studio-shell
-   swift build -c release && scripts/bundle-app.sh
-   open .build/InterviewStudioShell.app
+   open apps/studio-shell/.build/InterviewStudioShell.app
    ```
 
-   It is a development bundle, ad-hoc signed, so macOS asks for Screen Recording
-   access again after each rebuild.
+   A copy at `~/Applications/Interview Studio.app`, if you keep one there, is
+   refreshed too. A running app is never stopped, restarted or replaced: you are
+   told to quit and reopen it, and the new build is installed once it has quit.
+   `DEV_NATIVE_BUILD=off` turns the native build off for a run. By hand, without
+   any of that: `cd apps/studio-shell && swift build -c release &&
+   scripts/bundle-app.sh`.
+
+   It is a development bundle, ad-hoc signed. Its signature names the bundle
+   identifier as its designated requirement, so the macOS privacy grants (Screen
+   Recording, Microphone, Speech Recognition) are meant to carry over a rebuild;
+   if macOS asks again, grant it once more.
 
    The app loads Studio at `http://127.0.0.1:3000` (what `pnpm dev` and the Docker
    stack serve) unless you set another address in its connect prompt (status menu,

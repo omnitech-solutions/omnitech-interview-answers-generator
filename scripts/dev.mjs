@@ -8,6 +8,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   defaultLocalModelEnvironment,
   ensureLmStudioContext,
@@ -56,7 +57,8 @@ const localEnvironment = {
     configuredEnvironment.ACTIVE_SESSION_AGENT_PROFILE ?? "claude",
   // The live coach listens to the session and writes the coach's notes, on
   // Claude Code unless .env says "codex" or "off".
-  INTERVIEW_COACH: configuredEnvironment.INTERVIEW_COACH ?? "claude",
+  INTERVIEW_COACH_DEFAULT:
+    configuredEnvironment.INTERVIEW_COACH_DEFAULT ?? "claude",
   // Every AI call is kept as a run with its steps, prompts and answers included,
   // in the AI engine's own development database (in the omnitech-ai-engine
   // repository, `pnpm dev` starts it on 127.0.0.1:54329). When that database
@@ -124,6 +126,23 @@ if (
     // No packed model: the picker simply leaves the on-device model out.
   }
 }
+
+// [DOMAIN] The Mac app is brought up to date beside everything below, never
+// before it: its own process, started first and never waited for, so a slow or
+// failed Swift build cannot delay or stop the servers. It prints "[native]"
+// lines itself (the steps below block this launcher, so nothing is piped
+// through it), skips in milliseconds when no Swift source changed, and leaves
+// a running app alone. DEV_NATIVE_BUILD=off turns it off
+// (scripts/native-app.mjs).
+const nativeBuild = spawn(
+  process.execPath,
+  [fileURLToPath(new URL("./dev-native.mjs", import.meta.url)), "--watch"],
+  { env: localEnvironment, stdio: ["ignore", "inherit", "inherit"] },
+);
+nativeBuild.once("error", (error) =>
+  console.log(`[native] not started: ${error.message}`),
+);
+process.once("exit", () => nativeBuild.kill());
 
 // The database runs in Docker Compose; wait until it accepts connections.
 const database = spawnSync(
