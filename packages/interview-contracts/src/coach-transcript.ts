@@ -35,6 +35,9 @@ export const coachTranscriptInputSchema = z.strictObject({
 export const coachActivityInputSchema = z.strictObject({
   speaker: z.enum(COACH_SPEAKERS),
   speaking: z.boolean(),
+  // How long before this report the change happened: a detector tells of a
+  // stop only after its hangover. Absent: it happened now.
+  agoMs: z.number().int().min(0).max(5_000).optional(),
 });
 
 export const coachTranscriptLineSchema = z.strictObject({
@@ -79,6 +82,14 @@ export const coachTranscriptResponseSchema = z.strictObject({
   // finished it, so text alone cannot say that someone is still talking; this
   // can. Absent: not known, and the coach falls back to waiting out pauses.
   speaking: z.array(z.enum(COACH_SPEAKERS)).optional(),
+  // [DOMAIN] When each speaker who is not speaking last stopped, where the
+  // source said so. The words of a phrase arrive some time after its voice
+  // stops; the silence after a question is counted from the voice.
+  stopped: z
+    .array(
+      z.strictObject({ speaker: z.enum(COACH_SPEAKERS), at: z.iso.datetime() }),
+    )
+    .optional(),
   // [DOMAIN] What is on the shared screen, as text read from the latest
   // capture (a coding task, the code under discussion, a diagram's labels).
   // Only the latest is held: the screen is a state, not a history.

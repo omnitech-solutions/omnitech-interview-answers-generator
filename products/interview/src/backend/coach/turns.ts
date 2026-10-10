@@ -236,6 +236,9 @@ export function decide(input: {
   fresh: readonly CoachTranscriptLine[];
   // How long since any line arrived, and since the coach last acted.
   silenceMs: number;
+  // Since the interviewer's voice stopped, where that is known. The words
+  // arrive after the voice, so this is the longer and the truer silence.
+  interviewerQuietMs?: number;
   sinceActMs: number;
   timing?: Partial<TurnTiming>;
   // Who is speaking right now, where that is known (a voice-activity signal,
@@ -279,7 +282,7 @@ export function decide(input: {
         : reads === "finished" || input.speaking
           ? timing.pauseMs
           : timing.trailingMs;
-    if (input.silenceMs >= need)
+    if ((input.interviewerQuietMs ?? input.silenceMs) >= need)
       return {
         action: "act",
         reason: reads === "question" ? "question-finished" : "pause",

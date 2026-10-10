@@ -56,7 +56,9 @@ const surfaces: Record<string, SurfaceRow> = {
   // one definition of "speaking" its senders share
   // (createVoiceActivityDetector, createVoiceActivityReporter and the
   // VoiceActivityReporter type a sender holds per source).
-  "@omnitech/active-session-contracts": { entrypoints: 1, names: 88 },
+  // +1: VOICE_ACTIVITY_TUNING, read by the Studio to date a reported stop
+  // back by the detector's hangover.
+  "@omnitech/active-session-contracts": { entrypoints: 1, names: 89 },
   // +3: the host runner service and its client (RemoteCodeRunner,
   // RemoteCodeRunnerOptions, createRunnerHandler), for a containerised web app.
   "@omnitech/code-runner": { entrypoints: 1, names: 6 },

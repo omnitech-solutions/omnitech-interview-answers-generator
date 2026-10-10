@@ -61,7 +61,7 @@
       "doc_path": "fallback/apps/agent-worker/src/coach-replay.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "3ba2b7950d29c8a76f52988b8e4862c9dab325e17d632f8ab327f534cfd5cbf2",
+      "sha256": "ead42d61c11e6c20667592669e54b59d6ef2aa753c48a8629c00d6580492b1c8",
       "source_path": "apps/agent-worker/src/coach-replay.ts"
     },
     {

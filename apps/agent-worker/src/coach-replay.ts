@@ -37,6 +37,8 @@
 //                     voice detector hears it, a start told 150 ms late, a
 //                     stop 500 ms late, pauses shorter than that not heard,
 //                     and each piece of text 300 ms after it was said
+//   --no-voice-stop   do not tell the coach when a voice stopped: it counts the
+//                     silence after a turn from when the words arrived
 //   --endpoint FILE   a module that decides when a speaker's turn is over, in
 //                     place of the replay's own reading of the signals. Its
 //                     default export is given { kind } and returns
@@ -391,6 +393,19 @@ const speakingAt = (atMs: number) =>
             .map((block) => block.speaker),
         ),
       ];
+// When each speaker's voice last stopped, as far as is known by now.
+const stoppedAt = (atMs: number) =>
+  (["interviewer", "candidate", "unknown"] as const).flatMap((role) => {
+    const last = stretches
+      .filter(
+        (stretch) =>
+          stretch.role === role && stretch.endMs + HANGOVER_MS <= atMs,
+      )
+      .at(-1);
+    return last
+      ? [{ speaker: role, at: new Date(last.endMs).toISOString() }]
+      : [];
+  });
 
 // [DOMAIN] Another mechanism for ending a turn (a framework's endpointing),
 // given the same signals. It is asked one thing, whether a speaker's turn is
@@ -653,7 +668,12 @@ const coach = createCoach(
         ...(endpoint
           ? { speaking: endpointSays }
           : activity
-            ? { speaking: speakingAt(fileNow()) }
+            ? {
+                speaking: speakingAt(fileNow()),
+                ...(has("--no-voice-stop")
+                  ? {}
+                  : { stopped: stoppedAt(fileNow()) }),
+              }
             : {}),
       }),
     },

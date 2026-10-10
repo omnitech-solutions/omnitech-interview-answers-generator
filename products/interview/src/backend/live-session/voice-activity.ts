@@ -5,6 +5,7 @@
 // transient signal and never content: nothing here is stored, logged or kept
 // beyond a per-session count of recent reports.
 
+import { VOICE_ACTIVITY_TUNING } from "@omnitech/active-session-contracts";
 import {
   type BehaviourFlagEnvironment,
   behaviourFlagValue,
@@ -47,6 +48,7 @@ export const tellCoachWhoSpeaks =
       speaker: CoachSpeaker,
       speaking: boolean,
       fromLive: boolean,
+      agoMs: number,
     ): void;
   }) =>
   (activity: VoiceActivityHeard): void =>
@@ -54,6 +56,8 @@ export const tellCoachWhoSpeaks =
       speakerOfSource(activity.source),
       activity.speaking,
       true,
+      // A stop is told only after the detector's hangover of quiet.
+      activity.speaking ? 0 : VOICE_ACTIVITY_TUNING.hangoverMs,
     );
 
 // The most sessions counted at once; the oldest is forgotten first.

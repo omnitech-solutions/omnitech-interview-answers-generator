@@ -145,6 +145,9 @@ export class CoachCallError extends Error {
 
 const LINES_HELD = 600;
 const ATTEMPTS = 2;
+// The most a voice's stop may precede the arrival of its words (a
+// recogniser's delay) and still be read as their end.
+const STOP_BEFORE_TEXT_MS = 2_000;
 // A retained session is begun anew after this many calls.
 const ROTATE_AFTER = 12;
 // How long after answering a turn a further sentence from the interviewer
@@ -308,6 +311,8 @@ export function createCoach(ports: CoachPorts, options: CoachOptions = {}) {
   } = { edges: [] };
   // Who is speaking right now, where the feed can tell.
   let speaking: Speaking | undefined;
+  // When the interviewer's voice last stopped, where the feed says.
+  let interviewerStoppedMs: number | undefined;
   // Whose conversation this is, and so where its notes go.
   let space: CoachSpace = "live";
   // What is on the shared screen, and whether the coach has looked at it.
@@ -744,6 +749,15 @@ export function createCoach(ports: CoachPorts, options: CoachOptions = {}) {
             candidate: read.speaking.includes("candidate"),
           }
         : undefined;
+      // The latest stop among the voices that are not the candidate's.
+      const stops = (read.stopped ?? [])
+        .filter((each) => each.speaker !== "candidate")
+        .map((each) => Date.parse(each.at))
+        .filter(Number.isFinite);
+      interviewerStoppedMs =
+        speaking && !speaking.interviewer && stops.length > 0
+          ? Math.max(...stops)
+          : undefined;
       // A screen that reads differently is a screen not yet looked at.
       if (read.screen && read.screen.text !== screen?.text)
         screen = { text: read.screen.text, seen: false };
@@ -846,6 +860,14 @@ export function createCoach(ports: CoachPorts, options: CoachOptions = {}) {
         fresh,
         ...(speaking ? { speaking } : {}),
         silenceMs: now() - lastArrivalMs,
+        // [GUARD] A stop is the end of the words last heard only when it is
+        // near them: one from long before the text is some earlier phrase's.
+        // One dated after now is another clock's, and is not believed.
+        ...(interviewerStoppedMs !== undefined &&
+        interviewerStoppedMs <= now() &&
+        interviewerStoppedMs >= lastArrivalMs - STOP_BEFORE_TEXT_MS
+          ? { interviewerQuietMs: now() - interviewerStoppedMs }
+          : {}),
         sinceActMs: now() - lastActMs,
         ...(timing ? { timing } : {}),
       });

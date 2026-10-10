@@ -1017,7 +1017,12 @@ console.log(solve([1, 2, 3]));`,
         "invalid_coach_activity",
         "The activity is invalid.",
       );
-    coachTranscript.setSpeaking(parsed.data.speaker, parsed.data.speaking);
+    coachTranscript.setSpeaking(
+      parsed.data.speaker,
+      parsed.data.speaking,
+      false,
+      parsed.data.agoMs ?? 0,
+    );
     return context.body(null, 204);
   });
   app.delete("/api/v1/coach-transcript", (context) =>

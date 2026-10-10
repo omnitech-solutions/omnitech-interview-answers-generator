@@ -4882,3 +4882,99 @@ describe("a panel of interviewers", () => {
     });
   });
 });
+
+// The words of a phrase arrive after its voice stops. Where the feed says
+// when the voice stopped, the silence after a question is counted from then.
+describe("silence counted from when the interviewer's voice stopped", () => {
+  const { finishedMs } = TURN_TIMING;
+  // A feed that says nobody is speaking and when the interviewer stopped.
+  const stoppedAt = (ago: (now: number) => number | undefined) => {
+    const held: { w?: ReturnType<typeof world> } = {};
+    held.w = world(
+      {},
+      {
+        read: (answer) => {
+          const at = ago((held.w as ReturnType<typeof world>).now());
+          return {
+            ...answer,
+            speaking: [],
+            ...(at === undefined
+              ? {}
+              : {
+                  stopped: [
+                    {
+                      speaker: "interviewer" as const,
+                      at: new Date(at).toISOString(),
+                    },
+                  ],
+                }),
+          };
+        },
+      },
+    );
+    return held.w;
+  };
+
+  it("acts as soon as the voice has been quiet long enough, though the words only just arrived", async () => {
+    // The voice stopped 600 ms before the words were heard.
+    const w = stoppedAt(() => T0 - 600);
+    expect(await w.hear("interviewer", QUESTION)).toBe(false);
+    w.advance(finishedMs - 600);
+    expect(await w.tick()).toBe(true);
+  });
+
+  it("without a stop it waits the whole time from the words", async () => {
+    const w = stoppedAt(() => undefined);
+    expect(await w.hear("interviewer", QUESTION)).toBe(false);
+    w.advance(finishedMs - 600);
+    expect(await w.tick()).toBe(false);
+    w.advance(600);
+    expect(await w.tick()).toBe(true);
+  });
+
+  it("a stop from long before the words is some earlier phrase's: the words' arrival is counted from", async () => {
+    const w = stoppedAt(() => T0 - 10_000);
+    expect(await w.hear("interviewer", QUESTION)).toBe(false);
+    w.advance(finishedMs - 600);
+    expect(await w.tick()).toBe(false);
+    w.advance(600);
+    expect(await w.tick()).toBe(true);
+  });
+
+  it("a stop after the words (the voice went on) is waited from", async () => {
+    const w = stoppedAt((now) => (now >= T0 + 500 ? T0 + 500 : undefined));
+    expect(await w.hear("interviewer", QUESTION)).toBe(false);
+    w.advance(finishedMs);
+    // 800 ms since the words, 300 ms since the voice stopped.
+    expect(await w.tick()).toBe(false);
+    w.advance(500);
+    expect(await w.tick()).toBe(true);
+  });
+
+  it("a stop dated after now is another clock's: the words' arrival is counted from", async () => {
+    const w = stoppedAt((now) => now + 60_000);
+    expect(await w.hear("interviewer", QUESTION)).toBe(false);
+    w.advance(finishedMs);
+    expect(await w.tick()).toBe(true);
+  });
+
+  it("the candidate's stop is not the interviewer's", async () => {
+    const held: { w?: ReturnType<typeof world> } = {};
+    held.w = world(
+      {},
+      {
+        read: (answer) => ({
+          ...answer,
+          speaking: [],
+          stopped: [
+            { speaker: "candidate", at: new Date(T0 - 600).toISOString() },
+          ],
+        }),
+      },
+    );
+    const w = held.w;
+    expect(await w.hear("interviewer", QUESTION)).toBe(false);
+    w.advance(finishedMs - 600);
+    expect(await w.tick()).toBe(false);
+  });
+});

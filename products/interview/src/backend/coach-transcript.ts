@@ -38,6 +38,8 @@ export function createCoachTranscript() {
   // lost signal can never hold the coach back for good.
   const speakingSince = new Map<CoachSpeaker, number>();
   let activityKnown = false;
+  // When each speaker's voice last stopped, as its source said.
+  const stoppedAt = new Map<CoachSpeaker, number>();
   const speakingNow = (): CoachSpeaker[] => {
     const now = Date.now();
     for (const [speaker, at] of speakingSince)
@@ -46,7 +48,17 @@ export function createCoachTranscript() {
   };
   const held = () => ({
     space,
-    ...(activityKnown ? { speaking: speakingNow() } : {}),
+    ...(activityKnown
+      ? {
+          speaking: speakingNow(),
+          stopped: [...stoppedAt]
+            .filter(([speaker]) => !speakingSince.has(speaker))
+            .map(([speaker, at]) => ({
+              speaker,
+              at: new Date(at).toISOString(),
+            })),
+        }
+      : {}),
     // A replay is coached from itself alone, never from a session's record.
     ...(session && space === "live" ? { session } : {}),
     ...(screen ? { screen } : {}),
@@ -97,11 +109,21 @@ export function createCoachTranscript() {
       speaking: boolean,
       // From a live session's own audio: it says nothing about a replay.
       fromLive = false,
+      // How long ago the change happened (a detector's hangover).
+      agoMs = 0,
     ): void {
       if (fromLive && space !== "live") return;
       activityKnown = true;
-      if (speaking) speakingSince.set(speaker, Date.now());
-      else speakingSince.delete(speaker);
+      if (speaking) {
+        speakingSince.set(speaker, Date.now());
+        stoppedAt.delete(speaker);
+      } else {
+        // [GUARD] Only a voice that was known to be speaking has a stop worth
+        // dating: a repeated "not speaking" must not move it.
+        if (speakingSince.has(speaker) || !stoppedAt.has(speaker))
+          stoppedAt.set(speaker, Date.now() - agoMs);
+        speakingSince.delete(speaker);
+      }
     },
     // The text of the latest capture of the screen takes the last one's place.
     setScreen(text: string, from?: CoachTranscriptSession): void {
@@ -127,6 +149,7 @@ export function createCoachTranscript() {
       ledger = undefined;
       screen = undefined;
       speakingSince.clear();
+      stoppedAt.clear();
       activityKnown = false;
       epoch = randomUUID();
       lines = [];

@@ -1079,3 +1079,61 @@ describe("a recorder's transcript file of a panel", () => {
     expect(coachTranscriptInputSchema.safeParse({ lines }).success).toBe(true);
   });
 });
+
+describe("when a speaker's voice stopped", () => {
+  const NOW = Date.parse("2026-10-08T09:00:10.000Z");
+  afterEach(() => vi.useRealTimers());
+  const clocked = () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(NOW));
+    return createCoachTranscript();
+  };
+  const iso = (ms: number) => new Date(ms).toISOString();
+
+  it("is not said before any activity is reported", () => {
+    expect(clocked().since()).not.toHaveProperty("stopped");
+  });
+
+  it("is said for a speaker who stopped, dated back by how long ago the source says it happened, and reads by the contract", () => {
+    const transcript = clocked();
+    transcript.setSpeaking("interviewer", true);
+    expect(transcript.since().stopped).toEqual([]);
+    vi.setSystemTime(new Date(NOW + 2_000));
+    transcript.setSpeaking("interviewer", false, false, 500);
+    const read = transcript.since();
+    expect(read.speaking).toEqual([]);
+    expect(read.stopped).toEqual([
+      { speaker: "interviewer", at: iso(NOW + 1_500) },
+    ]);
+    expect(coachTranscriptResponseSchema.safeParse(read).success).toBe(true);
+  });
+
+  it("a repeated 'not speaking' does not move the stop", () => {
+    const transcript = clocked();
+    transcript.setSpeaking("interviewer", true);
+    transcript.setSpeaking("interviewer", false);
+    vi.setSystemTime(new Date(NOW + 15_000));
+    transcript.setSpeaking("interviewer", false);
+    expect(transcript.since().stopped).toEqual([
+      { speaker: "interviewer", at: iso(NOW) },
+    ]);
+  });
+
+  it("goes when the speaker starts again, and with the conversation", () => {
+    const transcript = clocked();
+    transcript.setSpeaking("interviewer", true);
+    transcript.setSpeaking("interviewer", false);
+    transcript.setSpeaking("interviewer", true);
+    expect(transcript.since().stopped).toEqual([]);
+    transcript.setSpeaking("interviewer", false);
+    transcript.clear();
+    expect(transcript.since()).not.toHaveProperty("stopped");
+  });
+
+  it("a voice that lapsed without saying it stopped has no stop", () => {
+    const transcript = clocked();
+    transcript.setSpeaking("interviewer", true);
+    vi.setSystemTime(new Date(NOW + 6_000));
+    expect(transcript.since()).toMatchObject({ speaking: [], stopped: [] });
+  });
+});

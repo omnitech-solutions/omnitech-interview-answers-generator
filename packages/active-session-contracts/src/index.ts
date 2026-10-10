@@ -97,5 +97,6 @@ export {
 export {
   createVoiceActivityDetector,
   createVoiceActivityReporter,
+  VOICE_ACTIVITY_TUNING,
   type VoiceActivityReporter,
 } from "./voice-activity";

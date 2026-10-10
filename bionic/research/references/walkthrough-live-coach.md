@@ -382,6 +382,8 @@ pnpm -s coach:bench:panel:timing -- --signals vad --endpoint <module.mjs> --endp
 - `--endpoint` names a module whose default export returns `{ apply(events, nowMs), ready(role, nowMs), close?() }`. Without `--endpoint-owns` it can only hold the coach back; with it, the coach's own waits after a turn are zero and the mechanism alone ends the turn.
 - `--label` keeps each variant's results apart.
 
+One idea was taken from that comparison: where a source says when the interviewer's voice stopped, the coach counts the silence after a turn from the voice, not from when the words arrived (`--no-voice-stop` replays without it). With signals as a detector gives them, the panel's median wait after a question fell from 1.17 s to 0.94 s.
+
 Studio depends on no such mechanism. The comparison with LiveKit's and Pipecat's endpointing lives outside the repository (`~/Downloads/coach-framework-lab/studio/`, 2026-10-10): as a gate each ties with the coach; owning the decision they act about a quarter of a second sooner at best and act more often on what is no question, because they end a turn on silence alone and the coach also reads the words.
 
 ## Limits and decisions
