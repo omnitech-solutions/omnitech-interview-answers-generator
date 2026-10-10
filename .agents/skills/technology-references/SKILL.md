@@ -1,6 +1,6 @@
 ---
 name: technology-references
-description: Route to the vetted technology references before reviewing or writing React, Next.js, Swift or WKWebView, Hono, Zod, Drizzle, PostgreSQL or Anthropic SDK code, auditing component architecture, concurrency, or package and tenant boundaries, or when a layer audit or implementer asks which reference applies.
+description: Route to the vetted technology references before reviewing or writing React, Next.js, Swift or WKWebView, Hono, Zod, Drizzle, PostgreSQL or Claude Agent SDK code, auditing component architecture, concurrency, or package and tenant boundaries, or when a layer audit or implementer asks which reference applies.
 ---
 
 # Technology references

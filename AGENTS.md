@@ -43,6 +43,12 @@ Crux is the only development workflow (ADR-0001).
   `.opencode/skills` link to it. Edit skills and this file directly — nothing
   generates them.
 
+## Technology references
+
+Before reading, searching, writing or reviewing code in this repository, invoke
+the `technology-references` skill. It names the references, rules and commands
+for the paths you are about to touch; read only the row that matches.
+
 ## Architecture rules — do not violate
 
 1. Simplicity first: choose the least complex design that meets current
