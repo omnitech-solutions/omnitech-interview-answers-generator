@@ -9,5 +9,18 @@
   },
   "enabledPlugins": {
     "superpowers@claude-plugins-official": false
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/format-edited.mjs\""
+          }
+        ]
+      }
+    ]
   }
 }

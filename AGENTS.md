@@ -48,6 +48,9 @@ Crux is the only development workflow (ADR-0001).
 Before reading, searching, writing or reviewing code in this repository, invoke
 the `technology-references` skill. It names the references, rules and commands
 for the paths you are about to touch; read only the row that matches.
+A route, handler, service, repository, SQL, Drizzle query, form, component or
+CSS change loads `bionic/research/references/application-boundaries.md`
+through it; a path no row matches loads nothing.
 
 ## Architecture rules — do not violate
 
@@ -78,12 +81,12 @@ for the paths you are about to touch; read only the row that matches.
    authorise provider actions through their own OAuth flow, with encrypted
    tokens never sent to the client. Never reuse login tokens for
    integrations. (ADR-0006)
-7. Products call `AiExecutionGateway` by profile or capability and never
-   branch on provider or model names. Codex and Claude Code run only in
-   `agent-worker`; Next.js never launches an agent process. Agent profiles are
-   typed, versioned, and bounded — never raw CLI arguments, environment
-   variables, directories, MCP servers, or permission bypasses from users.
-   (ADR-0007)
+7. Products call the engine `@omnitech/ai-engine`, at its one entry point, by
+   profile or capability and never branch on provider or model names. Codex
+   and Claude Code run only in `agent-worker`; Next.js never launches an agent
+   process. Agent profiles are typed, versioned, and bounded — never raw CLI
+   arguments, environment variables, directories, MCP servers, or permission
+   bypasses from users. (ADR-0007, ADR-0037, ADR-0040)
 8. Never log questions, prompts, generated content or code, notes,
    attachments, or model responses by default outside development. In
    development every AI interaction is logged whole (prompt and answer, at
@@ -92,6 +95,19 @@ for the paths you are about to touch; read only the row that matches.
    logged, in any mode. (ADR-0007)
 9. An interview answer's structured guide is the source of truth; its Markdown
    is always rendered from the guide. (ADR-0008)
+
+10. Contracts define the shape, domain functions the rules, services the
+    operation, repositories the state, transport the capability. SQL and the
+    Drizzle builder appear only in a repository module and `packages/database`
+    (parameterised raw SQL there only for a PostgreSQL-specific operation). A
+    route parses, authorises and delegates; a service owns the use case and
+    its transaction; a domain function is pure. Configuration represents
+    variation and code represents behaviour. A product frontend and `apps/web`
+    compose UI library parts, one controller per screen, forms declared as
+    data through `DynamicForm`, an option before a variant, no custom CSS. No
+    file mixes three or more of these responsibilities. The listed debt in
+    `scripts/application-boundaries-debt.ts` only goes down. (ADR-0042; map:
+    `bionic/research/references/application-boundaries.md`)
 
 ## Engineering contract
 
@@ -110,6 +126,10 @@ for the paths you are about to touch; read only the row that matches.
 - Keep reusable boundaries narrow: one responsibility, one public entrypoint,
   explicit input/output types, and implementation details kept private.
 - Use domain names. Keep orchestration readable from top to bottom.
+- Formatting is applied for you, never left for the gate: an editor hook formats
+  each file as Claude Code writes it (`scripts/format-edited.mjs`), and the
+  commit hook formats and fixes what is staged. An agent without that hook
+  (Codex, OpenCode) runs `pnpm fix` before handing work back.
 - Verify lint, format, types, tests, and build (`pnpm verify`) before claiming
   completion.
 

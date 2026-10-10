@@ -154,7 +154,10 @@ const surfaces: Record<string, SurfaceRow> = {
   // packReviewSchema, packProgressSchema, packPrepareSchema,
   // packCorrectionSchema and packCorrectionsSchema with their types,
   // PACK_REVIEW_BOUNDS and PACK_SOURCE_STATES.
-  "@omnitech/interview-contracts": { entrypoints: 1, names: 502 },
+  // 504, up from 502 (2026-10-10): candidacyContextInputSchema and its type
+  // CandidacyContextInput, the one object the interview context form and what it
+  // saves are read from (interview-context-form.ts and interview-context-modal.tsx).
+  "@omnitech/interview-contracts": { entrypoints: 1, names: 504 },
   "@omnitech/interview-library": { entrypoints: 1, names: 5 },
   "@omnitech/interview-playground-control": { entrypoints: 1, names: 16 },
   "@omnitech/interview-storage": { entrypoints: 1, names: 8 },

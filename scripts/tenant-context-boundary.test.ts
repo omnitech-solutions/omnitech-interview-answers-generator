@@ -30,7 +30,8 @@ const setsTenantContext =
 // set each: the agent worker's repository and the interview run queue.
 const workerSettings = {
   agent_worker: "packages/platform-storage/src/agent-job-worker-repository.ts",
-  run_worker: "products/interview/src/backend/interview-backend.ts",
+  // 2026-10-10 (ADR-0042): the statement moved verbatim from interview-backend.ts into the membership repository; still the one setter.
+  run_worker: "products/interview/src/backend/membership-repository.ts",
   // The session dispatch path: the one job-creation function that may set the
   // private marker on an agent job (ADR-0012 Agent jobs).
   session_dispatch: "packages/platform-storage/src/agent-job-repository.ts",

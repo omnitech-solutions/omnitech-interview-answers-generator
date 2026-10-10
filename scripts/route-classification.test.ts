@@ -18,8 +18,9 @@
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 
 // These guards parse much of the repository with the compiler API; on a busy
-// machine that outlasts the 10 s default test timeout.
-vi.setConfig({ testTimeout: 120_000 });
+// machine that outlasts the 10 s default test timeout, and importing the whole
+// application in beforeAll outlasts the default hook timeout the same way.
+vi.setConfig({ testTimeout: 120_000, hookTimeout: 120_000 });
 
 // The sign-in session is the identity boundary and is out of scope here.
 vi.mock("@/auth", () => ({ auth: async () => null }));

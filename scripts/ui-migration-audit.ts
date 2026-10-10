@@ -4,6 +4,9 @@
 // any hit and prints the count report. It parses with the TypeScript compiler
 // API (already a dependency), so aliased imports, barrels, JSX, createElement
 // and class names inside any string or template are all seen, which `rg` is not.
+// The wider ratchet for hand-built UI (raw layout elements, className, inline
+// style, stylesheets, raw fields and raw forms, over every product frontend and
+// apps/web) is scripts/application-boundaries.ts, rules (f) and (g) (ADR-0042).
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import ts from "typescript";
@@ -506,7 +509,9 @@ export const rawAllowList: readonly AllowEntry[] = [
     // SplitButton (generate with AI or create manually). 34, down from 35:
     // the editor's Export is the library Button, so that when export is
     // blocked it can be the library Popover's trigger and say why.
-    max: { button: 34, textarea: 4, input: 5, select: 1 },
+    // 2026-10-10: button 3 (down from 34), textarea 0 (down from 4, entry
+    // removed), input 1 (down from 5): the documents screens moved to the library.
+    max: { button: 3, input: 1, select: 1 },
     reason: STUDIO_WEB,
   },
   {

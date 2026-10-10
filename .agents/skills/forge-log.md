@@ -2,6 +2,11 @@
 
 _Written by forge-skill. Entries newest-first. Events: authored | revised | used | evaluated | fallback | escalated | pruned. forge-skill is the sole writer of the lifecycle events (authored, revised, pruned); the usage events (used, evaluated, fallback, escalated) are written by the session that used the forged skill, in forge-skill's locked format._
 
+## [2026-10-10 11:20] revised | technology-references
+- Changed: the router now routes by path (backend, frontend and shell, database, native, AI) and loads `bionic/research/references/application-boundaries.md` first for product and shell code (ADR-0042); the description leads with the triggers route, handler, service, repository, SQL, Drizzle, form, component and CSS; the stale `AiExecutionGateway` line names `@omnitech/ai-engine`; a closing step runs the boundary tripwires.
+- Self-test: every path the router names exists (checked by listing); the description is under 1,024 characters; `scripts/agent-skill-pointers.test.ts` passes. The router was not run on a live task in a fresh session, so loading is unobserved.
+- Learned: a second skill was not needed; one table row per path keeps the router under 50 lines and the rules stay in one page.
+
 ## [2026-10-05 21:45] evaluated | bionic-regeneration
 - verdict: effective | gap: closed | recommend: keep
 - evidence: after three ADR acceptances and nine new ADRs the table named all five ADR-derived generators and the repair order, and every dry-run exited 0 afterwards, but it does not say that the arch decision index also moves with ADR tags, so that gate was left to the lead's docs:arch run.

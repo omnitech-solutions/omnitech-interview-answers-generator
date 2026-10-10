@@ -5,6 +5,10 @@
 // The list is configuration, not suppression: a new file, or a count above its
 // cap, fails the test. Lower a cap when a repository moves to the builder, and
 // delete the entry when it reaches zero.
+// This guard asks which statements are raw at all (ADR-0023). Which layer may
+// hold SQL is scripts/application-boundaries.test.ts, rule (a) (ADR-0042): a
+// statement moved into a repository leaves that list and stays on this one
+// until it is on the builder or raw by design.
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -62,17 +66,58 @@ const rows: Array<[file: string, maxCount: number, reason: string]> = [
     rawByDesign("set_config app.session_credential_hash"),
   ],
   [
-    "products/interview/src/backend/live-session/session-claim.ts",
-    7,
+    "products/interview/src/backend/live-session/repositories/session.repository.ts",
+    2,
     rawByDesign(
-      "set_config app.session_worker and the SKIP LOCKED claim over the undeclared active_session_claims view",
+      "the credential lookup on the lookup transaction's own pg client, and the status change whose stamps are CASEs over the old row and now()",
     ),
   ],
   [
+    "products/interview/src/backend/live-session/session-claim.ts",
+    1,
+    rawByDesign("set_config app.session_worker, which only this file may set"),
+  ],
+  [
     "products/interview/src/backend/live-session/session-purge.ts",
-    19,
+    2,
+    rawByDesign("set_config app.session_purge, which only this file may set"),
+  ],
+  [
+    "products/interview/src/backend/live-session/repositories/claim.repository.ts",
+    6,
     rawByDesign(
-      "set_config app.session_purge and the pg_constraint coverage query; the delete chains are legacy",
+      "the SKIP LOCKED claim over the undeclared active_session_claims view and its lease statements, on the worker's pg client",
+    ),
+  ],
+  [
+    "products/interview/src/backend/live-session/repositories/purge.repository.ts",
+    17,
+    rawByDesign(
+      "the purge's delete chains, counts and the pg_constraint coverage query, on the purge's pg client",
+    ),
+  ],
+  [
+    "products/interview/src/backend/live-session/repositories/lease.repository.ts",
+    2,
+    rawByDesign("lease statements on the job store's string-query transaction"),
+  ],
+  [
+    "products/interview/src/backend/live-session/repositories/draft.repository.ts",
+    1,
+    rawByDesign("the purge's draft delete on a string-query pg client"),
+  ],
+  [
+    "products/interview/src/backend/live-session/repositories/owner-input.repository.ts",
+    1,
+    rawByDesign(
+      "the resend snapshot read, a LEFT JOIN on a jsonb key moved verbatim; builder migration pending",
+    ),
+  ],
+  [
+    "products/interview/src/backend/live-session/repositories/session-lifecycle.repository.ts",
+    4,
+    rawByDesign(
+      "session start insert and row updates moved verbatim from repository.ts; builder migration pending",
     ),
   ],
   [
@@ -82,6 +127,60 @@ const rows: Array<[file: string, maxCount: number, reason: string]> = [
       "claim sweep and event-sequence CTEs with SKIP LOCKED; simple transitions are legacy",
     ),
   ],
+  // 2026-10-10 (ADR-0042): statements moved out of routes, services and mixed
+  // modules into repository modules.
+  [
+    "products/interview/src/backend/membership-repository.ts",
+    2,
+    rawByDesign(
+      "the tenant membership read and set_config app.run_worker, which only this file may set",
+    ),
+  ],
+  [
+    "products/interview/src/backend/assistant/repositories/drafts.repository.ts",
+    16,
+    "draft compare-and-swap on revision with FOR UPDATE row locks, an ON CONFLICT upsert on the revert record, jsonb provenance CASEs and set_config app.product_id; moved from the assistant workspace on 2026-10-10; the plain reads and inserts are to be converted to the query builder",
+  ],
+  [
+    "products/interview/src/backend/assistant/repositories/effect-receipts.repository.ts",
+    6,
+    "pg_advisory_xact_lock(hashtextextended(...)) per request, FOR UPDATE on the receipt and a DISTINCT ON over jsonb payload paths: PostgreSQL-specific; the plain insert and update moved verbatim on 2026-10-10 and are to be converted to the query builder",
+  ],
+  [
+    "products/interview/src/backend/assistant/repositories/evidence.repository.ts",
+    8,
+    "pg_advisory_xact_lock(hashtextextended(...)) and a DISTINCT ON(id) latest-revision read: PostgreSQL-specific; the evidence inserts and lookups moved verbatim from the assistant workspace on 2026-10-10 and are to be converted to the query builder",
+  ],
+  [
+    "products/interview/src/backend/briefing/repositories/profiles.repository.ts",
+    10,
+    "pg_advisory_xact_lock(hashtextextended(...)) and FOR UPDATE on the candidate profile before a revision insert: PostgreSQL-specific locks; the remaining statements moved verbatim from the briefing repository on 2026-10-10 and are to be converted to the query builder",
+  ],
+  [
+    "products/interview/src/backend/briefing/repositories/proposals.repository.ts",
+    3,
+    "briefing proposal insert and reads moved verbatim from the briefing repository on 2026-10-10; to be converted to the query builder",
+  ],
+  [
+    "products/interview/src/backend/briefs/repository.ts",
+    5,
+    "concept brief insert, reads and updates (jsonb value) moved verbatim from the briefs routes on 2026-10-10; to be converted to the query builder",
+  ],
+  [
+    "products/interview/src/backend/documents/candidacy.repository.ts",
+    15,
+    "person, company, candidacy and interview statements (the member_people and people upserts, jsonb employer_brief updates, ownership joins) moved verbatim from the documents routes on 2026-10-10; to be converted to the query builder",
+  ],
+  [
+    "products/interview/src/backend/documents/context.repository.ts",
+    3,
+    "candidacy context read and update statements moved verbatim from documents/context.ts on 2026-10-10; to be converted to the query builder",
+  ],
+  [
+    "products/interview/src/backend/rehearsal/repository.ts",
+    6,
+    "pg_advisory_xact_lock(hashtextextended(...)) serialising a session's writes, plus rehearsal session inserts and reads moved verbatim from rehearsal/api.ts on 2026-10-10; the plain statements are to be converted to the query builder",
+  ],
   // Legacy raw repositories awaiting the builder (audit work packages 1-5).
   ...(
     [
@@ -89,53 +188,32 @@ const rows: Array<[file: string, maxCount: number, reason: string]> = [
       ["apps/web/src/platform/api.ts", 1],
       ["packages/platform-api/src/router.ts", 3],
       ["packages/platform-storage/src/agent-job-repository.ts", 12],
-      ["packages/platform-storage/src/bootstrap.ts", 5],
-      ["packages/platform-storage/src/document-artifact-repository.ts", 13],
+      // 4, down from 5: the two installation upserts are one statement over
+      // the rows in bootstrap-installations.ts.
+      ["packages/platform-storage/src/bootstrap.ts", 4],
+      // 5, down from 13: the member paths use the query builder; what is left
+      // is set_config of the catalog provisioner and the actorless
+      // provisionBuiltIn, which has no Drizzle handle until the database
+      // package offers one without an actor.
+      ["packages/platform-storage/src/document-artifact-repository.ts", 5],
       ["packages/platform-storage/src/platform-repository.ts", 7],
-      // 2026-10-08: +1 for `context.req.query("after")` on the coach transcript
-      // route: like the other eight here it is a Hono query parameter the
-      // scanner counts, not a SQL statement.
-      // +1: `context.req.query("revision")` on the coach-notes read, the same.
-      // 2026-10-09: +1 for `context.req.query("space")` on the coach-notes
-      // routes (the live notes or a replay's, kept apart): a Hono query
-      // parameter again, not SQL.
-      // +1: `context.req.query("space")` on the coach-notes DELETE, the same.
-      // +2: `context.req.query("epoch")` on the coach-ledger read (which
-      // conversation's ledger) and `context.req.query("id")` on the
-      // coach-writer DELETE (which coach gives up the pen): Hono query
-      // parameters again, not SQL.
-      ["products/interview/src/backend/api.ts", 14],
-      ["products/interview/src/backend/assistant/adapter.ts", 1],
-      ["products/interview/src/backend/assistant/workspace.ts", 31],
-      ["products/interview/src/backend/briefing/repository.ts", 17],
-      ["products/interview/src/backend/briefs/api.ts", 4],
-      // 2026-10-07: +2 for the candidacy context routes (read, update, brief),
-      // written in the file's own raw-SQL style beside the candidacy routes
-      // they extend; the query builder is still the default for new modules.
-      ["products/interview/src/backend/documents/api.ts", 18],
-      ["products/interview/src/backend/documents/context.ts", 3],
-      ["products/interview/src/backend/interview-backend.ts", 3],
-      ["products/interview/src/backend/live-session/capture-request.ts", 1],
-      [
-        "products/interview/src/backend/live-session/companion-capability.ts",
-        2,
-      ],
-      ["products/interview/src/backend/live-session/fenced-writes.ts", 11],
-      ["products/interview/src/backend/live-session/ingest.ts", 6],
-      ["products/interview/src/backend/live-session/owner-capture.ts", 1],
-      ["products/interview/src/backend/live-session/owner-input.ts", 2],
-      ["products/interview/src/backend/live-session/repository.ts", 4],
+      ["products/interview/src/backend/interview-backend.ts", 1],
       // 2026-10-09: +2 for `c.req.query("projection")` and `c.req.query("q")`
       // on the projection view route (ADR-0038): like the five before them
       // they are Hono query parameters the scanner counts, not SQL. The route
       // itself reads through loadSessionContext and writes nothing.
       ["products/interview/src/backend/live-session/routes.ts", 7],
-      ["products/interview/src/backend/live-session/session-drafts.ts", 1],
-      ["products/interview/src/backend/live-session/status-transition.ts", 2],
       ["products/interview/src/backend/plan/repository.ts", 8],
-      ["products/interview/src/backend/rehearsal/api.ts", 6],
-      ["products/interview/src/backend/studio/host.ts", 1],
-      ["products/presentation/src/backend/api.ts", 24],
+      // 2026-10-10: the next six are Hono `context.req.query(...)` parameter
+      // reads the scanner counts, not SQL; the statements that used to sit in
+      // these routes moved into repositories (ADR-0042).
+      ["products/interview/src/backend/documents/api.ts", 3],
+      ["products/interview/src/backend/studio-api/answers.routes.ts", 2],
+      ["products/interview/src/backend/studio-api/coach-notes.routes.ts", 4],
+      ["products/interview/src/backend/studio-api/coach-settings.routes.ts", 1],
+      ["products/interview/src/backend/studio-api/conversation.routes.ts", 2],
+      ["products/interview/src/backend/studio-api/library.routes.ts", 6],
+      ["products/presentation/src/backend/api.ts", 1],
       ["products/presentation/src/repositories/index.ts", 44],
     ] as const
   ).map(([file, count]): [string, number, string] => [file, count, legacy]),

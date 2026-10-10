@@ -50,6 +50,7 @@ graph TD
   ADR_0039["ADR-0039"]
   ADR_0040["ADR-0040"]
   ADR_0041["ADR-0041"]
+  ADR_0042["ADR-0042"]
   ADR_0010 -.-> ADR_0009
   ADR_0012 -.-> ADR_0011
   ADR_0013 -.-> ADR_0011
@@ -82,6 +83,9 @@ graph TD
   ADR_0040 -.-> ADR_0037
   ADR_0041 -.-> ADR_0038
   ADR_0041 -.-> ADR_0039
+  ADR_0042 -.-> ADR_0003
+  ADR_0042 -.-> ADR_0004
+  ADR_0042 -.-> ADR_0023
 ```
 
 ## Lineage table
@@ -130,6 +134,7 @@ graph TD
 | ADR-0039 | A live coach reads the conversation and writes the coach's notes as it happens | Accepted | — | — | — |
 | ADR-0040 | The AI engine is imported at its one entry point | Accepted | — | ADR-0037 | — |
 | ADR-0041 | The first context pack slice derives identities from content and adds three rules | Accepted | — | ADR-0038, ADR-0039 | — |
+| ADR-0042 | Application boundaries: contracts, domain, services, repositories, transport; UI from the library only, data-driven | Accepted | — | ADR-0003, ADR-0004, ADR-0023 | — |
 
 ## Topic clusters
 
@@ -138,8 +143,8 @@ ADRs grouped by shared tag (a tag appears below if ≥2 ADRs carry it). Use a cl
 - **active-session** — ADR-0011, ADR-0012, ADR-0013, ADR-0016, ADR-0017, ADR-0018, ADR-0019, ADR-0020, ADR-0021, ADR-0022, ADR-0024, ADR-0025, ADR-0026, ADR-0027, ADR-0028, ADR-0032, ADR-0033, ADR-0034
 - **agents** — ADR-0001, ADR-0007, ADR-0010, ADR-0014, ADR-0016, ADR-0017, ADR-0037, ADR-0039
 - **ai** — ADR-0007, ADR-0009, ADR-0010, ADR-0014, ADR-0030, ADR-0035, ADR-0037, ADR-0040
-- **architecture** — ADR-0002, ADR-0004, ADR-0029
-- **boundaries** — ADR-0003, ADR-0040
+- **architecture** — ADR-0002, ADR-0004, ADR-0029, ADR-0042
+- **boundaries** — ADR-0003, ADR-0040, ADR-0042
 - **capture** — ADR-0018, ADR-0021, ADR-0022, ADR-0027, ADR-0032
 - **coach** — ADR-0039, ADR-0041
 - **companion** — ADR-0018, ADR-0021

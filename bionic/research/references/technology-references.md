@@ -2,9 +2,9 @@
 title: "Technology references by layer"
 slug: technology-references
 type: references
-tags: [references, react, swift, nextjs, hono, drizzle, postgres, migrations, security]
+tags: [references, react, swift, nextjs, hono, drizzle, postgres, migrations, security, boundaries]
 sources: [vercel-react-best-practices, vercel-composition-patterns, swift-concurrency-agent-skill, drizzle-orm-schema-declaration, drizzle-orm-migrations, drizzle-kit-generate, drizzle-kit-migrate, drizzle-orm-row-level-security, drizzle-orm-transactions]
-last_reviewed: 2026-10-05
+last_reviewed: 2026-10-10
 ---
 
 # Technology references by layer
@@ -15,6 +15,20 @@ never override `AGENTS.md`, an accepted decision, or a ratified invariant. Where
 a reference and a repository rule disagree, the repository rule wins and the
 disagreement is worth a note in the change. The router skill is
 `.agents/skills/technology-references/SKILL.md`.
+
+## Route by path (read only the matching row)
+
+| You are touching | Read first | Then |
+| --- | --- | --- |
+| `products/*/src/backend/**`, `packages/platform-*/src/**`, `packages/interview-storage/**`: routes, handlers, services, repositories, SQL, Drizzle | [[research/references/application-boundaries]] | the Drizzle and PostgreSQL rows below; the Hono and Zod rows for a route |
+| `products/*/src/frontend/**`, `apps/web/**`: screens, forms, components, CSS | [[research/references/application-boundaries]] | [[research/references/ui-components]] (the UI-library rules), then the React row below; the Next.js row for `apps/web` |
+| `packages/database/**`, a `db/` schema, a migration | the Drizzle and PostgreSQL rows below | [[research/references/application-boundaries]] only for where a query may live |
+| `apps/studio-shell/**`, `apps/capture-companion/macos/**` | the Swift row below | nothing else |
+| anything else (documentation, scripts, configuration, `bionic/`) | nothing from this page | nothing |
+
+The boundaries page supports
+[[adrs/ADR-0042-application-boundaries-contracts-domain-services-r]]; its tripwires are
+`scripts/application-boundaries.test.ts`.
 
 ## Layer-to-reference map
 
@@ -27,7 +41,7 @@ disagreement is worth a note in the change. The router skill is
 | Zod (validation at boundaries) | Official docs: https://zod.dev | [[adrs/ADR-0003-keep-package-boundaries-narrow-with-one-public-ent]] (explicit input and output types) | No vetted skill. Zod's version comes from the pnpm catalog in `pnpm-workspace.yaml`; read the docs for that major version. |
 | Drizzle ORM and migrations (`packages/database`, domain schemas) | Official docs entry point: https://orm.drizzle.team/docs/overview. Filed pages, by task: schema [[research/sources/drizzle-orm-schema-declaration]]; migrations [[research/sources/drizzle-orm-migrations]], [[research/sources/drizzle-kit-generate]], [[research/sources/drizzle-kit-migrate]]; RLS [[research/sources/drizzle-orm-row-level-security]]; queries in a transaction [[research/sources/drizzle-orm-transactions]] | [[adrs/ADR-0005-isolate-tenants-in-one-postgresql-cluster-with-own]], [[adrs/ADR-0023-use-the-query-builder-by-default-and-check-the-dat]]; [[invariants/tenant-drizzle-handle-only-via-with-tenant]], [[invariants/schema-files-and-migrations-agree]], [[invariants/tenant-owned-tables-force-rls]] | Official docs only; no vetted skill. The workspace pins `drizzle-orm` and `drizzle-kit` `1.0.0-rc.4` (release candidates; the docs site is unversioned), so confirm an API against the installed package before copying an example. Migration folders are `<timestamp>_<name>/{migration.sql,snapshot.json}`. Tenant access goes through `withTenant()` or `tenantTransaction`, with the builder as the default (ADR-0023); the RLS page does not cover `FORCE ROW LEVEL SECURITY`, so the invariant and the PostgreSQL docs govern that. Generate through the project workflow (`@omnitech/database` `db:generate`, applied by `db:migrate`), never `push`. After a migration run `pnpm docs:arch` to regenerate `arch/data-model`; the extractor (`tools/crux/arch/drizzle_data_model.py`, the project's `arch_extractors` seam, see `bionic/inbox/crux-arch-adapter-research.md`) reads the newest snapshot, and `pnpm docs:arch:check` is the drift gate. |
 | PostgreSQL (RLS, schemas, roles) | Official docs: https://www.postgresql.org/docs/ (choose the server version used in `compose.yaml`) | [[adrs/ADR-0005-isolate-tenants-in-one-postgresql-cluster-with-own]]; [[invariants/tenant-owned-tables-force-rls]] | No vetted skill. Row-level security chapter and the `CREATE POLICY` and `ALTER TABLE ... FORCE ROW LEVEL SECURITY` references are the canonical ones. |
-| AI and the Anthropic SDK (`packages/ai-*`, `apps/agent-worker`) | The official `claude-api` skill for SDK and model questions; the project skill `.agents/skills/ai-provider-maintainer` for provider changes; [[research/references/ai-execution-boundaries]] | [[adrs/ADR-0007-route-ai-work-through-aiexecutiongateway-profiles]]; [[invariants/products-never-branch-on-provider-names]], [[invariants/nextjs-never-launches-agent-processes]] | Provider SDKs stay inside `ai-provider-*` packages. Never log prompts or model output. Check `@anthropic-ai/sdk` and `@anthropic-ai/claude-agent-sdk` versions in the owning `package.json`. |
+| AI and the Anthropic SDK (`@omnitech/ai-engine`, `apps/agent-worker`) | The official `claude-api` skill for SDK and model questions; the project skill `.agents/skills/ai-provider-maintainer` for provider changes; [[research/references/ai-execution-boundaries]] | [[adrs/ADR-0007-route-ai-work-through-aiexecutiongateway-profiles]]; [[invariants/products-never-branch-on-provider-names]], [[invariants/nextjs-never-launches-agent-processes]] | Provider SDKs stay inside `ai-provider-*` packages. Never log prompts or model output. Check `@anthropic-ai/sdk` and `@anthropic-ai/claude-agent-sdk` versions in the owning `package.json`. |
 | Security and code review | The `security-review` and `code-review` skills | [[adrs/ADR-0003-keep-package-boundaries-narrow-with-one-public-ent]], [[adrs/ADR-0005-isolate-tenants-in-one-postgresql-cluster-with-own]], [[adrs/ADR-0006-keep-login-identities-separate-from-connected-prov]]; [[invariants/package-boundaries-hold]] | Run them on the branch diff before claiming completion; they complement `pnpm verify`, they do not replace it. |
 
 ## Considered and not filed

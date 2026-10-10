@@ -40,9 +40,9 @@ const sizeExemptions: readonly Ceiling[] = [
   },
   {
     file: "apps/web/src/platform/agent-api.ts",
-    max: 290,
+    max: 215,
     reason:
-      "the platform agent-job HTTP routes (profiles, create, events, cancel, resume); they resolve the tenant member and delegate to the engine's agent job service",
+      "the platform agent-job HTTP routes (profiles, create, events, cancel, resume); they resolve the tenant member and delegate to agent-jobs.ts, which holds the use cases over the engine's agent job service",
   },
   {
     file: "apps/web/src/platform/native-handoff.ts",

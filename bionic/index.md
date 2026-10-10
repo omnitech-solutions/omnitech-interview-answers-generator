@@ -1,10 +1,10 @@
 # docs/omnitech-interview-answers-generator
 
-_Last updated: 2026-10-07_
+_Last updated: 2026-10-10_
 
 **Start here:** [[research/concepts/architecture-overview]] — how the system fits together and where package boundaries lie.
 
-## Research (9 sources, 13 synthesis pages)
+## Research (9 sources, 14 synthesis pages)
 
 See [[research/index]].
 
@@ -24,7 +24,8 @@ See [[research/index]].
 - [[research/concepts/interview-domain-model]] — interview domain tables, tenancy layers, `withTenant()`, migrations, tests — sources: 0 — `last_reviewed: 2026-10-02`
 - [[research/concepts/platform-architecture]] — modular-monolith platform shape, ownership, lifecycle, failure behavior, local operations — sources: 0 — `last_reviewed: 2026-10-02`
 
-### References (7)
+### References (8)
+- [[research/references/application-boundaries]] — where code belongs: decision table, allowed imports per layer, anti-patterns, migration order, tripwires (ADR-0042) — sources: 0 — `last_reviewed: 2026-10-10`
 - [[research/references/adding-a-product]] — steps and required surfaces for a new product vertical — sources: 0 — `last_reviewed: 2026-10-02`
 - [[research/references/ai-execution-boundaries]] — direct model vs agent runtime; on-device profile — sources: 0 — `last_reviewed: 2026-10-02`
 - [[research/references/interview-briefings-runbook]] — behavioural briefing pack operator runbook — sources: 0 — `last_reviewed: 2026-10-02`
@@ -33,10 +34,11 @@ See [[research/index]].
 - [[research/references/interview-studio]] — Interview Studio views, code locations, assistant model, CLI pushes — sources: 0 — `last_reviewed: 2026-10-02`
 - [[research/references/ui-components]] — one config-driven component set: variants, sizes, states, design tokens, rules — sources: 0 — `last_reviewed: 2026-10-06`
 
-## ADRs (42)
+## ADRs (43)
 
 | id | title | status | date |
 |---|---|---|---|
+| [[adrs/ADR-0042-application-boundaries-contracts-domain-services-r]] | Application boundaries: contracts, domain, services, repositories, transport; UI from the library only, data-driven | Accepted | 2026-10-10 |
 | [[adrs/ADR-0041-the-first-context-pack-slice-derives-identities-fr]] | The first context pack slice derives identities from content and adds three rules | Accepted | 2026-10-09 |
 | [[adrs/ADR-0040-the-ai-engine-is-imported-at-its-one-entry-point]] | The AI engine is imported at its one entry point | Accepted | 2026-10-08 |
 | [[adrs/ADR-0039-a-live-coach-reads-the-conversation-and-writes-the]] | A live coach reads the conversation and writes the coach's notes as it happens | Accepted | 2026-10-08 |

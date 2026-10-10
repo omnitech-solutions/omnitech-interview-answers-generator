@@ -2,6 +2,14 @@
 
 _Append-only. Newest first._
 
+## [2026-10-10] adr | ADR-0042: accept (accepted)
+
+Accepted on the owner's decision of 2026-10-10 (`bionic/inbox/target-architecture-boundaries-and-vertical-slice.md`). Amends ADR-0003, ADR-0004, ADR-0023. `bionic/adrs/index.md`, `lineage.md` and `summaries/` regenerated.
+
+## [2026-10-10] adr | ADR-0042: Application boundaries: contracts, domain, services, repositories, transport; UI from the library only, data-driven
+
+Proposed. File `bionic/adrs/ADR-0042-application-boundaries-contracts-domain-services-r.md`. Tags: architecture, boundaries, services, repositories, sql, ui-library, forms, data-driven.
+
 ## [2026-10-09] extract | regenerated bionic/code/ (1061 pages: 10 added, 2 changed, 0 removed)
 
 The default extractor ran after the context pack slice settled; the arch spine was regenerated with `pnpm docs:arch` in the same pass.

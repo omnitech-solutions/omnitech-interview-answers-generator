@@ -11,7 +11,10 @@ pre-commit:
   jobs:
     - name: biome
       glob: "**/*.{ts,tsx,js,jsx,json,jsonc}"
-      run: pnpm exec biome check --no-errors-on-unmatched {staged_files}
+      # Formats and applies the safe fixes to what is staged, and stages the
+      # result: a formatting slip is repaired here, never left for the gate.
+      run: pnpm exec biome check --write --no-errors-on-unmatched {staged_files}
+      stage_fixed: true
     - name: swift-format
       glob: "**/*.swift"
       run: node scripts/swift-format.mjs {staged_files}
