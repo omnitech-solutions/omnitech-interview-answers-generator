@@ -79,7 +79,11 @@ Crux is the only development workflow (ADR-0001).
    variables, directories, MCP servers, or permission bypasses from users.
    (ADR-0007)
 8. Never log questions, prompts, generated content or code, notes,
-   attachments, credentials, or model responses by default. (ADR-0007)
+   attachments, or model responses by default outside development. In
+   development every AI interaction is logged whole (prompt and answer, at
+   trace level) so a person or an agent can see what happened; anywhere else
+   that is off unless a host turns it on deliberately. Credentials are never
+   logged, in any mode. (ADR-0007)
 9. An interview answer's structured guide is the source of truth; its Markdown
    is always rendered from the guide. (ADR-0008)
 
