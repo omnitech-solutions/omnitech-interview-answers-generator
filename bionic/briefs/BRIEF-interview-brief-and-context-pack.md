@@ -214,15 +214,24 @@ The owner's session orchestrates; workers build; nothing is committed on a red g
 Phase 1 needs no model and no schema change and should lift the worst number first. Phases 0
 and 1 can start now. Phases 2 and 3 need the decisions below.
 
-## 9. Decisions for the owner
+## 9. Decisions (taken 2026-10-10; the owner delegated them and asked for every phase to be built)
 
-1. Is "employer said" (dated entries, who said it) the right replacement for "employer notes"?
-2. Research as a folder of documents per application: stored in the database (like other
-   private content) or as files in the Studio's data directory?
-3. A stage's transcript: keep the text, or keep only what was extracted from it and a pointer
-   to the recorded file?
-4. Where prepared context is kept (section 6): yes to the engine's table?
-5. Which free OpenRouter model is the reference for the small-model proof, or shall the
-   benchmark pick the best available free one each run and record which?
-6. Before Friday's technical round, is it worth doing phases 0 and 1 and the stage notes of
-   phase 2 only, so the coach is stage-aware for that round, and leaving the rest for after?
+1. **"Employer said"** replaces "employer notes": dated entries, each with who said it and how
+   (email, call, message). The old single text is carried over as one undated entry.
+2. **Research is kept in the database**, as documents belonging to a company or an application,
+   tenant-scoped and private like every other piece of the person's content. A file or a pasted
+   page is imported into it; nothing is read from a folder on disk at run time.
+3. **A stage's transcript is kept as text**, private and owner-only, because extraction must be
+   repeatable when the recipe improves. A transcript recorded under a device-only policy is
+   kept and shown but is never sent to a remote model: its extraction runs only on a local
+   model, or not at all, and the review says so.
+4. **Prepared context is kept by the engine**, in the engine's own database
+   (`AI_ENGINE_DATABASE_URL`, the one that already holds the record of calls). With none
+   configured the pack is prepared in memory and nothing is kept, as today. Studio's own
+   database gains no engine table.
+5. **The small-model proof** uses a configured, ordered list of free OpenRouter models; a run
+   takes the first that answers and records which. LM Studio uses `qwen/qwen2.5-coder-14b`.
+6. **All phases are built now.** Phases 0 and 1 first (running), phase 2 and the engine's part
+   of phase 3 in parallel with them, then phases 3 to 6 in the product.
+7. **Live proof**: `pnpm pack:bench:<model>` commands that can run side by side (each writes its
+   own result file and uses its own model session), and a "run them all" command.
