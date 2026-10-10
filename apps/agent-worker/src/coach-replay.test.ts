@@ -11,6 +11,7 @@
 // own timings (a piece begun and not yet ended); `--no-activity` leaves the
 // coach with the text alone. Both are run here, over the same files.
 import { execFile } from "node:child_process";
+import { readFileSync, writeFileSync } from "node:fs";
 import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -824,5 +825,122 @@ describe("pnpm coach:replay on a panel", () => {
       }));
     expect(scored(unnamed.result)).toEqual(scored(named.result));
     expect(unnamed.result.quiet).toEqual(named.result.quiet);
+  });
+});
+
+// Another mechanism may say when a turn is over (a framework's endpointing,
+// for a comparison): the replay gives it its signals and tells the coach
+// "still speaking" for as long as it says a speaker is not done.
+describe("pnpm coach:replay with another end-of-turn mechanism", () => {
+  const module = (body: string) => {
+    const path = join(
+      directory,
+      `endpoint-${Math.random().toString(36).slice(2)}.mjs`,
+    );
+    writeFileSync(path, body);
+    return path;
+  };
+  const interviewerActs = (ran: Ran) =>
+    acts(ran).filter(([reason]) => reason !== "answer-check");
+
+  it("an endpoint that never lets the interviewer's turn end keeps the coach from acting on it", async () => {
+    const never = module(
+      `export default () => ({ apply() {}, ready: role => role !== "interviewer" });`,
+    );
+    const held = await replay(file, ...CAST, "--timing", "--endpoint", never);
+    const plain = await replay(file, ...CAST, "--timing");
+    expect(held.code).toBe(0);
+    expect(interviewerActs(plain).length).toBeGreaterThan(0);
+    expect(interviewerActs(held)).toEqual([]);
+  });
+
+  it("the endpoint is given every signal once, none before its time, and is closed at the end", async () => {
+    const log = join(directory, "endpoint-log.json");
+    const recorder = module(
+      `import { writeFileSync } from "node:fs";
+       const seen = []; let early = 0;
+       export default ({ kind }) => ({
+         identity: { kind },
+         apply(events, nowMs) { for (const e of events) { if (e.atMs > nowMs) early += 1; seen.push(e); } },
+         ready: () => true,
+         close() { writeFileSync(${JSON.stringify(log)}, JSON.stringify({ kind, early, seen })); },
+       });`,
+    );
+    const ran = await replay(
+      file,
+      ...CAST,
+      "--timing",
+      "--signals",
+      "vad",
+      "--endpoint",
+      recorder,
+      "--endpoint-kind",
+      "probe",
+    );
+    expect(ran.code).toBe(0);
+    const kept = JSON.parse(readFileSync(log, "utf8")) as {
+      kind: string;
+      early: number;
+      seen: {
+        type: string;
+        role: string;
+        active?: boolean;
+        atMs: number;
+        speechAtMs?: number;
+        endMs?: number;
+        id?: string;
+      }[];
+    };
+    expect(kept.kind).toBe("probe");
+    expect(kept.early).toBe(0);
+    const texts = kept.seen.filter((each) => each.type === "transcript");
+    expect(new Set(texts.map((each) => each.id)).size).toBe(texts.length);
+    expect(texts.length).toBeGreaterThan(0);
+    // As a detector tells it: text 300 ms after the words, a start 150 ms and
+    // a stop 500 ms after they happened.
+    for (const text of texts)
+      expect(text.atMs - (text.endMs as number)).toBe(300);
+    const voice = kept.seen.filter((each) => each.type === "activity");
+    expect(voice.length).toBeGreaterThan(0);
+    for (const each of voice)
+      expect(each.atMs - (each.speechAtMs as number)).toBe(
+        each.active ? 150 : 500,
+      );
+    // Starts and stops pair up for each speaker.
+    for (const role of ["interviewer", "candidate"])
+      expect(
+        voice.filter((each) => each.role === role && each.active).length,
+      ).toBe(voice.filter((each) => each.role === role && !each.active).length);
+  });
+
+  it("with --endpoint-owns the coach acts as soon as the endpoint says the turn is over", async () => {
+    // Ready one second after the interviewer's last text arrived.
+    const afterOneSecond = module(
+      `let last = -Infinity;
+       export default () => ({
+         apply(events) { for (const e of events) if (e.type === "transcript" && e.role === "interviewer") last = e.atMs; },
+         ready: (role, nowMs) => role !== "interviewer" || nowMs - last >= 1000,
+       });`,
+    );
+    const late = join(directory, "owned-late-phrase.txt");
+    writeFileSync(late, LATE_TRANSCRIPT);
+    const owned = await replay(
+      late,
+      ...CAST,
+      "--timing",
+      "--endpoint",
+      afterOneSecond,
+      "--endpoint-owns",
+    );
+    expect(owned.code).toBe(0);
+    const waits = owned.stdout.split("\n").flatMap((line) => {
+      const found = /ACT {4}(?:pause|question-finished) +\+(\d+\.\d)s/.exec(
+        line,
+      );
+      return found ? [Number(found[1])] : [];
+    });
+    // The coach's own 2.5 s wait after a statement is gone: the endpoint's
+    // second is all that is waited, after the statement and after the question.
+    expect(waits).toEqual([1, 1]);
   });
 });

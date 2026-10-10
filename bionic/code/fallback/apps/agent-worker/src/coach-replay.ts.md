@@ -36,6 +36,20 @@ replay with more than one interviewer label gives each
 line its label as the speaker's name (the recorder told
 them apart). A call heard live is one stream with nobody
 named: this replays a panel the way it is heard live
+--signals ideal|vad    what the replay knows of who is speaking. ideal (the
+default): exactly the recording's timings. vad: as a
+voice detector hears it, a start told 150 ms late, a
+stop 500 ms late, pauses shorter than that not heard,
+and each piece of text 300 ms after it was said
+--endpoint FILE   a module that decides when a speaker's turn is over, in
+place of the replay's own reading of the signals. Its
+default export is given { kind } and returns
+{ apply(events, nowMs), ready(role, nowMs), close?() }
+--endpoint-kind K which of the module's mechanisms
+--endpoint-owns   the endpoint alone says when the interviewer has
+finished: the coach's own waits after a turn are zero
+--label L         kept with a benchmark's name, so each variant is
+compared with its own last run
 --retain          keep one session of the model open for the whole replay
 (each turn then sends only what is new)
 --hide-me         the coach does not hear the person being coached

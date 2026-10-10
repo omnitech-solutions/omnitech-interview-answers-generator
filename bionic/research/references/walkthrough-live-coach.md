@@ -369,6 +369,21 @@ pnpm -s coach:bench:panel:unnamed:claude   # live, about 10 minutes; also :codex
 
 Each question in a panel fixture says who asks it (`from`). A live run prints, per question, who asked and who the note says asked, and ends with how many notes named the right person, the wrong person, and nobody. A note that names nobody is safe; one that names the wrong person is the failure.
 
+### Comparing another way of ending a turn
+
+The replay can hand the question "is this speaker's turn over?" to another mechanism, to compare it with the coach's own reading on the same call and the same scorer:
+
+```bash
+pnpm -s coach:bench:panel:timing -- --signals vad
+pnpm -s coach:bench:panel:timing -- --signals vad --endpoint <module.mjs> --endpoint-kind <kind> --endpoint-owns --label <name>
+```
+
+- `--signals vad` gives every variant the signals as a detector would: a start told 150 ms late, a stop 500 ms late, shorter pauses unheard, text 300 ms after the words. The default, `ideal`, is the recording's exact timings.
+- `--endpoint` names a module whose default export returns `{ apply(events, nowMs), ready(role, nowMs), close?() }`. Without `--endpoint-owns` it can only hold the coach back; with it, the coach's own waits after a turn are zero and the mechanism alone ends the turn.
+- `--label` keeps each variant's results apart.
+
+Studio depends on no such mechanism. The comparison with LiveKit's and Pipecat's endpointing lives outside the repository (`~/Downloads/coach-framework-lab/studio/`, 2026-10-10): as a gate each ties with the coach; owning the decision they act about a quarter of a second sooner at best and act more often on what is no question, because they end a turn on silence alone and the coach also reads the words.
+
 ## Limits and decisions
 
 - No transcript at rest ([[adrs/ADR-0039-a-live-coach-reads-the-conversation-and-writes-the]]); a verified mark comes from a check in code only.

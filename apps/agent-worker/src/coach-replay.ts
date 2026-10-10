@@ -32,6 +32,20 @@
 //                     line its label as the speaker's name (the recorder told
 //                     them apart). A call heard live is one stream with nobody
 //                     named: this replays a panel the way it is heard live
+//   --signals ideal|vad    what the replay knows of who is speaking. ideal (the
+//                     default): exactly the recording's timings. vad: as a
+//                     voice detector hears it, a start told 150 ms late, a
+//                     stop 500 ms late, pauses shorter than that not heard,
+//                     and each piece of text 300 ms after it was said
+//   --endpoint FILE   a module that decides when a speaker's turn is over, in
+//                     place of the replay's own reading of the signals. Its
+//                     default export is given { kind } and returns
+//                     { apply(events, nowMs), ready(role, nowMs), close?() }
+//   --endpoint-kind K which of the module's mechanisms
+//   --endpoint-owns   the endpoint alone says when the interviewer has
+//                     finished: the coach's own waits after a turn are zero
+//   --label L         kept with a benchmark's name, so each variant is
+//                     compared with its own last run
 //   --retain          keep one session of the model open for the whole replay
 //                     (each turn then sends only what is new)
 //   --hide-me         the coach does not hear the person being coached
@@ -55,6 +69,7 @@ import {
   readFileSync,
   writeFileSync,
 } from "node:fs";
+import { resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
@@ -98,6 +113,10 @@ const VALUED = new Set([
   "--expect",
   "--bench",
   "--results",
+  "--signals",
+  "--endpoint",
+  "--endpoint-kind",
+  "--label",
 ]);
 const all = (name: string): string[] =>
   args.flatMap((arg, at) =>
@@ -247,7 +266,7 @@ let next = 0;
 const feed = () => {
   while (
     next < heard.length &&
-    (heard[next] as (typeof heard)[number]).endMs <= fileNow()
+    (heard[next] as (typeof heard)[number]).endMs + ASR_MS <= fileNow()
   ) {
     const block = heard[next] as (typeof heard)[number];
     next += 1;
@@ -267,13 +286,144 @@ const feed = () => {
 // that has begun and not yet ended is someone still talking. This stands in
 // for a voice-activity signal; it is derived from the transcript, not heard.
 const activity = !has("--no-activity");
-const speakingAt = (atMs: number) => [
-  ...new Set(
-    heard
-      .filter((block) => block.startMs < atMs && atMs < block.endMs)
-      .map((block) => block.speaker),
+// [DOMAIN] The signals as a detector gives them, so that every way of ending
+// a turn is judged on what it would really be told: a voice is known to have
+// started and stopped a little after it did, a short pause is not heard at
+// all, and text comes after the words.
+const detected = one("--signals") === "vad";
+const ONSET_MS = detected ? 150 : 0;
+const HANGOVER_MS = detected ? 500 : 0;
+const ASR_MS = detected ? 300 : 0;
+type Signal =
+  | {
+      type: "activity";
+      role: (typeof heard)[number]["speaker"];
+      active: boolean;
+      // When it is known, and when it happened.
+      atMs: number;
+      speechAtMs: number;
+    }
+  | {
+      type: "transcript";
+      role: (typeof heard)[number]["speaker"];
+      id: string;
+      text: string;
+      final: true;
+      // The last piece of a stretch of speech.
+      utteranceFinal: boolean;
+      atMs: number;
+      startMs: number;
+      endMs: number;
+    };
+// Each speaker's stretches of voice: pieces with less than the hangover
+// between them are one stretch.
+const stretches = (() => {
+  const found: { role: Signal["role"]; startMs: number; endMs: number }[] = [];
+  const open = new Map<Signal["role"], (typeof found)[number]>();
+  for (const block of [...heard].sort((a, b) => a.startMs - b.startMs)) {
+    const last = open.get(block.speaker);
+    if (last && block.startMs - last.endMs <= HANGOVER_MS)
+      last.endMs = Math.max(last.endMs, block.endMs);
+    else {
+      const next = {
+        role: block.speaker,
+        startMs: block.startMs,
+        endMs: block.endMs,
+      };
+      found.push(next);
+      open.set(block.speaker, next);
+    }
+  }
+  return found;
+})();
+const signals: Signal[] = [
+  ...stretches.flatMap((stretch): Signal[] => [
+    {
+      type: "activity",
+      role: stretch.role,
+      active: true,
+      atMs: stretch.startMs + ONSET_MS,
+      speechAtMs: stretch.startMs,
+    },
+    {
+      type: "activity",
+      role: stretch.role,
+      active: false,
+      atMs: stretch.endMs + HANGOVER_MS,
+      speechAtMs: stretch.endMs,
+    },
+  ]),
+  ...heard.map(
+    (block, at): Signal => ({
+      type: "transcript",
+      role: block.speaker,
+      id: `t${at + 1}`,
+      text: block.text,
+      final: true,
+      utteranceFinal: stretches.some(
+        (stretch) =>
+          stretch.role === block.speaker && stretch.endMs === block.endMs,
+      ),
+      atMs: block.endMs + ASR_MS,
+      startMs: block.startMs,
+      endMs: block.endMs,
+    }),
   ),
-];
+].sort((a, b) => a.atMs - b.atMs);
+const speakingAt = (atMs: number) =>
+  detected
+    ? // What a detector has said by now: started and not yet stopped.
+      [
+        ...new Set(
+          stretches
+            .filter(
+              (stretch) =>
+                stretch.startMs + ONSET_MS <= atMs &&
+                atMs < stretch.endMs + HANGOVER_MS,
+            )
+            .map((stretch) => stretch.role),
+        ),
+      ]
+    : [
+        ...new Set(
+          heard
+            .filter((block) => block.startMs < atMs && atMs < block.endMs)
+            .map((block) => block.speaker),
+        ),
+      ];
+
+// [DOMAIN] Another mechanism for ending a turn (a framework's endpointing),
+// given the same signals. It is asked one thing, whether a speaker's turn is
+// over, and the coach is told "still speaking" while it says no.
+type Endpoint = {
+  identity?: unknown;
+  apply(events: readonly Signal[], nowMs: number): void | Promise<void>;
+  ready(role: Signal["role"], nowMs: number): boolean;
+  close?(): void | Promise<void>;
+};
+let endpoint: Endpoint | undefined;
+if (one("--endpoint")) {
+  const made = (await import(
+    pathToFileURL(resolve(one("--endpoint") as string)).href
+  )) as {
+    default: (options: { kind?: string }) => Endpoint | Promise<Endpoint>;
+  };
+  const kind = one("--endpoint-kind");
+  endpoint = await made.default(kind ? { kind } : {});
+}
+let told = 0;
+let endpointSays: Signal["role"][] = [];
+const askEndpoint = async () => {
+  if (!endpoint) return;
+  const at = fileNow();
+  const batch: Signal[] = [];
+  while (told < signals.length && (signals[told] as Signal).atMs <= at)
+    batch.push(signals[told++] as Signal);
+  await endpoint.apply(batch, at);
+  endpointSays = (["interviewer", "candidate", "unknown"] as const).filter(
+    (role) => !(endpoint as Endpoint).ready(role, at),
+  );
+};
 
 // A stand-in that says nothing, after as long as a model takes: the decisions
 // are what is being looked at, and a call that is still running when the
@@ -500,7 +650,11 @@ const coach = createCoach(
         epoch: "replay",
         cursor: seq,
         lines: lines.filter((line) => line.seq > after),
-        ...(activity ? { speaking: speakingAt(fileNow()) } : {}),
+        ...(endpoint
+          ? { speaking: endpointSays }
+          : activity
+            ? { speaking: speakingAt(fileNow()) }
+            : {}),
       }),
     },
     notes: {
@@ -530,7 +684,13 @@ const coach = createCoach(
     nowMs: fileNow,
     onEvent,
   },
-  { retain: has("--retain") },
+  {
+    retain: has("--retain"),
+    // The endpoint alone ends the interviewer's turn: nothing is waited after.
+    ...(endpoint && has("--endpoint-owns")
+      ? { timing: { finishedMs: 0, pauseMs: 0, trailingMs: 0 } }
+      : {}),
+  },
 );
 
 const stop = new AbortController();
@@ -553,6 +713,7 @@ console.log(
 const end = last + 10_000;
 while (fileNow() < end && !stop.signal.aborted) {
   feed();
+  await askEndpoint();
   try {
     await coach.tick(stop.signal);
   } catch {
@@ -745,7 +906,7 @@ if (one("--expect")) {
       .split("/")
       .at(-1)
       ?.replace(/\.expected\.json$/, "") as string)
-  }${has("--no-names") ? "-unnamed" : ""}`;
+  }${has("--no-names") ? "-unnamed" : ""}${one("--label") ? `@${one("--label")}` : ""}`;
   // How often a note said who asked, of the questions that have an asker and
   // got a note. Counted only when a model wrote notes.
   const noted = timingOnly
@@ -766,6 +927,14 @@ if (one("--expect")) {
   const result = {
     benchmark: name,
     runtime: runtimeName,
+    signals: endpoint || activity ? (detected ? "vad" : "ideal") : "none",
+    endpoint: endpoint
+      ? {
+          kind: one("--endpoint-kind") ?? "default",
+          owns: has("--endpoint-owns"),
+          identity: endpoint.identity ?? null,
+        }
+      : null,
     at: new Date().toISOString(),
     commit: (() => {
       try {
@@ -922,4 +1091,5 @@ if (one("--expect")) {
     }`,
   );
 }
+await endpoint?.close?.();
 process.exit(0);
