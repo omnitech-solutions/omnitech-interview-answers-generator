@@ -40,6 +40,8 @@ function counted(prepare = real.context.prepare.bind(real.context)) {
   const prepared = vi.fn(prepare);
   const engine: ContextEngine = {
     context: {
+      // Everything the real engine offers, with its prepare counted.
+      ...real.context,
       prepare: prepared as typeof real.context.prepare,
       resolve: real.context.resolve.bind(real.context),
     },

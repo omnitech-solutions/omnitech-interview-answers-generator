@@ -2106,7 +2106,7 @@ packages:
     engines: {node: '>=22.13.0'}
 
   '@omnitech/ai-engine@file:vendor/omnitech-ai-engine/omnitech-ai-engine-0.1.0.tgz':
-    resolution: {integrity: sha512-eV7Q397/sDThtwqYyAyhzMk79B6C2RQtJGps1pGn4Pt+LnkvhlWT+cy4oGOOiUnR3iCuaqDHVjyjA+62b/JsTA==, tarball: file:vendor/omnitech-ai-engine/omnitech-ai-engine-0.1.0.tgz}
+    resolution: {integrity: sha512-yf9qk+Dbdf68TMtvIwEOo85ltLzH6/kvqMgE+89MCMgNpT/fusQ3hISYDiWYk2SJvldnsfqP4eizupFpwbDeOQ==, tarball: file:vendor/omnitech-ai-engine/omnitech-ai-engine-0.1.0.tgz}
     version: 0.1.0
     engines: {node: '>=22.13.0'}
     hasBin: true
