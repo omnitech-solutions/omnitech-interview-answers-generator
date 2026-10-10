@@ -31,6 +31,11 @@ the last run of the same benchmark on the same runtime
 --no-activity     do not tell the coach who is speaking (by default a replay
 derives it from the recording's timings, as a stand-in
 for a voice-activity signal)
+--no-names        do not tell the coach which interviewer spoke. By default a
+replay with more than one interviewer label gives each
+line its label as the speaker's name (the recorder told
+them apart). A call heard live is one stream with nobody
+named: this replays a panel the way it is heard live
 --retain          keep one session of the model open for the whole replay
 (each turn then sends only what is new)
 --hide-me         the coach does not hear the person being coached

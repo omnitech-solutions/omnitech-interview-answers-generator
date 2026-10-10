@@ -21,6 +21,9 @@ What it prints, on one line:
 "turn": "the words of the turn to answer",
 "new": [ { "speaker", "text" } ],          the lines not yet coached
 "before": [ { "speaker", "text" } ],       the last of the conversation
+(a line also carries "name",
+the interviewer who spoke,
+when its source knew: a panel)
 "plan": "the plan for the call, if one is set",
 "key": "a key for the note, so a second note for this turn replaces the first" }
 Exit 0 with a moment, 2 when nothing happened in time, 1 on an error.

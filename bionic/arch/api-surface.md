@@ -2,7 +2,7 @@
 
 _Static route scan (Express/Fastify verb calls + NestJS decorators, labeling GraphQL resolvers as a residual rather than reading them); the app is not executed._
 
-## Routes (93)
+## Routes (95)
 
 | method | path | handler |
 |---|---|---|
@@ -32,6 +32,7 @@ _Static route scan (Express/Fastify verb calls + NestJS decorators, labeling Gra
 | GET | `/api/teapot` | — |
 | GET | `/api/v1/answers` | — |
 | GET | `/api/v1/answers/:id` | — |
+| GET | `/api/v1/behaviour-flags` | — |
 | GET | `/api/v1/coach-ledger` | — |
 | GET | `/api/v1/coach-notes` | — |
 | GET | `/api/v1/coach-plan` | — |
@@ -93,6 +94,7 @@ _Static route scan (Express/Fastify verb calls + NestJS decorators, labeling Gra
 | POST | `/presentation/v1/themes` | — |
 | POST | `/presentation/v1/themes/import` | — |
 | PUT | `/api/platform/v1/preferences` | — |
+| PUT | `/api/v1/behaviour-flags` | — |
 | PUT | `/api/v1/coach-ledger` | — |
 | PUT | `/api/v1/coach-plan` | — |
 | PUT | `/api/v1/library/items/:id` | — |
