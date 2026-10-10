@@ -1,0 +1,879 @@
+{
+  "candidate": {
+    "name": "Saoirse Valtonen",
+    "headline": "Principal backend engineer for booking, scheduling and integration-heavy health platforms",
+    "location": "Cork, Ireland",
+    "profile_tags": [
+      "principal-engineer",
+      "backend",
+      "scheduling",
+      "integration-heavy",
+      "mentor"
+    ]
+  },
+  "resume_variants": [
+    {
+      "id": "base-short",
+      "label": "Base Short Resume",
+      "best_for": ["general principal and staff backend roles"],
+      "tech_emphasis": ["Kotlin", "PostgreSQL"],
+      "example_pool": ["Lanternfield Health", "Wrenfield Clinics"]
+    },
+    {
+      "id": "health-scheduling",
+      "label": "Health Scheduling Resume",
+      "best_for": ["clinic booking, waitlist and rota platforms"],
+      "tech_emphasis": ["Kotlin", "PostgreSQL", "Kafka"],
+      "example_pool": [
+        "Lanternfield Health",
+        "Wrenfield Clinics",
+        "Calderwick Rota"
+      ]
+    },
+    {
+      "id": "integration-lead",
+      "label": "Clinical Integration Lead Resume",
+      "best_for": ["record-system and laboratory integration roles"],
+      "tech_emphasis": ["Go", "PostgreSQL"],
+      "example_pool": ["Quillmere Labs", "Lanternfield Health"]
+    }
+  ],
+  "contracting_companies": [
+    {
+      "company": "Saltmarsh Engineering",
+      "title": "Lead Backend Engineer / Contractor",
+      "period": "June 2019 – February 2023",
+      "from": "June 2019",
+      "to": "February 2023",
+      "description": "The candidate's own consultancy. Each client below was an engagement delivered through it; the Quillmere Labs and Wrenfield Clinics engagements overlapped from February to June 2021.",
+      "clients": ["Harbourline Dispatch", "Quillmere Labs", "Wrenfield Clinics"]
+    }
+  ],
+  "roles": [
+    {
+      "company": "Lanternfield Health",
+      "title": "Principal Backend Engineer",
+      "period": "March 2023 – Present",
+      "industry": ["health tech", "appointment booking", "virtual care"],
+      "system_types": [
+        "booking platform",
+        "waitlist engine",
+        "clinical integration layer"
+      ],
+      "problem_spaces": [
+        "write-path correctness",
+        "tail latency",
+        "slot backfill",
+        "service level objectives"
+      ],
+      "technologies": [
+        "Kotlin",
+        "PostgreSQL",
+        "Kafka",
+        "Kubernetes",
+        "gRPC",
+        "FHIR R4",
+        "Redis",
+        "AWS",
+        "Terraform",
+        "OpenTelemetry"
+      ],
+      "patterns": [
+        "idempotent writes",
+        "transactional outbox",
+        "adapter per record system",
+        "error budgets"
+      ],
+      "responsibilities": [
+        "Own the booking write path for 2.4 million appointments a year across 640 clinics",
+        "Introduced idempotency keys and a slot-level uniqueness constraint on the booking write path",
+        "Brought the slowest one percent of booking requests from 480 milliseconds down to 120 milliseconds",
+        "Designed the waitlist backfill that offers a cancelled slot to the next eligible patient",
+        "Run the connections to six clinic record systems through one adapter contract",
+        "Lead a squad of nine engineers, chair the weekly design review and carry the pager one week in six"
+      ],
+      "metrics": [
+        {
+          "label": "p99 booking latency",
+          "value": "480ms to 120ms",
+          "direction": "decrease"
+        },
+        {
+          "label": "cancelled slots refilled within two hours",
+          "value": "41%",
+          "direction": "increase"
+        },
+        {
+          "label": "duplicate bookings a week",
+          "value": "35 to 0",
+          "direction": "decrease"
+        },
+        {
+          "label": "booking availability over twelve months",
+          "value": "99.95%",
+          "direction": "increase"
+        },
+        {
+          "label": "appointments booked a year",
+          "value": "2.4 million",
+          "direction": "increase"
+        }
+      ],
+      "leadership_signals": [
+        "architecture ownership",
+        "team leadership",
+        "mentorship",
+        "design review",
+        "operational ownership"
+      ],
+      "proof_points": [
+        "Cut p99 booking latency from 480ms to 120ms",
+        "Duplicate bookings fell from about 35 a week to none in the first quarter after release",
+        "Refilled 41% of cancelled slots within two hours through waitlist backfill",
+        "Grew two engineers to senior and one to staff"
+      ],
+      "tags": [
+        "health-tech",
+        "booking",
+        "waitlist",
+        "idempotency",
+        "latency",
+        "kotlin",
+        "postgresql",
+        "kafka",
+        "kubernetes",
+        "fhir",
+        "slo",
+        "mentorship",
+        "architecture ownership"
+      ]
+    },
+    {
+      "company": "Wrenfield Clinics",
+      "title": "Staff Software Engineer",
+      "period": "February 2021 – February 2023",
+      "engaged_through": "Saltmarsh Engineering",
+      "industry": ["primary care", "clinic operations", "health tech"],
+      "system_types": [
+        "scheduling platform",
+        "data migration",
+        "reminder pipeline"
+      ],
+      "problem_spaces": [
+        "live data migration",
+        "clinic-by-clinic cutover",
+        "missed appointments",
+        "delivery cadence"
+      ],
+      "technologies": [
+        "Kotlin",
+        "Spring Boot",
+        "PostgreSQL",
+        "Kafka",
+        "HL7 v2",
+        "AWS",
+        "Terraform",
+        "GitHub Actions"
+      ],
+      "patterns": [
+        "dual run",
+        "parity reports",
+        "wave-by-wave cutover",
+        "reversible migration"
+      ],
+      "responsibilities": [
+        "Led the scheduling migration of 212 clinics from an on-premises scheduler to the cloud platform in nine waves",
+        "Moved 3.1 million future appointments with a dual run and a nightly parity report",
+        "Moved 31 services off hand-built virtual machines onto a managed container platform with zero-downtime rollouts",
+        "Coordinated two squads, 14 engineers, across the migration and the clinic rollout",
+        "Agreed freeze windows and rollback rules with the head of clinical operations after a standoff over flu-season dates",
+        "Built the reminder pipeline that texts and emails patients 72 and 24 hours ahead of a visit"
+      ],
+      "metrics": [
+        { "label": "clinics migrated", "value": 212, "direction": "increase" },
+        {
+          "label": "future appointments moved",
+          "value": "3.1 million",
+          "direction": "increase"
+        },
+        {
+          "label": "moved appointments needing a manual fix",
+          "value": "0.02%",
+          "direction": "decrease"
+        },
+        {
+          "label": "no-show rate",
+          "value": "11.5% to 9.4%",
+          "direction": "decrease"
+        },
+        {
+          "label": "deploy frequency",
+          "value": "fortnightly to 20 a week",
+          "direction": "increase"
+        }
+      ],
+      "leadership_signals": [
+        "programme leadership",
+        "stakeholder negotiation",
+        "architecture ownership",
+        "standards setting"
+      ],
+      "proof_points": [
+        "Finished the 212-clinic cutover in 14 months, two months ahead of the contract date",
+        "Only 0.02% of moved appointments needed a manual fix",
+        "No-show rate fell from 11.5% to 9.4% once reminders went out",
+        "Deploys went from fortnightly to 20 a week"
+      ],
+      "tags": [
+        "health-tech",
+        "scheduling",
+        "migration",
+        "cutover",
+        "reminders",
+        "kotlin",
+        "postgresql",
+        "kafka",
+        "hl7",
+        "safe-modernization",
+        "stakeholder-management",
+        "standards-and-governance"
+      ]
+    },
+    {
+      "company": "Quillmere Labs",
+      "title": "Lead Engineer (contract)",
+      "period": "January 2020 – June 2021",
+      "engaged_through": "Saltmarsh Engineering",
+      "industry": ["diagnostics", "laboratory medicine", "health tech"],
+      "system_types": [
+        "result routing",
+        "message mapping",
+        "alerting pipeline"
+      ],
+      "problem_spaces": [
+        "third-party integration",
+        "message ordering",
+        "regulatory deadline",
+        "silent data loss"
+      ],
+      "technologies": [
+        "Go",
+        "PostgreSQL",
+        "Kafka",
+        "Protocol Buffers",
+        "Docker",
+        "AWS"
+      ],
+      "patterns": [
+        "anti-corruption layer",
+        "replayable event log",
+        "dead-letter review",
+        "canonical model"
+      ],
+      "responsibilities": [
+        "Led five engineers building the result router between laboratory analysers and clinic record systems",
+        "Replaced nightly file drops with an ordered, replayable log of result events",
+        "Wrote the mapping layer that normalises results from 23 analyser models into one internal shape",
+        "Delivered the critical-result alert path against a regulatory deadline ten weeks away",
+        "Introduced a dead-letter review queue so that no result is dropped silently"
+      ],
+      "metrics": [
+        {
+          "label": "result messages routed a month",
+          "value": "1.1 million",
+          "direction": "increase"
+        },
+        {
+          "label": "median time from analyser to clinician",
+          "value": "9 hours to 4 minutes",
+          "direction": "decrease"
+        },
+        {
+          "label": "unroutable results",
+          "value": "2.1% to 0.3%",
+          "direction": "decrease"
+        },
+        {
+          "label": "clinic record systems connected",
+          "value": 17,
+          "direction": "increase"
+        }
+      ],
+      "leadership_signals": [
+        "team leadership",
+        "scope negotiation",
+        "client communication"
+      ],
+      "proof_points": [
+        "Routes 1.1 million result messages a month to 17 clinic record systems",
+        "Median time from analyser to clinician fell from 9 hours to 4 minutes",
+        "Met the ten-week critical-result deadline with three days to spare by cutting two report formats from scope"
+      ],
+      "tags": [
+        "health-tech",
+        "diagnostics",
+        "integration",
+        "adapters",
+        "event-log",
+        "go",
+        "postgresql",
+        "kafka",
+        "deadline",
+        "team-lead"
+      ]
+    },
+    {
+      "company": "Harbourline Dispatch",
+      "title": "Backend Engineer (contract)",
+      "period": "June 2019 – December 2019",
+      "engaged_through": "Saltmarsh Engineering",
+      "industry": ["patient transport", "dispatch", "logistics"],
+      "system_types": ["assignment service", "dispatch console backend"],
+      "problem_spaces": [
+        "resource contention",
+        "real-time assignment",
+        "on-call readiness"
+      ],
+      "technologies": ["Go", "Redis", "NATS", "Docker", "Prometheus"],
+      "patterns": ["hold and confirm", "optimistic locking", "runbooks"],
+      "responsibilities": [
+        "Built the assignment service that matches patient transport requests to vehicles",
+        "Added a hold-and-confirm step so two dispatchers cannot give one vehicle to two journeys",
+        "Wrote the runbooks and the paging rules for the dispatch floor"
+      ],
+      "metrics": [
+        {
+          "label": "time to assign a vehicle",
+          "value": "90 seconds to under 2 seconds",
+          "direction": "decrease"
+        },
+        {
+          "label": "journeys dispatched a day",
+          "value": "4,200",
+          "direction": "increase"
+        }
+      ],
+      "leadership_signals": ["operational ownership", "client communication"],
+      "proof_points": [
+        "Vehicle assignment went from 90 seconds by hand to under 2 seconds",
+        "Double-assigned vehicles fell from 14 a month to none"
+      ],
+      "tags": [
+        "patient-transport",
+        "dispatch",
+        "contention",
+        "go",
+        "redis",
+        "runbooks",
+        "operations"
+      ]
+    },
+    {
+      "company": "Wrenfield Dental Group",
+      "title": "Senior Software Engineer",
+      "period": "March 2018 – May 2019",
+      "industry": ["dental care", "practice management", "health tech"],
+      "system_types": [
+        "scheduling platform",
+        "data migration",
+        "staff identity"
+      ],
+      "problem_spaces": [
+        "big-bang cutover",
+        "post-migration clean-up",
+        "staff sign-in",
+        "practice system integration"
+      ],
+      "technologies": [
+        "Python",
+        "Django",
+        "PostgreSQL",
+        "Celery",
+        "Redis",
+        "Azure"
+      ],
+      "patterns": [
+        "weekend cutover",
+        "reconciliation scripts",
+        "blameless review"
+      ],
+      "responsibilities": [
+        "Led the scheduling migration of 38 dental practices from desktop practice software to a web platform",
+        "Moved 410,000 appointments in a single weekend cutover",
+        "Let front-desk staff at 38 practices sign in with their practice directory account instead of a separate password",
+        "Integrated three practice management systems for patient and treatment records",
+        "Ran the clean-up after 1.3% of moved appointments needed a manual fix"
+      ],
+      "metrics": [
+        { "label": "practices migrated", "value": 38, "direction": "increase" },
+        {
+          "label": "appointments moved",
+          "value": "410,000",
+          "direction": "increase"
+        },
+        {
+          "label": "moved appointments needing a manual fix",
+          "value": "1.3%",
+          "direction": "decrease"
+        },
+        {
+          "label": "password-reset calls to the help desk",
+          "value": "70%",
+          "direction": "decrease"
+        }
+      ],
+      "leadership_signals": [
+        "team leadership",
+        "incident review",
+        "owning a mistake"
+      ],
+      "proof_points": [
+        "Completed the 38-practice cutover in 5 months",
+        "Wrote the review of the weekend cutover that double-booked 600 hygienist slots, and the wave-by-wave rule that replaced it",
+        "Password-reset calls to the help desk fell by 70%"
+      ],
+      "tags": [
+        "dental",
+        "scheduling",
+        "migration",
+        "cutover",
+        "failure",
+        "python",
+        "django",
+        "postgresql",
+        "identity",
+        "team-lead"
+      ]
+    },
+    {
+      "company": "Pendlecross Pharmacy",
+      "title": "Senior Backend Engineer",
+      "period": "August 2016 – February 2018",
+      "industry": ["pharmacy", "retail health", "patient messaging"],
+      "system_types": [
+        "reminder service",
+        "outbound messaging",
+        "collection slots"
+      ],
+      "problem_spaces": [
+        "message deliverability",
+        "patient consent",
+        "counter congestion"
+      ],
+      "technologies": ["Java", "Spring", "MySQL", "RabbitMQ", "Jenkins"],
+      "patterns": [
+        "retry with backoff",
+        "quiet hours",
+        "consent ledger",
+        "rate limiting"
+      ],
+      "responsibilities": [
+        "Built the reminder service that tells patients a repeat prescription is ready",
+        "Added quiet hours, opt-out and per-channel retry rules to outbound messages",
+        "Introduced collection time slots so counters are not swamped at lunchtime",
+        "Mentored two graduate engineers through their first year"
+      ],
+      "metrics": [
+        {
+          "label": "uncollected prescriptions",
+          "value": "40%",
+          "direction": "decrease"
+        },
+        {
+          "label": "messages sent a month",
+          "value": "1.8 million",
+          "direction": "increase"
+        },
+        {
+          "label": "message delivery rate",
+          "value": "98.6%",
+          "direction": "increase"
+        }
+      ],
+      "leadership_signals": ["mentorship", "product partnership"],
+      "proof_points": [
+        "Uncollected prescriptions fell by forty percent across 310 branches",
+        "Sends 1.8 million messages a month at a delivery rate of 98.6%"
+      ],
+      "tags": [
+        "pharmacy",
+        "reminders",
+        "messaging",
+        "consent",
+        "java",
+        "mysql",
+        "rabbitmq",
+        "mentorship"
+      ]
+    },
+    {
+      "company": "Calderwick Rota",
+      "title": "Senior Engineer",
+      "period": "April 2015 – July 2016",
+      "industry": [
+        "care homes",
+        "workforce management",
+        "software as a service"
+      ],
+      "system_types": ["roster generator", "shift marketplace"],
+      "problem_spaces": [
+        "shift assignment",
+        "working-time rules",
+        "agency spend"
+      ],
+      "technologies": ["Java", "MySQL", "AngularJS", "Jenkins"],
+      "patterns": [
+        "hard and soft rules",
+        "incremental re-planning",
+        "trunk-based development"
+      ],
+      "responsibilities": [
+        "Rebuilt the roster generator that assigns carers to shifts under working-time and skill rules",
+        "Modelled leave, qualifications and rest periods as rules the generator must never break",
+        "Led a team of six and introduced trunk-based development"
+      ],
+      "metrics": [
+        {
+          "label": "time to produce a four-week roster",
+          "value": "6 hours to 20 minutes",
+          "direction": "decrease"
+        },
+        {
+          "label": "agency shift spend",
+          "value": "22%",
+          "direction": "decrease"
+        },
+        {
+          "label": "unfilled shifts",
+          "value": "9% to 3%",
+          "direction": "decrease"
+        }
+      ],
+      "leadership_signals": ["team leadership", "standards setting"],
+      "proof_points": [
+        "Cut the time to produce a four-week roster for a 60-bed home from 6 hours to 20 minutes",
+        "Agency shift spend fell 22% at the first twelve customers"
+      ],
+      "tags": [
+        "care-homes",
+        "rostering",
+        "shift-planning",
+        "java",
+        "mysql",
+        "team-lead",
+        "delivery-cadence"
+      ]
+    },
+    {
+      "company": "Corbel Mutual",
+      "title": "Software Engineer, then Senior Software Engineer",
+      "period": "September 2012 – March 2015",
+      "industry": ["insurance", "claims"],
+      "system_types": ["claims intake workflow", "overnight batch"],
+      "problem_spaces": ["batch reliability", "auditability"],
+      "technologies": ["Java", "Oracle", "IBM MQ", "Spring Batch"],
+      "patterns": ["restartable steps", "audit trail", "checkpointing"],
+      "responsibilities": [
+        "Maintained the claims intake workflow and its overnight batch",
+        "Split the overnight batch into restartable steps",
+        "Wrote the audit trail that records who decided each claim and why"
+      ],
+      "metrics": [
+        {
+          "label": "overnight batch window",
+          "value": "7 hours to 2.5 hours",
+          "direction": "decrease"
+        }
+      ],
+      "leadership_signals": ["code review", "operational ownership"],
+      "proof_points": [
+        "Overnight batch window shrank from 7 hours to 2.5 hours",
+        "Full reruns of a failed batch went from weekly to twice a year"
+      ],
+      "tags": ["insurance", "claims", "batch", "audit", "java", "oracle"]
+    },
+    {
+      "company": "Brackenridge Hotels",
+      "title": "Software Engineer",
+      "period": "July 2010 – August 2012",
+      "industry": ["hospitality", "reservations"],
+      "system_types": ["central reservation system", "channel feed"],
+      "problem_spaces": ["inventory contention", "peak-season load"],
+      "technologies": ["C#", ".NET", "SQL Server", "MSMQ"],
+      "patterns": ["pessimistic locking", "inventory ledger"],
+      "responsibilities": [
+        "Worked on the central reservation system for 46 hotels",
+        "Stopped overselling by taking a row lock on room inventory before confirming a stay",
+        "Built the availability feed sent to travel agents"
+      ],
+      "metrics": [
+        {
+          "label": "oversold room nights a month",
+          "value": "120 to 4",
+          "direction": "decrease"
+        }
+      ],
+      "leadership_signals": ["code review"],
+      "proof_points": [
+        "Oversold room nights fell from 120 a month to 4",
+        "Peak-season booking errors halved in the first summer"
+      ],
+      "tags": [
+        "hospitality",
+        "reservations",
+        "inventory",
+        "locking",
+        "dotnet",
+        "sql-server"
+      ]
+    },
+    {
+      "company": "Tallow & Finch Digital",
+      "title": "Junior Developer",
+      "period": "September 2008 – June 2010",
+      "industry": ["digital agency", "small business"],
+      "system_types": ["client websites", "booking widget"],
+      "problem_spaces": ["small-business bookings", "site maintenance"],
+      "technologies": ["PHP", "MySQL", "jQuery"],
+      "patterns": ["reusable widgets"],
+      "responsibilities": [
+        "Built booking and contact forms for small-business websites",
+        "Maintained 30 client sites"
+      ],
+      "leadership_signals": ["client communication"],
+      "proof_points": [
+        "Shipped a salon booking widget reused on 12 client sites"
+      ],
+      "tags": ["agency", "php", "mysql", "booking-widget"]
+    }
+  ],
+  "industry_mappings": [
+    {
+      "industry": "health scheduling",
+      "best_fit_roles": [
+        "Lanternfield Health",
+        "Wrenfield Clinics",
+        "Wrenfield Dental Group"
+      ],
+      "themes": ["booking correctness", "live migration", "waitlists"],
+      "preferred_technologies": ["Kotlin", "PostgreSQL", "Kafka"]
+    },
+    {
+      "industry": "clinical integration",
+      "best_fit_roles": ["Quillmere Labs", "Lanternfield Health"],
+      "themes": [
+        "record-system adapters",
+        "message ordering",
+        "no silent loss"
+      ],
+      "preferred_technologies": ["Go", "PostgreSQL", "Kafka"]
+    },
+    {
+      "industry": "patient messaging",
+      "best_fit_roles": ["Pendlecross Pharmacy", "Wrenfield Clinics"],
+      "themes": ["reminders", "consent", "deliverability"],
+      "preferred_technologies": ["Java", "RabbitMQ", "Kotlin"]
+    },
+    {
+      "industry": "workforce rostering",
+      "best_fit_roles": ["Calderwick Rota", "Harbourline Dispatch"],
+      "themes": ["shift assignment", "resource contention"],
+      "preferred_technologies": ["Java", "Go"]
+    },
+    {
+      "industry": "reservations and insurance",
+      "best_fit_roles": ["Brackenridge Hotels", "Corbel Mutual"],
+      "themes": ["inventory locking", "batch reliability"],
+      "preferred_technologies": ["C#", "Java"]
+    }
+  ],
+  "technology_mappings": [
+    {
+      "technology": "PostgreSQL",
+      "roles": [
+        "Lanternfield Health",
+        "Wrenfield Clinics",
+        "Quillmere Labs",
+        "Wrenfield Dental Group"
+      ],
+      "proof_points": ["slot uniqueness constraint", "nightly parity report"]
+    },
+    {
+      "technology": "Kafka",
+      "roles": ["Lanternfield Health", "Wrenfield Clinics", "Quillmere Labs"],
+      "proof_points": ["replayable result log", "reminder pipeline"]
+    },
+    {
+      "technology": "Kotlin",
+      "roles": ["Lanternfield Health", "Wrenfield Clinics"],
+      "proof_points": ["booking write path", "scheduling migration"]
+    },
+    {
+      "technology": "Go",
+      "roles": ["Quillmere Labs", "Harbourline Dispatch"],
+      "proof_points": ["result router", "assignment service"]
+    },
+    {
+      "technology": "Java",
+      "roles": ["Pendlecross Pharmacy", "Calderwick Rota", "Corbel Mutual"],
+      "proof_points": ["reminder service", "roster generator"]
+    },
+    {
+      "technology": "Redis",
+      "roles": [
+        "Lanternfield Health",
+        "Harbourline Dispatch",
+        "Wrenfield Dental Group"
+      ],
+      "proof_points": ["slot holds", "vehicle holds"]
+    }
+  ],
+  "leadership_signals": [
+    {
+      "signal": "architecture ownership",
+      "evidence": ["Lanternfield Health", "Wrenfield Clinics"]
+    },
+    {
+      "signal": "team leadership",
+      "evidence": ["Lanternfield Health", "Quillmere Labs", "Calderwick Rota"]
+    },
+    {
+      "signal": "mentorship",
+      "evidence": ["Lanternfield Health", "Pendlecross Pharmacy"]
+    },
+    {
+      "signal": "stakeholder negotiation",
+      "evidence": ["Wrenfield Clinics", "Quillmere Labs"]
+    },
+    {
+      "signal": "owning a mistake",
+      "evidence": ["Wrenfield Dental Group"]
+    }
+  ],
+  "story_selector": [
+    {
+      "need": "booking correctness under concurrency",
+      "primary_story": "Lanternfield Health",
+      "backup_story": "Brackenridge Hotels"
+    },
+    {
+      "need": "large live migration",
+      "primary_story": "Wrenfield Clinics",
+      "backup_story": "Wrenfield Dental Group"
+    },
+    {
+      "need": "record-system integration",
+      "primary_story": "Quillmere Labs",
+      "backup_story": "Lanternfield Health"
+    },
+    {
+      "need": "failure and what changed",
+      "primary_story": "Wrenfield Dental Group",
+      "backup_story": "Corbel Mutual"
+    },
+    {
+      "need": "conflict with a stakeholder",
+      "primary_story": "Wrenfield Clinics",
+      "backup_story": "Pendlecross Pharmacy"
+    },
+    {
+      "need": "hard deadline",
+      "primary_story": "Quillmere Labs",
+      "backup_story": "Harbourline Dispatch"
+    },
+    {
+      "need": "reminders and missed appointments",
+      "primary_story": "Wrenfield Clinics",
+      "backup_story": "Pendlecross Pharmacy"
+    },
+    {
+      "need": "rota and shift planning",
+      "primary_story": "Calderwick Rota",
+      "backup_story": "Harbourline Dispatch"
+    },
+    {
+      "need": "mentoring and growing engineers",
+      "primary_story": "Lanternfield Health",
+      "backup_story": "Pendlecross Pharmacy"
+    }
+  ],
+  "tag_taxonomy": {
+    "domains": [
+      "health-tech",
+      "booking",
+      "scheduling",
+      "diagnostics",
+      "pharmacy",
+      "dental",
+      "care-homes",
+      "patient-transport",
+      "insurance",
+      "hospitality"
+    ],
+    "architecture": [
+      "idempotency",
+      "adapters",
+      "event-log",
+      "dual-run",
+      "cutover",
+      "locking",
+      "safe-modernization"
+    ],
+    "leadership": [
+      "mentorship",
+      "team-lead",
+      "standards-and-governance",
+      "architecture ownership",
+      "stakeholder-management"
+    ],
+    "delivery": [
+      "delivery-cadence",
+      "migration",
+      "runbooks",
+      "operations",
+      "deadline"
+    ],
+    "backend": [
+      "kotlin",
+      "go",
+      "java",
+      "python",
+      "postgresql",
+      "mysql",
+      "kafka",
+      "rabbitmq",
+      "redis"
+    ]
+  },
+  "repositories_of_note": [
+    {
+      "name": "slot-ledger",
+      "owner": "saltmarsh-engineering",
+      "type": "library",
+      "why_it_matters": "A small Kotlin library for holding, confirming and releasing bookable slots with idempotent requests.",
+      "signals": ["idempotent writes", "booking correctness"],
+      "relevance_tags": ["booking", "idempotency"]
+    },
+    {
+      "name": "parity-report",
+      "owner": "saltmarsh-engineering",
+      "type": "tooling",
+      "why_it_matters": "Compares two schedulers night by night during a dual run and lists every appointment that differs.",
+      "signals": ["safe migration", "dual run"],
+      "relevance_tags": ["migration", "cutover"]
+    }
+  ],
+  "experience_matrix_extensions": {
+    "new_cross_cutting_themes": [
+      "one writer per slot",
+      "migration by waves with a way back",
+      "integration boundaries that fail loudly",
+      "reminders that respect consent"
+    ],
+    "suggested_tag_improvements": [
+      "split integration into record systems and laboratories",
+      "add waitlist as a pattern",
+      "name the on-call and objectives work"
+    ]
+  }
+}

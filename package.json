@@ -59,6 +59,7 @@
     "coach:bench:timing": "pnpm --filter @omnitech/agent-worker exec tsx src/coach-replay.ts --bench screening-services --timing",
     "coach:fixture": "pnpm --filter @omnitech/agent-worker exec tsx src/coach-fixture.ts",
     "coach:replay": "pnpm --filter @omnitech/agent-worker exec tsx src/coach-replay.ts",
+    "pack:eval": "pnpm --filter @omnitech/agent-worker exec tsx ../../scripts/pack-eval.ts",
     "pack:bench": "pnpm --filter @omnitech/agent-worker exec tsx ../../scripts/pack-bench.ts",
     "pack:bench:timing": "pnpm --filter @omnitech/agent-worker exec tsx ../../scripts/pack-bench.ts",
     "pack:bench:prepared": "pnpm --filter @omnitech/agent-worker exec tsx ../../scripts/pack-bench.ts --prepared",

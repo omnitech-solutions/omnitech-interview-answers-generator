@@ -98,12 +98,20 @@ describe("the projection view", () => {
     ).toBe(false);
   });
 
-  it.each(["excluded", "relevance", "over-limit", "limit", "budget"])(
-    "a fact is left out for the reason %s",
-    (reason) => {
-      expect(accepts({ ...view, excluded: [{ ...fact, reason }] })).toBe(true);
-    },
-  );
+  it.each([
+    "excluded",
+    "relevance",
+    "over-limit",
+    "limit",
+    "budget",
+    "scope",
+    "cut",
+    "cap",
+    "min-score",
+    "excluded-term",
+  ])("a fact is left out for the reason %s", (reason) => {
+    expect(accepts({ ...view, excluded: [{ ...fact, reason }] })).toBe(true);
+  });
 
   it("refuses a fact left out for an unknown reason, or for none", () => {
     expect(accepts({ ...view, excluded: [{ ...fact, reason: "stale" }] })).toBe(

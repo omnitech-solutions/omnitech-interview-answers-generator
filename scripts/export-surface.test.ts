@@ -197,7 +197,14 @@ const surfaces: Record<string, SurfaceRow> = {
   // +2, on ./session-worker: the panel as the plan names it (rosterOf,
   // Panelist; BRIEF-panel-aware-coach), which the call-fixtures suite in the
   // agent worker reads to hold a panel fixture's plan to its interviewers.
-  "@omnitech/product-interview": { entrypoints: 6, names: 119 },
+  // +6, on ./session-worker: a recorded call replayed through the coach WITH
+  // the person's material and context pack (`pnpm coach:replay --matrix …`,
+  // `pnpm pack:eval --coach`): the coach's context from any reader of
+  // material (createCoachContextFrom, CoachMaterial), so the replay runs the
+  // production selection and not a second one, and that material read from
+  // files (readReplayMaterial, ReplayMaterial, ReplayMaterialPaths,
+  // ReplayMaterialError).
+  "@omnitech/product-interview": { entrypoints: 6, names: 125 },
   "@omnitech/product-presentation": { entrypoints: 3, names: 11 },
 };
 

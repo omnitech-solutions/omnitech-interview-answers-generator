@@ -54,6 +54,14 @@ export const contextViewSchema = z.object({
         "budget",
         // It belongs to a later stage than the one resolved for.
         "scope",
+        // The engine's measured ranking (recipe version 4): it scored under
+        // half of its slot's best; its group already filled its places; it
+        // scored under the slot's least score; it says what the question
+        // itself excluded ("not at X").
+        "cut",
+        "cap",
+        "min-score",
+        "excluded-term",
       ]),
     }),
   ),

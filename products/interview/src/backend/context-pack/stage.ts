@@ -28,6 +28,7 @@ import {
 import {
   type ContextEngine,
   type ContextPack,
+  type PackOptions,
   type PackView,
   prepareContextPack,
   sessionSources,
@@ -80,6 +81,8 @@ export async function prepareStagePack(
     kept?: Prepared | undefined;
     // Where the pack is read (pack.ts): a remote prompt unless said otherwise.
     reader?: "device" | "remote" | undefined;
+    // Flags in place of each projection's own (pack.ts).
+    flags?: PackOptions["flags"];
   } = {},
 ): Promise<StagePack> {
   const stage = stageFor(context, asked);
@@ -106,6 +109,7 @@ export async function prepareStagePack(
     kept: options.kept,
     stage: stage?.ordinal,
     reader: options.reader,
+    flags: options.flags,
   });
 
   const stageById = new Map<string, number | undefined>(

@@ -1,0 +1,999 @@
+{
+  "candidate": {
+    "name": "Ilse Brandvold",
+    "headline": "Staff engineer for build systems, pipeline observability and the tools developers touch every day",
+    "location": "Vancouver, BC",
+    "profile_tags": [
+      "staff-engineer",
+      "build-systems",
+      "developer-experience",
+      "observability",
+      "open-source-maintainer"
+    ]
+  },
+  "resume_variants": [
+    {
+      "id": "base-short",
+      "label": "Base Short Resume",
+      "best_for": ["general staff engineer roles"],
+      "tech_emphasis": ["Go", "Bazel"],
+      "example_pool": ["Quillhaven Systems", "Marrowgate Labs"]
+    },
+    {
+      "id": "build-platform",
+      "label": "Build Platform Resume",
+      "best_for": ["build infrastructure and CI platform roles"],
+      "tech_emphasis": ["Bazel", "Go", "Kubernetes"],
+      "example_pool": [
+        "Marrowgate Labs",
+        "Marrowfield Robotics",
+        "Quillhaven Systems"
+      ]
+    },
+    {
+      "id": "observability",
+      "label": "Observability Resume",
+      "best_for": ["tracing, metrics and reliability roles"],
+      "tech_emphasis": ["OpenTelemetry", "ClickHouse", "Prometheus"],
+      "example_pool": [
+        "Quillhaven Systems",
+        "Pellucid Energy Analytics",
+        "Tracewright"
+      ]
+    },
+    {
+      "id": "developer-tools",
+      "label": "Developer Tools Product Resume",
+      "best_for": ["companies whose product is a developer tool"],
+      "tech_emphasis": ["Go", "TypeScript", "Rust"],
+      "example_pool": [
+        "Lanternfish Tooling",
+        "Tracewright",
+        "Quillhaven Systems"
+      ]
+    }
+  ],
+  "contracting_companies": [
+    {
+      "company": "Brandvold Tooling",
+      "title": "Contract Engineer",
+      "period": "January 2018 – December 2018",
+      "from": "January 2018",
+      "to": "December 2018",
+      "description": "The candidate's own one-person company, used for a single part-time engagement of about 15 hours a week alongside her full-time role.",
+      "clients": ["Lanternfish Tooling"]
+    }
+  ],
+  "roles": [
+    {
+      "company": "Quillhaven Systems",
+      "title": "Staff Engineer, Developer Platform",
+      "period": "April 2022 – Present",
+      "industry": ["collaboration software", "saas", "platform engineering"],
+      "system_types": [
+        "build platform",
+        "pipeline tracing",
+        "artifact cache",
+        "developer portal"
+      ],
+      "problem_spaces": [
+        "slow feedback loops",
+        "pipeline visibility",
+        "artifact integrity",
+        "engineer onboarding"
+      ],
+      "technologies": [
+        "Go",
+        "Bazel",
+        "Kubernetes",
+        "OpenTelemetry",
+        "ClickHouse",
+        "gRPC",
+        "Buildkite",
+        "PostgreSQL",
+        "AWS",
+        "TypeScript",
+        "Grafana"
+      ],
+      "patterns": [
+        "content-addressed storage",
+        "signed writes",
+        "tail-based sampling",
+        "error budgets",
+        "paved road"
+      ],
+      "responsibilities": [
+        "Led the platform group of 9 that owns CI, the artifact store and the developer portal",
+        "Took p95 build time from 41 minutes to 14 minutes across the main repository",
+        "Designed a content-addressed action cache shared by 900 engineers",
+        "Instrumented every pipeline step with OTel collectors and a span model per action",
+        "Put the artifact store behind SSO with per-team quotas",
+        "Chaired the weekly architecture review and wrote 14 RFCs",
+        "Ran the quarterly DX survey and turned its top three complaints into the roadmap"
+      ],
+      "metrics": [
+        {
+          "label": "p95 build time",
+          "value": "41 minutes to 14 minutes",
+          "direction": "decrease"
+        },
+        {
+          "label": "spans ingested at peak",
+          "value": "1.2 million a second",
+          "direction": "increase"
+        },
+        {
+          "label": "span retention",
+          "value": "90 days in 6 TB",
+          "direction": "increase"
+        },
+        {
+          "label": "nondeterministic test failures",
+          "value": "7.5% to 0.8%",
+          "direction": "decrease"
+        },
+        {
+          "label": "CI compute spend",
+          "value": "31%",
+          "direction": "decrease"
+        },
+        {
+          "label": "developer satisfaction score",
+          "value": "54 to 78",
+          "direction": "increase"
+        },
+        {
+          "label": "time to first merged change for a new hire",
+          "value": "3 days to 4 hours",
+          "direction": "decrease"
+        }
+      ],
+      "leadership_signals": [
+        "architecture ownership",
+        "group leadership",
+        "mentorship",
+        "incident leadership",
+        "roadmap ownership"
+      ],
+      "proof_points": [
+        "Cut p95 build time from 41 minutes to 14 minutes",
+        "Stored 90 days of pipeline spans in 6 TB after compression",
+        "Wrote the postmortem for a poisoned artifact that reached 300 laptops in March 2023, then made every write signed",
+        "Quarantined nondeterministic specs behind an automatic retry budget",
+        "Held a 99.9% availability SLO on the artifact store for 11 straight quarters",
+        "Coached three engineers to senior and one to staff"
+      ],
+      "tags": [
+        "developer-platform",
+        "build-systems",
+        "remote-cache",
+        "pipeline-tracing",
+        "observability",
+        "golang",
+        "bazel",
+        "kubernetes",
+        "opentelemetry",
+        "clickhouse",
+        "incident-response",
+        "mentorship",
+        "standards-and-governance",
+        "developer-experience"
+      ]
+    },
+    {
+      "company": "Tracewright",
+      "title": "Maintainer (open source, unpaid)",
+      "period": "2021 – Present",
+      "industry": ["open source", "developer tools"],
+      "system_types": ["sampling library", "command-line tool"],
+      "problem_spaces": [
+        "trace volume",
+        "storage cost",
+        "community governance"
+      ],
+      "technologies": ["Rust", "OpenTelemetry", "gRPC", "GitHub Actions"],
+      "patterns": [
+        "tail-based sampling",
+        "streaming decisions",
+        "semantic versioning",
+        "public RFC process"
+      ],
+      "responsibilities": [
+        "Maintains a library and command-line tool that decide which pipeline traces to keep",
+        "Reviews every outside contribution within five working days",
+        "Runs a public proposal process for breaking changes",
+        "Cuts a release every six weeks"
+      ],
+      "metrics": [
+        { "label": "contributors", "value": 41, "direction": "increase" },
+        {
+          "label": "organisations running it",
+          "value": 60,
+          "direction": "increase"
+        },
+        { "label": "stars", "value": "2,300", "direction": "increase" },
+        {
+          "label": "stored trace volume for adopters",
+          "value": "80% to 90%",
+          "direction": "decrease"
+        }
+      ],
+      "leadership_signals": [
+        "community leadership",
+        "public writing",
+        "review discipline"
+      ],
+      "proof_points": [
+        "Grew the project from a weekend prototype to 41 contributors",
+        "Adopted in production by 60 organisations",
+        "Keeps every failed pipeline's trace while dropping most of the healthy ones"
+      ],
+      "tags": [
+        "open-source",
+        "rust",
+        "opentelemetry",
+        "sampling",
+        "tracing",
+        "community",
+        "cli"
+      ]
+    },
+    {
+      "company": "Marrowgate Labs",
+      "title": "Senior Software Engineer, Build Infrastructure",
+      "period": "August 2019 – March 2022",
+      "industry": ["geospatial", "mapping", "saas"],
+      "system_types": [
+        "monorepo build",
+        "shared worker pool",
+        "artifact cache"
+      ],
+      "problem_spaces": [
+        "build migration",
+        "CI cost",
+        "team adoption",
+        "hermetic builds"
+      ],
+      "technologies": [
+        "Go",
+        "Bazel",
+        "Kubernetes",
+        "gRPC",
+        "GCP",
+        "Python",
+        "Jenkins",
+        "Prometheus",
+        "Redis"
+      ],
+      "patterns": [
+        "incremental migration",
+        "hermetic toolchains",
+        "autoscaled workers",
+        "trial before mandate"
+      ],
+      "responsibilities": [
+        "Migrated a 3.1 million line monorepo from Make and shell scripts to Bazel in 14 months",
+        "Moved compile and test actions onto a shared worker pool of 400 machines",
+        "Ran the worker pool on k8s spot nodes with graceful drain",
+        "Reduced CI cost by 38% in the first year after the migration",
+        "Led a build infrastructure team of 6 and wrote 6 RFCs"
+      ],
+      "metrics": [
+        { "label": "CI cost", "value": "38%", "direction": "decrease" },
+        { "label": "cache hit rate", "value": "87%", "direction": "increase" },
+        {
+          "label": "median build time",
+          "value": "22 minutes to 6 minutes",
+          "direction": "decrease"
+        },
+        {
+          "label": "mobile build time",
+          "value": "26 minutes to 9 minutes",
+          "direction": "decrease"
+        },
+        {
+          "label": "worker pool size",
+          "value": "60 to 400 machines",
+          "direction": "increase"
+        }
+      ],
+      "leadership_signals": [
+        "team leadership",
+        "migration leadership",
+        "conflict resolution",
+        "mentorship"
+      ],
+      "proof_points": [
+        "Cut CI cost by 38%",
+        "Reached an 87% cache hit rate across 240 engineers",
+        "Won over a mobile group that refused the new toolchain by running a two-week trial on their own code",
+        "Paired weekly with two juniors until each led a design review alone"
+      ],
+      "tags": [
+        "build-systems",
+        "bazel",
+        "monorepo",
+        "remote-cache",
+        "migration",
+        "golang",
+        "kubernetes",
+        "cost-reduction",
+        "team-lead",
+        "conflict",
+        "mentorship"
+      ]
+    },
+    {
+      "company": "Lanternfish Tooling",
+      "title": "Contract Engineer (part-time)",
+      "period": "January 2018 – December 2018",
+      "engaged_through": "Brandvold Tooling",
+      "industry": ["developer tools", "startup"],
+      "system_types": [
+        "command-line tool",
+        "editor extension",
+        "test selection"
+      ],
+      "problem_spaces": [
+        "test selection",
+        "editor latency",
+        "first-run experience"
+      ],
+      "technologies": [
+        "Go",
+        "TypeScript",
+        "VS Code Extension API",
+        "Language Server Protocol",
+        "SQLite"
+      ],
+      "patterns": [
+        "language server",
+        "local index",
+        "incremental analysis",
+        "lazy start-up"
+      ],
+      "responsibilities": [
+        "Built the command-line tool that maps a changed file to the tests it can break",
+        "Built the editor integration on top of a language server",
+        "Designed the on-disk index so a first run needs no network",
+        "Wrote the install and first-run guide that support linked from every ticket"
+      ],
+      "metrics": [
+        {
+          "label": "installs in the first six months",
+          "value": "11,000",
+          "direction": "increase"
+        },
+        {
+          "label": "cold start",
+          "value": "900 ms to 120 ms",
+          "direction": "decrease"
+        },
+        {
+          "label": "time from save to result",
+          "value": "under 2 seconds",
+          "direction": "decrease"
+        }
+      ],
+      "leadership_signals": ["product sense", "independent delivery"],
+      "proof_points": [
+        "Surfaced affected tests in the gutter within 2 seconds of a save",
+        "Reached 11,000 installs in the first six months",
+        "Cut cold start from 900 ms to 120 ms"
+      ],
+      "tags": [
+        "developer-tools",
+        "cli",
+        "editor-extension",
+        "vscode",
+        "language-server",
+        "golang",
+        "typescript",
+        "contract"
+      ]
+    },
+    {
+      "company": "Marrowfield Robotics",
+      "title": "Senior Software Engineer, Build and Release",
+      "period": "February 2016 – June 2019",
+      "industry": ["robotics", "warehouse automation", "embedded"],
+      "system_types": [
+        "monorepo build",
+        "firmware release",
+        "hardware test farm"
+      ],
+      "problem_spaces": [
+        "build migration",
+        "CI cost",
+        "offline delivery",
+        "cross-compilation"
+      ],
+      "technologies": [
+        "C++",
+        "Go",
+        "Bazel",
+        "Python",
+        "Jenkins",
+        "Docker",
+        "Ansible",
+        "Linux"
+      ],
+      "patterns": [
+        "incremental migration",
+        "offline bundles",
+        "hardware in the loop",
+        "release trains"
+      ],
+      "responsibilities": [
+        "Migrated a 1.4 million line C++ and Go monorepo from CMake to Bazel in 9 months, starting in 2017",
+        "Reduced CI cost by 24% after the migration",
+        "Shipped the toolchain as a signed offline bundle to 12 factory sites with no outbound network",
+        "Built the hardware-in-the-loop farm that runs firmware against 30 real robots every night",
+        "Led a build and release team of 4"
+      ],
+      "metrics": [
+        { "label": "CI cost", "value": "24%", "direction": "decrease" },
+        { "label": "cache hit rate", "value": "71%", "direction": "increase" },
+        {
+          "label": "firmware release cadence",
+          "value": "quarterly to every 3 weeks",
+          "direction": "decrease"
+        },
+        {
+          "label": "full rebuild for ARM targets",
+          "value": "55 minutes to 12 minutes",
+          "direction": "decrease"
+        }
+      ],
+      "leadership_signals": [
+        "team leadership",
+        "migration leadership",
+        "field support"
+      ],
+      "proof_points": [
+        "Cut CI cost by 24%",
+        "Reached a 71% cache hit rate across 110 engineers",
+        "Moved firmware releases from quarterly to every 3 weeks",
+        "Upgraded all 12 factory sites from a USB bundle without a site visit"
+      ],
+      "tags": [
+        "build-systems",
+        "bazel",
+        "monorepo",
+        "remote-cache",
+        "migration",
+        "embedded",
+        "firmware",
+        "cpp",
+        "golang",
+        "air-gapped",
+        "release-engineering"
+      ]
+    },
+    {
+      "company": "Pellucid Energy Analytics",
+      "title": "Software Engineer, Observability",
+      "period": "May 2014 – January 2016",
+      "industry": ["energy", "smart metering", "analytics"],
+      "system_types": ["metrics pipeline", "alerting", "dashboards"],
+      "problem_spaces": ["alert fatigue", "on-call health", "build versus buy"],
+      "technologies": [
+        "Python",
+        "Prometheus",
+        "Graphite",
+        "StatsD",
+        "Grafana",
+        "Ansible",
+        "PostgreSQL",
+        "RabbitMQ"
+      ],
+      "patterns": [
+        "symptom-based alerting",
+        "service level objectives",
+        "runbooks",
+        "dual writing during cutover"
+      ],
+      "responsibilities": [
+        "Replaced Graphite and StatsD with Prometheus across 8 services",
+        "Rewrote alerting around symptoms a customer would feel",
+        "Introduced SLOs and a weekly review of the pager",
+        "Argued against her manager's plan to buy a monitoring vendor outright, lost on logs, won on metrics, and then ran the vendor rollout for logs herself"
+      ],
+      "metrics": [
+        {
+          "label": "pages a week",
+          "value": "190 to 22",
+          "direction": "decrease"
+        },
+        {
+          "label": "metric samples ingested",
+          "value": "40,000 a second",
+          "direction": "increase"
+        },
+        {
+          "label": "services with an SLO",
+          "value": 8,
+          "direction": "increase"
+        }
+      ],
+      "leadership_signals": [
+        "disagree and commit",
+        "on-call stewardship",
+        "written proposals"
+      ],
+      "proof_points": [
+        "Cut pages from 190 a week to 22",
+        "Kept both metric systems running side by side for 6 weeks so no dashboard went dark",
+        "Was one of 5 on the rota and wrote 30 runbooks"
+      ],
+      "tags": [
+        "observability",
+        "metrics",
+        "alerting",
+        "prometheus",
+        "slo",
+        "on-call",
+        "python",
+        "disagreement",
+        "build-vs-buy"
+      ]
+    },
+    {
+      "company": "Driftline Mobile",
+      "title": "Software Engineer, Release Engineering",
+      "period": "2012 – 2014",
+      "industry": ["transit ticketing", "mobile apps"],
+      "system_types": [
+        "mobile build farm",
+        "signing pipeline",
+        "release train"
+      ],
+      "problem_spaces": [
+        "release cadence",
+        "code signing",
+        "unreliable UI tests"
+      ],
+      "technologies": ["Jenkins", "Gradle", "Xcode", "Ruby", "Bash", "Python"],
+      "patterns": ["release trains", "build farm", "feature freeze"],
+      "responsibilities": [
+        "Ran a farm of 18 Mac minis that built and signed both mobile apps",
+        "Moved the apps from a monthly release to a weekly train",
+        "Rebuilt the signing pipeline in 11 days when a certificate expired ahead of the holiday store freeze",
+        "Kept a public board of the slowest and least reliable UI tests"
+      ],
+      "metrics": [
+        {
+          "label": "release cadence",
+          "value": "monthly to weekly",
+          "direction": "decrease"
+        },
+        {
+          "label": "app build time",
+          "value": "48 minutes to 17 minutes",
+          "direction": "decrease"
+        },
+        {
+          "label": "releases blocked by signing",
+          "value": "9 a year to 0",
+          "direction": "decrease"
+        }
+      ],
+      "leadership_signals": ["delivery under pressure", "ownership"],
+      "proof_points": [
+        "Shipped the holiday release two days before the store freeze",
+        "Moved from monthly to weekly releases",
+        "Cut app build time from 48 minutes to 17 minutes"
+      ],
+      "tags": [
+        "release-engineering",
+        "mobile",
+        "build-farm",
+        "code-signing",
+        "jenkins",
+        "deadline",
+        "delivery"
+      ]
+    },
+    {
+      "company": "Ostrander Telecom",
+      "title": "Software Engineer",
+      "period": "2010 – 2012",
+      "industry": ["telecommunications", "billing"],
+      "system_types": ["billing mediation", "nightly build"],
+      "problem_spaces": ["build duration", "dependency sprawl", "code review"],
+      "technologies": [
+        "Java",
+        "Maven",
+        "Ant",
+        "Oracle",
+        "Subversion",
+        "Jenkins"
+      ],
+      "patterns": [
+        "modular builds",
+        "dependency management",
+        "pre-merge review"
+      ],
+      "responsibilities": [
+        "Moved 60 modules of the mediation system from Ant to Maven",
+        "Introduced pre-merge code review to a group of 25"
+      ],
+      "metrics": [
+        {
+          "label": "nightly build",
+          "value": "6 hours to 50 minutes",
+          "direction": "decrease"
+        },
+        {
+          "label": "modules migrated",
+          "value": 60,
+          "direction": "increase"
+        },
+        {
+          "label": "defects found after release",
+          "value": "35%",
+          "direction": "decrease"
+        }
+      ],
+      "leadership_signals": ["process improvement", "peer review advocacy"],
+      "proof_points": [
+        "Cut the nightly build from 6 hours to 50 minutes",
+        "Got review adopted by 25 engineers without a mandate"
+      ],
+      "tags": [
+        "java",
+        "maven",
+        "telecom",
+        "billing",
+        "build-systems",
+        "code-review"
+      ]
+    },
+    {
+      "company": "Brightwater Interactive",
+      "title": "Build Engineer",
+      "period": "2008 – 2010",
+      "industry": ["video games", "console"],
+      "system_types": ["distributed compilation", "asset pipeline"],
+      "problem_spaces": ["rebuild time", "asset baking", "artist tooling"],
+      "technologies": ["C++", "Python", "Perforce", "C#"],
+      "patterns": [
+        "distributed compilation",
+        "shared output store",
+        "overnight farm"
+      ],
+      "responsibilities": [
+        "Spread compilation across 70 idle desktops overnight",
+        "Shared 400 GB of baked assets so artists stopped re-baking each other's work",
+        "Wrote the tool artists used to preview a level without a full build"
+      ],
+      "metrics": [
+        {
+          "label": "full rebuild",
+          "value": "3 hours 10 minutes to 35 minutes",
+          "direction": "decrease"
+        },
+        {
+          "label": "baked assets shared",
+          "value": "400 GB",
+          "direction": "increase"
+        },
+        {
+          "label": "artist wait per level change",
+          "value": "20 minutes to 90 seconds",
+          "direction": "decrease"
+        }
+      ],
+      "leadership_signals": ["cross-discipline partnership"],
+      "proof_points": [
+        "Cut a full rebuild from 3 hours 10 minutes to 35 minutes",
+        "Shipped two console titles on their certification dates"
+      ],
+      "tags": [
+        "games",
+        "cpp",
+        "distributed-compilation",
+        "asset-pipeline",
+        "build-systems",
+        "artist-tooling"
+      ]
+    },
+    {
+      "company": "Halloran Pike Insurance",
+      "title": "Junior Developer",
+      "period": "2006 – 2008",
+      "industry": ["insurance", "back office"],
+      "system_types": ["batch processing", "policy administration"],
+      "problem_spaces": ["batch duration", "first on-call"],
+      "technologies": ["Java", "Oracle", "PL/SQL", "Ant", "Subversion"],
+      "patterns": ["batch jobs", "restartable steps"],
+      "responsibilities": [
+        "Maintained the nightly policy renewal batch",
+        "Made each batch step restartable after a failure",
+        "Joined the support rota in her second year"
+      ],
+      "metrics": [
+        {
+          "label": "renewal batch",
+          "value": "9 hours to 2.5 hours",
+          "direction": "decrease"
+        },
+        {
+          "label": "batch reruns a month",
+          "value": "6 to 1",
+          "direction": "decrease"
+        }
+      ],
+      "leadership_signals": ["ownership"],
+      "proof_points": [
+        "Cut the renewal batch from 9 hours to 2.5 hours",
+        "Ended full reruns by making steps restartable"
+      ],
+      "tags": ["insurance", "java", "oracle", "batch", "early-career"]
+    }
+  ],
+  "industry_mappings": [
+    {
+      "industry": "developer tools",
+      "best_fit_roles": [
+        "Lanternfish Tooling",
+        "Tracewright",
+        "Quillhaven Systems"
+      ],
+      "themes": ["command-line tools", "editor integrations", "trace sampling"],
+      "preferred_technologies": ["Go", "TypeScript", "Rust"]
+    },
+    {
+      "industry": "platform engineering",
+      "best_fit_roles": ["Quillhaven Systems", "Marrowgate Labs"],
+      "themes": ["build platform", "artifact cache", "paved road"],
+      "preferred_technologies": ["Bazel", "Go", "Kubernetes"]
+    },
+    {
+      "industry": "embedded and robotics",
+      "best_fit_roles": ["Marrowfield Robotics"],
+      "themes": ["firmware release", "offline delivery", "cross-compilation"],
+      "preferred_technologies": ["C++", "Bazel"]
+    },
+    {
+      "industry": "observability",
+      "best_fit_roles": [
+        "Quillhaven Systems",
+        "Pellucid Energy Analytics",
+        "Tracewright"
+      ],
+      "themes": ["pipeline tracing", "alerting", "service level objectives"],
+      "preferred_technologies": ["OpenTelemetry", "Prometheus", "ClickHouse"]
+    },
+    {
+      "industry": "mobile and games",
+      "best_fit_roles": ["Driftline Mobile", "Brightwater Interactive"],
+      "themes": ["build farms", "release trains", "asset pipelines"],
+      "preferred_technologies": ["Jenkins", "C++"]
+    }
+  ],
+  "technology_mappings": [
+    {
+      "technology": "Go",
+      "roles": [
+        "Quillhaven Systems",
+        "Marrowgate Labs",
+        "Lanternfish Tooling",
+        "Marrowfield Robotics"
+      ],
+      "proof_points": ["action cache", "worker pool", "test selection tool"]
+    },
+    {
+      "technology": "Bazel",
+      "roles": [
+        "Quillhaven Systems",
+        "Marrowgate Labs",
+        "Marrowfield Robotics"
+      ],
+      "proof_points": ["monorepo migrations", "cache hit rate"]
+    },
+    {
+      "technology": "Kubernetes",
+      "roles": ["Quillhaven Systems", "Marrowgate Labs"],
+      "proof_points": ["worker pool on spot nodes", "collector fleet"]
+    },
+    {
+      "technology": "OpenTelemetry",
+      "roles": ["Quillhaven Systems", "Tracewright"],
+      "proof_points": ["span model per action", "tail-based sampling"]
+    },
+    {
+      "technology": "Jenkins",
+      "roles": [
+        "Marrowgate Labs",
+        "Marrowfield Robotics",
+        "Driftline Mobile",
+        "Ostrander Telecom"
+      ],
+      "proof_points": ["mobile build farm", "nightly build"]
+    },
+    {
+      "technology": "Python",
+      "roles": [
+        "Marrowgate Labs",
+        "Marrowfield Robotics",
+        "Pellucid Energy Analytics",
+        "Driftline Mobile",
+        "Brightwater Interactive"
+      ],
+      "proof_points": ["alerting rewrite", "artist preview tool"]
+    },
+    {
+      "technology": "Rust",
+      "roles": ["Tracewright"],
+      "proof_points": ["sampling library"]
+    }
+  ],
+  "leadership_signals": [
+    {
+      "signal": "architecture ownership",
+      "evidence": ["Quillhaven Systems", "Marrowgate Labs"]
+    },
+    {
+      "signal": "team leadership",
+      "evidence": [
+        "Quillhaven Systems",
+        "Marrowgate Labs",
+        "Marrowfield Robotics"
+      ]
+    },
+    {
+      "signal": "mentorship",
+      "evidence": ["Quillhaven Systems", "Marrowgate Labs"]
+    },
+    {
+      "signal": "disagree and commit",
+      "evidence": ["Pellucid Energy Analytics"]
+    },
+    {
+      "signal": "community leadership",
+      "evidence": ["Tracewright"]
+    },
+    {
+      "signal": "delivery under pressure",
+      "evidence": ["Driftline Mobile", "Brightwater Interactive"]
+    }
+  ],
+  "story_selector": [
+    {
+      "need": "faster builds",
+      "primary_story": "Quillhaven Systems",
+      "backup_story": "Marrowgate Labs"
+    },
+    {
+      "need": "build system migration",
+      "primary_story": "Marrowgate Labs",
+      "backup_story": "Marrowfield Robotics"
+    },
+    {
+      "need": "pipeline tracing and storage cost",
+      "primary_story": "Quillhaven Systems",
+      "backup_story": "Tracewright"
+    },
+    {
+      "need": "failure and what changed afterwards",
+      "primary_story": "Quillhaven Systems",
+      "backup_story": "Driftline Mobile"
+    },
+    {
+      "need": "conflict with another team",
+      "primary_story": "Marrowgate Labs",
+      "backup_story": "Ostrander Telecom"
+    },
+    {
+      "need": "disagreement with a manager",
+      "primary_story": "Pellucid Energy Analytics"
+    },
+    {
+      "need": "deadline pressure",
+      "primary_story": "Driftline Mobile",
+      "backup_story": "Brightwater Interactive"
+    },
+    {
+      "need": "customer-run and offline installs",
+      "primary_story": "Marrowfield Robotics"
+    },
+    {
+      "need": "tools developers install themselves",
+      "primary_story": "Lanternfish Tooling",
+      "backup_story": "Tracewright"
+    },
+    {
+      "need": "alert fatigue and on-call health",
+      "primary_story": "Pellucid Energy Analytics",
+      "backup_story": "Quillhaven Systems"
+    }
+  ],
+  "tag_taxonomy": {
+    "domains": [
+      "developer-tools",
+      "collaboration-software",
+      "geospatial",
+      "robotics",
+      "energy",
+      "mobile",
+      "telecom",
+      "games",
+      "insurance",
+      "open-source"
+    ],
+    "architecture": [
+      "content-addressed-storage",
+      "remote-cache",
+      "monorepo",
+      "tail-based-sampling",
+      "language-server",
+      "offline-bundles",
+      "release-trains",
+      "distributed-compilation"
+    ],
+    "leadership": [
+      "mentorship",
+      "team-lead",
+      "standards-and-governance",
+      "disagree-and-commit",
+      "community"
+    ],
+    "delivery": [
+      "ci-cd",
+      "migration",
+      "incident-response",
+      "on-call",
+      "release-engineering",
+      "developer-experience"
+    ],
+    "languages": ["golang", "rust", "typescript", "cpp", "python", "java"],
+    "observability": [
+      "opentelemetry",
+      "prometheus",
+      "clickhouse",
+      "slo",
+      "alerting",
+      "sampling"
+    ]
+  },
+  "repositories_of_note": [
+    {
+      "name": "tracewright",
+      "owner": "tracewright",
+      "type": "library",
+      "why_it_matters": "Decides which pipeline traces to keep after the pipeline has finished, so failures are never dropped.",
+      "signals": ["tail-based sampling", "public RFC process"],
+      "relevance_tags": ["opentelemetry", "rust", "open-source"]
+    },
+    {
+      "name": "cachecheck",
+      "owner": "ilse-brandvold",
+      "type": "tooling",
+      "why_it_matters": "Replays a day of build actions against two cache configurations and reports where their outputs differ.",
+      "signals": ["cache correctness", "reproducible builds"],
+      "relevance_tags": ["bazel", "remote-cache", "golang"]
+    },
+    {
+      "name": "gutterlight",
+      "owner": "ilse-brandvold",
+      "type": "sample",
+      "why_it_matters": "A minimal editor extension over a language server, kept as a teaching example.",
+      "signals": ["editor integration"],
+      "relevance_tags": ["vscode", "language-server", "typescript"]
+    }
+  ],
+  "experience_matrix_extensions": {
+    "new_cross_cutting_themes": [
+      "feedback loop time as the product",
+      "integrity of shared artifacts",
+      "migration by trial rather than mandate",
+      "writing decisions down"
+    ],
+    "suggested_tag_improvements": [
+      "split remote-cache into storage and execution",
+      "add self-hosted delivery as a pattern",
+      "name the survey work under developer-experience"
+    ]
+  }
+}

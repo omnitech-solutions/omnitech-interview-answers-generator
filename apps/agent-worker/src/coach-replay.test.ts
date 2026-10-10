@@ -944,3 +944,715 @@ describe("pnpm coach:replay with another end-of-turn mechanism", () => {
     expect(waits).toEqual([1, 1]);
   });
 });
+
+// A replay given the person's material: the coach draws its facts from the
+// context pack as the live coach does, a scripted note-writer stands in for
+// the model, and what each note SAYS is scored (coach-notes-score.ts). No
+// model is called: `--runtime scripted` steps the file's clock by hand.
+describe("pnpm coach:replay with the person's material", () => {
+  const REPOSITORY = join(WORKER, "..", "..");
+  // Paths as they are typed from the repository's root, though the command
+  // runs in this package's folder.
+  const KESTREL =
+    "products/interview/fixtures/context-pack/kestrel-freight-pay";
+  const CALLS = "apps/agent-worker/fixtures/calls";
+  const kestrel = (name: string) =>
+    JSON.parse(readFileSync(join(REPOSITORY, KESTREL, name), "utf8"));
+  const MATERIAL = [
+    "--matrix",
+    `${KESTREL}/matrix.json`,
+    "--brief",
+    `${KESTREL}/employer-brief.json`,
+    "--application",
+    `${KESTREL}/stages.json`,
+    "--stage",
+    "2",
+  ];
+  const companies: string[] = kestrel("matrix.json").roles.map(
+    (role: { company: string }) => role.company,
+  );
+
+  type NoteScore = {
+    evidence: {
+      accepted: number;
+      wrong: number;
+      other: number;
+      inferred: number;
+      sources: string[];
+      offeredAccepted: number;
+      offeredOther: number;
+      offered: boolean | null;
+    };
+    invented: { figures: number; employers: number };
+    right: boolean | null;
+  };
+  type Scored = {
+    benchmark: string;
+    runtime: string;
+    guarded: boolean;
+    withinS: number;
+    material: {
+      pack: boolean;
+      application: boolean;
+      preferences: boolean;
+      kept: boolean;
+      stage: number | null;
+    };
+    totals: {
+      rightEvidence: { right: number; of: number };
+      wrongEmployer: number;
+      invented: number;
+      inTime: { right: number; of: number };
+    };
+    questions: {
+      id: string;
+      scenario: string;
+      optional: boolean;
+      askedBy: string | null;
+      notedFrom: string | null;
+      askerRight?: boolean | null;
+      answeredWhole: boolean;
+      questionToFirstLineS: number | null;
+      acted: boolean;
+      inTime: boolean | null;
+      factsGiven: number;
+      note: NoteScore | null;
+    }[];
+  };
+  const scoredIn = async (folder: string) => {
+    const files = await readdir(folder);
+    expect(files).toHaveLength(1);
+    const text = await readFile(join(folder, files[0] as string), "utf8");
+    return {
+      file: files[0] as string,
+      text,
+      result: JSON.parse(text) as Scored,
+    };
+  };
+  const totalsLine = (ran: Ran) =>
+    ran.stdout.trimEnd().split("\n").at(-1)?.trim() ?? "";
+  const question = (result: Scored, id: string) =>
+    result.questions.find(
+      (each) => each.id === id,
+    ) as Scored["questions"][number];
+
+  // Every string a person's own files hold that is somebody's words: the
+  // lines of the call, who spoke, the prose of the material, the plan.
+  const prose = (value: unknown): string[] =>
+    typeof value === "string"
+      ? value.includes(" ") && value.length >= 8
+        ? [value]
+        : []
+      : Array.isArray(value)
+        ? value.flatMap(prose)
+        : value && typeof value === "object"
+          ? Object.values(value).flatMap(prose)
+          : [];
+  const PLAN =
+    "Lead with the ledger story from Larchmont Pay.\npanel: Dana (product), Ravi (payments), Ines (people)\n";
+  const PRIVATE_EXPECTED = {
+    questions: [
+      {
+        id: "q1",
+        from: "Ravi",
+        scenario: "two panelists start at once",
+        completeWhenSaid: "only charged once",
+        about: ["idempotency", "go ahead"],
+        evidence: companies,
+      },
+      {
+        id: "q2",
+        from: "Ines",
+        completeWhenSaid: "notice period",
+        nothing: true,
+      },
+    ],
+    quiet: [{ id: "k1", said: "hand over to Ines" }],
+  };
+
+  const ran = {} as Record<
+    | "scripted"
+    | "scriptedAgain"
+    | "scored"
+    | "own"
+    | "ownTraced"
+    | "kept"
+    | "half"
+    | "noSuchStage"
+    | "stageAlone"
+    | "noTextFile"
+    | "notAPack"
+    | "resultsInside",
+    Ran
+  >;
+  let own = "";
+
+  beforeAll(async () => {
+    own = await mkdtemp(join(tmpdir(), "coach-replay-own-"));
+    // A person's own files, outside the repository: the call, its plan, what
+    // is expected, and the material, with each stage transcript's words in a
+    // file of its own beside the application.
+    await writeFile(join(own, "call.txt"), PANEL_TRANSCRIPT);
+    await writeFile(join(own, "plan.md"), PLAN);
+    await writeFile(
+      join(own, "call.expected.json"),
+      JSON.stringify(PRIVATE_EXPECTED),
+    );
+    await writeFile(
+      join(own, "matrix.json"),
+      JSON.stringify(kestrel("matrix.json")),
+    );
+    await writeFile(
+      join(own, "brief.json"),
+      // As an application row holds it.
+      JSON.stringify({
+        employer_brief: JSON.stringify(kestrel("employer-brief.json")),
+      }),
+    );
+    const stages = kestrel("stages.json") as {
+      stages: { transcripts: Record<string, unknown>[] }[];
+    };
+    let texts = 0;
+    const withFiles = (missing: boolean) => ({
+      ...stages,
+      stages: stages.stages.map((stage) => ({
+        ...stage,
+        transcripts: stage.transcripts.map(
+          ({ text, sha256: _sha256, ...transcript }) => {
+            texts += 1;
+            const name = missing ? "gone.txt" : `said-${texts}.txt`;
+            if (!missing) writeFileSync(join(own, name), String(text));
+            return { ...transcript, textFile: name };
+          },
+        ),
+      })),
+    });
+    await writeFile(
+      join(own, "application.json"),
+      JSON.stringify(withFiles(false)),
+    );
+    expect(texts).toBeGreaterThan(0);
+    await writeFile(
+      join(own, "application-gone.json"),
+      JSON.stringify(withFiles(true)),
+    );
+    // A pack of another recipe: nothing of it stands, and the coach reads the
+    // material as it is (kept.ts).
+    await writeFile(
+      join(own, "kept.json"),
+      JSON.stringify({
+        prepared: {
+          recipe: { id: "another-recipe", version: "0" },
+          sources: [],
+          records: [],
+          rejected: [],
+        },
+      }),
+    );
+    await writeFile(
+      join(own, "not-a-pack.json"),
+      JSON.stringify({ scores: 3 }),
+    );
+    // The panel fixture's own expectations, with whose evidence four of its
+    // questions want: every employer, an employer the matrix does not have,
+    // and nothing at all (said both ways).
+    const expected = JSON.parse(
+      readFileSync(
+        join(REPOSITORY, CALLS, "panel-round", "expected.json"),
+        "utf8",
+      ),
+    ) as { questions: Record<string, unknown>[] };
+    const wants: Record<string, object> = {
+      "charged-once": { evidence: companies },
+      "slowest-carrier": { evidence: ["No Such Employer"] },
+      salary: { nothing: true },
+      "rate-limiting": { evidence: [] },
+    };
+    await writeFile(
+      join(own, "panel-evidence.expected.json"),
+      JSON.stringify({
+        ...expected,
+        questions: expected.questions.map((each) => ({
+          ...each,
+          ...(wants[each["id"] as string] ?? {}),
+        })),
+      }),
+    );
+    const OWN = [
+      "--transcript",
+      join(own, "call.txt"),
+      ...PANEL_CAST,
+      "--plan",
+      join(own, "plan.md"),
+      "--expect",
+      join(own, "call.expected.json"),
+      "--matrix",
+      join(own, "matrix.json"),
+      "--brief",
+      join(own, "brief.json"),
+    ];
+    const made = await Promise.all([
+      replay(
+        "--bench",
+        "panel-round",
+        "--runtime",
+        "scripted",
+        ...MATERIAL,
+        "--results",
+        join(own, "scripted"),
+      ),
+      replay(
+        "--bench",
+        "panel-round",
+        "--runtime",
+        "scripted",
+        ...MATERIAL,
+        "--results",
+        join(own, "scripted-again"),
+      ),
+      replay(
+        "--bench",
+        "panel-round",
+        "--runtime",
+        "scripted",
+        ...MATERIAL,
+        "--expect",
+        join(own, "panel-evidence.expected.json"),
+        "--results",
+        join(own, "scored"),
+      ),
+      replay(
+        ...OWN,
+        "--application",
+        join(own, "application.json"),
+        "--stage",
+        "2",
+        "--runtime",
+        "scripted",
+        "--within",
+        "3",
+        "--results",
+        join(own, "own"),
+      ),
+      replay(
+        ...OWN,
+        "--application",
+        join(own, "application.json"),
+        "--stage",
+        "2",
+        "--runtime",
+        "scripted",
+        "--trace",
+        "--results",
+        join(own, "own-traced"),
+      ),
+      // Every path from the repository's root but the kept pack's.
+      replay(
+        "--transcript",
+        `${CALLS}/screening-services/transcript.txt`,
+        "--expect",
+        `${CALLS}/screening-services/expected.json`,
+        ...CAST,
+        "--matrix",
+        `${KESTREL}/matrix.json`,
+        "--brief",
+        `${KESTREL}/employer-brief.json`,
+        "--preferences",
+        `${KESTREL}/preferences.txt`,
+        "--kept",
+        join(own, "kept.json"),
+        "--runtime",
+        "scripted",
+        "--results",
+        join(own, "kept"),
+      ),
+      replay(file, ...CAST, "--timing", "--matrix", join(own, "matrix.json")),
+      replay(
+        ...OWN,
+        "--application",
+        join(own, "application.json"),
+        "--stage",
+        "9",
+        "--runtime",
+        "scripted",
+      ),
+      replay(...OWN, "--stage", "2", "--runtime", "scripted"),
+      replay(
+        ...OWN,
+        "--application",
+        join(own, "application-gone.json"),
+        "--runtime",
+        "scripted",
+      ),
+      replay(
+        ...OWN,
+        "--kept",
+        join(own, "not-a-pack.json"),
+        "--runtime",
+        "scripted",
+      ),
+      replay(
+        ...OWN,
+        "--runtime",
+        "scripted",
+        "--results",
+        join(WORKER, "fixtures", "kept-here"),
+      ),
+    ]);
+    const names = Object.keys({
+      scripted: 0,
+      scriptedAgain: 0,
+      scored: 0,
+      own: 0,
+      ownTraced: 0,
+      kept: 0,
+      half: 0,
+      noSuchStage: 0,
+      stageAlone: 0,
+      noTextFile: 0,
+      notAPack: 0,
+      resultsInside: 0,
+    } satisfies Record<keyof typeof ran, 0>) as (keyof typeof ran)[];
+    names.forEach((name, at) => {
+      ran[name] = made[at] as Ran;
+    });
+  }, 120_000);
+
+  afterAll(async () => {
+    if (own) await rm(own, { recursive: true, force: true });
+  });
+
+  describe("--runtime scripted on the panel fixture with the Kestrel material", () => {
+    it("writes a note for each question with no model, each built on a fact the coach was given", async () => {
+      const run = ran.scripted;
+      expect(run.code).toBe(0);
+      expect(run.stderr).toBe("");
+      expect(run.stdout).toContain(
+        "Notes by a script (no model): each cites the first fact of a role the coach was given.",
+      );
+      expect(run.stdout).toMatch(
+        /^\d\d:\d\d:\d\d {2}NOTE {3}first line \+\d+\.\ds after acting/m,
+      );
+      // A fixture of the repository: the notes are printed as they always were.
+      expect(run.stdout).toMatch(/^ {3}say {6}From the record: \*\*.+\*\*✓$/m);
+      const { file: name, result } = await scoredIn(join(own, "scripted"));
+      expect(name).toMatch(/^panel-round\+pack-scripted-.*\.json$/);
+      expect(result).toMatchObject({
+        benchmark: "panel-round+pack",
+        runtime: "scripted",
+        guarded: false,
+        withinS: 10,
+        material: {
+          pack: true,
+          application: true,
+          preferences: false,
+          kept: false,
+          stage: 2,
+        },
+      });
+      const noted = result.questions.filter(
+        (each) => each.questionToFirstLineS !== null,
+      );
+      expect(noted.length).toBeGreaterThanOrEqual(13);
+      for (const each of noted) {
+        // The pack gave the coach facts, and the note's one claim is verified
+        // against a role of the matrix: the coach's own verifier says so.
+        expect(each.factsGiven).toBeGreaterThan(0);
+        expect(each.note?.evidence.sources).toHaveLength(1);
+        const role = /^\/roles\/(\d+)(\/[\w-]+)*$/.exec(
+          each.note?.evidence.sources[0] ?? "",
+        )?.[1];
+        expect(Number(role)).toBeLessThan(companies.length);
+        expect(each.note?.evidence.inferred).toBe(0);
+        // A claim copied from a given fact invents nothing.
+        expect(each.note?.invented).toEqual({ figures: 0, employers: 0 });
+        // The fixture's own expected file names nobody's evidence.
+        expect(each.note?.right).toBeNull();
+        expect(each.note?.evidence.offered).toBeNull();
+      }
+    });
+
+    it("says of each question whether it was acted on and whether its note's first line came in time", async () => {
+      const { result } = await scoredIn(join(own, "scripted"));
+      for (const each of result.questions) {
+        expect(each.acted).toBe(each.answeredWhole);
+        expect(each.inTime).toBe(
+          each.questionToFirstLineS !== null && each.questionToFirstLineS <= 10,
+        );
+      }
+      const asked = result.questions.filter((each) => !each.optional);
+      expect(asked).toHaveLength(13);
+      expect(result.totals.inTime).toEqual({
+        right: asked.filter((each) => each.inTime).length,
+        of: 13,
+      });
+      // The absent model takes 4 s of the file's clock: every note is in time.
+      expect(result.totals.inTime.right).toBe(13);
+      expect(result.totals.rightEvidence).toEqual({ right: 0, of: 0 });
+    });
+
+    it("prints a row for each question and the totals on the last line", () => {
+      const lines = ran.scripted.stdout.split("\n");
+      const head = lines.findIndex((line) =>
+        /^ {2}question +acted +first s +in time +evidence +wrong +inferred +offered +invented +right$/.test(
+          line,
+        ),
+      );
+      expect(head).toBeGreaterThan(0);
+      expect(lines[head + 1]).toMatch(
+        /^ {2}service-or-monolith +yes +\d+(\.\d)? +yes +- +- +0 +- +0 +-$/,
+      );
+      expect(lines[head + 2]).toMatch(/^ {4}verified against \/roles\/\d+/);
+      expect(totalsLine(ran.scripted)).toBe(
+        "TOTALS: right evidence 0 of 0, wrong employer 0, invented 0, in time 13 of 13",
+      );
+    });
+
+    it("is the same run every time: the file's clock is stepped, nothing waits on a model", async () => {
+      expect(ran.scriptedAgain.code).toBe(0);
+      expect(ran.scriptedAgain.stdout).toBe(ran.scripted.stdout);
+      const first = await scoredIn(join(own, "scripted"));
+      const again = await scoredIn(join(own, "scripted-again"));
+      expect(again.result.questions).toEqual(first.result.questions);
+      expect(again.result.totals).toEqual(first.result.totals);
+    });
+  });
+
+  describe("scored against expected evidence", () => {
+    it("counts a note right when its verified claim is an accepted employer's, and wrong when it is another's", async () => {
+      expect(ran.scored.code).toBe(0);
+      const { result } = await scoredIn(join(own, "scored"));
+      const right = question(result, "charged-once").note as NoteScore;
+      expect(right).toMatchObject({
+        right: true,
+        evidence: { accepted: 1, wrong: 0, offered: true },
+      });
+      expect(right.evidence.offeredAccepted).toBeGreaterThan(0);
+      expect(right.evidence.offeredOther).toBe(0);
+      // An employer the matrix does not have: the pack could never offer it,
+      // and the note that cites another is told apart from one that ignored it.
+      const wrong = question(result, "slowest-carrier").note as NoteScore;
+      expect(wrong).toMatchObject({
+        right: false,
+        evidence: { accepted: 0, wrong: 1, offered: false, offeredAccepted: 0 },
+      });
+      expect(wrong.evidence.offeredOther).toBeGreaterThan(0);
+    });
+
+    it("counts any employer cited as wrong where the material has nothing, said either way", async () => {
+      const { result } = await scoredIn(join(own, "scored"));
+      for (const id of ["salary", "rate-limiting"])
+        expect(question(result, id).note).toMatchObject({
+          right: false,
+          evidence: { accepted: 0, wrong: 1, offered: null },
+        });
+    });
+
+    it("leaves a question with no expectation unjudged, and totals the rest on the last line", async () => {
+      const { result } = await scoredIn(join(own, "scored"));
+      expect(question(result, "data-ownership").note?.right).toBeNull();
+      expect(result.totals).toEqual({
+        rightEvidence: { right: 1, of: 4 },
+        wrongEmployer: 3,
+        invented: 0,
+        inTime: { right: 13, of: 13 },
+      });
+      expect(totalsLine(ran.scored)).toBe(
+        "TOTALS: right evidence 1 of 4, wrong employer 3, invented 0, in time 13 of 13",
+      );
+    });
+
+    it("gives the coach the same facts whatever is expected of the note: the same claims, verified against the same places", async () => {
+      const plain = await scoredIn(join(own, "scripted"));
+      const scored = await scoredIn(join(own, "scored"));
+      expect(
+        scored.result.questions.map((each) => [
+          each.id,
+          each.factsGiven,
+          each.note?.evidence.sources,
+        ]),
+      ).toEqual(
+        plain.result.questions.map((each) => [
+          each.id,
+          each.factsGiven,
+          each.note?.evidence.sources,
+        ]),
+      );
+    });
+  });
+
+  // [SAFETY] A person's own call and material are never copied into what is
+  // printed or kept: ids, pointers, counts, clock times and scores only.
+  describe("on files outside the repository", () => {
+    const words = () => [
+      // The lines of the call, and who spoke them.
+      ...PANEL_TRANSCRIPT.split("\n").flatMap((line) => {
+        const said = /^([A-Z][a-z]+): (.+)$/.exec(line);
+        return said ? [said[2] as string] : [];
+      }),
+      ...["Dana", "Ravi", "Ines", "Marisol"],
+      // The person's record, the employer's brief and the application.
+      ...companies,
+      kestrel("matrix.json").candidate.name as string,
+      ...prose(kestrel("matrix.json")),
+      ...prose(kestrel("employer-brief.json")),
+      ...prose(kestrel("stages.json")),
+      ...PLAN.trim().split("\n"),
+      ...prose(PRIVATE_EXPECTED),
+    ];
+
+    it("replays it, scores it and keeps the result where it was asked to", async () => {
+      const run = ran.own;
+      expect(run.code).toBe(0);
+      expect(run.stderr).toBe("");
+      const { file: name, result } = await scoredIn(join(own, "own"));
+      expect(name).toMatch(/^call\+pack-scripted-.*\.json$/);
+      expect(result).toMatchObject({
+        benchmark: "call+pack",
+        guarded: true,
+        withinS: 3,
+        material: { pack: true, application: true, kept: false, stage: 2 },
+      });
+      // Every employer of the matrix is accepted for the first; the material
+      // has nothing for the second, and the scripted writer cites a role.
+      expect(
+        result.questions.map((each) => [each.id, each.acted, each.note?.right]),
+      ).toEqual([
+        ["q1", true, true],
+        ["q2", true, false],
+      ]);
+      // Four seconds of model on top of the wait to act is not within three.
+      expect(result.totals).toEqual({
+        rightEvidence: { right: 1, of: 2 },
+        wrongEmployer: 1,
+        invented: 0,
+        inTime: { right: 0, of: 2 },
+      });
+      expect(totalsLine(run)).toBe(
+        "TOTALS: right evidence 1 of 2, wrong employer 1, invented 0, in time 0 of 2",
+      );
+    });
+
+    it("writes no word of the transcript, the plan or the material into the result file", async () => {
+      const { text, result } = await scoredIn(join(own, "own"));
+      const held = words();
+      expect(held.length).toBeGreaterThan(300);
+      for (const each of held) expect(text).not.toContain(each);
+      // Who asked is kept as right or wrong, never as a name; the scenario
+      // the expected file describes is not kept.
+      for (const each of result.questions) {
+        expect(each.askedBy).toBeNull();
+        expect(each.notedFrom).toBeNull();
+        expect(each.scenario).toBe("");
+      }
+      // (The scripted writer names nobody, and two panelists spoke in each
+      // turn, so there is no asker to have got right.)
+      expect(result.questions.map((each) => each.askerRight)).toEqual([
+        null,
+        null,
+      ]);
+      // Every string it holds is an id, a pointer, a time or a name of the
+      // run: nothing else is text at all.
+      const strings = (value: unknown): string[] =>
+        typeof value === "string"
+          ? [value]
+          : value && typeof value === "object"
+            ? Object.values(value).flatMap(strings)
+            : [];
+      for (const each of strings(result))
+        expect(each).toMatch(
+          /^(|call\+pack|scripted|ideal|q[12]|k1|[0-9a-f]{7,40}|unknown|\d{4}-\d\d-\d\dT[\d:.]+Z|\/roles\/\d+(\/[\w-]+)*)$/,
+        );
+    });
+
+    it("prints no word of them either: where a turn is, how long a note is, and the scores", () => {
+      const { stdout } = ran.own;
+      for (const each of words()) expect(stdout).not.toContain(each);
+      expect(stdout).toMatch(
+        /^Replaying 00:00:05 to 00:00:41: 9 pieces\. 3 interviewer, 1 me\. The coach is told who speaks: 3 interviewers\.$/m,
+      );
+      expect(stdout).toMatch(
+        /^\d\d:\d\d:\d\d {2}ACT {4}question-finished +\+\d+\.\ds after lines \d+ to \d+ \(\d+ words\)$/m,
+      );
+      expect(stdout).not.toMatch(/ after "/);
+      expect(stdout).toMatch(
+        /^\d\d:\d\d:\d\d {2}direct-answer: 1 lines, 1 claims verified, 0 inferred {2}\/roles\/\d+/m,
+      );
+      expect(stdout).not.toContain("From the record");
+      expect(stdout).toMatch(/^ {4}who asked: the note names nobody$/m);
+      expect(stdout).not.toContain("invented:");
+    });
+
+    it("--trace is the one way to see what was said: the prompt, the reply and the note", () => {
+      const { code, stdout } = ran.ownTraced;
+      expect(code).toBe(0);
+      expect(stdout).toContain("only charged once");
+      expect(stdout).toContain(
+        "THE CANDIDATE'S RECORD (cite a fact by its [pointer]):",
+      );
+      expect(stdout).toMatch(
+        /^ {5}note coach-replay-\d+ revision 1: \[say\] From the record: /m,
+      );
+      // The coach was given the plan and the material it was replayed with.
+      expect(stdout).toContain(
+        "Lead with the ledger story from Larchmont Pay.",
+      );
+      expect(stdout).toContain(
+        "EMPLOYER MATERIAL (not the candidate's experience):",
+      );
+    });
+
+    it("refuses to keep its result inside the repository, outside .dev-local/, before replaying anything", async () => {
+      const { code, stdout, stderr } = ran.resultsInside;
+      expect(code).toBe(2);
+      expect(stderr).toContain("under .dev-local/ or outside the repository");
+      expect(stdout).toBe("");
+      await expect(
+        readdir(join(WORKER, "fixtures", "kept-here")),
+      ).rejects.toThrow();
+    });
+  });
+
+  it("reads every path from the repository's root, and a kept pack with today's material", async () => {
+    const run = ran.kept;
+    expect(run.code).toBe(0);
+    expect(run.stderr).toBe("");
+    const { result } = await scoredIn(join(own, "kept"));
+    // A call kept as a folder is named by its folders; a coach given a kept
+    // pack is a benchmark of its own.
+    expect(result.benchmark).toBe("calls-screening-services+kept");
+    expect(result.material).toEqual({
+      pack: true,
+      application: false,
+      preferences: true,
+      kept: true,
+      stage: null,
+    });
+    // The kept pack is outside the repository, so the run is a guarded one.
+    expect(result.guarded).toBe(true);
+    expect(result.questions.every((each) => each.acted)).toBe(true);
+    expect(
+      result.questions.some(
+        (each) => (each.note?.evidence.sources.length ?? 0) > 0,
+      ),
+    ).toBe(true);
+  });
+
+  it.each([
+    ["half", 2, "needs --matrix and --brief together"],
+    ["noSuchStage", 1, "The application has no stage 9."],
+    ["stageAlone", 1, "A stage needs the application it is of."],
+    ["noTextFile", 1, "A transcript's text file could not be read: "],
+    ["notAPack", 1, "That file holds no prepared pack: "],
+  ] as const)(
+    "%s: material that cannot be used is refused with exit %i, saying which and never what it holds",
+    (name, code, message) => {
+      const run = ran[name];
+      expect(run.code).toBe(code);
+      expect(run.stderr).toContain(message);
+      expect(run.stderr).not.toContain("at readFileSync");
+      expect(run.stdout).not.toContain("ACT");
+      for (const each of companies) expect(run.stderr).not.toContain(each);
+    },
+  );
+});

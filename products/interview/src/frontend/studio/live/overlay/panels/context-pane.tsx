@@ -481,6 +481,10 @@ const REASON_LABEL: Record<ContextView["excluded"][number]["reason"], string> =
     budget: "no room left",
     excluded: "excluded by you",
     scope: "belongs to a later stage",
+    cut: "much weaker than the best match",
+    cap: "its employer already has its places",
+    "min-score": "too weak a match",
+    "excluded-term": "the question ruled it out",
   };
 
 const EVERY_STAGE = "all";

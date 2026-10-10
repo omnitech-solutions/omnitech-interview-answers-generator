@@ -2062,7 +2062,7 @@ packages:
     os: [win32]
 
   '@oc-tech/omni-ui-components@file:vendor/omni-ui-components/oc-tech-omni-ui-components-0.1.0.tgz':
-    resolution: {integrity: sha512-a0mJyv9pP4jGDplNI8mR5WYcoCDjjDPCxGBoZD8TvvK1Er5cnkQXaU3ArPyDyVo0owD5FW9SCMAqyM604rFgOQ==, tarball: file:vendor/omni-ui-components/oc-tech-omni-ui-components-0.1.0.tgz}
+    resolution: {integrity: sha512-yCSNjg4Micsxey9pUQsFiPuoheS+By38FYzaRoXOSa+a3X0+RMauxux7V8+4rgXB9VxU8PG36Qi0uYQHX2fdBg==, tarball: file:vendor/omni-ui-components/oc-tech-omni-ui-components-0.1.0.tgz}
     version: 0.1.0
     peerDependencies:
       react: ^18.3.1 || ^19.0.0
@@ -2106,7 +2106,7 @@ packages:
     engines: {node: '>=22.13.0'}
 
   '@omnitech/ai-engine@file:vendor/omnitech-ai-engine/omnitech-ai-engine-0.1.0.tgz':
-    resolution: {integrity: sha512-yf9qk+Dbdf68TMtvIwEOo85ltLzH6/kvqMgE+89MCMgNpT/fusQ3hISYDiWYk2SJvldnsfqP4eizupFpwbDeOQ==, tarball: file:vendor/omnitech-ai-engine/omnitech-ai-engine-0.1.0.tgz}
+    resolution: {integrity: sha512-UdEgRnPmaoPBNT7/htrKwyJ6QNn/WmhjIDqWW1elbgN8Nydi2CywBVaeAF4Ymz4HAT3MT2C/25H9GnMTJzt+fg==, tarball: file:vendor/omnitech-ai-engine/omnitech-ai-engine-0.1.0.tgz}
     version: 0.1.0
     engines: {node: '>=22.13.0'}
     hasBin: true

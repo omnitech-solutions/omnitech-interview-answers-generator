@@ -4,6 +4,7 @@
 // of these kinds and resolves a projection for one question, the same way
 // for the coach, an answer and the view a person inspects.
 import type {
+  Annotator,
   Extractor,
   JsonSchema,
   LinkStep,
@@ -283,6 +284,12 @@ const projection = (id: ProjectionId, other: number) => ({
     // own (the engine's scope).
     ranked("asked", KINDS.asked, other, { weights: HEADED_WEIGHTS }),
     ranked("signals", KINDS.signal, other, { weights: HEADED_WEIGHTS }),
+    // What the person answered and promised in this stage or an earlier one
+    // (PackFlags.said; selectingRecipe leaves these out when it is off).
+    ranked("answered", KINDS.answered, other, { weights: HEADED_WEIGHTS }),
+    ranked("commitments", KINDS.commitment, other, {
+      weights: HEADED_WEIGHTS,
+    }),
     // [DOMAIN] After the slots above, because the engine follows a tie from
     // what an EARLIER slot selected: a selected note, story, requirement or
     // question keeps the achievements tied to it in the ranking.
@@ -535,6 +542,28 @@ export const EXTRACTORS: readonly Extractor[] = [
   },
 ];
 
+// [DOMAIN] "Asked as": for each thing the person did, each story they chose
+// and each note they prepared, a model writes the words it would be searched
+// by and the questions it answers. An interviewer rarely uses the record's own
+// words ("how do you stop a payout going out twice?" for a line about
+// idempotency keys), and ranking is by words. Written ONCE, when a pack is
+// prepared, by the profile that reads the sources; never when a question is
+// resolved. Opt-in (prepare.ts, `annotate`): it costs model calls. The engine
+// never shows a record of a device-only source to a profile that is not on
+// this machine, checks every term, and matches a term only while the record
+// says what it said when the term was written.
+export const ANNOTATORS: readonly Annotator[] = [
+  {
+    id: "asked-as",
+    kinds: [KINDS.achievement, KINDS.story, KINDS.prep],
+    instructions:
+      "Each record is something a job candidate did, a story they chose to tell, or a note they prepared for an interview. For each, write the words an interviewer would use to ask about it when they do NOT use the record's own words (the plain-language problem it solved, the common name or acronym of the technique, the kind of interview question it answers), and the questions it would be the answer to, as an interviewer would say them aloud. Add nothing the record does not show: no technology, employer, figure or outcome that is not in it.",
+    terms: 6,
+    questions: 3,
+    maxChars: 400,
+  },
+];
+
 const PROJECTIONS_OF = [
   projection(PROJECTIONS.coach, 3),
   projection(PROJECTIONS.answer, 6),
@@ -571,6 +600,122 @@ export const CODE_ONLY_RECIPE: Recipe = {
   aliases: ALIASES,
 };
 
+// ---- The flags: how each projection selects ---------------------------------
+//
+// [DOMAIN] Every mechanism of selection that was MEASURED on the held-out
+// questions (`pnpm pack:eval`; the brief's section 14 has each number) has
+// one switch here, and each projection has its own row, so a projection can
+// skip a mechanism. A default is what that evidence supports. What was tried
+// and did not move the held-out number has no switch: a cap per employer, a
+// follow-up's carry-over, the question passed as said, a model's tie counted
+// as support.
+export type PackFlags = {
+  // How the engine matches and ranks. "plain": whole words, every word alike
+  // (with the hand-written aliases above). Otherwise the engine's measured
+  // version 2, each part with its own switch:
+  //   stem       word forms are folded ("reconciled" finds "reconciliation")
+  //   stop       a word that carries no meaning counts a tenth
+  //   exclusion  "not at X", "other than X": records that say X are left out
+  //   cut        a record under half of its slot's best score is left out
+  // Measured: no gain and no loss in the right record leading (+12 -11 of
+  // 178, p = 1.0), so it is OFF by default and here to be switched on.
+  match:
+    | "plain"
+    | { stem: boolean; stop: boolean; exclusion: boolean; cut: boolean };
+  // Whether the terms a model wrote for the person's own records are matched
+  // (ANNOTATORS). Only a pack prepared with `annotate` has any, so this does
+  // nothing until a person opts in there. Measured: +3 -0 under plain
+  // matching (p = 0.25), +5 -0 under version 2 (p = 0.06): suggestive.
+  terms: boolean;
+  // Whether what the person ANSWERED and PROMISED in an earlier stage is
+  // offered beside what was asked and signalled there (the `answered` and
+  // `commitments` slots). The briefing always has them. Measured: +19 -0 of
+  // 178 (p < 0.001).
+  said: boolean;
+};
+// Selection exactly as recipe version 3 made it before any of this.
+export const LEGACY_FLAGS: PackFlags = {
+  match: "plain",
+  terms: false,
+  said: false,
+};
+// The engine's measured version 2, whole: what a row is given to switch it on.
+export const MEASURED_MATCH: Exclude<PackFlags["match"], "plain"> = {
+  stem: true,
+  stop: true,
+  exclusion: true,
+  cut: true,
+};
+const ASKED: PackFlags = { match: "plain", terms: true, said: true };
+export const PACK_FLAGS: Readonly<Record<ProjectionId, PackFlags>> = {
+  coach: ASKED,
+  answer: ASKED,
+  inspect: ASKED,
+  // Read with no question: there is nothing to match, and a briefing has what
+  // was said by its own slots.
+  document: LEGACY_FLAGS,
+  briefing: LEGACY_FLAGS,
+};
+export const flagsFor = (
+  projection: ProjectionId,
+  over: Partial<PackFlags> = {},
+): PackFlags => ({ ...PACK_FLAGS[projection], ...over });
+
+const SAID_SLOTS: ReadonlySet<string> = new Set(["answered", "commitments"]);
+const selecting = new Map<string, Recipe>();
+// [STRATEGY] The recipe a projection SELECTS with under its flags: the same
+// kinds, link steps and projections as the recipe the pack was prepared with
+// (so one prepared pack serves every row of the table), with the engine's
+// matching and the slots as the flags say.
+export function selectingRecipe(flags: PackFlags): Recipe {
+  const key = JSON.stringify(flags);
+  const held = selecting.get(key);
+  if (held) return held;
+  const { match } = flags;
+  const recipe: Recipe = {
+    ...CODE_ONLY_RECIPE,
+    ...(match === "plain"
+      ? {}
+      : {
+          match: {
+            version: 2 as const,
+            ...(match.stem ? {} : { stem: false as const }),
+            ...(match.stop ? {} : { stop: false as const }),
+            ...(match.exclusion ? {} : { exclusion: false as const }),
+            ...(match.cut ? {} : { cut: false as const }),
+          },
+        }),
+    projections: CODE_ONLY_RECIPE.projections.map((projection) => ({
+      ...projection,
+      slots: projection.slots
+        // The briefing reads what was said whatever the flag says.
+        .filter(
+          (slot) =>
+            flags.said ||
+            projection.id === PROJECTIONS.briefing ||
+            !SAID_SLOTS.has(slot.id),
+        )
+        .map((slot) =>
+          // [DOMAIN] Under version 2 a tie only ever orders achievements
+          // that match the question equally: which tie leads is decided in
+          // pack.ts, by whose tie it is (the person's own before a model's).
+          slot.id === "evidence" && match !== "plain"
+            ? { ...slot, rank: { support: false as const } }
+            : // [DOMAIN] A story is chosen by the person for a KIND of
+              // question, and choosing one widens the search to its
+              // employer. A model's guess at what a story might be asked as
+              // is too weak a reason for that: a story is found by its own
+              // words only.
+              slot.id === "stories" && flags.terms
+              ? { ...slot, rank: { terms: 0 } }
+              : slot,
+        ),
+    })),
+  };
+  selecting.set(key, recipe);
+  return recipe;
+}
+
 // A text as the words the engine matches on (the same split it uses), so
 // what is attached in code and what is matched at selection agree.
 export function wordsOf(text: string): string[] {
@@ -601,8 +746,24 @@ for (const word of "experience experienced background ever approach handle handl
   " ",
 ))
   FILLER.add(word);
-export function keyTerms(spoken: string): string {
-  return wordsOf(spoken)
-    .filter((word) => !FILLER.has(word))
+// [DOMAIN] The phrases the engine reads as an exclusion ("an example that is
+// NOT AT Larchmont", "OTHER THAN payments"). Their second word is filler
+// anywhere else; after the first it is what makes the phrase, so it is kept
+// when the engine is to read exclusions (`exclusions`).
+const EXCLUDES: Readonly<Record<string, string>> = {
+  not: "at",
+  other: "than",
+  except: "for",
+  apart: "from",
+  aside: "from",
+};
+export function keyTerms(spoken: string, exclusions = false): string {
+  const words = wordsOf(spoken);
+  return words
+    .filter(
+      (word, at) =>
+        !FILLER.has(word) ||
+        (exclusions && EXCLUDES[words[at - 1] ?? ""] === word),
+    )
     .join(" ");
 }

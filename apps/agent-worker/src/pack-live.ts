@@ -36,14 +36,21 @@ export const LIVE_PROFILES = [
   "openrouter",
   "lm-studio",
 ] as const;
+// Free routes come and go: these were listed free on 2026-10-10 (the public
+// catalogue, https://openrouter.ai/api/v1/models, ids ending ":free").
 const OPENROUTER_FREE = [
-  "meta-llama/llama-3.3-70b-instruct:free",
-  "google/gemma-3-27b-it:free",
-  "mistralai/mistral-small-3.2-24b-instruct:free",
-  "qwen/qwen3-coder:free",
+  "google/gemma-4-31b-it:free",
+  "google/gemma-4-26b-a4b-it:free",
+  "nvidia/nemotron-3-super-120b-a12b:free",
 ];
 const LM_STUDIO_MODEL = "qwen/qwen2.5-coder-14b";
-export async function liveEngine(asked: string): Promise<{
+export async function liveEngine(
+  asked: string,
+  // For an agent runtime: another model of the same runtime ("haiku",
+  // "sonnet"), and how many turns one call may take (each lookup of a pack
+  // offered as tools is a turn).
+  agentOptions: { model?: string; maximumTurns?: number } = {},
+): Promise<{
   engine: AiEngine;
   profile: string;
   onDevice: boolean;
@@ -78,13 +85,22 @@ export async function liveEngine(asked: string): Promise<{
           id,
           provider: "agent",
           kind: "agent",
-          model: agent.model,
+          model: agentOptions.model ?? agent.model,
           // Claude Code and Codex read a whole source in one call.
           window: AGENT_WINDOW,
         },
         createAgentModelPort({
           runtime,
-          profiles: { [id]: { ...agent, id: `pack-bench-${agent.id}` } },
+          profiles: {
+            [id]: {
+              ...agent,
+              id: `pack-bench-${agent.id}`,
+              ...(agentOptions.model ? { model: agentOptions.model } : {}),
+              ...(agentOptions.maximumTurns
+                ? { maximumTurns: agentOptions.maximumTurns }
+                : {}),
+            },
+          },
           toolless: true,
         }),
       ),

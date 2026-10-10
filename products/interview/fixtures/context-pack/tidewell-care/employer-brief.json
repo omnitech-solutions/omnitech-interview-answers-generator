@@ -1,0 +1,99 @@
+{
+  "company": "Tidewell Care",
+  "role": "Principal Engineer, Scheduling Core",
+  "summary": "Principal individual contributor for the Scheduling Core team: sets technical direction for the booking engine and the waitlist, keeps bookings correct under load, leads the design of waitlist backfill, and works with Integrations on HL7 and FHIR interfaces to clinic record systems. No direct reports; mentors across two teams and shares on-call.",
+  "team": "Scheduling Core owns the booking engine, slot availability, the waitlist and the rules for who is offered a freed slot. Integrations, the sister team, owns connections to clinic record systems. A team of 8 engineers, a product manager and a designer.",
+  "interviewFormat": "Technical panel with Ciaran Delahunt, Niamh Abara, Seun Adeyemi-Clarke and Petra Vondrak, Tue May 19 2026, 14:00 Irish time: systems you have built, then system design on waitlist backfill. Before it a recruiter screen; after it a director round of 45 minutes. No AI assistants in live interviews.",
+  "companyFacts": [
+    "Runs appointment scheduling for 1,900 clinics across Ireland and the UK",
+    "Patients book about 11 million appointments a year through Tidewell",
+    "Sends 26 million appointment reminders a year",
+    "Connects to 14 clinic record systems",
+    "Series C, 260 employees, headquartered in Dublin",
+    "Began in 2016 as a reminder service for physiotherapy practices",
+    "Products cover booking, waitlists, reminders and clinician rotas",
+    "Customers are private clinic groups and community health networks"
+  ],
+  "values": [
+    "PATIENTS WAIT LESS: every decision is judged by time to care",
+    "DO NOT BREAK THE DAY: clinics trust us with their day",
+    "WRITE IT DOWN: decisions are kept in writing",
+    "FIX THE CAUSE: not the symptom",
+    "KIND AND DIRECT: say what is true, with care"
+  ],
+  "mustHaves": [
+    "8+ years building backend services, with recent work at staff or principal level",
+    "Go or a JVM language in production; the team writes Go",
+    "PostgreSQL at scale: locking, constraints and migrations of live data",
+    "A clear account of how concurrent writes are kept correct",
+    "HL7 v2 and FHIR R4 interfaces with EHR systems",
+    "Event streaming with Kafka, including ordering and replay",
+    "Kubernetes in production",
+    "SSO for clinic staff (SAML or OIDC)",
+    "Rota or shift-scheduling problems; OR-Tools is used for clinician rotas",
+    "Operational ownership: SLOs, on-call and incident reviews",
+    "Careful handling of PHI under GDPR, with audit trails",
+    "Leading without line management: design reviews, mentoring, written decisions"
+  ],
+  "niceToHaves": [
+    "Healthcare scheduling domain experience",
+    "SMS and voice reminders at scale",
+    "Temporal or another workflow engine",
+    "Experience retiring a monolith without a rewrite"
+  ],
+  "techStack": [
+    "Go",
+    "Kubernetes",
+    "AWS",
+    "PostgreSQL 15",
+    "Kafka",
+    "Redis",
+    "Temporal",
+    "OR-Tools",
+    "React",
+    "TypeScript",
+    "Terraform",
+    "GitHub Actions",
+    "OpenTelemetry",
+    "Grafana",
+    "HL7 v2",
+    "FHIR R4"
+  ],
+  "responsibilities": [
+    "Set technical direction for the booking engine and the waitlist",
+    "Keep bookings correct under load: a slot is never given to two patients",
+    "Lead the design of waitlist backfill so a cancelled slot reaches the next eligible patient quickly and fairly",
+    "Work with Integrations on HL7 and FHIR interfaces to clinic record systems",
+    "Finish moving booking writes from the older Ruby application into Go services",
+    "Define service level objectives for booking and hold the team to them",
+    "Lead design reviews and keep decisions written down",
+    "Mentor senior and staff engineers across two teams",
+    "Share on-call for Scheduling Core"
+  ],
+  "prepNotes": [
+    "Round: technical panel, Tue May 19, 14:00 Irish time; Ciaran Delahunt, Niamh Abara, Seun Adeyemi-Clarke, Petra Vondrak; past systems, then system design on waitlist backfill; judges reasoning about failure modes.",
+    "Tell me about yourself: 17 years; booking, scheduling and integration work in health; principal at Lanternfield Health, 2.4 million appointments a year; before that the Wrenfield Clinics migration and Quillmere Labs.",
+    "Why Tidewell: the same problem at about five times the scale; scheduling and record-system integration side by side; waitlist and rota work in one place.",
+    "Double booking: Lanternfield Health, keys on the write path plus a database constraint; backup Brackenridge Hotels, the inventory row lock; never trust a client to send a request once.",
+    "HL7 and FHIR: Quillmere Labs first, the result router; then Lanternfield Health, six record systems behind one adapter contract.",
+    "Kubernetes: Wrenfield Clinics, the move off hand-built machines; Lanternfield Health for running it day to day.",
+    "Single sign-on: Wrenfield Dental Group, directory accounts for front-desk staff; say plainly it was one identity provider.",
+    "Rota and OR-Tools: Calderwick Rota, the roster generator; hard rules never broken, soft rules scored; I have not used OR-Tools itself.",
+    "Kafka and ordering: Quillmere Labs, the replayable result log; Wrenfield Clinics reminders; key by patient so one patient's events stay in order.",
+    "Migration: Wrenfield Clinics, 212 clinics in nine waves, dual run, parity report; contrast Wrenfield Dental Group, 38 practices in one weekend, and what that taught me.",
+    "Failure: Wrenfield Dental Group weekend cutover; 600 hygienist slots double-booked, 1.3% manual fixes; own it, then the wave rule.",
+    "Conflict: Wrenfield Clinics; the head of clinical operations wanted no cutovers in flu season; agreed freeze windows and a rollback rule instead of a three-month stop.",
+    "Deadline: Quillmere Labs; ten weeks to the critical-result rule; cut two report formats, kept the alert path; three days to spare.",
+    "Reminders and no-shows: Wrenfield Clinics, 11.5% to 9.4%; Pendlecross Pharmacy, forty percent fewer uncollected prescriptions; consent and quiet hours first.",
+    "On-call and SLOs: Lanternfield Health; 99.95% booking availability; pager one week in six; the error budget decides whether features or fixes ship.",
+    "PHI and audit: Corbel Mutual audit trail; Lanternfield Health access logs per field; least data in events. Answer shape: context, my part, decision, trade-off, result; two minutes."
+  ],
+  "questionsToAsk": [
+    "Which part of Scheduling Core would this role own first: the booking engine, availability or the waitlist?",
+    "How much of the booking write path still runs in the Ruby application, and what decides the order it moves?",
+    "How do Scheduling Core and Integrations agree a contract when both need to change it?",
+    "What does fairness mean for the waitlist today, and who decides it?",
+    "What does a bad on-call week look like at the moment?",
+    "What would make you say, six months in, that this hire worked?"
+  ]
+}

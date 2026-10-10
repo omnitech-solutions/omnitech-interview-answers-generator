@@ -2265,6 +2265,9 @@ describe("the projection view (ADR-0038)", () => {
       // What a stage's transcript gives, once a model has read one.
       "asked",
       "signals",
+      // What the person answered and promised there (PackFlags.said).
+      "answered",
+      "commitments",
       // After the slots whose ties it follows.
       "evidence",
       "roles",

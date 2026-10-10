@@ -54,11 +54,48 @@
 //   --from T --to T   the stretch to replay (HH:MM:SS of the file's clock)
 //   --timing          decisions only, no model
 //   --latency S       with --timing: how long the absent model takes (default 4)
-//   --runtime claude|codex    who writes the notes (default claude)
+//   --runtime claude|codex|scripted    who writes the notes (default claude).
+//                     scripted: no model. Each note cites the first fact of a
+//                     role the coach was given, after --latency seconds of the
+//                     file's clock (stepped by hand, as --timing is, so the
+//                     run is the same every time and --speed is not used)
 //   --speed N         N times faster than it was said (default 1). Above 1 a
 //                     model's delay looks N times longer than it is.
 //   --studio          also show the notes in the running Studio's notes pane,
 //                     as replay notes: kept apart from your own, in memory
+//
+// The person's material, and what the notes SAY
+//   --transcript FILE the transcript, named instead of given first
+//   --matrix FILE --brief FILE    the person's experience matrix and the
+//                     employer brief (or an application row holding one under
+//                     `employer_brief`). Given, the coach draws its facts from
+//                     the context pack's coach projection exactly as the live
+//                     coach does (coach/context.ts), as a REMOTE reader: a
+//                     device-only source is withheld
+//   --application FILE    the application: stages, employerSaid, research. A
+//                     transcript may name its words by "textFile", a path from
+//                     that file's folder
+//   --preferences FILE    the person's preferences, as lines of text
+//   --kept FILE       a pack a model prepared earlier (a `Prepared`), read
+//                     with today's material wherever its sources still stand
+//   --stage N         the stage of the application the call is
+//   --within S        a note's first line is in time when it is on screen
+//                     this many seconds after the question's last word
+//                     (default 10)
+//   --private         treat the run as one on a person's own files (below)
+// Every path may be absolute, under ~, from where the command runs, or from
+// the repository's root. With material (or an expected file that names
+// `evidence`), each question's note is scored: which employers its verified
+// claims belong to, whether the pack offered an accepted employer's fact at
+// all, and the figures and employer names it states that nobody gave it
+// (coach-notes-score.ts).
+//
+// [SAFETY] A person's own files. When one of these flags is given and the
+// transcript, the plan, the expected file or any material file is OUTSIDE the
+// repository, what is printed (without --trace) and what is kept hold ids,
+// pointers, counts, clock times and scores only: never the words of a note, a
+// fact, a question or a line, and never a speaker's name. The result is then
+// kept only under .dev-local/ or outside the repository.
 //
 // Nothing is kept: the transcript and the notes of a replay live in this
 // process, unless --studio is given. With no part named for any label and a
@@ -69,9 +106,11 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   writeFileSync,
 } from "node:fs";
-import { resolve } from "node:path";
+import { homedir } from "node:os";
+import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
@@ -84,15 +123,30 @@ import { resolveAgentProfiles } from "@omnitech/platform-runtime/ai-config";
 import {
   type Cast,
   type CoachEvent,
+  type CoachFact,
   type CoachPorts,
   castBlocks,
   createCoach,
+  createCoachContextFrom,
+  type ReplayMaterial,
+  ReplayMaterialError,
+  readReplayMaterial,
   readTranscript,
   type SpeakerRole,
   speakersOf,
   turnsOf,
 } from "@omnitech/product-interview/session-worker";
 import { coachApi } from "./coach-loop";
+import {
+  expectationOf,
+  type NoteScore,
+  type NoteTotals,
+  scoreNote,
+  scriptedReply,
+  totalsLine,
+  totalsOf,
+  verifiedSources,
+} from "./coach-notes-score";
 import { workerEngineLog } from "./engine-trace";
 import { agentEnvironment } from "./main";
 
@@ -120,6 +174,14 @@ const VALUED = new Set([
   "--endpoint",
   "--endpoint-kind",
   "--label",
+  "--transcript",
+  "--matrix",
+  "--brief",
+  "--application",
+  "--preferences",
+  "--kept",
+  "--stage",
+  "--within",
 ]);
 const all = (name: string): string[] =>
   args.flatMap((arg, at) =>
@@ -130,19 +192,46 @@ const has = (name: string) => args.includes(name);
 const bench = all("--bench").at(-1);
 const fixture = (part: string) =>
   fileURLToPath(new URL(`../fixtures/calls/${bench}/${part}`, import.meta.url));
-const one = (name: string) =>
-  all(name).at(-1) ??
-  (bench === undefined
+// [DOMAIN] Where a named file is. `pnpm --filter … exec` runs in this
+// package's folder, so a path that is neither absolute, nor under the home
+// folder, nor there from where the command runs is read from the
+// repository's root (as scripts/pack-bench.ts reads its own).
+const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
+const locate = (given: string): string => {
+  const expanded = given.replace(/^~(?=\/)/, homedir());
+  return isAbsolute(expanded) || existsSync(expanded)
+    ? expanded
+    : resolve(ROOT, expanded);
+};
+const one = (name: string) => {
+  const given = all(name).at(-1);
+  if (given !== undefined)
+    return name === "--expect" || name === "--plan" ? locate(given) : given;
+  return bench === undefined
     ? undefined
     : name === "--expect"
       ? fixture("expected.json")
       : name === "--plan" && existsSync(fixture("plan.md"))
         ? fixture("plan.md")
-        : undefined);
-const file =
+        : undefined;
+};
+// A file named by a flag of its own, whole (a path may hold a comma).
+const pathAt = (name: string) => {
+  const at = args.lastIndexOf(name);
+  const given = at === -1 ? undefined : args[at + 1];
+  return given === undefined ? undefined : locate(given);
+};
+const given =
+  pathAt("--transcript") ??
   args.find(
     (arg, at) => !arg.startsWith("--") && !VALUED.has(args[at - 1] ?? ""),
-  ) ?? (bench === undefined ? undefined : fixture("transcript.txt"));
+  );
+const file =
+  given === undefined
+    ? bench === undefined
+      ? undefined
+      : fixture("transcript.txt")
+    : locate(given);
 if (!file) {
   console.error("Give the transcript file. See the top of coach-replay.ts.");
   process.exit(1);
@@ -158,6 +247,84 @@ const clockMs = (text: string | undefined) => {
 };
 const short = (text: string, length = 96) =>
   text.length <= length ? text : `${text.slice(0, length - 1)}…`;
+
+// ---- The person's material, and whose files these are -------------------------
+
+const materialFiles = {
+  matrix: pathAt("--matrix"),
+  brief: pathAt("--brief"),
+  application: pathAt("--application"),
+  preferences: pathAt("--preferences"),
+  kept: pathAt("--kept"),
+};
+const stageGiven = all("--stage").at(-1);
+// [GUARD] A pack is prepared from the person's record and the employer's
+// brief together: a part of the material without both is refused, never
+// replayed as though nothing had been given.
+if (
+  (Object.values(materialFiles).some((each) => each !== undefined) ||
+    stageGiven !== undefined) &&
+  !(materialFiles.matrix && materialFiles.brief)
+) {
+  console.error("The person's material needs --matrix and --brief together.");
+  process.exit(2);
+}
+if (stageGiven !== undefined && !/^[1-9]\d*$/.test(stageGiven)) {
+  console.error("--stage is the stage's place: 1, 2, 3…");
+  process.exit(2);
+}
+const real = (path: string) => {
+  try {
+    return realpathSync(path);
+  } catch {
+    return resolve(path);
+  }
+};
+const inside = (folder: string, path: string) => {
+  const from = relative(real(folder), real(path));
+  return from === "" || (!from.startsWith("..") && !isAbsolute(from));
+};
+// [SAFETY] A person's own files: a run that reads any file from outside the
+// repository says and keeps ids, pointers, counts, clock times and scores,
+// and never what was said or written. It holds for every run given one of
+// the flags above; a replay with none of them prints as it always has.
+const outside = [
+  file,
+  one("--expect"),
+  one("--plan"),
+  ...Object.values(materialFiles),
+].some((each) => each !== undefined && !inside(ROOT, each));
+const guarded =
+  has("--private") ||
+  (outside &&
+    [
+      "--transcript",
+      "--matrix",
+      "--brief",
+      "--application",
+      "--preferences",
+      "--kept",
+      "--stage",
+      "--within",
+    ].some(has));
+
+const resultsGiven = all("--results")
+  .at(-1)
+  ?.replace(/^~(?=\/)/, homedir());
+// [SAFETY] A person's own call is scored into .dev-local/ (which is never
+// committed) or somewhere outside the repository: nowhere it could be added
+// to a commit by accident. Refused before anything is replayed.
+if (
+  guarded &&
+  resultsGiven &&
+  inside(ROOT, resultsGiven) &&
+  !inside(resolve(ROOT, ".dev-local"), resultsGiven)
+) {
+  console.error(
+    "A person's own call is kept under .dev-local/ or outside the repository: choose another --results.",
+  );
+  process.exit(2);
+}
 
 let source = "";
 try {
@@ -175,7 +342,10 @@ const speakers = speakersOf(blocks);
 const listSpeakers = () => {
   for (const each of speakers)
     console.log(
-      `  ${(each.label || "(no label)").padEnd(14)} ${String(each.words).padStart(6)} words in ${String(each.blocks).padStart(4)} pieces   "${short(each.sample, 70)}"`,
+      `  ${(each.label || "(no label)").padEnd(14)} ${String(each.words).padStart(6)} words in ${String(each.blocks).padStart(4)} pieces${
+        // The labels are what is asked for; a first sentence is what was said.
+        guarded ? "" : `   "${short(each.sample, 70)}"`
+      }`,
     );
 };
 if (has("--speakers")) {
@@ -251,7 +421,12 @@ if (heard.length === 0) {
 // ---- The replay -------------------------------------------------------------
 
 const timingOnly = has("--timing");
-const speed = timingOnly ? 1 : Math.max(1, Number(one("--speed") ?? "1") || 1);
+// [DOMAIN] Notes written by a script, not a model: the whole path from the
+// facts to a scored note runs with nothing called, the same every time.
+const scripted = !timingOnly && one("--runtime") === "scripted";
+// Neither waits on a model, so both step the file's clock by hand.
+const stepped = timingOnly || scripted;
+const speed = stepped ? 1 : Math.max(1, Number(one("--speed") ?? "1") || 1);
 const first = (heard[0] as (typeof heard)[number]).endMs - 1_000;
 const last = (heard.at(-1) as (typeof heard)[number]).endMs;
 
@@ -260,7 +435,7 @@ const last = (heard.at(-1) as (typeof heard)[number]).endMs;
 let now = first;
 const wallStart = Date.now();
 const fileNow = () =>
-  timingOnly ? now : first + (Date.now() - wallStart) * speed;
+  stepped ? now : first + (Date.now() - wallStart) * speed;
 
 let seq = 0;
 const lines: CoachTranscriptLine[] = [];
@@ -458,6 +633,88 @@ const silent = {
   },
 } as unknown as Pick<AiEngine, "stream">;
 
+// ---- The facts the coach is given -------------------------------------------
+
+let material: ReplayMaterial | undefined;
+if (materialFiles.matrix && materialFiles.brief)
+  try {
+    material = readReplayMaterial({
+      ...materialFiles,
+      matrix: materialFiles.matrix,
+      brief: materialFiles.brief,
+      ...(stageGiven === undefined ? {} : { stage: Number(stageGiven) }),
+    });
+  } catch (error) {
+    // [SAFETY] Which file was wrong, never what it holds.
+    console.error(
+      error instanceof ReplayMaterialError
+        ? error.message
+        : "The person's material could not be read.",
+    );
+    process.exit(1);
+  }
+// The session a replay with material is heard in: what makes the coach ask
+// for its facts at all (coach.ts), under the scope a replay always had.
+const SESSION = {
+  tenantId: "local",
+  actorId: "coach-replay",
+  sessionId: "coach-replay",
+};
+// What the coach was given for the turn it is on: why it acted, how far it
+// had heard, and the facts its context selected. One call runs at a time, so
+// the turn in hand is the last one acted on.
+type Turn = { reason: string; until: number; facts: CoachFact[] };
+let turn: Turn = { reason: "", until: 0, facts: [] };
+// [STRATEGY] The live coach's own context, given the material from files in
+// place of the database: the pack is prepared, read as a remote reader and
+// resolved under the coach projection by the one path every coach takes
+// (coach/context.ts). All the replay adds is a note of what came back.
+const context = (() => {
+  if (!material) return undefined;
+  const { context: session, kept } = material;
+  const own = createCoachContextFrom(
+    createAiEngine({ profiles: [], providers: {}, log: { level: "silent" } }),
+    async () => ({ context: session, kept }),
+    // The files do not change while they are replayed: prepared once.
+    () => 0,
+  );
+  return {
+    facts: async (...asked: Parameters<typeof own.facts>) => {
+      const mine = turn;
+      const facts = await own.facts(...asked);
+      mine.facts = facts;
+      return facts;
+    },
+  };
+})();
+
+// [DOMAIN] The scripted note-writer: after as long as a model takes on the
+// file's clock, one note built from the facts the coach was given for the
+// turn (coach-notes-score.ts). A call the interviewer talks over is cancelled
+// and made again, as a model's is.
+const script = {
+  async *stream(_input: unknown, execution: { signal: AbortSignal }) {
+    const mine = turn;
+    await new Promise<void>((go) => {
+      pending.push({ atMs: now + latencyMs, go });
+      execution.signal.addEventListener("abort", () => go(), { once: true });
+    });
+    if (execution.signal.aborted) {
+      yield { type: "cancelled" };
+      return;
+    }
+    yield { type: "text", text: scriptedReply(mine) };
+    yield { type: "done", value: null };
+  },
+} as unknown as Pick<AiEngine, "stream">;
+
+function scriptEngine(): Pick<AiEngine, "stream"> {
+  console.log(
+    "Notes by a script (no model): each cites the first fact of a role the coach was given.",
+  );
+  return script;
+}
+
 let runtime: ReturnType<typeof agentRuntime> | undefined;
 function modelEngine(): Pick<AiEngine, "stream"> {
   const chosen = one("--runtime") === "codex" ? "codex" : "claude-code";
@@ -517,7 +774,11 @@ const acted = new Map<string, Acted>();
 // Every act, in order (a turn answered again is another act), and the notes
 // as they finally read, by the key the window knows them by.
 let actions = 0;
-const notes = new Map<string, { atMs: number; note: CoachNoteInput }>();
+const notes = new Map<
+  string,
+  // With the turn the note was last written for: its facts, how far was heard.
+  { atMs: number; note: CoachNoteInput; turn: Turn }
+>();
 const firstLines: number[] = [];
 let silences = 0;
 let lastAct: { atMs: number; noted: boolean } | undefined;
@@ -536,6 +797,8 @@ type ActRecord = {
   recalled?: boolean;
   silent?: boolean;
   failed?: boolean;
+  // What the coach was given for it.
+  given: Turn;
 };
 const records: ActRecord[] = [];
 const trace = has("--trace");
@@ -553,7 +816,7 @@ function onEvent(event: CoachEvent) {
     const stretch = lines.filter(
       (line) => line.seq >= event.from && line.seq <= event.until,
     );
-    const turn = turnsOf(stretch).findLast((each) =>
+    const spoken = turnsOf(stretch).findLast((each) =>
       event.reason === "answer-check"
         ? each.side === "candidate"
         : each.side === "interviewer",
@@ -563,16 +826,23 @@ function onEvent(event: CoachEvent) {
       endedMs: ended,
       reason: event.reason ?? "",
     });
+    turn = { reason: event.reason ?? "", until: event.until, facts: [] };
     records.push({
       atMs: event.atMs,
       reason: event.reason ?? "",
       key: event.key,
-      turn: turn?.text ?? "",
+      turn: spoken?.text ?? "",
       endedMs: ended,
+      given: turn,
     });
     say(
       event.atMs,
-      `ACT    ${(event.reason ?? "").padEnd(17)} ${wait(event.atMs - ended)} after "${short(turn?.text ?? "", 110)}"`,
+      `ACT    ${(event.reason ?? "").padEnd(17)} ${wait(event.atMs - ended)} after ${
+        // [SAFETY] A person's own call: where the turn is, never its words.
+        guarded
+          ? `lines ${event.from} to ${event.until} (${(spoken?.text ?? "").split(/\s+/).filter(Boolean).length} words)`
+          : `"${short(spoken?.text ?? "", 110)}"`
+      }`,
     );
   } else if (event.what === "recall") {
     counts["recall"] = (counts["recall"] ?? 0) + 1;
@@ -661,13 +931,16 @@ function traced(engine: Pick<AiEngine, "stream">): Pick<AiEngine, "stream"> {
 
 const coach = createCoach(
   {
-    engine: timingOnly ? silent : traced(modelEngine()),
+    engine: timingOnly
+      ? silent
+      : traced(scripted ? scriptEngine() : modelEngine()),
     profileId: "coach",
     transcript: {
       since: async (after) => ({
         epoch: "replay",
         cursor: seq,
         lines: lines.filter((line) => line.seq > after),
+        ...(context ? { session: SESSION } : {}),
         ...(endpoint
           ? { speaking: endpointSays }
           : activity
@@ -698,11 +971,13 @@ const coach = createCoach(
         notes.set(note.key ?? "", {
           atMs: notes.get(note.key ?? "")?.atMs ?? fileNow(),
           note,
+          turn,
         });
         await studio?.notes.post(note, signal, "replay");
       },
     },
     ...(planText ? { plan: async () => planText } : {}),
+    ...(context ? { context } : {}),
     scope: { tenantId: "local", actorId: "coach-replay" },
     nowMs: fileNow,
     onEvent,
@@ -719,14 +994,27 @@ const coach = createCoach(
 const stop = new AbortController();
 process.once("SIGINT", () => stop.abort());
 console.log(
-  `Replaying ${clock(first + 1_000)} to ${clock(last)}: ${heard.length} pieces. ${Object.entries(
-    cast,
-  )
-    .map(([label, role]) => `${label || "(no label)"} = ${role}`)
-    .join(", ")}.${
+  `Replaying ${clock(first + 1_000)} to ${clock(last)}: ${heard.length} pieces. ${
+    // [SAFETY] A person's own call: how many of each part, never who.
+    guarded
+      ? (["interviewer", "me", "leave-out", "unknown"] as const)
+          .map(
+            (role) =>
+              [
+                role,
+                Object.values(cast).filter((each) => each === role).length,
+              ] as const,
+          )
+          .filter(([, count]) => count > 0)
+          .map(([role, count]) => `${count} ${role}`)
+          .join(", ")
+      : Object.entries(cast)
+          .map(([label, role]) => `${label || "(no label)"} = ${role}`)
+          .join(", ")
+  }.${
     // A panel: whether the coach is told which interviewer says each line.
     voices.length > 0
-      ? ` The coach is told who speaks: ${voices.join(", ")}.`
+      ? ` The coach is told who speaks: ${guarded ? `${voices.length} interviewers` : voices.join(", ")}.`
       : has("--no-names")
         ? " The coach is not told which interviewer speaks."
         : ""
@@ -742,7 +1030,7 @@ while (fileNow() < end && !stop.signal.aborted) {
   } catch {
     // A failed call was reported as it happened; the replay goes on.
   }
-  if (timingOnly) {
+  if (stepped) {
     now += 200;
     for (const call of pending.splice(0))
       if (call.atMs <= now) call.go();
@@ -754,7 +1042,7 @@ while (fileNow() < end && !stop.signal.aborted) {
       setTimeout(resolve, Math.max(20, 200 / speed)),
     );
 }
-if (!timingOnly)
+if (!stepped)
   await Promise.race([
     coach.idle(),
     new Promise((resolve) => setTimeout(resolve, 60_000)),
@@ -765,6 +1053,18 @@ await runtime?.close?.();
 
 if (!timingOnly)
   for (const { atMs, note } of notes.values()) {
+    // [SAFETY] A person's own call: what kind of note, how long, and how
+    // much of it was verified against the record. Never what it says.
+    if (guarded) {
+      const segments = (note.sections ?? []).flatMap((section) =>
+        section.lines.flatMap((line) => line.segments),
+      );
+      const claims = segments.filter((segment) => segment.role === "evidence");
+      console.log(
+        `${clock(atMs)}  ${note.kind}: ${(note.sections ?? []).reduce((sum, section) => sum + section.lines.length, 0)} lines, ${claims.filter((claim) => claim.grounding === "verified").length} claims verified, ${claims.filter((claim) => claim.grounding !== "verified").length} inferred${verifiedSources(note).length > 0 ? `  ${verifiedSources(note).join(" ")}` : ""}`,
+      );
+      continue;
+    }
     console.log(
       `\n${clock(atMs)}  ${note.kind}: ${note.ask ?? note.title}${note.from ? `  (from ${note.from})` : ""}`,
     );
@@ -824,6 +1124,10 @@ if (one("--expect")) {
       about?: string[];
       // In a panel: the interviewer who asks it.
       from?: string;
+      // The employers whose evidence a right note may draw on. An empty list
+      // (or `nothing`): the material has nothing for it.
+      evidence?: string[];
+      nothing?: boolean;
     }[];
     // Things said that are no question for the candidate.
     quiet?: { id: string; said: string }[];
@@ -837,6 +1141,18 @@ if (one("--expect")) {
     (record) =>
       record.reason !== "answer-check" && record.reason !== "screen-change",
   );
+  // [DOMAIN] What the notes SAY is scored when there is something to score
+  // them against: the person's material, or an expected file that says whose
+  // evidence each question wants. A benchmark with neither is scored on when
+  // the coach acts, as it always was.
+  const scoring =
+    material !== undefined ||
+    has("--within") ||
+    expected.questions.some((question) => expectationOf(question) !== null);
+  const withinS = Math.max(0, Number(one("--within") ?? "10") || 0);
+  const employers = material?.employers ?? [];
+  const scores: (NoteScore | null)[] = [];
+  const inventedItems: string[][] = [];
   const questions = expected.questions.map((question, at) => {
     // The acts on this question: those whose turn is about it and that came
     // before the next question was whole.
@@ -864,6 +1180,40 @@ if (one("--expect")) {
         record.atMs > whole.atMs &&
         (!nextWhole || record.atMs < nextWhole.atMs),
     );
+    // What the candidate waits, end of question to first line.
+    const questionToFirstLineS =
+      whole?.firstLineS === undefined || !whole
+        ? null
+        : (whole.atMs - whole.endedMs) / 1000 + whole.firstLineS;
+    // The note for the whole question, with what the coach was given for the
+    // call that last wrote it; with no note, what it was given when it acted.
+    const written = whole ? notes.get(whole.key) : undefined;
+    const given = written?.turn ?? whole?.given;
+    const scored =
+      scoring && !timingOnly
+        ? scoreNote({
+            note: written?.note,
+            facts: given?.facts ?? [],
+            conversation: lines
+              .filter((line) => line.seq <= (given?.until ?? 0))
+              .map((line) => line.text),
+            plan: planText,
+            expectation: expectationOf(question),
+            employers,
+          })
+        : null;
+    scores.push(
+      scored && {
+        evidence: scored.evidence,
+        invented: scored.invented,
+        right: scored.right,
+      },
+    );
+    inventedItems.push(
+      scored
+        ? [...scored.inventedItems.figures, ...scored.inventedItems.employers]
+        : [],
+    );
     return {
       id: question.id,
       scenario: question.scenario ?? "",
@@ -884,11 +1234,7 @@ if (one("--expect")) {
       // Real seconds from acting to the first and the last line of the note.
       firstLineS: whole?.firstLineS ?? null,
       finalS: whole?.finalS ?? null,
-      // What the candidate waits, end of question to first line.
-      questionToFirstLineS:
-        whole?.firstLineS === undefined || !whole
-          ? null
-          : (whole.atMs - whole.endedMs) / 1000 + whole.firstLineS,
+      questionToFirstLineS,
       nudgesDuringAnswer: after.filter(
         (record) =>
           record.reason === "answer-check" && record.firstLineS !== undefined,
@@ -900,6 +1246,20 @@ if (one("--expect")) {
         (record) =>
           record.reason !== "answer-check" && record.firstLineS !== undefined,
       ).length,
+      ...(scoring
+        ? {
+            acted: whole !== undefined,
+            // The note's first line was on screen within the threshold of
+            // the question's last word. Null: no model wrote notes.
+            inTime: timingOnly
+              ? null
+              : questionToFirstLineS !== null &&
+                questionToFirstLineS <= withinS,
+            // How many facts the coach was given for the turn.
+            factsGiven: given?.facts.length ?? 0,
+            note: scores[at] ?? null,
+          }
+        : {}),
     };
   });
   // [DOMAIN] An act whose turn ends in words that ask the candidate nothing
@@ -918,17 +1278,28 @@ if (one("--expect")) {
   });
   const runtimeName = timingOnly
     ? "timing"
-    : one("--runtime") === "codex"
-      ? "codex"
-      : "claude";
+    : scripted
+      ? "scripted"
+      : one("--runtime") === "codex"
+        ? "codex"
+        : "claude";
   // A run without names is its own benchmark: it is compared with the last
   // run without names, never with one where the coach was told who spoke.
+  const expectFile = one("--expect") as string;
   const name = `${
     bench ??
-    ((one("--expect") as string)
-      .split("/")
-      .at(-1)
-      ?.replace(/\.expected\.json$/, "") as string)
+    // A call kept as a folder ("tidewell-care/call/expected.json") is named
+    // by its folders; a file of its own by its name.
+    (basename(expectFile) === "expected.json"
+      ? `${basename(dirname(dirname(expectFile)))}-${basename(dirname(expectFile))}`
+      : (expectFile
+          .split("/")
+          .at(-1)
+          ?.replace(/\.expected\.json$/, "") as string))
+  }${
+    // A coach given the pack is its own benchmark, and one given a pack a
+    // model prepared another: neither is compared with a coach given a plan.
+    material ? (material.kept ? "+kept" : "+pack") : ""
   }${has("--no-names") ? "-unnamed" : ""}${one("--label") ? `@${one("--label")}` : ""}`;
   // How often a note said who asked, of the questions that have an asker and
   // got a note. Counted only when a model wrote notes.
@@ -977,10 +1348,45 @@ if (one("--expect")) {
     // Whether the coach was told which interviewer spoke each line.
     names: voices.length > 0,
     askers,
-    questions,
+    // [SAFETY] A person's own call: an id and scores for each question, and
+    // whether its note named the right asker. Never a name, and never the
+    // scenario the expected file describes in words.
+    questions: guarded
+      ? questions.map((question) => ({
+          ...question,
+          scenario: "",
+          askedBy: null,
+          notedFrom: null,
+          askerRight:
+            question.askedBy === null || question.notedFrom === null
+              ? null
+              : question.notedFrom === question.askedBy,
+        }))
+      : questions,
     quiet,
+    ...(scoring
+      ? {
+          guarded,
+          withinS,
+          // What the coach was given beside the plan.
+          material: {
+            pack: material !== undefined,
+            application: materialFiles.application !== undefined,
+            preferences: materialFiles.preferences !== undefined,
+            kept: material?.kept !== undefined,
+            stage: stageGiven === undefined ? null : Number(stageGiven),
+          },
+          totals: totalsOf(
+            questions.map((question, at) => ({
+              optional: question.optional,
+              inTime: "inTime" in question ? (question.inTime ?? null) : null,
+              note: scores[at] ?? null,
+            })),
+          ) as NoteTotals,
+        }
+      : {}),
   };
-  const kept = all("--results").at(-1);
+  const kept = resultsGiven;
   const folder = kept
     ? pathToFileURL(`${kept.replace(/\/$/, "")}/`)
     : new URL("../../../.dev-local/benchmarks/", import.meta.url);
@@ -992,10 +1398,12 @@ if (one("--expect")) {
   const previous = earlier
     ? (JSON.parse(readFileSync(new URL(earlier, folder), "utf8")) as Omit<
         typeof result,
-        "askers"
+        "askers" | "totals"
       > & {
         // Absent in a result kept before the coach knew of panels.
         askers?: (typeof result)["askers"];
+        // Absent in a result kept before notes were scored.
+        totals?: NoteTotals;
       })
     : undefined;
   writeFileSync(
@@ -1047,10 +1455,10 @@ if (one("--expect")) {
     );
     row("notes that name nobody", askers.unnamed, previous?.askers?.unnamed);
   }
-  for (const [at, question] of result.questions.entries()) {
+  for (const [at, question] of questions.entries()) {
     const was = previous?.questions[at];
     console.log(
-      `  ${question.id}${question.scenario ? `  (${question.scenario})` : ""}`,
+      `  ${question.id}${question.scenario && !guarded ? `  (${question.scenario})` : ""}`,
     );
     row(
       "  answered as a whole question",
@@ -1065,11 +1473,20 @@ if (one("--expect")) {
     );
     if (question.askedBy !== null && question.firstLineS !== null)
       console.log(
-        `    asked by ${question.askedBy}; the note says ${question.notedFrom ?? "nobody"}${
-          question.notedFrom !== null && question.notedFrom !== question.askedBy
-            ? "   WRONG"
-            : ""
-        }`,
+        guarded
+          ? `    who asked: the note names ${
+              question.notedFrom === null
+                ? "nobody"
+                : question.notedFrom === question.askedBy
+                  ? "the right person"
+                  : "the WRONG person"
+            }`
+          : `    asked by ${question.askedBy}; the note says ${question.notedFrom ?? "nobody"}${
+              question.notedFrom !== null &&
+              question.notedFrom !== question.askedBy
+                ? "   WRONG"
+                : ""
+            }`,
       );
     row("  question end → acting (s)", question.toActS, was?.toActS);
     row(
@@ -1113,6 +1530,42 @@ if (one("--expect")) {
         : ""
     }`,
   );
+
+  // ---- What the notes say -------------------------------------------------
+  if (scoring && "totals" in result && result.totals) {
+    const mark = (value: boolean | null | undefined) =>
+      value === null || value === undefined ? "-" : value ? "yes" : "NO";
+    const cell = (value: string, width: number) => value.padEnd(width);
+    const width = Math.max(
+      10,
+      ...questions.map((question) => question.id.length + 2),
+    );
+    console.log(
+      `\n  NOTES (a first line is in time within ${withinS} s of the question's last word)`,
+    );
+    console.log(
+      `  ${cell("question", width)}${cell("acted", 7)}${cell("first s", 9)}${cell("in time", 9)}${cell("evidence", 10)}${cell("wrong", 7)}${cell("inferred", 10)}${cell("offered", 9)}${cell("invented", 10)}right`,
+    );
+    for (const [at, question] of questions.entries()) {
+      const note = scores[at];
+      const judged = note !== null && note !== undefined && note.right !== null;
+      console.log(
+        `  ${cell(question.id, width)}${cell(mark(question.answeredWhole), 7)}${cell(show(question.questionToFirstLineS), 9)}${cell(mark("inTime" in question ? question.inTime : null), 9)}${cell(judged ? String(note.evidence.accepted) : "-", 10)}${cell(judged ? String(note.evidence.wrong) : "-", 7)}${cell(note ? String(note.evidence.inferred) : "-", 10)}${cell(judged ? mark(note.evidence.offered) : "-", 9)}${cell(note ? String(note.invented.figures + note.invented.employers) : "-", 10)}${mark(note?.right)}`,
+      );
+      // Where the note's claims were verified, and (for a fixture of the
+      // repository) what it stated that nobody gave it.
+      if (note && note.evidence.sources.length > 0)
+        console.log(`    verified against ${note.evidence.sources.join(" ")}`);
+      if (!guarded && (inventedItems[at] ?? []).length > 0)
+        console.log(`    invented: ${(inventedItems[at] ?? []).join(", ")}`);
+    }
+    console.log(
+      "  evidence, wrong: verified claims under an accepted employer's role, and under another's. offered: the facts the coach was given held an accepted employer's.",
+    );
+    if (previous?.totals)
+      console.log(`\n  last run: ${totalsLine(previous.totals)}`);
+    console.log(`\n  TOTALS: ${totalsLine(result.totals)}`);
+  }
 }
 await endpoint?.close?.();
 process.exit(0);

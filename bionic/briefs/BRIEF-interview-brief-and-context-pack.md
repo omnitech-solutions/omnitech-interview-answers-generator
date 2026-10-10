@@ -822,3 +822,343 @@ transcript's words in everything the reader is given.
 **Not proven.** The Postgres store under the put-back of `prepare.ts` (the suites use the memory
 store). A briefing or a document written by a local model still reads as remote: correct, and
 less than it could be given.
+
+## 14. Is the pack worth having? Held-out evaluation, what was adopted, what was dropped (2026-10-10)
+
+**The short answer, for a reader who knows nothing about retrieval.**
+
+1. **Yes for the live coach, and the reason is cost and safety, not a better answer.** Given the
+   pack's few records, a model answered as well as it did given everything (no measured
+   difference on any of four models), at about a twentieth of the material and a little faster.
+   Given nothing it could only say "I have nothing".
+2. **A capable model given the WHOLE material answered at least as well as with the pack.** On
+   Claude Haiku 30 of 40 right against 27; on Codex 16 of 20 against 14; on Claude Sonnet 10 of
+   15 against 10. None of those differences is statistically meaningful at these sizes, and the
+   direction favours the whole material. For a briefing or a document, written once and not
+   against the clock, the pack is not shown to give a better result than the material in the
+   prompt. Say so plainly to anyone who asks.
+3. **One change is proven, and it was found by the new questions, not by the engine's options.**
+   The coach was never given what the person had ANSWERED and PROMISED in an earlier stage. It
+   now is: the right record leads 99 of 178 questions where it led 77, 22 gained and none lost.
+4. **The engine's new ranking (version 2) did not move the number** on questions its authors did
+   not write: 12 gained, 11 lost. It is switchable and off.
+5. **What the pack does that plain word search (BM25) does not** is keep another employer's work
+   out: a wrong employer among the first three achievements for 34 of 116 questions, against 57
+   of 114. On the right record leading the two are level.
+6. **It does not know when it has nothing.** For 28 questions the material cannot answer, it
+   offered matching records for 24. No score separates those from right answers. Nothing was
+   shipped for that.
+
+Everything below was measured on 2026-10-10 on HEAD `21ddaa6` plus this work, by
+`pnpm pack:eval`. The numbers are of an invented benchmark of 224 questions; they are evidence
+about this design, and are not yet evidence about any one person's real material.
+
+### 14.1 The benchmark
+
+| Part | What it is | Where |
+|---|---|---|
+| Two held-out applications | "Tidewell Care" (health scheduling; 10 roles, 93 achievement lines, three stages, a device-only recruiter call, an 88-minute technical panel of 5,709 transcript lines, 7 employer-said entries, 4 research documents) and "Spanforge" (developer tools; 10 roles, 110 lines, a 753-line call, a device-only design round). Invented people, companies and figures. Each plants the hard cases and lists them in `planted.json` | `products/interview/fixtures/context-pack/tidewell-care/`, `spanforge-devtools/` |
+| The long transcript | Written as a scenario (49 exchanges, 12 follow-ups) and RENDERED by code from a seed: fragments, disfluencies, mis-heard names ("fire" for FHIR, "post gress"), other speakers' back-channels, filler stretches. A test fails when the file is not what the scenario renders to | `eval/call-scenario.ts`, `eval/render-call.ts`, `tidewell-care/call/` |
+| The corpus | Each application's pack, prepared ONCE by Claude Code (Sonnet) with the product's own preparation and kept beside the sources (`kept-pack.json`): 229 and 196 model-written records with verified quotes, their ties, and search terms for 153 and 170 of the person's records. Every arm selects from the same records | `pnpm pack:eval --freeze APP` |
+| 224 questions, 23 categories | Written by the Codex CLI (a different model family from the ones judged), which was shown only the sources and the records, never the recipe or any code. Gold is record ids with a grade (2 answers, 1 supports), the facts a right answer states, the employers it may draw on, and phrases that must be absent. At least 8 per category; 28 that nothing answers (18 unanswerable, 10 off-topic); 10 device-only with 10 paired positives; 8 stale | `fixtures/context-pack/held-out/questions.json`, `generation-prompt.txt`, `write-questions.sh` |
+| The gold check | In code: every gold record exists in the pack its question is read from; every gold fact and absent phrase is in the sources; a question nothing answers names no record. 0 faults. The set's hash (`c1817af640892e48`, version 1) is pinned by a test | `eval/fixture.ts` (`checkQuestions`) |
+| The development set | The 40 Kestrel questions. A mechanism is tried there first (`pnpm pack:eval --dev`); it is never evidence | unchanged |
+
+The categories: direct, paraphrase with no shared words, multi-hop, two similar employers or one
+first name, temporal, negation, aggregation, unanswerable, off-topic, conflicting sources,
+near-duplicates, a fact across a split boundary, noisy speech-to-text wording, an instruction
+planted in a source, numbers and units, acronyms, very short questions, compound questions,
+follow-ups, device-only (must be absent for a remote reader) with its paired positive, a stale
+pack, stage carry-forward.
+
+**Three levels, one command each.**
+
+| Command | What it measures | Model |
+|---|---|---|
+| `pnpm pack:eval --retrieval` | What each arm SELECTS, against gold records: right first, MRR, Recall@1/3/5, nDCG@10, wrong employer in the first three, giving nothing when nothing answers, device-only kept, stale kept, separation, records, characters, time. Wilson intervals; paired gained and lost with McNemar's exact p | none |
+| `pnpm pack:eval --answers --model M` | What a model ANSWERS given each arm's context, scored in code. Cached by question, arm, model and prompt hash under `.dev-local/benchmarks/pack-eval/answers/`, so a run resumes | live, or `scripted` |
+| `pnpm pack:eval --coach` | The live coach replayed on the long call with the pack, each note scored | `scripted`, or `--runtime claude` |
+
+Also `--dev` (the Kestrel sweep), `--show ID` (what the arms select for one question), `--check`
+(the gold), `--arm`, `--sample`, `--parallel`, `--category`. A kept result carries the harness
+version and the hashes of the question set, of each kept pack and of the flags, and is compared
+only with the last run of the same questions. The gate (`eval/retrieval.test.ts`, in the normal
+suite, about 8 seconds) holds thresholds on the adopted selection and proves that three
+selectors broken on purpose fail it: one that does not rank (fails right-first), one that does
+not withhold a device-only source (fails device-only), one that reads a source as it was before
+its edit (fails stale).
+
+### 14.2 The baseline, kept before anything was adopted
+
+The coach projection, 224 questions, of which 178 have a gold record to lead.
+
+| Measure | Recipe 3 as it was | BM25 over the same records | Everything (no selection) |
+|---|---|---|---|
+| Right record first | 77 of 178 (43%, 36 to 51) | 83 of 175 (47%) | not ranked |
+| MRR | 0.508 (0.441 to 0.573) | 0.526 | |
+| Recall@1, @3, @5 | 0.33, 0.474, 0.516 | 0.478 at 3 | 1.0 |
+| nDCG@10 | 0.490 | 0.506 | |
+| Wrong employer in the first three | 34 of 116 (29%) | 57 of 113 (50%) | |
+| Gives nothing when nothing answers | 5 of 28 | 5 of 28 | |
+| Device-only kept from a remote reader | 10 of 10 | 10 of 10 | 10 of 10 |
+| Device-only found on the person's own screen | 4 of 10 | 4 of 10 | 10 of 10 |
+| Stale records kept out | 8 of 8 | 8 of 8 | 8 of 8 |
+| Characters handed over (median) | 1,996 | 1,641 | 53,411 (largest 105,102) |
+| Resolve time (median, p95) | 2.8 ms, 6.2 ms | 3.4 ms | |
+
+The fixture's 24 of 28 (86%) was a score on the questions the rules were written for. On
+questions nobody tuned for, recipe 3 led with the right record 43% of the time, level with BM25.
+
+**What the per-category counts showed** (counts, not rates; 8 to 12 questions each): 0 of 27
+questions whose answer is something the person SAID in an earlier stage, because the coach had
+no slot for it; paraphrase 1 of 12; follow-ups 0 of 10; noisy wording 2 of 10; negation 2 of 10.
+
+### 14.3 Each iteration
+
+Every step is a paired comparison on the same 178 questions. p is McNemar's exact, two-sided.
+
+| # | Change | Right first | Gained, lost | p | Decision |
+|---|---|---|---|---|---|
+| 0 | Recipe 3 as it was | 77 | | | the baseline |
+| 1 | + the `answered` and `commitments` slots in the coach and answer projections ("what you said and promised before") | 96 | +19, -0 | < 0.001 | **adopted, on** |
+| 2 | + the terms a model writes for the person's records (annotators), under plain matching | 99 | +3, -0 | 0.25 | opt-in: off unless a pack is prepared with `annotate` |
+| 3 | + engine matching version 2 (stemming, stop words, exclusions, cut) on top of 2 | 103 | +13, -9 | 0.52 | **not adopted; switchable, off** |
+| 3a | version 2 on top of 1 (no terms) | 97 | +12, -11 | 1.0 | the same finding without terms |
+| 3b | version 2 alone, on recipe 3 | 78 | +9, -8 | 1.0 | the same |
+| 4 | model terms under version 2 | 97 to 102 | +5, -0 | 0.06 | suggestive; five questions, all one way |
+
+Ablations of "everything on" (103): without stemming 99 (+10 -12 against it, p = 0.83; recall@3
+0.666 to 0.628); without stop words 103 (no question changed: the product already strips
+filler); without exclusions 103 (+1 -1; wrong employer 31 to 33); without the cut 103 (+0 -1;
+characters 2,296 to 2,715, recall@3 0.666 to 0.684); without model terms 99 (+0 -5, p = 0.06);
+without the answered and promised slots 82.
+
+**Tried and dropped, with the number that dropped it** (their code is removed; the runs are kept
+in `.dev-local/benchmarks/pack-eval/ITERATION-*.json`):
+
+| Mechanism | Held-out result | Why dropped |
+|---|---|---|
+| The question passed to the engine as said, in place of the product's filler stripping | -5 (+6 -11); on the development set -3 evidence | The engine's stop words do not hold "experience", "approach" and the like. The product keeps `keyTerms`; an exclusion phrase ("not at X") is kept whole when exclusions are on |
+| A model's tie counted as support by its strength (`rank.support`) in place of the product's tie-break | +0 -1 | No gain. And under version 2 a tie the PERSON made (a note naming its employer) was dropped when anything matched directly: 24 of 28 fell to 18 on the development set until pack.ts put those back (`withNamed`) |
+| A cap of 3 achievements per employer (`rank.cap`) | +0 -0 | The two-role rule already does it |
+| Follow-up carry-over (the previous question's subject) | +1 -0 | One question of ten |
+| Removing the hand-written word-form groups under stemming | +0 -0 | No change either way, so nothing is removed while version 2 is off |
+| A threshold to say "nothing in your material answers this" | see 14.5 | No score separates |
+| The second resolve replaced by a query per slot | not attempted | The story's words are known only after the stories slot is selected: one call cannot carry them |
+
+### 14.4 The final table against the baseline
+
+| Measure | Baseline | Adopted (defaults today) | Change |
+|---|---|---|---|
+| Right record first | 77 of 178 (43%, 36 to 51) | **99 of 178 (56%, 48 to 63)** | +22, -0, p < 0.001 |
+| MRR | 0.508 (0.441 to 0.573) | 0.646 (0.581 to 0.705) | |
+| Recall@3, @5 | 0.474, 0.516 | 0.645, 0.694 | |
+| nDCG@10 | 0.490 (0.426 to 0.552) | 0.627 (0.569 to 0.686) | |
+| Wrong employer in the first three | 34 of 116 | 34 of 116 | 3 new, 3 cured |
+| Gives nothing when nothing answers | 5 of 28 | 4 of 28 | not solved |
+| A false empty (nothing offered though something answers) | 3 of 178 | 1 of 178 | |
+| Device-only kept from a remote reader | 10 of 10 | 10 of 10 | |
+| Device-only found on the person's own screen | 4 of 10 | 10 of 10 | |
+| Stale records kept out | 8 of 8 | 8 of 8 | |
+| Characters handed over (median, p95) | 1,996, 2,668 | 2,613, 3,414 | +31% |
+| Resolve time (median, p95) | 2.8 ms, 6.2 ms | 2.1 ms, 5.3 ms | |
+
+Against BM25 given the same slots (105 of 176 right first): 20 questions the pack wins, 26 it
+loses (p = 0.46), and a wrong employer in the first three for 34 against 57 (32 cured, 9 new,
+p < 0.001). The pack's advantage over plain word search is which employer it offers, not which
+record leads.
+
+**Briefing and document** read their projection with no question, so no ranking option can
+change them, and none did: the briefing hands over 116 records (12,660 characters) holding 30%
+of the gold records, the document 151 records (21,594 characters) holding 45%, before and after.
+Device-only kept 10 of 10 and stale 8 of 8 in both.
+
+On the development set the adopted defaults score what recipe 3 scored: 24 of 28, 23 of 27, 2 of
+28.
+
+### 14.5 Abstention
+
+For the 18 unanswerable questions the best score of anything offered ranged from 3 to 26; for
+right answers it ranged from 2 to 33. "Offer nothing under a score of 4" would catch 14 of 28 and
+lose 7 right answers of 99; under 5, 16 and 18. No threshold separates them, and the engine's
+own benchmark says the same. Off-topic lines (a greeting, "can you hear me") do score low (7 of
+10 under 2, with no right answer lost), and the coach already stays silent on those by its own
+turn policy. **Nothing was shipped.** At the answer level the model itself is the better judge:
+given the pack and asked a question nothing answers, it said so in most cases (14.6).
+
+### 14.6 The answer level: does a model answer better?
+
+The same question, the same instructions, seven kinds of context: (a) nothing; (b) the whole
+material (every record a remote reader may read, the transcript's turns included), cut from the
+end where the model's window is smaller; (c) BM25's records; (d) the pack as it was; (e) the
+pack as adopted; (f) the gold records, as a ceiling; (g) for an agent runtime, the pack offered
+as the engine's three read-only tools. A stratified sample, every category in it.
+
+"Right" is decided in code: an answerable question is right when the model did not abstain,
+stated at least half of the gold facts, cited no achievement of a wrong employer and stated no
+figure or employer that nothing it was given says; a question nothing answers is right when the
+model said so.
+
+| Model (questions) | (a) nothing | (b) whole | (c) BM25 | (d) pack before | (e) pack adopted | (f) gold | (g) tools |
+|---|---|---|---|---|---|---|---|
+| Claude Code, Haiku (40) | 5 | **30** | 23 | 25 | 27 | 30 | 29 |
+| Claude Code, Sonnet (15) | 2 | 10 | 10 | 11 | 10 | 9 | 9 |
+| Codex (20) | 2 | **16** | 13 | 13 | 14 | 18 | 15 |
+| LM Studio, qwen2.5-coder-14b (15; on this machine) | 2 | 8 | 10 | not run | 9 | 12 | cannot |
+| OpenRouter free, nemotron-3-super-120b (15) | 2 | 5 of 13 answered (7 of the 13 stated a figure or employer not in what it was given) | 8 of 10 answered (0 of 10) | not run | rate-limited | rate-limited | cannot |
+
+Paired, the pack (e) against each rival, "pack right where the other is wrong; the other right
+where the pack is wrong; p":
+
+| Model | against nothing | against the whole material | against BM25 | against the pack before | against tools |
+|---|---|---|---|---|---|
+| Haiku | 24; 2; < 0.001 | 3; 6; 0.51 | 9; 5; 0.42 | 3; 1; 0.63 | 4; 6; 0.75 |
+| Sonnet | 8; 0; 0.008 | 1; 1; 1.0 | 2; 2; 1.0 | 1; 1; 1.0 | 2; 0; 0.5 |
+| Codex | 13; 1; 0.002 | 1; 3; 0.63 | 4; 3; 1.0 | 1; 0; 1.0 | 2; 3; 1.0 |
+| qwen 14b | 7; 0; 0.016 | 4; 3; 1.0 | 3; 4; 1.0 | | |
+
+Other scores, Haiku (40 questions): gold facts stated 0.71 (whole), 0.68 (pack), 0.63 (pack
+before), 0.58 (BM25), 0.82 (gold), 0.77 (tools); a figure or employer nothing given says: 0, 1,
+1, 1, 2, 3 answers; cited pointers that exist: every one, in every arm; an achievement of a
+wrong employer cited: 0 in every arm but BM25 (1); "nothing covers it" said when it should be: 4
+of 5 (whole), 3 of 5 (pack); said when something does answer: 3 of 35 (whole), 7 of 35 (pack),
+11 of 35 (pack before). A device-only phrase repeated: 0 in every arm, on every remote model.
+
+**Cost and latency.**
+
+| Arm | Characters of records (median) | About, in tokens | Haiku seconds (median, p95) | Sonnet | Codex | qwen 14b |
+|---|---|---|---|---|---|---|
+| (a) nothing | 0 | 0 | 3.3, 16.7 | 3.4, 5.7 | 4.5, 5.7 | 1.0, 3.3 |
+| (b) whole | 53,411 (Tidewell: 105,102) | 15,000 to 30,000 | 17.6, 60.0 | 5.4, 7.2 | 5.4, 7.0 | 5.8, 60.9 (cut to 27,578: 5,303 records left out over the run) |
+| (c) BM25 | 1,554 | 450 | 9.9, 46.7 | 4.1, 7.8 | 5.0, 9.0 | 4.8, 11.3 |
+| (e) pack | 2,329 | 670 | 12.5, 46.6 | 4.7, 7.5 | 5.3, 8.2 | 7.2, 10.5 |
+| (g) tools | read on demand | | 12.0, 31.5 | 8.9, 13.2 | 8.1, 25.4 | |
+
+Codex reports its tokens: 21,985 in with no records (its own instructions), 22,683 with the pack
+(+700), 39,101 with the whole material (+17,100). Claude Code's reported token counts were not
+usable (1 to 10 for most calls) and are not quoted; the token column above is characters divided
+by 3.5. The whole material of Tidewell is over the engine's bound of 100,000 characters for one
+message part, so the benchmark sends it in parts.
+
+**The verdict, candidly.** With nothing, a model can only abstain; on Haiku any context is worth
+18 to 25 more right answers of 40. Between the contexts, no difference is statistically meaningful at these
+sample sizes, and the direction is consistent: the whole material is level with or ahead of the
+pack on Haiku, Sonnet and Codex, and the pack is level with it on the 14b local model, whose
+window the whole material does not fit (it was cut, and that arm cited a wrong employer's
+achievement four times against the pack's once). The adopted pack is 2 right answers ahead of
+the pack before on Haiku, 1 on Codex, 1 behind on Sonnet: the retrieval gain of 14.4 is real and
+has not been shown to reach the answer. The pack as tools is level with the pack in the prompt
+(29 against 27, 9 against 10, 15 against 14) at half again to twice the time on Sonnet and Codex, so
+**agents reading the pack as tools was not adopted** for briefings or documents, and was never a
+candidate for the coach's per-turn path. What the pack buys is the same answer from a twentieth
+of the tokens, a bounded prompt on a small model, and a place where device-only material is
+withheld and an employer's work is kept apart by rule.
+
+**How far to trust "right".** I read 18 Haiku answers (9 questions, pack and whole) and marked
+each right or wrong myself. The code agreed on 15 (Cohen's kappa 0.57). All 3 disagreements were
+right answers the code marked wrong because the gold fact was worded another way ("November 16
+to 20" for "16 to 20 November"; "what would you cut" for "what I would cut"). So the code
+under-counts, in every arm alike, and the ceiling arm's 30 of 40 is partly that. Eighteen labels
+is far fewer than the 150 the audit asks for. The check for an invented claim sees figures and
+the employers of the person's record; it does not see an invented technology or outcome, or a
+real figure attached to the wrong claim. **No model judge was built**: the secondary score is
+owed.
+
+### 14.7 The coach on the long call
+
+`pnpm pack:eval --coach` replays the 88-minute Tidewell panel (61 questions) through the coach's
+production path, the pack read as a remote reader, and scores each note: whether it cites a
+verified fact of an employer the question accepts, whether it states a figure or an employer
+that neither its facts nor the conversation hold, and whether its first line came within 10
+seconds of the question's last word.
+
+| Run | Questions | In time | Pack offered an accepted employer's fact | Note right | Wrong employer | Invented |
+|---|---|---|---|---|---|---|
+| Scripted writer, whole call (no model; cites the first evidence fact it is given) | 61 | 61 of 61 | 48 of 54 | 37 of 61 | 17 notes | 0 |
+| Claude Code, 14:02 to 14:20 of the call at the speed it was said | 12 heard | 12 of 12 (median 4.1 s, slowest 5.6 s) | 11 of 12 | 5 of 12 | 0 | 4 figures flagged |
+
+The scripted row measures the pack (what was offered), not a model. The live row is one
+18-minute stretch, once: the notes were in time and never cited another employer's work; in seven
+of twelve the note's claims were the model's own inference and not a verified fact of an
+accepted employer (in six of those the pack had offered one), and four figures were flagged that the check could not find in what the
+coach was given (the check also flags a derived figure or a year, so each needs reading). The
+rest of the call was not run live.
+
+**On a file outside the repository** (a person's own transcript; results under `.dev-local/`
+only, and holding ids, counts, clock times and scores, never a word of a note, a fact or the
+transcript):
+
+```
+pnpm coach:replay --transcript PATH --expect PATH --matrix PATH --brief PATH \
+  [--application PATH] [--kept PATH] [--plan PATH] [--stage N] \
+  --interviewer LABEL --me LABEL --runtime claude --retain
+```
+
+### 14.8 The flags, per projection
+
+One table in `recipe.ts` (`PACK_FLAGS`); `prepareContextPack` takes `flags` to replace a row for
+one pack. The recipe's version stays 3: it names what a model extracted, the extractors did not
+change, and a new version would have every kept pack read again by a model for nothing.
+
+| Flag | Coach | Answer | Inspect | Briefing | Document | Evidence |
+|---|---|---|---|---|---|---|
+| `said` (answered and promised in an earlier stage) | on | on | on | always has them | off | +19 -0 |
+| `terms` (a model's search terms for the person's records are matched) | on, and inert until a pack is prepared with `annotate` | on | on | off | off | +3 -0, p = 0.25 |
+| `match` (the engine's version 2: `stem`, `stop`, `exclusion`, `cut`, each its own switch) | plain | plain | plain | plain | plain | +12 -11 |
+
+`annotate` is an option of `prepareApplicationPack` (off by default): the profile that reads the
+sources also writes six search terms and three likely questions for each achievement, story and
+note, once; the engine never shows a device-only record to a profile that is not on this
+machine. Nothing in the Studio's window turns it on yet. A model's terms are never matched for
+the stories slot: on the first run a story found only by a model's guess widened the search to
+its employer and took every place.
+
+### 14.9 Live runs made, and what they cost
+
+All on subscriptions, a free route or this machine: no metered spend.
+
+| Run | Model | Calls | Time |
+|---|---|---|---|
+| Preparing Spanforge (extraction, ties, terms) | Claude Code, Sonnet | 20, then 2 for the device-only transcript | 580 s, 123 s |
+| Preparing Tidewell | Claude Code, Sonnet | 17, then 4 | 578 s, 81 s |
+| The device-only transcript, on this machine | LM Studio, qwen2.5-coder-14b | 1 | 46 s: 13 records proposed, **0 kept** (11 gave no quote, 1 was empty) |
+| Writing the questions | Codex CLI | 2 sessions (81,499 and 112,593 tokens) | about 6 and 10 minutes |
+| Answers | Haiku 280; Sonnet 105; Codex 140; qwen 14b 75; OpenRouter free 38 answered, 37 refused for rate | | Haiku about 25 minutes at 4 at once |
+| The coach, 18 minutes of the long call | Claude Code | one retained session | 18 minutes |
+
+The device-only transcripts were then read by Claude Code with their policy lifted IN MEMORY
+(`--permit-device-only`: an invented fixture only), so the benchmark has the records a device
+reader sees; the kept pack and the fixture keep the device-only policy, and every remote arm is
+proven not to be given them. The local 14b model returning no quote for any record is a finding
+for the product: today a device-only transcript prepared by that model yields nothing.
+
+OpenRouter's free list in `pack-live.ts` was stale (all four models gone) and was replaced with
+three listed free on the day; two were rate-limited at once and the third after 38 answers.
+
+### 14.10 Not proven, and not done
+
+- **That the pack makes an answer better than the whole material.** It does not, on any model
+  measured; the samples (15 to 40) cannot detect a difference under about 25 points.
+- **Anything on real material.** Both applications are invented, and the questions' author saw
+  the list of planted cases. The owner's own transcripts were not read; the command for them is
+  in 14.7.
+- **A model judge**, and a calibration set of useful size (18 labels, one labeller).
+- **Briefings and documents as written text.** The answer level asks questions; no arm writes a
+  briefing or a document and scores it. Their retrieval coverage (30% and 45% of gold records)
+  says how much of what the questions need they hold, not whether the writing is good.
+- **Model terms**: +3 or +5 questions, none lost, p = 0.06 to 0.25. One set of terms, written by
+  one model with one instruction; the terms it wrote were often the technique's own jargon, not
+  the plain words an interviewer uses, and paraphrase stayed at 2 of 12.
+- **Run-to-run spread.** Every live number is one run.
+- **The small-model and free-route arms** are 15 questions; OpenRouter's pack arm never ran.
+- **`context.kept`, `onProgress` and `only`** were not put in place of the product's stepped
+  preparation and its own reading of the store: that is a rewrite of `prepare.ts` under a
+  2,100-line suite with no measured benefit, and it was left.
+- **Paraphrase, noisy wording, follow-ups and negation** remain the weak categories (2 of 12, 4
+  of 10, 3 of 10, 2 of 10).
+- **The window**: nothing new was looked at in a running app. The Context pane gained labels for
+  the engine's four new reasons a fact is left out.
+- Two things the re-vendored engine broke were fixed on the way: the view contract did not know
+  the reasons `cut`, `cap`, `min-score` and `excluded-term`, nor the hole reason `deferred`
+  (the product did not typecheck), and one preparation test compared prompts that now carry
+  the engine's source marks.

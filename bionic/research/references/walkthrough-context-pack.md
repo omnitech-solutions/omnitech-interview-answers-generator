@@ -9,7 +9,7 @@ last_reviewed: 2026-10-10
 
 # The context pack, from an application's material to the facts a reader may cite
 
-Description of: as of 2026-10-10, uncommitted work on master (HEAD `274dea8`), recipe `interview-context` version 3. Every record, tie, count and selection below was produced by running the product's own code on the synthetic fixture `products/interview/fixtures/context-pack/kestrel-freight-pay/` (an invented person, employer and figures) with the scripted model of `bench-prepared.ts`; the one live run is named where it is quoted. Decisions: [[adrs/ADR-0038-prepare-raw-information-into-attributable-context]], [[adrs/ADR-0041-the-first-context-pack-slice-derives-identities-fr]]; the plan and its results: [[briefs/BRIEF-interview-brief-and-context-pack]].
+Description of: as of 2026-10-10, uncommitted work on master (HEAD `21ddaa6`), recipe `interview-context` version 3, with the selection flags and the held-out evaluation of the brief's section 14. Every record, tie, count and selection below was produced by running the product's own code on the synthetic fixture `products/interview/fixtures/context-pack/kestrel-freight-pay/` (an invented person, employer and figures) with the scripted model of `bench-prepared.ts`; the one live run is named where it is quoted. Decisions: [[adrs/ADR-0038-prepare-raw-information-into-attributable-context]], [[adrs/ADR-0041-the-first-context-pack-slice-derives-identities-fr]]; the plan and its results: [[briefs/BRIEF-interview-brief-and-context-pack]].
 
 ## At a glance
 
@@ -193,6 +193,16 @@ employer      employer-said:…d001@chars:0-129  The technical round is two hour
 
 An extracted fact's pointer is its source and the place of its words, since two sources both have a character 120. The evidence here is found by the words "two teams" and is wrong for the question; the benchmark's section says what the prepared pack does and does not fix.
 
+**The flags (`PACK_FLAGS`, recipe.ts).** How each projection selects is one table, a row per projection, one switch per mechanism that was measured on the held-out questions ([[briefs/BRIEF-interview-brief-and-context-pack]], section 14):
+
+| Flag | What it does | Coach, answer, inspect | Briefing, document |
+|---|---|---|---|
+| `said` | The `answered` and `commitments` slots: what the person answered and promised in this stage or an earlier one, beside what was asked and signalled. They are employer-side records: said under EMPLOYER MATERIAL, never verified against as the person's record | on (+19 questions, none lost) | the briefing always has them; the document has none |
+| `terms` | The search terms a model wrote for the person's own records are matched (never for the stories slot). Inert until a pack is prepared with `annotate` | on | off |
+| `match` | `"plain"`, or the engine's measured version 2 with `stem`, `stop`, `exclusion` and `cut` each switchable. Under version 2 what the person's own note or story names is put back among the evidence when the engine left it out for matching too little (`withNamed`, pack.ts) | plain (version 2 gained 12 questions and lost 11) | plain |
+
+`prepareContextPack(..., { flags })` replaces a row for one pack: that is how the evaluation's arms switch one mechanism off.
+
 ## Step 5: the readers
 
 **The coach** (`coach/context.ts`) loads the kept pack for the session's application once a minute, beside the material. It reads as a remote reader: its prompt is sent to Claude Code or Codex. For a transcript that may leave this device, the stage-1 question and signal reach its prompt under `EMPLOYER MATERIAL (not the candidate's experience)`; of a device-only recording nothing does; `known`, the facts a claim is verified against, holds the candidate's and the preferences' only, so a claim citing the transcript is `inferred`. In the agent worker the pack is read from the engine's database (`AI_ENGINE_DATABASE_URL`); with none the worker cannot see the web server's memory and the coach reads the material as it stands.
@@ -215,11 +225,20 @@ pnpm pack:bench --stages         # code only, per stage
 pnpm pack:bench:prepared         # the whole application prepared by the scripted model, large and small
 pnpm pack:bench:claude           # the same, by Claude Code (also :codex, :openrouter, :lmstudio, :all)
 pnpm exec vitest run products/interview/src/backend/context-pack
+
+pnpm pack:eval --retrieval       # the HELD-OUT questions: every arm, no model, with intervals and paired p
+pnpm pack:eval --answers --model agent/claude-code@haiku --sample 40 --parallel 4
+                                 # what a model answers given each arm's context (cached, resumable)
+pnpm pack:eval --coach           # the coach replayed on the long synthetic call, each note scored
+pnpm pack:eval --dev             # the Kestrel questions under each flag set: tuning only
+pnpm pack:eval --show QUESTION_ID --arm before,adopted
 ```
 
 In the Studio: open an application's Interview form, scroll to "Context pack", press Prepare.
 
 ## The benchmark on the fixture
+
+The table below is the DEVELOPMENT set: the ranking rules were written against these questions, so it shows that nothing regressed and proves nothing else. The evidence is the held-out evaluation (two other invented applications, 224 questions written by another model family, gold checked in code): the right record leads 99 of 178 questions against 77 before, and a model given the pack answers no better than one given the whole material. Section 14 of the brief has every number.
 
 | Measure | Code only (phases 0 to 2) | Prepared, scripted model |
 |---|---|---|
@@ -237,6 +256,10 @@ In the Studio: open an application's Interview form, scroll to "Context pack", p
 The one gain on evidence is "Why Kestrel?", whose note names no employer and to which the model ties the multi-carrier quoting work. Still wrong, prepared or not: "a payout never sent twice" (no word of the question is in the record or the notes), "ingestion for large files from a bank" and "a partner API is slow or down" (the fit for the leading requirement is right and only breaks ties; an achievement sharing more words leads).
 
 ## Limits
+
+- The pack does not know when it has nothing: for 24 of 28 held-out questions the material cannot answer, it still offered matching records, and no score separates those from right answers.
+- A question that shares no word with its answer is still mostly missed (2 of 12 held-out), with or without a model's terms.
+- A device-only transcript prepared by the local 14b model kept no record: that model returned no quote for any.
 
 - The person's notes are not read by a model: a note is one record per line, made in code, and the engine's extraction makes new records and cannot label an existing one. A model ties a note to its proof (`proof`); it does not add the questions a note answers.
 - `stage-answer` says what the answer drew on as words (`used`); it is not tied to an achievement.

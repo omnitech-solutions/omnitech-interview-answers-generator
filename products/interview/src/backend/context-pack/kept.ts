@@ -85,7 +85,31 @@ export function withKept(fresh: Prepared, kept: Prepared): Prepared {
       .filter((record) => record.reviewed && record.by !== "model")
       .map((record) => [record.id, record]),
   );
-  if (extracted.length === 0 && removed.size === 0 && reviewed.size === 0)
+  // [DOMAIN] What a model wrote ABOUT a record the person gave (the words it
+  // would be searched by and the questions it answers: the recipe's
+  // annotators) is kept beside the record and apart from what it says. It is
+  // carried onto today's record only while the record says what it said when
+  // the terms were written (`for` is the record's hash, and the engine
+  // matches no terms written for another), and only from a pack of this
+  // recipe version.
+  const sameRecipe =
+    kept.recipe.id === fresh.recipe.id &&
+    kept.recipe.version === fresh.recipe.version;
+  const annotated = new Map(
+    sameRecipe
+      ? kept.records.flatMap((record) =>
+          record.terms && record.by !== "model"
+            ? [[record.id, record.terms] as const]
+            : [],
+        )
+      : [],
+  );
+  if (
+    extracted.length === 0 &&
+    removed.size === 0 &&
+    reviewed.size === 0 &&
+    annotated.size === 0
+  )
     return fresh;
 
   const postingRead = extracted.some((record) =>
@@ -118,6 +142,10 @@ export function withKept(fresh: Prepared, kept: Prepared): Prepared {
   // changed says what they wrote.
   const own = fresh.records
     .filter((record) => !removed.has(record.id) && !superseded(record))
+    .map((record) => {
+      const terms = annotated.get(record.id);
+      return terms && terms.for === record.hash ? { ...record, terms } : record;
+    })
     .map((record) => {
       const seen = reviewed.get(record.id);
       if (!seen) return record;

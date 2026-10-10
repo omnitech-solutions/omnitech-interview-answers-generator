@@ -1,0 +1,641 @@
+{
+  "about": "The stage-2 technical panel for Tidewell Care, written as prose and rendered by eval/render-call.ts: four interviewers, one candidate, about ninety minutes. Each question names who asks it (`from`), the words that complete it as rendered, when it was asked, the matrix employers a right answer draws on (`evidence`) and what it is about.",
+  "interviewer": ["Ciaran", "Niamh", "Seun", "Petra"],
+  "me": ["Me"],
+  "questions": [
+    {
+      "id": "background",
+      "from": "Ciaran",
+      "completeWhenSaid": "what you are doing now",
+      "startsAt": "14:03:05",
+      "endsAt": "14:03:17",
+      "evidence": [
+        "Lanternfield Health",
+        "Wrenfield Clinics",
+        "Quillmere Labs"
+      ],
+      "about": ["background", "tell me about yourself"]
+    },
+    {
+      "id": "why-tidewell",
+      "from": "Ciaran",
+      "completeWhenSaid": "what is pulling you here",
+      "startsAt": "14:05:04",
+      "endsAt": "14:05:12",
+      "evidence": ["Lanternfield Health", "Calderwick Rota"],
+      "about": ["motivation", "why this company"]
+    },
+    {
+      "id": "current-role",
+      "from": "Ciaran",
+      "completeWhenSaid": "how is your time split",
+      "startsAt": "14:06:35",
+      "endsAt": "14:06:43",
+      "evidence": ["Lanternfield Health"],
+      "about": ["current role", "team", "on-call"]
+    },
+    {
+      "id": "backfill-result",
+      "from": "Petra",
+      "completeWhenSaid": "and what did it achieve",
+      "startsAt": "14:07:59",
+      "endsAt": "14:08:17",
+      "evidence": ["Lanternfield Health"],
+      "about": [
+        "waitlist backfill",
+        "refill rate",
+        "early figure later corrected"
+      ]
+    },
+    {
+      "id": "two-patients-one-slot",
+      "from": "Seun",
+      "completeWhenSaid": "stop a patient being double-booked",
+      "startsAt": "14:09:21",
+      "endsAt": "14:09:41",
+      "evidence": ["Lanternfield Health"],
+      "about": ["double booking", "idempotency keys", "uniqueness constraint"]
+    },
+    {
+      "id": "two-patients-one-slot-follow-1",
+      "from": "Seun",
+      "completeWhenSaid": "what happens to the request",
+      "startsAt": "14:11:18",
+      "endsAt": "14:11:26",
+      "evidence": ["Lanternfield Health"],
+      "about": ["double booking", "idempotency keys", "uniqueness constraint"]
+    },
+    {
+      "id": "slow-requests",
+      "from": "Seun",
+      "completeWhenSaid": "how did you find it",
+      "startsAt": "14:12:12",
+      "endsAt": "14:12:28",
+      "evidence": ["Lanternfield Health"],
+      "about": ["tail latency", "p99", "lock", "outbox"]
+    },
+    {
+      "id": "slow-requests-follow-1",
+      "from": "Seun",
+      "completeWhenSaid": "lock and not the network",
+      "startsAt": "14:13:54",
+      "endsAt": "14:14:01",
+      "evidence": ["Lanternfield Health"],
+      "about": ["tail latency", "p99", "lock", "outbox"]
+    },
+    {
+      "id": "not-your-current-job",
+      "from": "Seun",
+      "completeWhenSaid": "somewhere else in your career",
+      "startsAt": "14:14:38",
+      "endsAt": "14:14:53",
+      "evidence": ["Harbourline Dispatch", "Brackenridge Hotels"],
+      "about": [
+        "contention",
+        "example not from current employer",
+        "hold and confirm"
+      ]
+    },
+    {
+      "id": "record-system-interfaces",
+      "from": "Niamh",
+      "completeWhenSaid": "yourself against HL7 and fyre",
+      "startsAt": "14:16:21",
+      "endsAt": "14:16:58",
+      "evidence": [
+        "Quillmere Labs",
+        "Lanternfield Health",
+        "Wrenfield Clinics"
+      ],
+      "about": [
+        "HL7",
+        "FHIR",
+        "record systems",
+        "interviewer describes their own stack"
+      ]
+    },
+    {
+      "id": "record-system-interfaces-follow-1",
+      "from": "Niamh",
+      "completeWhenSaid": "What did the router do",
+      "startsAt": "14:18:12",
+      "endsAt": "14:18:22",
+      "evidence": [
+        "Quillmere Labs",
+        "Lanternfield Health",
+        "Wrenfield Clinics"
+      ],
+      "about": [
+        "HL7",
+        "FHIR",
+        "record systems",
+        "interviewer describes their own stack"
+      ]
+    },
+    {
+      "id": "cannot-route",
+      "from": "Niamh",
+      "completeWhenSaid": "Where does it go",
+      "startsAt": "14:19:18",
+      "endsAt": "14:19:30",
+      "evidence": ["Quillmere Labs"],
+      "about": ["dead letter", "unroutable messages", "silent loss"]
+    },
+    {
+      "id": "record-system-down",
+      "from": "Niamh",
+      "completeWhenSaid": "What do bookings do",
+      "startsAt": "14:20:54",
+      "endsAt": "14:21:06",
+      "evidence": ["Lanternfield Health"],
+      "about": ["outage", "outbox", "record system unavailable"]
+    },
+    {
+      "id": "ordering-and-replay",
+      "from": "Niamh",
+      "completeWhenSaid": "where has it bitten you",
+      "startsAt": "14:22:33",
+      "endsAt": "14:22:43",
+      "evidence": [
+        "Quillmere Labs",
+        "Wrenfield Clinics",
+        "Lanternfield Health"
+      ],
+      "about": ["Kafka", "ordering", "replay", "partition key"]
+    },
+    {
+      "id": "biggest-migration",
+      "from": "Ciaran",
+      "completeWhenSaid": "how did you run it",
+      "startsAt": "14:24:08",
+      "endsAt": "14:24:23",
+      "evidence": ["Wrenfield Clinics"],
+      "about": ["migration", "cutover waves", "dual run", "parity report"]
+    },
+    {
+      "id": "biggest-migration-follow-1",
+      "from": "Ciaran",
+      "completeWhenSaid": "and who decided",
+      "startsAt": "14:25:57",
+      "endsAt": "14:26:02",
+      "evidence": ["Wrenfield Clinics"],
+      "about": ["migration", "cutover waves", "dual run", "parity report"]
+    },
+    {
+      "id": "biggest-migration-follow-2",
+      "from": "Ciaran",
+      "completeWhenSaid": "a wave that went badly",
+      "startsAt": "14:26:37",
+      "endsAt": "14:26:40",
+      "evidence": ["Wrenfield Clinics"],
+      "about": ["migration", "cutover waves", "dual run", "parity report"]
+    },
+    {
+      "id": "two-wrenfields",
+      "from": "Ciaran",
+      "completeWhenSaid": "was it the same migration",
+      "startsAt": "14:27:15",
+      "endsAt": "14:27:30",
+      "evidence": ["Wrenfield Dental Group", "Wrenfield Clinics"],
+      "about": ["two employers with similar names", "which migration", "dates"]
+    },
+    {
+      "id": "something-went-wrong",
+      "from": "Ciaran",
+      "completeWhenSaid": "was your part in it",
+      "startsAt": "14:28:45",
+      "endsAt": "14:28:53",
+      "evidence": ["Wrenfield Dental Group", "Wrenfield Clinics"],
+      "about": ["failure", "weekend cutover", "what changed"]
+    },
+    {
+      "id": "something-went-wrong-follow-1",
+      "from": "Ciaran",
+      "completeWhenSaid": "Not the fix, the habit",
+      "startsAt": "14:30:18",
+      "endsAt": "14:30:22",
+      "evidence": ["Wrenfield Dental Group", "Wrenfield Clinics"],
+      "about": ["failure", "weekend cutover", "what changed"]
+    },
+    {
+      "id": "container-platform",
+      "from": "Seun",
+      "completeWhenSaid": "not reading about it",
+      "startsAt": "14:31:06",
+      "endsAt": "14:31:26",
+      "evidence": ["Wrenfield Clinics", "Lanternfield Health"],
+      "about": ["Kubernetes", "container platform", "deploy frequency"]
+    },
+    {
+      "id": "container-platform-follow-1",
+      "from": "Seun",
+      "completeWhenSaid": "that meant something. Meaning what",
+      "startsAt": "14:32:47",
+      "endsAt": "14:32:49",
+      "evidence": ["Wrenfield Clinics", "Lanternfield Health"],
+      "about": ["Kubernetes", "container platform", "deploy frequency"]
+    },
+    {
+      "id": "objectives-and-paging",
+      "from": "Seun",
+      "completeWhenSaid": "you let wake somebody up",
+      "startsAt": "14:33:23",
+      "endsAt": "14:33:32",
+      "evidence": ["Lanternfield Health"],
+      "about": [
+        "SLO",
+        "error budget",
+        "paging",
+        "on-call frequency stated by the interviewer"
+      ]
+    },
+    {
+      "id": "objectives-and-paging-follow-1",
+      "from": "Seun",
+      "completeWhenSaid": "Would that work for you",
+      "startsAt": "14:34:51",
+      "endsAt": "14:35:12",
+      "evidence": ["Lanternfield Health"],
+      "about": [
+        "SLO",
+        "error budget",
+        "paging",
+        "on-call frequency stated by the interviewer"
+      ]
+    },
+    {
+      "id": "joining-the-rota",
+      "from": "Seun",
+      "completeWhenSaid": "rota without frightening them off",
+      "startsAt": "14:35:39",
+      "endsAt": "14:35:48",
+      "evidence": ["Harbourline Dispatch", "Lanternfield Health"],
+      "about": ["on-call onboarding", "runbooks"]
+    },
+    {
+      "id": "database-depth",
+      "from": "Niamh",
+      "completeWhenSaid": "and for how long",
+      "startsAt": "14:36:54",
+      "endsAt": "14:37:18",
+      "evidence": [
+        "Wrenfield Dental Group",
+        "Quillmere Labs",
+        "Wrenfield Clinics",
+        "Lanternfield Health"
+      ],
+      "about": [
+        "PostgreSQL",
+        "years of experience",
+        "interviewer describes their own stack"
+      ]
+    },
+    {
+      "id": "changing-a-hot-table",
+      "from": "Niamh",
+      "completeWhenSaid": "Give me a real one",
+      "startsAt": "14:38:48",
+      "endsAt": "14:38:54",
+      "evidence": ["Lanternfield Health", "Wrenfield Dental Group"],
+      "about": ["live schema change", "concurrent index", "constraint"]
+    },
+    {
+      "id": "retiring-the-old-application",
+      "from": "Ciaran",
+      "completeWhenSaid": "How would you approach it",
+      "startsAt": "14:40:19",
+      "endsAt": "14:40:44",
+      "evidence": ["Wrenfield Clinics"],
+      "about": [
+        "monolith migration",
+        "one writer",
+        "expect again in the director round"
+      ]
+    },
+    {
+      "id": "languages",
+      "from": "Ciaran",
+      "completeWhenSaid": "Where are you with Go",
+      "startsAt": "14:42:00",
+      "endsAt": "14:42:09",
+      "evidence": [
+        "Harbourline Dispatch",
+        "Quillmere Labs",
+        "Lanternfield Health"
+      ],
+      "about": ["Go", "Kotlin", "languages"]
+    },
+    {
+      "id": "staff-sign-in",
+      "from": "Niamh",
+      "completeWhenSaid": "Have you built that",
+      "startsAt": "14:43:30",
+      "endsAt": "14:43:44",
+      "evidence": ["Wrenfield Dental Group"],
+      "about": ["SSO", "staff identity", "password resets"]
+    },
+    {
+      "id": "rota-experience",
+      "from": "Petra",
+      "completeWhenSaid": "with that kind of solver",
+      "startsAt": "14:45:09",
+      "endsAt": "14:45:22",
+      "evidence": ["Calderwick Rota"],
+      "about": ["rota", "OR-Tools", "shift scheduling", "constraints"]
+    },
+    {
+      "id": "reminders-and-missed-appointments",
+      "from": "Petra",
+      "completeWhenSaid": "change whether people turned up",
+      "startsAt": "14:46:47",
+      "endsAt": "14:46:55",
+      "evidence": ["Pendlecross Pharmacy", "Wrenfield Clinics"],
+      "about": ["reminders", "no-show rate", "uncollected prescriptions"]
+    },
+    {
+      "id": "reminders-and-missed-appointments-follow-1",
+      "from": "Petra",
+      "completeWhenSaid": "I saw on your CV",
+      "startsAt": "14:48:10",
+      "endsAt": "14:48:22",
+      "evidence": ["Pendlecross Pharmacy", "Wrenfield Clinics"],
+      "about": ["reminders", "no-show rate", "uncollected prescriptions"]
+    },
+    {
+      "id": "disagreement",
+      "from": "Petra",
+      "completeWhenSaid": "Not a polite one",
+      "startsAt": "14:49:01",
+      "endsAt": "14:49:12",
+      "evidence": ["Wrenfield Clinics"],
+      "about": ["conflict", "stakeholder", "freeze windows"]
+    },
+    {
+      "id": "fixed-deadline",
+      "from": "Ciaran",
+      "completeWhenSaid": "give up to hit it",
+      "startsAt": "14:50:40",
+      "endsAt": "14:50:51",
+      "evidence": ["Quillmere Labs"],
+      "about": ["deadline", "scope", "critical results"]
+    },
+    {
+      "id": "growing-engineers",
+      "from": "Ciaran",
+      "completeWhenSaid": "you are not their manager",
+      "startsAt": "14:52:48",
+      "endsAt": "14:52:56",
+      "evidence": ["Lanternfield Health", "Pendlecross Pharmacy"],
+      "about": ["mentoring", "leading without line management"]
+    },
+    {
+      "id": "team-sizes",
+      "from": "Ciaran",
+      "completeWhenSaid": "it stop working for you",
+      "startsAt": "14:54:19",
+      "endsAt": "14:54:40",
+      "evidence": [
+        "Wrenfield Dental Group",
+        "Quillmere Labs",
+        "Calderwick Rota",
+        "Lanternfield Health",
+        "Wrenfield Clinics"
+      ],
+      "about": ["team size", "team size stated by the interviewer"]
+    },
+    {
+      "id": "patient-data-in-events",
+      "from": "Niamh",
+      "completeWhenSaid": "event or a log line",
+      "startsAt": "14:55:34",
+      "endsAt": "14:55:44",
+      "evidence": ["Lanternfield Health", "Corbel Mutual"],
+      "about": ["PHI", "audit trail", "data minimisation"]
+    },
+    {
+      "id": "testing-adapters",
+      "from": "Niamh",
+      "completeWhenSaid": "whose sandbox lies to you",
+      "startsAt": "14:56:58",
+      "endsAt": "14:57:09",
+      "evidence": ["Quillmere Labs", "Lanternfield Health"],
+      "about": ["testing", "adapters", "contract tests"]
+    },
+    {
+      "id": "design-waitlist-backfill",
+      "from": "Petra",
+      "completeWhenSaid": "Start wherever you like",
+      "startsAt": "14:58:27",
+      "endsAt": "14:58:53",
+      "evidence": ["Lanternfield Health"],
+      "about": ["system design", "waitlist backfill", "offer and hold"]
+    },
+    {
+      "id": "what-is-fair",
+      "from": "Petra",
+      "completeWhenSaid": "and what makes it fair",
+      "startsAt": "15:00:26",
+      "endsAt": "15:00:39",
+      "evidence": ["Lanternfield Health"],
+      "about": [
+        "fairness",
+        "waitlist order",
+        "likely asked again by the director"
+      ]
+    },
+    {
+      "id": "what-is-fair-follow-1",
+      "from": "Petra",
+      "completeWhenSaid": "queue for ever, blocking everyone",
+      "startsAt": "15:02:01",
+      "endsAt": "15:02:08",
+      "evidence": ["Lanternfield Health"],
+      "about": [
+        "fairness",
+        "waitlist order",
+        "likely asked again by the director"
+      ]
+    },
+    {
+      "id": "fairness-carry-forward",
+      "from": "Ciaran",
+      "completeWhenSaid": "to find out before then",
+      "startsAt": "15:02:42",
+      "endsAt": "15:03:07",
+      "evidence": [],
+      "about": ["director round", "carry forward", "fairness"]
+    },
+    {
+      "id": "expected-refill-rate",
+      "from": "Petra",
+      "completeWhenSaid": "You gave a number earlier",
+      "startsAt": "15:04:43",
+      "endsAt": "15:04:52",
+      "evidence": ["Lanternfield Health"],
+      "about": ["refill rate", "correction of the earlier figure", "41%"]
+    },
+    {
+      "id": "offer-delivered-twice",
+      "from": "Seun",
+      "completeWhenSaid": "exactly what your system does",
+      "startsAt": "15:06:04",
+      "endsAt": "15:06:23",
+      "evidence": ["Lanternfield Health", "Harbourline Dispatch"],
+      "about": ["duplicate delivery", "idempotent accept", "expired offer"]
+    },
+    {
+      "id": "offer-delivered-twice-follow-1",
+      "from": "Seun",
+      "completeWhenSaid": "incident like it in January",
+      "startsAt": "15:08:03",
+      "endsAt": "15:08:11",
+      "evidence": ["Lanternfield Health", "Harbourline Dispatch"],
+      "about": ["duplicate delivery", "idempotent accept", "expired offer"]
+    },
+    {
+      "id": "two-stores",
+      "from": "Seun",
+      "completeWhenSaid": "two ways to be wrong",
+      "startsAt": "15:09:22",
+      "endsAt": "15:09:36",
+      "evidence": ["Harbourline Dispatch", "Lanternfield Health"],
+      "about": ["Redis holds", "source of truth", "two stores"]
+    },
+    {
+      "id": "offer-window",
+      "from": "Petra",
+      "completeWhenSaid": "minute nobody else has it",
+      "startsAt": "15:10:51",
+      "endsAt": "15:11:11",
+      "evidence": ["Lanternfield Health", "Pendlecross Pharmacy"],
+      "about": ["offer window", "quiet hours"]
+    },
+    {
+      "id": "where-it-breaks",
+      "from": "Seun",
+      "completeWhenSaid": "where does it break first",
+      "startsAt": "15:12:23",
+      "endsAt": "15:12:37",
+      "evidence": [],
+      "about": ["capacity", "peak load", "rate limits"]
+    },
+    {
+      "id": "record-system-in-the-design",
+      "from": "Niamh",
+      "completeWhenSaid": "E M R says no",
+      "startsAt": "15:14:34",
+      "endsAt": "15:14:48",
+      "evidence": ["Lanternfield Health"],
+      "about": ["EMR", "outbox", "rejection handling"]
+    },
+    {
+      "id": "what-reception-sees",
+      "from": "Petra",
+      "completeWhenSaid": "all this is going on",
+      "startsAt": "15:16:16",
+      "endsAt": "15:16:24",
+      "evidence": ["Lanternfield Health", "Wrenfield Clinics"],
+      "about": ["receptionist view", "manual override", "audit"]
+    },
+    {
+      "id": "what-to-measure",
+      "from": "Seun",
+      "completeWhenSaid": "you let page a human",
+      "startsAt": "15:17:46",
+      "endsAt": "15:17:53",
+      "evidence": ["Lanternfield Health"],
+      "about": ["observability", "invariants", "paging"]
+    },
+    {
+      "id": "rolling-it-out",
+      "from": "Ciaran",
+      "completeWhenSaid": "a change like this out",
+      "startsAt": "15:19:13",
+      "endsAt": "15:19:20",
+      "evidence": ["Wrenfield Clinics"],
+      "about": ["rollout", "waves", "promise to send the diagram"]
+    },
+    {
+      "id": "rolling-it-out-follow-1",
+      "from": "Ciaran",
+      "completeWhenSaid": "it to me by Friday",
+      "startsAt": "15:20:35",
+      "endsAt": "15:20:52",
+      "evidence": ["Wrenfield Clinics"],
+      "about": ["rollout", "waves", "promise to send the diagram"]
+    },
+    {
+      "id": "what-would-you-stop",
+      "from": "Ciaran",
+      "completeWhenSaid": "what would you stop doing",
+      "startsAt": "15:21:06",
+      "endsAt": "15:21:27",
+      "evidence": ["Wrenfield Dental Group", "Lanternfield Health"],
+      "about": [
+        "what would you stop doing",
+        "expect again in the director round"
+      ]
+    },
+    {
+      "id": "gaps",
+      "from": "Ciaran",
+      "completeWhenSaid": "that you cannot do today",
+      "startsAt": "15:22:59",
+      "endsAt": "15:23:12",
+      "evidence": [],
+      "about": ["gaps", "what the candidate has not done"]
+    },
+    {
+      "id": "start-date-and-office",
+      "from": "Ciaran",
+      "completeWhenSaid": "Does September work for you",
+      "startsAt": "15:24:25",
+      "endsAt": "15:25:00",
+      "evidence": [],
+      "about": [
+        "start date changed",
+        "office days",
+        "logistics stated by the interviewer"
+      ]
+    },
+    {
+      "id": "questions-for-the-panel",
+      "from": "Ciaran",
+      "completeWhenSaid": "you like to ask us",
+      "startsAt": "15:26:08",
+      "endsAt": "15:26:17",
+      "evidence": [],
+      "about": ["candidate's questions"]
+    },
+    {
+      "id": "bad-week-answer",
+      "from": "Seun",
+      "completeWhenSaid": "of answer you were after",
+      "startsAt": "15:27:00",
+      "endsAt": "15:27:31",
+      "evidence": [],
+      "about": ["on-call", "interviewer answers the candidate's question"]
+    },
+    {
+      "id": "contract-answer",
+      "from": "Niamh",
+      "completeWhenSaid": "Would you want to",
+      "startsAt": "15:28:27",
+      "endsAt": "15:28:48",
+      "evidence": ["Lanternfield Health"],
+      "about": [
+        "contract ownership",
+        "interviewer answers the candidate's question"
+      ]
+    },
+    {
+      "id": "next-steps",
+      "from": "Ciaran",
+      "completeWhenSaid": "you need from us today",
+      "startsAt": "15:29:38",
+      "endsAt": "15:30:04",
+      "evidence": [],
+      "about": ["next steps", "director round", "promise to send the diagram"]
+    }
+  ]
+}

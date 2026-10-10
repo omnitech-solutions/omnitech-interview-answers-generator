@@ -633,6 +633,9 @@ describe("the view a person inspects", () => {
       // What a stage's transcript gives, once a model has read one.
       { slot: "asked", state: "no-such-fact", count: 0 },
       { slot: "signals", state: "no-such-fact", count: 0 },
+      // What the person answered and promised there (PackFlags.said).
+      { slot: "answered", state: "no-such-fact", count: 0 },
+      { slot: "commitments", state: "no-such-fact", count: 0 },
       { slot: "evidence", state: "covered", count: 5 },
       { slot: "roles", state: "covered", count: 1 },
       { slot: "preferences", state: "no-such-fact", count: 0 },
@@ -809,7 +812,7 @@ describe("a pack of no material", () => {
     expect(empty.lookup("candidate.name")).toBeUndefined();
     expect(empty.lookup("employer.company")).toBeUndefined();
     const states = empty.view("inspect", GO).slots;
-    expect(states.length).toBe(14);
+    expect(states.length).toBe(16);
     for (const slot of states) {
       expect(slot.count).toBe(0);
       expect(slot.state).toBe(

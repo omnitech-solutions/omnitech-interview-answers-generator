@@ -23,7 +23,12 @@ import {
   employerBriefSchema,
 } from "@omnitech/interview-contracts";
 import { z } from "zod";
-import { type ContextPack, contextSources, prepareContextPack } from "./pack";
+import {
+  type ContextPack,
+  contextSources,
+  type PackOptions,
+  prepareContextPack,
+} from "./pack";
 import type { ProjectionId } from "./recipe";
 
 export const goldSchema = z.strictObject({
@@ -166,6 +171,9 @@ const starts = (text: string, keys: readonly string[]) =>
 
 export async function preparePackForBench(
   material: BenchMaterial,
+  // Flags in place of each projection's own (recipe.ts): how the development
+  // sweep tries a mechanism on these questions before the held-out set is read.
+  flags?: PackOptions["flags"],
 ): Promise<ContextPack> {
   // No profile and no provider: a model call here would fail the run.
   const engine = createAiEngine({
@@ -189,6 +197,7 @@ export async function preparePackForBench(
         : {}),
     }),
     { ...EXECUTION, signal: new AbortController().signal },
+    flags ? { flags } : {},
   );
 }
 
@@ -257,9 +266,10 @@ export async function runPackBench(
   material: BenchMaterial,
   gold: Gold,
   nowMs: () => number = () => performance.now(),
+  flags?: PackOptions["flags"],
 ): Promise<PackBenchResult> {
   const startedAt = nowMs();
-  const pack = await preparePackForBench(material);
+  const pack = await preparePackForBench(material, flags);
   const prepareMs = nowMs() - startedAt;
 
   const byKind: Record<string, number> = {};

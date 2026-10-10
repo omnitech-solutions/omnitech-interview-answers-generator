@@ -947,12 +947,17 @@ describe("a piece the model fails on", () => {
     expect(posting[0]?.user.length).toBeGreaterThan(
       (posting[1]?.user.length ?? 0) + 100,
     );
+    // The engine shows a source between two marked lines (a digest of the
+    // text): each part carries its own marks, and the text between them is
+    // the whole's, in order.
+    const shown = (user: string) =>
+      user.replace(/<<<SOURCE:[0-9a-f]+\n?|\n?SOURCE:[0-9a-f]+>>>/g, "");
     expect(
       posting
         .slice(1)
-        .map((call) => call.user)
+        .map((call) => shown(call.user))
         .join(""),
-    ).toBe(posting[0]?.user);
+    ).toBe(shown(posting[0]?.user ?? ""));
     // Only the part the model failed on twice is a hole.
     expect(done.prepared.holes).toEqual([
       {
@@ -1949,6 +1954,10 @@ describe("the live coach, on a stage-2 session of a prepared application whose e
     const again = await coach.facts(SESSION, ASKED_AGAIN);
     const brought = [
       "both need the same payout record",
+      // What the person answered there is brought with what was asked
+      // (PackFlags.said): the coach can say "you told them this before".
+      "the quote state had one owner",
+      "shadow for two weeks first",
       "expect a question on idempotent payouts",
       // Each is cited by its moment on the transcript's clock.
       "10:02:10",

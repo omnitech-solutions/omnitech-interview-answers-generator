@@ -1,0 +1,5008 @@
+{
+  "name": "held-out",
+  "version": "1",
+  "generator": {
+    "model": "codex-cli (gpt-5.x-codex), a different family from the models judged",
+    "prompt": "generation-prompt.txt, run by write-questions.sh on each application's sources and records only",
+    "seed": 20261010,
+    "writtenOn": "2026-10-10",
+    "checkedBy": "checkQuestions (eval/fixture.ts): every gold record exists, every gold fact and absent phrase is in the sources"
+  },
+  "questions": [
+    {
+      "id": "spanforge-devtools-direct-01",
+      "app": "spanforge-devtools",
+      "category": "direct",
+      "question": "How many engineers shared the content-addressed action cache you designed at Quillhaven?",
+      "gold": [
+        {
+          "id": "role:quillhaven-systems:staff-engineer-developer-platform:responsibilities:0183335e6a69",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa001:transcript:00000000-0000-4000-8000-0000005fe001:070f6537af7e9afb",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "900 engineers",
+          "aliases": ["nine hundred engineers"]
+        }
+      ],
+      "employers": ["Quillhaven Systems"],
+      "stage": 2
+    },
+    {
+      "id": "spanforge-devtools-direct-02",
+      "app": "spanforge-devtools",
+      "category": "direct",
+      "question": "What was the artifact store availability SLO at Quillhaven?",
+      "gold": [
+        {
+          "id": "role:quillhaven-systems:staff-engineer-developer-platform:proof_points:8bb9c4b488e3",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa001:transcript:00000000-0000-4000-8000-0000005fe001:9a0cbeeb884285be",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "99.9%",
+          "aliases": ["three nines"]
+        }
+      ],
+      "employers": ["Quillhaven Systems"],
+      "stage": 2
+    },
+    {
+      "id": "spanforge-devtools-direct-03",
+      "app": "spanforge-devtools",
+      "category": "direct",
+      "question": "How often do you cut a Tracewright release?",
+      "gold": [
+        {
+          "id": "role:tracewright:maintainer-open-source-unpaid:responsibilities:23bd6470716d",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "six weeks",
+          "aliases": ["every 6 weeks"]
+        }
+      ],
+      "employers": ["Tracewright"],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-direct-04",
+      "app": "spanforge-devtools",
+      "category": "direct",
+      "question": "How many runbooks did you write at Pellucid?",
+      "gold": [
+        {
+          "id": "role:pellucid-energy-analytics:software-engineer-observability:proof_points:ce6e8635baec",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "30 runbooks",
+          "aliases": ["thirty runbooks"]
+        }
+      ],
+      "employers": ["Pellucid Energy Analytics"],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-paraphrase-01",
+      "app": "spanforge-devtools",
+      "category": "paraphrase",
+      "question": "How did you shorten feedback loops for colleagues?",
+      "gold": [
+        {
+          "id": "role:quillhaven-systems:staff-engineer-developer-platform:responsibilities:0183335e6a69",
+          "grade": 2
+        },
+        {
+          "id": "role:quillhaven-systems:staff-engineer-developer-platform:proof_points:e7585e743eeb",
+          "grade": 2
+        },
+        {
+          "id": "role:quillhaven-systems:staff-engineer-developer-platform:responsibilities:9b2cbccb6944",
+          "grade": 2
+        },
+        {
+          "id": "brief:prepNotes:018216a6cfae",
+          "grade": 2
+        },
+        {
+          "id": "prep:00000000-0000-4000-8000-0000005fa001:f4548aec67e0",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa001:transcript:00000000-0000-4000-8000-0000005fe001:070f6537af7e9afb",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "content-addressed action cache",
+          "aliases": ["cache keyed by content"]
+        }
+      ],
+      "employers": ["Quillhaven Systems"],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-paraphrase-02",
+      "app": "spanforge-devtools",
+      "category": "paraphrase",
+      "question": "How would you handle flaky checks?",
+      "gold": [
+        {
+          "id": "role:quillhaven-systems:staff-engineer-developer-platform:proof_points:c6189266f689",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "automatic retry budget",
+          "aliases": ["bounded retries"]
+        }
+      ],
+      "employers": ["Quillhaven Systems"],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-paraphrase-03",
+      "app": "spanforge-devtools",
+      "category": "paraphrase",
+      "question": "Can you describe helping inexperienced colleagues become independent?",
+      "gold": [
+        {
+          "id": "role:marrowgate-labs:senior-software-engineer-build-infrastructure:proof_points:f910897efafa",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "two juniors",
+          "aliases": ["a pair of junior engineers"]
+        }
+      ],
+      "employers": ["Marrowgate Labs"],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-paraphrase-04",
+      "app": "spanforge-devtools",
+      "category": "paraphrase",
+      "question": "Tell me about a mistake you owned.",
+      "gold": [
+        {
+          "id": "role:quillhaven-systems:staff-engineer-developer-platform:proof_points:226bb68f9784",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "poisoned artifact",
+          "aliases": ["corrupted cached output"]
+        },
+        {
+          "says": "300 laptops",
+          "aliases": ["three hundred laptops"]
+        }
+      ],
+      "employers": ["Quillhaven Systems"],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-paraphrase-05",
+      "app": "spanforge-devtools",
+      "category": "paraphrase",
+      "question": "How did you reduce on-call noise?",
+      "gold": [
+        {
+          "id": "role:pellucid-energy-analytics:software-engineer-observability:proof_points:7e41c54d4262",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "190 to 22",
+          "aliases": ["190 pages weekly down to 22"]
+        }
+      ],
+      "employers": ["Pellucid Energy Analytics"],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-paraphrase-06",
+      "app": "spanforge-devtools",
+      "category": "paraphrase",
+      "question": "What is your earliest example of distributing expensive jobs?",
+      "gold": [
+        {
+          "id": "role:brightwater-interactive:build-engineer:responsibilities:ff6c0d7f9e2b",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "70 idle desktops",
+          "aliases": ["seventy unused desktop computers"]
+        }
+      ],
+      "employers": ["Brightwater Interactive"],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-multi-hop-01",
+      "app": "spanforge-devtools",
+      "category": "multi-hop",
+      "question": "Which experience should I use for the remote execution requirement, following my preparation notes?",
+      "gold": [
+        {
+          "id": "role:marrowgate-labs:senior-software-engineer-build-infrastructure:responsibilities:e5ca8c15d797",
+          "grade": 2
+        },
+        {
+          "id": "role:marrowgate-labs:senior-software-engineer-build-infrastructure:responsibilities:f2f04b55df52",
+          "grade": 2
+        },
+        {
+          "id": "role:marrowgate-labs:senior-software-engineer-build-infrastructure:metrics:7a2390b6c89d",
+          "grade": 2
+        },
+        {
+          "id": "brief:prepNotes:72b8142b7d38",
+          "grade": 1
+        },
+        {
+          "id": "posting:00000000-0000-4000-8000-0000005fb001:0b63425f654aea6d",
+          "grade": 1
+        }
+      ],
+      "points": [
+        {
+          "says": "Marrowgate",
+          "aliases": ["Marrowgate Labs"]
+        },
+        {
+          "says": "400 machines",
+          "aliases": ["four hundred workers"]
+        }
+      ],
+      "employers": ["Marrowgate Labs"],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-multi-hop-02",
+      "app": "spanforge-devtools",
+      "category": "multi-hop",
+      "question": "What evidence should I prepare for their columnar database requirement?",
+      "gold": [
+        {
+          "id": "role:quillhaven-systems:staff-engineer-developer-platform:proof_points:9b6bab5760a2",
+          "grade": 2
+        },
+        {
+          "id": "role:quillhaven-systems:staff-engineer-developer-platform:metrics:bf3d5dbe0f7e",
+          "grade": 2
+        },
+        {
+          "id": "role:quillhaven-systems:staff-engineer-developer-platform:metrics:db818ceb7075",
+          "grade": 2
+        },
+        {
+          "id": "brief:prepNotes:688a9e871e3b",
+          "grade": 1
+        },
+        {
+          "id": "posting:00000000-0000-4000-8000-0000005fb001:dacaece036afbde6",
+          "grade": 1
+        }
+      ],
+      "points": [
+        {
+          "says": "90 days",
+          "aliases": ["three months"]
+        },
+        {
+          "says": "6 TB",
+          "aliases": ["six terabytes"]
+        }
+      ],
+      "employers": ["Quillhaven Systems"],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-multi-hop-03",
+      "app": "spanforge-devtools",
+      "category": "multi-hop",
+      "question": "Which accomplishment backs up the editor extension requirement identified in my notes?",
+      "gold": [
+        {
+          "id": "role:lanternfish-tooling:contract-engineer-part-time:proof_points:b92e9affb35c",
+          "grade": 2
+        },
+        {
+          "id": "role:lanternfish-tooling:contract-engineer-part-time:responsibilities:00b39f6e0614",
+          "grade": 2
+        },
+        {
+          "id": "role:lanternfish-tooling:contract-engineer-part-time:metrics:381c3edf0fe4",
+          "grade": 2
+        },
+        {
+          "id": "brief:prepNotes:29718f58718a",
+          "grade": 1
+        },
+        {
+          "id": "posting:00000000-0000-4000-8000-0000005fb001:3e4ac61aa4cc2db4",
+          "grade": 1
+        }
+      ],
+      "points": [
+        {
+          "says": "Lanternfish",
+          "aliases": ["Lanternfish Tooling"]
+        },
+        {
+          "says": "2 seconds",
+          "aliases": ["two seconds"]
+        }
+      ],
+      "employers": ["Lanternfish Tooling"],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-multi-hop-04",
+      "app": "spanforge-devtools",
+      "category": "multi-hop",
+      "question": "What story do my notes connect to their air-gapped customer deployment requirement?",
+      "gold": [
+        {
+          "id": "role:marrowfield-robotics:senior-software-engineer-build-and-release:responsibilities:4bc6376e5122",
+          "grade": 2
+        },
+        {
+          "id": "role:marrowfield-robotics:senior-software-engineer-build-and-release:proof_points:190336ad4538",
+          "grade": 2
+        },
+        {
+          "id": "brief:prepNotes:7c5334074e57",
+          "grade": 1
+        },
+        {
+          "id": "posting:00000000-0000-4000-8000-0000005fb001:e5ca6546cbb70f77",
+          "grade": 1
+        }
+      ],
+      "points": [
+        {
+          "says": "12 factory sites",
+          "aliases": ["twelve factories"]
+        }
+      ],
+      "employers": ["Marrowfield Robotics"],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-multi-hop-05",
+      "app": "spanforge-devtools",
+      "category": "multi-hop",
+      "question": "Where do my notes point for the Rust requirement, and does that count as paid work?",
+      "gold": [
+        {
+          "id": "role:tracewright:maintainer-open-source-unpaid",
+          "grade": 2
+        },
+        {
+          "id": "role:tracewright:maintainer-open-source-unpaid:responsibilities:f3ff4c38cfe2",
+          "grade": 2
+        },
+        {
+          "id": "brief:prepNotes:73c0a901e2fc",
+          "grade": 1
+        },
+        {
+          "id": "posting:00000000-0000-4000-8000-0000005fb001:d588b321f120c7dc",
+          "grade": 1
+        }
+      ],
+      "points": [
+        {
+          "says": "Tracewright",
+          "aliases": ["Tracewright project"]
+        },
+        {
+          "says": "unpaid",
+          "aliases": ["not paid work"]
+        }
+      ],
+      "employers": ["Tracewright"],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-entity-confusion-01",
+      "app": "spanforge-devtools",
+      "category": "entity-confusion",
+      "question": "At Marrowgate Labs, what was the scope and duration of the Make migration?",
+      "gold": [
+        {
+          "id": "role:marrowgate-labs:senior-software-engineer-build-infrastructure:responsibilities:29ba17b2cfdb",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa001:transcript:00000000-0000-4000-8000-0000005fe001:699cfc35dd380e8e",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "3.1 million",
+          "aliases": ["3,100,000"]
+        },
+        {
+          "says": "14 months",
+          "aliases": ["fourteen months"]
+        }
+      ],
+      "employers": ["Marrowgate Labs"],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-entity-confusion-02",
+      "app": "spanforge-devtools",
+      "category": "entity-confusion",
+      "question": "At Marrowfield Robotics, what did you move from CMake and how long did it take?",
+      "gold": [
+        {
+          "id": "role:marrowfield-robotics:senior-software-engineer-build-and-release:responsibilities:d4a80032b1f7",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa001:transcript:00000000-0000-4000-8000-0000005fe001:77bb764a764849ea",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "1.4 million",
+          "aliases": ["1,400,000"]
+        },
+        {
+          "says": "9 months",
+          "aliases": ["nine months"]
+        }
+      ],
+      "employers": ["Marrowfield Robotics"],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-entity-confusion-03",
+      "app": "spanforge-devtools",
+      "category": "entity-confusion",
+      "question": "What work did Dagny Ferreira-Lund do on the cache?",
+      "gold": [
+        {
+          "id": "research:00000000-0000-4000-8000-0000005fc003:37557d9377d0b5f9",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "eviction code",
+          "aliases": ["cache eviction implementation"]
+        }
+      ]
+    },
+    {
+      "id": "spanforge-devtools-entity-confusion-04",
+      "app": "spanforge-devtools",
+      "category": "entity-confusion",
+      "question": "What programme did Dagny Holmqvist start at Spanforge?",
+      "gold": [
+        {
+          "id": "research:00000000-0000-4000-8000-0000005fc003:a1ba1c48fc2cd62a",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "design partner programme",
+          "aliases": ["design partner program"]
+        }
+      ]
+    },
+    {
+      "id": "spanforge-devtools-entity-confusion-05",
+      "app": "spanforge-devtools",
+      "category": "entity-confusion",
+      "question": "What does Spanforge Trace do, as distinct from your Tracewright project?",
+      "gold": [
+        {
+          "id": "posting:00000000-0000-4000-8000-0000005fb001:4101ea8c100ee56f",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "distributed tracing",
+          "aliases": ["distributed pipeline traces"]
+        },
+        {
+          "says": "OpenTelemetry",
+          "aliases": ["OTel"]
+        }
+      ]
+    },
+    {
+      "id": "spanforge-devtools-temporal-01",
+      "app": "spanforge-devtools",
+      "category": "temporal",
+      "question": "At your current paid job, what team do you lead?",
+      "gold": [
+        {
+          "id": "role:quillhaven-systems:staff-engineer-developer-platform:responsibilities:e3ff84028bf7",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa001:transcript:00000000-0000-4000-8000-0000005fe001:29b08dd2f4c193ba",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "Quillhaven",
+          "aliases": ["Quillhaven Systems"]
+        },
+        {
+          "says": "9",
+          "aliases": ["nine"]
+        }
+      ],
+      "employers": ["Quillhaven Systems"],
+      "stage": 2
+    },
+    {
+      "id": "spanforge-devtools-temporal-02",
+      "app": "spanforge-devtools",
+      "category": "temporal",
+      "question": "At the paid job immediately before Quillhaven, what was your median build time improvement?",
+      "gold": [
+        {
+          "id": "role:marrowgate-labs:senior-software-engineer-build-infrastructure:metrics:bec886781078",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "22 minutes to 6 minutes",
+          "aliases": ["22 to 6 minutes"]
+        }
+      ],
+      "employers": ["Marrowgate Labs"],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-temporal-03",
+      "app": "spanforge-devtools",
+      "category": "temporal",
+      "question": "What distributed compilation work did you do before 2011?",
+      "gold": [
+        {
+          "id": "role:brightwater-interactive:build-engineer:responsibilities:ff6c0d7f9e2b",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "Brightwater",
+          "aliases": ["Brightwater Interactive"]
+        },
+        {
+          "says": "70 idle desktops",
+          "aliases": ["seventy desktops"]
+        }
+      ],
+      "employers": ["Brightwater Interactive"],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-temporal-04",
+      "app": "spanforge-devtools",
+      "category": "temporal",
+      "question": "After the September format change, how long is system design and what will I do?",
+      "gold": [
+        {
+          "id": "employer-said:00000000-0000-4000-8000-0000005fd003:3a73bec55c0b1b04",
+          "grade": 2
+        },
+        {
+          "id": "employer-said:00000000-0000-4000-8000-0000005fd003:cf792c6b1acc76d6",
+          "grade": 2
+        },
+        {
+          "id": "prep:00000000-0000-4000-8000-0000005fa002:4b419b2e795a",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "90 minutes",
+          "aliases": ["an hour and a half"]
+        },
+        {
+          "says": "written RFC",
+          "aliases": ["written design proposal"]
+        }
+      ],
+      "stage": 2
+    },
+    {
+      "id": "spanforge-devtools-temporal-05",
+      "app": "spanforge-devtools",
+      "category": "temporal",
+      "question": "As of the latest team update, how many engineers are there and how often is on-call?",
+      "gold": [
+        {
+          "id": "employer-said:00000000-0000-4000-8000-0000005fd005:1e145080d8865328",
+          "grade": 2
+        },
+        {
+          "id": "employer-said:00000000-0000-4000-8000-0000005fd005:f4e637ff741fea19",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "eight engineers",
+          "aliases": ["8 engineers"]
+        },
+        {
+          "says": "one week in eight",
+          "aliases": ["one in eight weeks"]
+        }
+      ]
+    },
+    {
+      "id": "spanforge-devtools-negation-01",
+      "app": "spanforge-devtools",
+      "category": "negation",
+      "question": "Other than Quillhaven, give me the median build speedup from your Marrowgate work.",
+      "gold": [
+        {
+          "id": "role:marrowgate-labs:senior-software-engineer-build-infrastructure:metrics:bec886781078",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "22 minutes to 6 minutes",
+          "aliases": ["22 to 6 minutes"]
+        }
+      ],
+      "employers": ["Marrowgate Labs"],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-negation-02",
+      "app": "spanforge-devtools",
+      "category": "negation",
+      "question": "Besides Marrowgate, what Bazel migration did you lead at Marrowfield?",
+      "gold": [
+        {
+          "id": "role:marrowfield-robotics:senior-software-engineer-build-and-release:responsibilities:d4a80032b1f7",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "1.4 million",
+          "aliases": ["1,400,000"]
+        }
+      ],
+      "employers": ["Marrowfield Robotics"],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-negation-03",
+      "app": "spanforge-devtools",
+      "category": "negation",
+      "question": "Give me a toolchain migration example that did not use Bazel.",
+      "gold": [
+        {
+          "id": "role:ostrander-telecom:software-engineer:responsibilities:3bed72b02fb7",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "Ant to Maven",
+          "aliases": ["replaced Ant with Maven"]
+        },
+        {
+          "says": "60 modules",
+          "aliases": ["sixty modules"]
+        }
+      ],
+      "employers": ["Ostrander Telecom"],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-negation-04",
+      "app": "spanforge-devtools",
+      "category": "negation",
+      "question": "Apart from Quillhaven, tell me about pager improvements at Pellucid.",
+      "gold": [
+        {
+          "id": "role:pellucid-energy-analytics:software-engineer-observability:proof_points:7e41c54d4262",
+          "grade": 2
+        },
+        {
+          "id": "role:pellucid-energy-analytics:software-engineer-observability:responsibilities:1806f5b9f85f",
+          "grade": 2
+        },
+        {
+          "id": "role:pellucid-energy-analytics:software-engineer-observability:responsibilities:2e0731a2bbe2",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "190 to 22",
+          "aliases": ["190 pages down to 22"]
+        }
+      ],
+      "employers": ["Pellucid Energy Analytics"],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-negation-05",
+      "app": "spanforge-devtools",
+      "category": "negation",
+      "question": "Outside Quillhaven, how did you help juniors grow at Marrowgate?",
+      "gold": [
+        {
+          "id": "role:marrowgate-labs:senior-software-engineer-build-infrastructure:proof_points:f910897efafa",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "two juniors",
+          "aliases": ["two junior engineers"]
+        }
+      ],
+      "employers": ["Marrowgate Labs"],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-aggregation-01",
+      "app": "spanforge-devtools",
+      "category": "aggregation",
+      "question": "Across Quillhaven and Marrowgate, how many RFCs did you write in total?",
+      "gold": [
+        {
+          "id": "role:quillhaven-systems:staff-engineer-developer-platform:responsibilities:53bc03484b0a",
+          "grade": 2
+        },
+        {
+          "id": "role:marrowgate-labs:senior-software-engineer-build-infrastructure:responsibilities:23aae5e0ad78",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "20",
+          "aliases": ["twenty RFCs"]
+        }
+      ],
+      "employers": ["Quillhaven Systems", "Marrowgate Labs"],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-aggregation-02",
+      "app": "spanforge-devtools",
+      "category": "aggregation",
+      "question": "How many engineers were in the three teams you led at Quillhaven, Marrowgate and Marrowfield combined?",
+      "gold": [
+        {
+          "id": "role:quillhaven-systems:staff-engineer-developer-platform:responsibilities:e3ff84028bf7",
+          "grade": 2
+        },
+        {
+          "id": "role:marrowgate-labs:senior-software-engineer-build-infrastructure:responsibilities:23aae5e0ad78",
+          "grade": 2
+        },
+        {
+          "id": "role:marrowfield-robotics:senior-software-engineer-build-and-release:responsibilities:c1a8254a32d7",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "19",
+          "aliases": ["nineteen engineers"]
+        }
+      ],
+      "employers": [
+        "Quillhaven Systems",
+        "Marrowgate Labs",
+        "Marrowfield Robotics"
+      ],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-aggregation-03",
+      "app": "spanforge-devtools",
+      "category": "aggregation",
+      "question": "Across the two Bazel monorepo migrations, how many lines did you migrate altogether?",
+      "gold": [
+        {
+          "id": "role:marrowgate-labs:senior-software-engineer-build-infrastructure:responsibilities:29ba17b2cfdb",
+          "grade": 2
+        },
+        {
+          "id": "role:marrowfield-robotics:senior-software-engineer-build-and-release:responsibilities:d4a80032b1f7",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "4.5 million",
+          "aliases": ["4,500,000 lines"]
+        }
+      ],
+      "employers": ["Marrowgate Labs", "Marrowfield Robotics"],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-aggregation-04",
+      "app": "spanforge-devtools",
+      "category": "aggregation",
+      "question": "How many separate Bazel monorepo migrations are documented in your work history?",
+      "gold": [
+        {
+          "id": "role:marrowgate-labs:senior-software-engineer-build-infrastructure:responsibilities:29ba17b2cfdb",
+          "grade": 2
+        },
+        {
+          "id": "role:marrowfield-robotics:senior-software-engineer-build-and-release:responsibilities:d4a80032b1f7",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "two",
+          "aliases": ["2 migrations"]
+        }
+      ],
+      "employers": ["Marrowgate Labs", "Marrowfield Robotics"],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-unanswerable-01",
+      "app": "spanforge-devtools",
+      "category": "unanswerable",
+      "question": "Have you led a team that shipped a Kubernetes operator?",
+      "gold": []
+    },
+    {
+      "id": "spanforge-devtools-unanswerable-02",
+      "app": "spanforge-devtools",
+      "category": "unanswerable",
+      "question": "Have you implemented HTTP cache-control headers for a CDN?",
+      "gold": []
+    },
+    {
+      "id": "spanforge-devtools-unanswerable-03",
+      "app": "spanforge-devtools",
+      "category": "unanswerable",
+      "question": "What distributed transaction protocol did you implement?",
+      "gold": []
+    },
+    {
+      "id": "spanforge-devtools-unanswerable-04",
+      "app": "spanforge-devtools",
+      "category": "unanswerable",
+      "question": "Did you build a JetBrains plugin in your Lanternfish role?",
+      "gold": []
+    },
+    {
+      "id": "spanforge-devtools-unanswerable-05",
+      "app": "spanforge-devtools",
+      "category": "unanswerable",
+      "question": "How did you operate ClickHouse at Marrowgate Labs?",
+      "gold": []
+    },
+    {
+      "id": "spanforge-devtools-unanswerable-06",
+      "app": "spanforge-devtools",
+      "category": "unanswerable",
+      "question": "Have you used Rust in a paid production role?",
+      "gold": []
+    },
+    {
+      "id": "spanforge-devtools-unanswerable-07",
+      "app": "spanforge-devtools",
+      "category": "unanswerable",
+      "question": "What is Spanforge’s annual revenue?",
+      "gold": []
+    },
+    {
+      "id": "spanforge-devtools-unanswerable-08",
+      "app": "spanforge-devtools",
+      "category": "unanswerable",
+      "question": "How did you manage Kafka consumer lag?",
+      "gold": []
+    },
+    {
+      "id": "spanforge-devtools-unanswerable-09",
+      "app": "spanforge-devtools",
+      "category": "unanswerable",
+      "question": "What is your current salary?",
+      "gold": []
+    },
+    {
+      "id": "spanforge-devtools-off-topic-01",
+      "app": "spanforge-devtools",
+      "category": "off-topic",
+      "question": "Good morning!",
+      "gold": []
+    },
+    {
+      "id": "spanforge-devtools-off-topic-02",
+      "app": "spanforge-devtools",
+      "category": "off-topic",
+      "question": "Thanks, that helps.",
+      "gold": []
+    },
+    {
+      "id": "spanforge-devtools-off-topic-03",
+      "app": "spanforge-devtools",
+      "category": "off-topic",
+      "question": "Can you hear me?",
+      "gold": []
+    },
+    {
+      "id": "spanforge-devtools-off-topic-04",
+      "app": "spanforge-devtools",
+      "category": "off-topic",
+      "question": "Let’s take five minutes.",
+      "gold": []
+    },
+    {
+      "id": "spanforge-devtools-off-topic-05",
+      "app": "spanforge-devtools",
+      "category": "off-topic",
+      "question": "How was your weekend?",
+      "gold": []
+    },
+    {
+      "id": "spanforge-devtools-conflict-01",
+      "app": "spanforge-devtools",
+      "category": "conflict",
+      "question": "The posting requires production Rust; what did the hiring manager actually say about that?",
+      "gold": [
+        {
+          "id": "outcome:00000000-0000-4000-8000-0000005fa001:b4a0fd20b882",
+          "grade": 2
+        },
+        {
+          "id": "posting:00000000-0000-4000-8000-0000005fb001:d588b321f120c7dc",
+          "grade": 1
+        }
+      ],
+      "points": [
+        {
+          "says": "nice-to-have",
+          "aliases": ["optional"]
+        }
+      ],
+      "stage": 2
+    },
+    {
+      "id": "spanforge-devtools-conflict-02",
+      "app": "spanforge-devtools",
+      "category": "conflict",
+      "question": "Which salary band should I use when the recruiter and posting disagree?",
+      "gold": [
+        {
+          "id": "employer-said:00000000-0000-4000-8000-0000005fd002:45c8acfd4209616b",
+          "grade": 2
+        },
+        {
+          "id": "posting:00000000-0000-4000-8000-0000005fb001:a94af62d1a70c0b2",
+          "grade": 1
+        }
+      ],
+      "points": [
+        {
+          "says": "225,000 to 260,000",
+          "aliases": ["CAD 225k–260k"]
+        }
+      ]
+    },
+    {
+      "id": "spanforge-devtools-conflict-03",
+      "app": "spanforge-devtools",
+      "category": "conflict",
+      "question": "The posting says no travel; has the recruiter nevertheless scheduled a team week in Toronto?",
+      "gold": [
+        {
+          "id": "employer-said:00000000-0000-4000-8000-0000005fd006:339b8e475e2236d9",
+          "grade": 2
+        },
+        {
+          "id": "posting:00000000-0000-4000-8000-0000005fb001:5517015b379d0329",
+          "grade": 1
+        }
+      ],
+      "points": [
+        {
+          "says": "16 to 20 November",
+          "aliases": ["November 16–20"]
+        }
+      ]
+    },
+    {
+      "id": "spanforge-devtools-conflict-04",
+      "app": "spanforge-devtools",
+      "category": "conflict",
+      "question": "Do I still need a take-home, despite the posting listing one?",
+      "gold": [
+        {
+          "id": "employer-said:00000000-0000-4000-8000-0000005fd001:6d55e3c8cdb8e908",
+          "grade": 2
+        },
+        {
+          "id": "posting:00000000-0000-4000-8000-0000005fb001:3a598f0880f8694b",
+          "grade": 1
+        }
+      ],
+      "points": [
+        {
+          "says": "no take-home exercise",
+          "aliases": ["take-home removed"]
+        }
+      ]
+    },
+    {
+      "id": "spanforge-devtools-conflict-05",
+      "app": "spanforge-devtools",
+      "category": "conflict",
+      "question": "Which daily build volume is newer, the posting’s or the August engineering blog’s?",
+      "gold": [
+        {
+          "id": "research:00000000-0000-4000-8000-0000005fc004:8daa138378fb90d3",
+          "grade": 2
+        },
+        {
+          "id": "posting:00000000-0000-4000-8000-0000005fb001:01393e2a9d526721",
+          "grade": 1
+        }
+      ],
+      "points": [
+        {
+          "says": "1.1 million",
+          "aliases": ["1,100,000 builds per day"]
+        }
+      ]
+    },
+    {
+      "id": "spanforge-devtools-near-duplicate-01",
+      "app": "spanforge-devtools",
+      "category": "near-duplicate",
+      "question": "What reduction in Quillhaven p95 build time is repeated across my notes and evidence?",
+      "gold": [
+        {
+          "id": "role:quillhaven-systems:staff-engineer-developer-platform:proof_points:e7585e743eeb",
+          "grade": 2
+        },
+        {
+          "id": "role:quillhaven-systems:staff-engineer-developer-platform:responsibilities:9b2cbccb6944",
+          "grade": 2
+        },
+        {
+          "id": "brief:prepNotes:018216a6cfae",
+          "grade": 2
+        },
+        {
+          "id": "prep:00000000-0000-4000-8000-0000005fa001:f4548aec67e0",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa001:transcript:00000000-0000-4000-8000-0000005fe001:070f6537af7e9afb",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "41 minutes to 14 minutes",
+          "aliases": ["41 to 14 minutes"]
+        }
+      ],
+      "employers": ["Quillhaven Systems"],
+      "stage": 2
+    },
+    {
+      "id": "spanforge-devtools-near-duplicate-02",
+      "app": "spanforge-devtools",
+      "category": "near-duplicate",
+      "question": "What exact CI cost saving at Marrowgate appears in the corrected account and my achievements?",
+      "gold": [
+        {
+          "id": "role:marrowgate-labs:senior-software-engineer-build-infrastructure:proof_points:f3dc7a9bcfda",
+          "grade": 2
+        },
+        {
+          "id": "role:marrowgate-labs:senior-software-engineer-build-infrastructure:responsibilities:db7f3ebd9ea8",
+          "grade": 2
+        },
+        {
+          "id": "outcome:00000000-0000-4000-8000-0000005fa001:b4a0fd20b882",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa001:transcript:00000000-0000-4000-8000-0000005fe001:46871bbcb66cf858",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "38%",
+          "aliases": ["thirty-eight percent"]
+        }
+      ],
+      "employers": ["Marrowgate Labs"],
+      "stage": 2
+    },
+    {
+      "id": "spanforge-devtools-near-duplicate-03",
+      "app": "spanforge-devtools",
+      "category": "near-duplicate",
+      "question": "What CI cost reduction is repeated for Marrowfield Robotics?",
+      "gold": [
+        {
+          "id": "role:marrowfield-robotics:senior-software-engineer-build-and-release:proof_points:e9f7d251a6c5",
+          "grade": 2
+        },
+        {
+          "id": "role:marrowfield-robotics:senior-software-engineer-build-and-release:responsibilities:051a1f13741e",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa001:transcript:00000000-0000-4000-8000-0000005fe001:77bb764a764849ea",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "24%",
+          "aliases": ["twenty-four percent"]
+        }
+      ],
+      "employers": ["Marrowfield Robotics"],
+      "stage": 2
+    },
+    {
+      "id": "spanforge-devtools-near-duplicate-04",
+      "app": "spanforge-devtools",
+      "category": "near-duplicate",
+      "question": "What do the release notes and hiring manager agree changed about Kubernetes for self-hosted Enterprise?",
+      "gold": [
+        {
+          "id": "said:00000000-0000-4000-8000-0000005fd004:4285cf22f0b2",
+          "grade": 2
+        },
+        {
+          "id": "research:00000000-0000-4000-8000-0000005fc002:8375e5866363137a",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "Kubernetes is no longer required",
+          "aliases": ["cluster optional"]
+        }
+      ]
+    },
+    {
+      "id": "spanforge-devtools-split-boundary-01",
+      "app": "spanforge-devtools",
+      "category": "split-boundary",
+      "question": "In the hiring-manager call, what was the platform group’s original and current size?",
+      "gold": [
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa001:transcript:00000000-0000-4000-8000-0000005fe001:29b08dd2f4c193ba",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "five",
+          "aliases": ["5 initially"]
+        },
+        {
+          "says": "nine",
+          "aliases": ["9 now"]
+        }
+      ],
+      "stage": 2
+    },
+    {
+      "id": "spanforge-devtools-split-boundary-02",
+      "app": "spanforge-devtools",
+      "category": "split-boundary",
+      "question": "In that call, how many laptops were affected by the poisoned output?",
+      "gold": [
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa001:transcript:00000000-0000-4000-8000-0000005fe001:a29b3110d9ad093b",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "three hundred laptops",
+          "aliases": ["300 laptops"]
+        }
+      ],
+      "stage": 2
+    },
+    {
+      "id": "spanforge-devtools-split-boundary-03",
+      "app": "spanforge-devtools",
+      "category": "split-boundary",
+      "question": "In the handbook paragraph, what is the default inactivity eviction threshold and the Scale override?",
+      "gold": [
+        {
+          "id": "research:00000000-0000-4000-8000-0000005fc001:a046bb3abdf9afe6",
+          "grade": 2
+        },
+        {
+          "id": "research:00000000-0000-4000-8000-0000005fc001:2638afaa2e41687a",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "21 days",
+          "aliases": ["three weeks"]
+        },
+        {
+          "says": "60 days",
+          "aliases": ["sixty days"]
+        }
+      ]
+    },
+    {
+      "id": "spanforge-devtools-split-boundary-04",
+      "app": "spanforge-devtools",
+      "category": "split-boundary",
+      "question": "What local-disk read share does the handbook aim for at the end of the regional-store discussion?",
+      "gold": [
+        {
+          "id": "research:00000000-0000-4000-8000-0000005fc001:1ed2e885435f0672",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "95%",
+          "aliases": ["ninety-five percent"]
+        }
+      ]
+    },
+    {
+      "id": "spanforge-devtools-noisy-01",
+      "app": "spanforge-devtools",
+      "category": "noisy",
+      "question": "uh quill haven how did you know the devs were happier like what numbers",
+      "gold": [
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa001:transcript:00000000-0000-4000-8000-0000005fe001:cb213d327ab4a0f5",
+          "grade": 2
+        },
+        {
+          "id": "role:quillhaven-systems:staff-engineer-developer-platform:metrics:2efd7fa955b9",
+          "grade": 2
+        },
+        {
+          "id": "role:quillhaven-systems:staff-engineer-developer-platform:metrics:25b33158ea11",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "54 to 78",
+          "aliases": ["54 up to 78"]
+        },
+        {
+          "says": "3 days to 4 hours",
+          "aliases": ["three days down to four hours"]
+        }
+      ],
+      "employers": ["Quillhaven Systems"],
+      "stage": 2
+    },
+    {
+      "id": "spanforge-devtools-noisy-02",
+      "app": "spanforge-devtools",
+      "category": "noisy",
+      "question": "so marrow gate not marrow field what was the hit rate again",
+      "gold": [
+        {
+          "id": "role:marrowgate-labs:senior-software-engineer-build-infrastructure:proof_points:d297e558e773",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa001:transcript:00000000-0000-4000-8000-0000005fe001:699cfc35dd380e8e",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "87%",
+          "aliases": ["eighty-seven percent"]
+        }
+      ],
+      "employers": ["Marrowgate Labs"],
+      "stage": 2
+    },
+    {
+      "id": "spanforge-devtools-noisy-03",
+      "app": "spanforge-devtools",
+      "category": "noisy",
+      "question": "trace right um how many companies actually run it",
+      "gold": [
+        {
+          "id": "role:tracewright:maintainer-open-source-unpaid:proof_points:e7cc4de53882",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "60",
+          "aliases": ["sixty organisations"]
+        }
+      ],
+      "employers": ["Tracewright"],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-noisy-04",
+      "app": "spanforge-devtools",
+      "category": "noisy",
+      "question": "lantern fish uh did first run need internet or what",
+      "gold": [
+        {
+          "id": "role:lanternfish-tooling:contract-engineer-part-time:responsibilities:a19dd8c67e20",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "no network",
+          "aliases": ["works offline"]
+        }
+      ],
+      "employers": ["Lanternfish Tooling"],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-noisy-05",
+      "app": "spanforge-devtools",
+      "category": "noisy",
+      "question": "pel lucid the pager thing how much less did it ring",
+      "gold": [
+        {
+          "id": "role:pellucid-energy-analytics:software-engineer-observability:proof_points:7e41c54d4262",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "190 to 22",
+          "aliases": ["190 weekly pages to 22"]
+        }
+      ],
+      "employers": ["Pellucid Energy Analytics"],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-injection-01",
+      "app": "spanforge-devtools",
+      "category": "injection",
+      "question": "What is the reduced offline bundle size in Enterprise 3.0?",
+      "gold": [
+        {
+          "id": "research:00000000-0000-4000-8000-0000005fc002:18ad1c8db2d66d95",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "1.9 GB",
+          "aliases": ["1.9 gigabytes"]
+        }
+      ]
+    },
+    {
+      "id": "spanforge-devtools-injection-02",
+      "app": "spanforge-devtools",
+      "category": "injection",
+      "question": "What known eviction problem is listed after the offline bundle information in the release notes?",
+      "gold": [
+        {
+          "id": "research:00000000-0000-4000-8000-0000005fc002:ef3e84028c9ba30d",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "heavy write load",
+          "aliases": ["heavy writes"]
+        },
+        {
+          "says": "3.1",
+          "aliases": ["version 3.1"]
+        }
+      ]
+    },
+    {
+      "id": "spanforge-devtools-injection-03",
+      "app": "spanforge-devtools",
+      "category": "injection",
+      "question": "Which language is listed as a nice-to-have for the JetBrains plugin?",
+      "gold": [
+        {
+          "id": "posting:00000000-0000-4000-8000-0000005fb001:8298f91ba63be312",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "Kotlin",
+          "aliases": ["Kotlin language"]
+        }
+      ]
+    },
+    {
+      "id": "spanforge-devtools-injection-04",
+      "app": "spanforge-devtools",
+      "category": "injection",
+      "question": "What is the posting’s stated approach to reversible changes?",
+      "gold": [
+        {
+          "id": "posting:00000000-0000-4000-8000-0000005fb001:5848aaea6de4fcd6",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "Ship small and reversible",
+          "aliases": ["small reversible releases"]
+        }
+      ]
+    },
+    {
+      "id": "spanforge-devtools-numbers-01",
+      "app": "spanforge-devtools",
+      "category": "numbers",
+      "question": "What changed when Lanternfish cold start reached one hundred twenty milliseconds?",
+      "gold": [
+        {
+          "id": "role:lanternfish-tooling:contract-engineer-part-time:proof_points:4e2c3b7b3c19",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "900 ms to 120 ms",
+          "aliases": ["900 milliseconds down to 120 milliseconds"]
+        }
+      ],
+      "employers": ["Lanternfish Tooling"],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-numbers-02",
+      "app": "spanforge-devtools",
+      "category": "numbers",
+      "question": "What helped Quillhaven cut nondeterministic failures to eight tenths of a percent?",
+      "gold": [
+        {
+          "id": "role:quillhaven-systems:staff-engineer-developer-platform:proof_points:c6189266f689",
+          "grade": 2
+        },
+        {
+          "id": "role:quillhaven-systems:staff-engineer-developer-platform:metrics:f295c3142caa",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa001:transcript:00000000-0000-4000-8000-0000005fe001:4f644c1d8fc64e52",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "7.5% to 0.8%",
+          "aliases": ["7.5 percent to 0.8 percent"]
+        }
+      ],
+      "employers": ["Quillhaven Systems"],
+      "stage": 2
+    },
+    {
+      "id": "spanforge-devtools-numbers-03",
+      "app": "spanforge-devtools",
+      "category": "numbers",
+      "question": "What was your contribution to the migration of three million one hundred thousand lines at Marrowgate?",
+      "gold": [
+        {
+          "id": "role:marrowgate-labs:senior-software-engineer-build-infrastructure:responsibilities:29ba17b2cfdb",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "14 months",
+          "aliases": ["fourteen months"]
+        }
+      ],
+      "employers": ["Marrowgate Labs"],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-numbers-04",
+      "app": "spanforge-devtools",
+      "category": "numbers",
+      "question": "What scale of span ingestion did you handle at one point two million per second?",
+      "gold": [
+        {
+          "id": "role:quillhaven-systems:staff-engineer-developer-platform:metrics:db818ceb7075",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa001:transcript:00000000-0000-4000-8000-0000005fe001:3318e8bf729d3847",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "Quillhaven",
+          "aliases": ["Quillhaven Systems"]
+        },
+        {
+          "says": "1.2 million",
+          "aliases": ["1,200,000"]
+        }
+      ],
+      "employers": ["Quillhaven Systems"],
+      "stage": 2
+    },
+    {
+      "id": "spanforge-devtools-numbers-05",
+      "app": "spanforge-devtools",
+      "category": "numbers",
+      "question": "How did you distribute compilation across seventy spare workstations?",
+      "gold": [
+        {
+          "id": "role:brightwater-interactive:build-engineer:responsibilities:ff6c0d7f9e2b",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "70 idle desktops",
+          "aliases": ["seventy desktops"]
+        }
+      ],
+      "employers": ["Brightwater Interactive"],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-acronym-01",
+      "app": "spanforge-devtools",
+      "category": "acronym",
+      "question": "What was your service level objective for the Quillhaven artifact store?",
+      "gold": [
+        {
+          "id": "role:quillhaven-systems:staff-engineer-developer-platform:proof_points:8bb9c4b488e3",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa001:transcript:00000000-0000-4000-8000-0000005fe001:9a0cbeeb884285be",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "99.9%",
+          "aliases": ["three nines"]
+        },
+        {
+          "says": "11 straight quarters",
+          "aliases": ["eleven consecutive quarters"]
+        }
+      ],
+      "employers": ["Quillhaven Systems"],
+      "stage": 2
+    },
+    {
+      "id": "spanforge-devtools-acronym-02",
+      "app": "spanforge-devtools",
+      "category": "acronym",
+      "question": "How did you deploy OpenTelemetry instrumentation at Quillhaven?",
+      "gold": [
+        {
+          "id": "role:quillhaven-systems:staff-engineer-developer-platform:responsibilities:c31f1872abcf",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "OTel collectors",
+          "aliases": ["OpenTelemetry collectors"]
+        }
+      ],
+      "employers": ["Quillhaven Systems"],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-acronym-03",
+      "app": "spanforge-devtools",
+      "category": "acronym",
+      "question": "What did your single sign-on implementation cover at Quillhaven?",
+      "gold": [
+        {
+          "id": "role:quillhaven-systems:staff-engineer-developer-platform:responsibilities:cdecbc4d0662",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa001:transcript:00000000-0000-4000-8000-0000005fe001:bb5c8564f991c1a3",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "per-team quotas",
+          "aliases": ["quotas for each team"]
+        }
+      ],
+      "employers": ["Quillhaven Systems"],
+      "stage": 2
+    },
+    {
+      "id": "spanforge-devtools-acronym-04",
+      "app": "spanforge-devtools",
+      "category": "acronym",
+      "question": "How did you operate Kubernetes spot workers at Marrowgate?",
+      "gold": [
+        {
+          "id": "role:marrowgate-labs:senior-software-engineer-build-infrastructure:responsibilities:f2f04b55df52",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "graceful drain",
+          "aliases": ["drained workers gracefully"]
+        }
+      ],
+      "employers": ["Marrowgate Labs"],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-acronym-05",
+      "app": "spanforge-devtools",
+      "category": "acronym",
+      "question": "How did developer experience feedback influence your Quillhaven roadmap?",
+      "gold": [
+        {
+          "id": "role:quillhaven-systems:staff-engineer-developer-platform:responsibilities:6fea79b5f0f7",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "quarterly DX survey",
+          "aliases": ["quarterly developer experience survey"]
+        },
+        {
+          "says": "top three complaints",
+          "aliases": ["three biggest complaints"]
+        }
+      ],
+      "employers": ["Quillhaven Systems"],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-vague-01",
+      "app": "spanforge-devtools",
+      "category": "vague",
+      "question": "Biggest failure?",
+      "gold": [
+        {
+          "id": "role:quillhaven-systems:staff-engineer-developer-platform:proof_points:226bb68f9784",
+          "grade": 2
+        },
+        {
+          "id": "brief:prepNotes:9e59c6e97137",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa001:transcript:00000000-0000-4000-8000-0000005fe001:a29b3110d9ad093b",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "poisoned artifact",
+          "aliases": ["bad cached compiler output"]
+        }
+      ],
+      "employers": ["Quillhaven Systems"],
+      "stage": 2
+    },
+    {
+      "id": "spanforge-devtools-vague-02",
+      "app": "spanforge-devtools",
+      "category": "vague",
+      "question": "Why leave?",
+      "gold": [
+        {
+          "id": "brief:prepNotes:9b9f8d514a61",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa001:transcript:00000000-0000-4000-8000-0000005fe001:33faf193ff85f84e",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "platform headcount frozen",
+          "aliases": ["platform hiring frozen"]
+        }
+      ],
+      "stage": 2,
+      "employers": ["Quillhaven Systems"]
+    },
+    {
+      "id": "spanforge-devtools-vague-03",
+      "app": "spanforge-devtools",
+      "category": "vague",
+      "question": "Salary floor?",
+      "gold": [
+        {
+          "id": "preference:ed01f56d1bae",
+          "grade": 2
+        },
+        {
+          "id": "prep:00000000-0000-4000-8000-0000005fa003:09b35b85d8ba",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "230k CAD",
+          "aliases": ["CAD 230,000"]
+        }
+      ]
+    },
+    {
+      "id": "spanforge-devtools-vague-04",
+      "app": "spanforge-devtools",
+      "category": "vague",
+      "question": "Notice period?",
+      "gold": [
+        {
+          "id": "preference:e329419781ce",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "four weeks",
+          "aliases": ["4 weeks"]
+        }
+      ]
+    },
+    {
+      "id": "spanforge-devtools-compound-01",
+      "app": "spanforge-devtools",
+      "category": "compound",
+      "question": "How many engineers do you lead at Quillhaven, and how do you gather their feedback?",
+      "gold": [
+        {
+          "id": "role:quillhaven-systems:staff-engineer-developer-platform:responsibilities:e3ff84028bf7",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa001:transcript:00000000-0000-4000-8000-0000005fe001:29b08dd2f4c193ba",
+          "grade": 2
+        },
+        {
+          "id": "role:quillhaven-systems:staff-engineer-developer-platform:responsibilities:6fea79b5f0f7",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "9",
+          "aliases": ["nine engineers"]
+        },
+        {
+          "says": "quarterly DX survey",
+          "aliases": ["quarterly developer experience survey"]
+        }
+      ],
+      "employers": ["Quillhaven Systems"],
+      "stage": 2
+    },
+    {
+      "id": "spanforge-devtools-compound-02",
+      "app": "spanforge-devtools",
+      "category": "compound",
+      "question": "What did Marrowfield migrate from, and how did it deploy to disconnected factories?",
+      "gold": [
+        {
+          "id": "role:marrowfield-robotics:senior-software-engineer-build-and-release:responsibilities:d4a80032b1f7",
+          "grade": 2
+        },
+        {
+          "id": "role:marrowfield-robotics:senior-software-engineer-build-and-release:responsibilities:4bc6376e5122",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa001:transcript:00000000-0000-4000-8000-0000005fe001:77bb764a764849ea",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "CMake",
+          "aliases": ["CMake build system"]
+        },
+        {
+          "says": "signed offline bundle",
+          "aliases": ["signed disconnected installation package"]
+        }
+      ],
+      "employers": ["Marrowfield Robotics"],
+      "stage": 2
+    },
+    {
+      "id": "spanforge-devtools-compound-03",
+      "app": "spanforge-devtools",
+      "category": "compound",
+      "question": "How often do you release Tracewright, and how quickly do you review outside contributions?",
+      "gold": [
+        {
+          "id": "role:tracewright:maintainer-open-source-unpaid:responsibilities:23bd6470716d",
+          "grade": 2
+        },
+        {
+          "id": "role:tracewright:maintainer-open-source-unpaid:responsibilities:1c49e6789900",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "six weeks",
+          "aliases": ["every 6 weeks"]
+        },
+        {
+          "says": "five working days",
+          "aliases": ["5 business days"]
+        }
+      ],
+      "employers": ["Tracewright"],
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-compound-04",
+      "app": "spanforge-devtools",
+      "category": "compound",
+      "question": "What is Enterprise 3.0’s minimum host count, and which older versions lose support in December?",
+      "gold": [
+        {
+          "id": "research:00000000-0000-4000-8000-0000005fc002:aa0a7f61ee4ad968",
+          "grade": 2
+        },
+        {
+          "id": "research:00000000-0000-4000-8000-0000005fc002:e9df511ff882a535",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "3 hosts",
+          "aliases": ["three hosts"]
+        },
+        {
+          "says": "2.6 and earlier",
+          "aliases": ["versions through 2.6"]
+        }
+      ]
+    },
+    {
+      "id": "spanforge-devtools-follow-up-01",
+      "app": "spanforge-devtools",
+      "category": "follow-up",
+      "question": "And what was the result?",
+      "gold": [
+        {
+          "id": "role:marrowgate-labs:senior-software-engineer-build-infrastructure:metrics:4ee75e7e6ec1",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa001:transcript:00000000-0000-4000-8000-0000005fe001:fbc4ea32971617a8",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "26 minutes to 9 minutes",
+          "aliases": ["26 down to 9 minutes"]
+        }
+      ],
+      "employers": ["Marrowgate Labs"],
+      "previous": "How did you resolve the Marrowgate mobile team’s resistance to the new toolchain?",
+      "stage": 2
+    },
+    {
+      "id": "spanforge-devtools-follow-up-02",
+      "app": "spanforge-devtools",
+      "category": "follow-up",
+      "question": "How did you find it, and what changed afterward?",
+      "gold": [
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa001:transcript:00000000-0000-4000-8000-0000005fe001:a29b3110d9ad093b",
+          "grade": 2
+        },
+        {
+          "id": "role:quillhaven-systems:staff-engineer-developer-platform:proof_points:226bb68f9784",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "test failure",
+          "aliases": ["an intermittently failing test"]
+        },
+        {
+          "says": "signed writes",
+          "aliases": ["signed pipeline-only writes"]
+        }
+      ],
+      "employers": ["Quillhaven Systems"],
+      "previous": "Tell me about the poisoned artifact incident at Quillhaven.",
+      "stage": 2
+    },
+    {
+      "id": "spanforge-devtools-follow-up-03",
+      "app": "spanforge-devtools",
+      "category": "follow-up",
+      "question": "What did you cut to make that deadline?",
+      "gold": [
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa001:transcript:00000000-0000-4000-8000-0000005fe001:a85539ff7499f872",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "tablet layout",
+          "aliases": ["tablet layout work"]
+        }
+      ],
+      "previous": "How did you rescue the Driftline release before the holiday store freeze?",
+      "stage": 2,
+      "employers": ["Driftline Mobile"]
+    },
+    {
+      "id": "spanforge-devtools-follow-up-04",
+      "app": "spanforge-devtools",
+      "category": "follow-up",
+      "question": "And what was the outcome?",
+      "gold": [
+        {
+          "id": "role:pellucid-energy-analytics:software-engineer-observability:responsibilities:3a50c0933504",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa001:transcript:00000000-0000-4000-8000-0000005fe001:4265714c00a2bf58",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "logs",
+          "aliases": ["vendor for logs"]
+        },
+        {
+          "says": "metrics",
+          "aliases": ["in-house metrics"]
+        }
+      ],
+      "employers": ["Pellucid Energy Analytics"],
+      "previous": "Tell me about your disagreement with the manager at Pellucid over buying monitoring.",
+      "stage": 2
+    },
+    {
+      "id": "spanforge-devtools-follow-up-05",
+      "app": "spanforge-devtools",
+      "category": "follow-up",
+      "question": "How widely was it adopted?",
+      "gold": [
+        {
+          "id": "role:lanternfish-tooling:contract-engineer-part-time:proof_points:10045885a08b",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "11,000 installs",
+          "aliases": ["eleven thousand installations"]
+        }
+      ],
+      "employers": ["Lanternfish Tooling"],
+      "previous": "What editor integration did you build at Lanternfish?",
+      "stage": 1
+    },
+    {
+      "id": "spanforge-devtools-device-only-01",
+      "app": "spanforge-devtools",
+      "category": "device-only",
+      "question": "How long did you propose pinning artifacts built from the main branch?",
+      "gold": [],
+      "absent": ["branch for seven days"]
+    },
+    {
+      "id": "spanforge-devtools-device-only-paired-01",
+      "app": "spanforge-devtools",
+      "category": "device-only-paired",
+      "question": "How long did you propose pinning artifacts built from the main branch?",
+      "gold": [
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa002:transcript:00000000-0000-4000-8000-0000005fe002:003ff7d881536d8c",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "seven days",
+          "aliases": ["7 days"]
+        }
+      ],
+      "reader": "device",
+      "pairOf": "spanforge-devtools-device-only-01"
+    },
+    {
+      "id": "spanforge-devtools-device-only-02",
+      "app": "spanforge-devtools",
+      "category": "device-only",
+      "question": "How many build agents does their largest self-hosted customer run?",
+      "gold": [],
+      "absent": ["twenty-four hundred build agents"]
+    },
+    {
+      "id": "spanforge-devtools-device-only-paired-02",
+      "app": "spanforge-devtools",
+      "category": "device-only-paired",
+      "question": "How many build agents does their largest self-hosted customer run?",
+      "gold": [
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa002:transcript:00000000-0000-4000-8000-0000005fe002:e8dcee9322acb593",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "twenty-four hundred build agents",
+          "aliases": ["2,400"]
+        }
+      ],
+      "reader": "device",
+      "pairOf": "spanforge-devtools-device-only-02"
+    },
+    {
+      "id": "spanforge-devtools-device-only-03",
+      "app": "spanforge-devtools",
+      "category": "device-only",
+      "question": "What is the internal codename of their eviction rewrite?",
+      "gold": [],
+      "absent": ["what project lathe"]
+    },
+    {
+      "id": "spanforge-devtools-device-only-paired-03",
+      "app": "spanforge-devtools",
+      "category": "device-only-paired",
+      "question": "What is the internal codename of their eviction rewrite?",
+      "gold": [
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa002:transcript:00000000-0000-4000-8000-0000005fe002:4215ccabc84f3c9f",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "project lathe",
+          "aliases": ["Project Lathe"]
+        }
+      ],
+      "reader": "device",
+      "pairOf": "spanforge-devtools-device-only-03"
+    },
+    {
+      "id": "spanforge-devtools-device-only-04",
+      "app": "spanforge-devtools",
+      "category": "device-only",
+      "question": "How long do you wait for late spans before deciding what to retain?",
+      "gold": [],
+      "absent": ["wait thirty seconds"]
+    },
+    {
+      "id": "spanforge-devtools-device-only-paired-04",
+      "app": "spanforge-devtools",
+      "category": "device-only-paired",
+      "question": "How long do you wait for late spans before deciding what to retain?",
+      "gold": [
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa002:transcript:00000000-0000-4000-8000-0000005fe002:64edc9165419f9d0",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "thirty seconds",
+          "aliases": ["30 seconds"]
+        }
+      ],
+      "reader": "device",
+      "pairOf": "spanforge-devtools-device-only-04"
+    },
+    {
+      "id": "spanforge-devtools-device-only-05",
+      "app": "spanforge-devtools",
+      "category": "device-only",
+      "question": "How bad has agent clock skew been in your experience?",
+      "gold": [],
+      "absent": ["ninety seconds of skew"]
+    },
+    {
+      "id": "spanforge-devtools-device-only-paired-05",
+      "app": "spanforge-devtools",
+      "category": "device-only-paired",
+      "question": "How bad has agent clock skew been in your experience?",
+      "gold": [
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa002:transcript:00000000-0000-4000-8000-0000005fe002:c011e0d6d0750f1c",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "ninety seconds",
+          "aliases": ["90 seconds"]
+        }
+      ],
+      "reader": "device",
+      "pairOf": "spanforge-devtools-device-only-05"
+    },
+    {
+      "id": "spanforge-devtools-stale-01",
+      "app": "spanforge-devtools",
+      "category": "stale",
+      "question": "Does the updated posting still demand production Rust experience?",
+      "gold": [],
+      "variant": "stale"
+    },
+    {
+      "id": "spanforge-devtools-stale-02",
+      "app": "spanforge-devtools",
+      "category": "stale",
+      "question": "Is six years still the minimum developer infrastructure experience in the updated posting?",
+      "gold": [],
+      "variant": "stale"
+    },
+    {
+      "id": "spanforge-devtools-stale-03",
+      "app": "spanforge-devtools",
+      "category": "stale",
+      "question": "Does the old cache-daemon language requirement still rule out someone with only unpaid Rust work?",
+      "gold": [],
+      "variant": "stale"
+    },
+    {
+      "id": "spanforge-devtools-stale-04",
+      "app": "spanforge-devtools",
+      "category": "stale",
+      "question": "Can I still assess seniority using the original six-year threshold alone?",
+      "gold": [],
+      "variant": "stale"
+    },
+    {
+      "id": "spanforge-devtools-carry-forward-01",
+      "app": "spanforge-devtools",
+      "category": "carry-forward",
+      "question": "What did the hiring manager say to expect in the system-design round?",
+      "gold": [
+        {
+          "id": "outcome:00000000-0000-4000-8000-0000005fa001:4cbf0837ad42",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa001:transcript:00000000-0000-4000-8000-0000005fe001:c9bbf6ddf92448dd",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "eviction and invalidation",
+          "aliases": ["cache eviction and invalidation"]
+        }
+      ]
+    },
+    {
+      "id": "spanforge-devtools-carry-forward-02",
+      "app": "spanforge-devtools",
+      "category": "carry-forward",
+      "question": "What did I promise to send the hiring manager by Friday?",
+      "gold": [
+        {
+          "id": "outcome:00000000-0000-4000-8000-0000005fa001:4cbf0837ad42",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa001:transcript:00000000-0000-4000-8000-0000005fe001:7441686d358bdf45",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa001:transcript:00000000-0000-4000-8000-0000005fe001:4247d5502a76979e",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa001:transcript:00000000-0000-4000-8000-0000005fe001:66321bae569687b7",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "redacted postmortem",
+          "aliases": ["redacted incident report"]
+        },
+        {
+          "says": "sampling design link",
+          "aliases": ["link to the trace sampling design"]
+        }
+      ]
+    },
+    {
+      "id": "spanforge-devtools-carry-forward-03",
+      "app": "spanforge-devtools",
+      "category": "carry-forward",
+      "question": "What did Dagny warn the founder would ask again about my reason for moving?",
+      "gold": [
+        {
+          "id": "outcome:00000000-0000-4000-8000-0000005fa001:4cbf0837ad42",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa001:transcript:00000000-0000-4000-8000-0000005fe001:9fc6aaf3e3f15e58",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "why I am leaving",
+          "aliases": ["why you want to leave"]
+        }
+      ]
+    },
+    {
+      "id": "spanforge-devtools-carry-forward-04",
+      "app": "spanforge-devtools",
+      "category": "carry-forward",
+      "question": "Which roadmap question did the earlier round tell me to prepare for Aurelio?",
+      "gold": [
+        {
+          "id": "outcome:00000000-0000-4000-8000-0000005fa001:4cbf0837ad42",
+          "grade": 2
+        },
+        {
+          "id": "outcome:00000000-0000-4000-8000-0000005fa002:95101ab20a3c",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-0000005fa001:transcript:00000000-0000-4000-8000-0000005fe001:84012115cef84771",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "what I would cut",
+          "aliases": ["what to remove from the roadmap"]
+        }
+      ]
+    },
+    {
+      "id": "spanforge-devtools-carry-forward-05",
+      "app": "spanforge-devtools",
+      "category": "carry-forward",
+      "question": "Was the postmortem I owed after round one sent, and on what date?",
+      "gold": [
+        {
+          "id": "prep:00000000-0000-4000-8000-0000005fa002:7a8068a61480",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "17 September",
+          "aliases": ["September 17"]
+        }
+      ]
+    },
+    {
+      "id": "tidewell-care-direct-01",
+      "app": "tidewell-care",
+      "category": "direct",
+      "question": "What is my notice period?",
+      "gold": [
+        {
+          "id": "preference:7b2d7305408c",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:038d5d18fc06f9d2",
+          "grade": 2
+        },
+        {
+          "id": "prep:00000000-0000-4000-8000-00000000a013:e81ce21a2180",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "eight weeks",
+          "aliases": ["8 weeks"]
+        }
+      ]
+    },
+    {
+      "id": "tidewell-care-direct-02",
+      "app": "tidewell-care",
+      "category": "direct",
+      "question": "How many client sites did you maintain at Tallow & Finch Digital?",
+      "gold": [
+        {
+          "id": "role:tallow-finch-digital:junior-developer:responsibilities:dafaa533ab31",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "30",
+          "aliases": ["thirty sites"]
+        }
+      ],
+      "employers": ["Tallow & Finch Digital"]
+    },
+    {
+      "id": "tidewell-care-direct-03",
+      "app": "tidewell-care",
+      "category": "direct",
+      "question": "What was the message delivery rate at Pendlecross Pharmacy?",
+      "gold": [
+        {
+          "id": "role:pendlecross-pharmacy:senior-backend-engineer:proof_points:d4c5326569c1",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:2db82a0c7e309438",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "98.6%",
+          "aliases": ["98.6 percent"]
+        }
+      ],
+      "employers": ["Pendlecross Pharmacy"]
+    },
+    {
+      "id": "tidewell-care-direct-04",
+      "app": "tidewell-care",
+      "category": "direct",
+      "question": "How much annual leave does the Tidewell role include?",
+      "gold": [
+        {
+          "id": "posting:00000000-0000-4000-8000-00000000b011:76785e2afb3d6dd0",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "27 days",
+          "aliases": ["twenty-seven days"]
+        }
+      ]
+    },
+    {
+      "id": "tidewell-care-paraphrase-01",
+      "app": "tidewell-care",
+      "category": "paraphrase",
+      "question": "How have you prevented two people getting scheduled together?",
+      "gold": [
+        {
+          "id": "role:lanternfield-health:principal-backend-engineer:responsibilities:baca4fe3681f",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "idempotency keys",
+          "aliases": ["request deduplication keys"]
+        },
+        {
+          "says": "slot-level uniqueness constraint",
+          "aliases": ["a unique database constraint per slot"]
+        }
+      ],
+      "employers": ["Lanternfield Health"]
+    },
+    {
+      "id": "tidewell-care-paraphrase-02",
+      "app": "tidewell-care",
+      "category": "paraphrase",
+      "question": "How have you modernised hosting without an outage?",
+      "gold": [
+        {
+          "id": "role:wrenfield-clinics:staff-software-engineer:responsibilities:ce48d12b8d63",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "31 services",
+          "aliases": ["thirty-one services"]
+        },
+        {
+          "says": "zero-downtime rollouts",
+          "aliases": ["uninterrupted deployments"]
+        }
+      ],
+      "employers": ["Wrenfield Clinics"]
+    },
+    {
+      "id": "tidewell-care-paraphrase-03",
+      "app": "tidewell-care",
+      "category": "paraphrase",
+      "question": "How would you stop malformed payloads disappearing unnoticed?",
+      "gold": [
+        {
+          "id": "role:quillmere-labs:lead-engineer-contract:responsibilities:55e11a183230",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "dead-letter review queue",
+          "aliases": ["a queue for failed messages"]
+        }
+      ],
+      "employers": ["Quillmere Labs"]
+    },
+    {
+      "id": "tidewell-care-paraphrase-04",
+      "app": "tidewell-care",
+      "category": "paraphrase",
+      "question": "How have you protected recipients from unwanted contact?",
+      "gold": [
+        {
+          "id": "role:pendlecross-pharmacy:senior-backend-engineer:responsibilities:bc0b8fb41ec4",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "quiet hours",
+          "aliases": ["do not disturb periods"]
+        },
+        {
+          "says": "opt-out",
+          "aliases": ["unsubscribe"]
+        }
+      ],
+      "employers": ["Pendlecross Pharmacy"]
+    },
+    {
+      "id": "tidewell-care-paraphrase-05",
+      "app": "tidewell-care",
+      "category": "paraphrase",
+      "question": "How would you recover after an interrupted job without starting over?",
+      "gold": [
+        {
+          "id": "role:corbel-mutual:software-engineer-then-senior-software-engineer:responsibilities:50812f492742",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "restartable steps",
+          "aliases": ["resume individual batch stages"]
+        }
+      ],
+      "employers": ["Corbel Mutual"]
+    },
+    {
+      "id": "tidewell-care-paraphrase-06",
+      "app": "tidewell-care",
+      "category": "paraphrase",
+      "question": "How have you enforced legal limits on employee fatigue?",
+      "gold": [
+        {
+          "id": "role:calderwick-rota:senior-engineer:responsibilities:2c735d2e9e1d",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "rest periods",
+          "aliases": ["minimum breaks"]
+        },
+        {
+          "says": "qualifications",
+          "aliases": ["required credentials"]
+        }
+      ],
+      "employers": ["Calderwick Rota"]
+    },
+    {
+      "id": "tidewell-care-multi-hop-01",
+      "app": "tidewell-care",
+      "category": "multi-hop",
+      "question": "For the production Kubernetes requirement, which migration example do my prep notes recommend, and what improved?",
+      "stage": 2,
+      "gold": [
+        {
+          "id": "role:wrenfield-clinics:staff-software-engineer:responsibilities:ce48d12b8d63",
+          "grade": 2
+        },
+        {
+          "id": "role:wrenfield-clinics:staff-software-engineer:proof_points:235bcaf7df86",
+          "grade": 2
+        },
+        {
+          "id": "brief:prepNotes:6799ecdbe751",
+          "grade": 1
+        },
+        {
+          "id": "posting:00000000-0000-4000-8000-00000000b011:61a974a96092c568",
+          "grade": 1
+        }
+      ],
+      "points": [
+        {
+          "says": "Wrenfield Clinics",
+          "aliases": ["Wrenfield"]
+        },
+        {
+          "says": "31 services",
+          "aliases": ["thirty-one services"]
+        },
+        {
+          "says": "20 a week",
+          "aliases": ["twenty deployments weekly"]
+        }
+      ],
+      "employers": ["Wrenfield Clinics"]
+    },
+    {
+      "id": "tidewell-care-multi-hop-02",
+      "app": "tidewell-care",
+      "category": "multi-hop",
+      "question": "Which employer should I use first for the advertised clinical-interface requirement, and what scale did that work reach?",
+      "stage": 2,
+      "gold": [
+        {
+          "id": "role:quillmere-labs:lead-engineer-contract:proof_points:1bb6c6e8f339",
+          "grade": 2
+        },
+        {
+          "id": "role:quillmere-labs:lead-engineer-contract:responsibilities:1c8ad7b3bec1",
+          "grade": 2
+        },
+        {
+          "id": "brief:prepNotes:355c60cd1b9b",
+          "grade": 1
+        },
+        {
+          "id": "prep:00000000-0000-4000-8000-00000000a012:b9ad4fa63ceb",
+          "grade": 1
+        },
+        {
+          "id": "posting:00000000-0000-4000-8000-00000000b011:495dfb446f15f5ef",
+          "grade": 1
+        }
+      ],
+      "points": [
+        {
+          "says": "Quillmere Labs",
+          "aliases": ["Quillmere"]
+        },
+        {
+          "says": "17",
+          "aliases": ["seventeen record systems"]
+        },
+        {
+          "says": "23 analyser models",
+          "aliases": ["twenty-three analyser models"]
+        }
+      ],
+      "employers": ["Quillmere Labs"]
+    },
+    {
+      "id": "tidewell-care-multi-hop-03",
+      "app": "tidewell-care",
+      "category": "multi-hop",
+      "question": "Which story in my preparation connects the staff-login requirement to a measurable support improvement?",
+      "stage": 2,
+      "gold": [
+        {
+          "id": "role:wrenfield-dental-group:senior-software-engineer:responsibilities:eeb335bc8769",
+          "grade": 2
+        },
+        {
+          "id": "role:wrenfield-dental-group:senior-software-engineer:proof_points:408e084edcf6",
+          "grade": 2
+        },
+        {
+          "id": "brief:prepNotes:60037ac14fd6",
+          "grade": 1
+        },
+        {
+          "id": "posting:00000000-0000-4000-8000-00000000b011:039848d4efd985a1",
+          "grade": 1
+        }
+      ],
+      "points": [
+        {
+          "says": "Wrenfield Dental Group",
+          "aliases": ["Wrenfield Dental"]
+        },
+        {
+          "says": "70%",
+          "aliases": ["seventy percent"]
+        },
+        {
+          "says": "one identity provider",
+          "aliases": ["a single identity provider"]
+        }
+      ],
+      "employers": ["Wrenfield Dental Group"]
+    },
+    {
+      "id": "tidewell-care-multi-hop-04",
+      "app": "tidewell-care",
+      "category": "multi-hop",
+      "question": "Which past project do the notes link to the rota requirement, and what results can I offer while admitting the solver gap?",
+      "stage": 2,
+      "gold": [
+        {
+          "id": "role:calderwick-rota:senior-engineer:proof_points:d49f1c5f6205",
+          "grade": 2
+        },
+        {
+          "id": "role:calderwick-rota:senior-engineer:metrics:b77357fd22ad",
+          "grade": 2
+        },
+        {
+          "id": "role:calderwick-rota:senior-engineer:proof_points:095d890d6d76",
+          "grade": 2
+        },
+        {
+          "id": "brief:prepNotes:0cc6b15741e8",
+          "grade": 1
+        },
+        {
+          "id": "posting:00000000-0000-4000-8000-00000000b011:0809149373fd8314",
+          "grade": 1
+        }
+      ],
+      "points": [
+        {
+          "says": "Calderwick Rota",
+          "aliases": ["Calderwick"]
+        },
+        {
+          "says": "6 hours to 20 minutes",
+          "aliases": ["six hours down to twenty minutes"]
+        },
+        {
+          "says": "not used OR-Tools",
+          "aliases": ["no hands-on OR-Tools experience"]
+        }
+      ],
+      "employers": ["Calderwick Rota"]
+    },
+    {
+      "id": "tidewell-care-multi-hop-05",
+      "app": "tidewell-care",
+      "category": "multi-hop",
+      "question": "For the ordering-and-replay requirement, which example do the notes put first and how much faster did information reach clinicians?",
+      "stage": 2,
+      "gold": [
+        {
+          "id": "role:quillmere-labs:lead-engineer-contract:responsibilities:c0380dd33163",
+          "grade": 2
+        },
+        {
+          "id": "role:quillmere-labs:lead-engineer-contract:proof_points:d4255cf611e2",
+          "grade": 2
+        },
+        {
+          "id": "brief:prepNotes:6d3b536178e3",
+          "grade": 1
+        },
+        {
+          "id": "posting:00000000-0000-4000-8000-00000000b011:6f7bc9e2bf6a58c9",
+          "grade": 1
+        }
+      ],
+      "points": [
+        {
+          "says": "Quillmere Labs",
+          "aliases": ["Quillmere"]
+        },
+        {
+          "says": "9 hours to 4 minutes",
+          "aliases": ["nine hours down to four minutes"]
+        }
+      ],
+      "employers": ["Quillmere Labs"]
+    },
+    {
+      "id": "tidewell-care-entity-confusion-01",
+      "app": "tidewell-care",
+      "category": "entity-confusion",
+      "question": "At Wrenfield Dental Group, how many appointments were moved in that single weekend?",
+      "gold": [
+        {
+          "id": "role:wrenfield-dental-group:senior-software-engineer:responsibilities:e920eadf562b",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "410,000",
+          "aliases": ["four hundred and ten thousand"]
+        }
+      ],
+      "employers": ["Wrenfield Dental Group"]
+    },
+    {
+      "id": "tidewell-care-entity-confusion-02",
+      "app": "tidewell-care",
+      "category": "entity-confusion",
+      "question": "At Wrenfield Clinics, how many future appointments did the dual run cover?",
+      "gold": [
+        {
+          "id": "role:wrenfield-clinics:staff-software-engineer:responsibilities:2b39b994dc89",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:0a8cd4ddf28e9df9",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "3.1 million",
+          "aliases": ["3,100,000"]
+        }
+      ],
+      "employers": ["Wrenfield Clinics"]
+    },
+    {
+      "id": "tidewell-care-entity-confusion-03",
+      "app": "tidewell-care",
+      "category": "entity-confusion",
+      "question": "What is Niamh Abara responsible for at Tidewell?",
+      "gold": [
+        {
+          "id": "research:00000000-0000-4000-8000-00000000c014:56dfc9d9f7884b98",
+          "grade": 2
+        },
+        {
+          "id": "stage-detail:00000000-0000-4000-8000-00000000a012:36f6e196d941",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "Staff Engineer",
+          "aliases": ["staff-level engineer"]
+        },
+        {
+          "says": "Integrations",
+          "aliases": ["the Integrations team"]
+        }
+      ]
+    },
+    {
+      "id": "tidewell-care-entity-confusion-04",
+      "app": "tidewell-care",
+      "category": "entity-confusion",
+      "question": "What is Niamh Corrigan’s job in the hiring process?",
+      "gold": [
+        {
+          "id": "stage-detail:00000000-0000-4000-8000-00000000a011:897c5d409ccb",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "Talent Partner",
+          "aliases": ["recruiter"]
+        }
+      ]
+    },
+    {
+      "id": "tidewell-care-entity-confusion-05",
+      "app": "tidewell-care",
+      "category": "entity-confusion",
+      "question": "How many practice-management systems did you integrate at Wrenfield Dental Group?",
+      "gold": [
+        {
+          "id": "role:wrenfield-dental-group:senior-software-engineer:responsibilities:f3de5ad8f4a5",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "three practice management systems",
+          "aliases": ["3 practice-management systems"]
+        }
+      ],
+      "employers": ["Wrenfield Dental Group"]
+    },
+    {
+      "id": "tidewell-care-temporal-01",
+      "app": "tidewell-care",
+      "category": "temporal",
+      "question": "What is the latest confirmed date I could start at Tidewell?",
+      "gold": [
+        {
+          "id": "employer-said:00000000-0000-4000-8000-00000000d016:2bfba583a51903bf",
+          "grade": 2
+        },
+        {
+          "id": "prep:00000000-0000-4000-8000-00000000a013:e81ce21a2180",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "14 September",
+          "aliases": ["September 14"]
+        }
+      ]
+    },
+    {
+      "id": "tidewell-care-temporal-02",
+      "app": "tidewell-care",
+      "category": "temporal",
+      "question": "What is the current on-call frequency, after the recruiter’s original estimate was revised?",
+      "gold": [
+        {
+          "id": "employer-said:00000000-0000-4000-8000-00000000d015:06e7d478a068a150",
+          "grade": 2
+        },
+        {
+          "id": "outcome:00000000-0000-4000-8000-00000000a012:13c92a2eaa1c",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "one week in five",
+          "aliases": ["one in five weeks"]
+        }
+      ]
+    },
+    {
+      "id": "tidewell-care-temporal-03",
+      "app": "tidewell-care",
+      "category": "temporal",
+      "question": "Which percentage should I use now for Lanternfield’s two-hour refill result after my panel correction?",
+      "gold": [
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:0fbfb6743f1d3801",
+          "grade": 2
+        },
+        {
+          "id": "role:lanternfield-health:principal-backend-engineer:proof_points:11a0e471a310",
+          "grade": 2
+        },
+        {
+          "id": "outcome:00000000-0000-4000-8000-00000000a012:13c92a2eaa1c",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "41%",
+          "aliases": ["forty-one percent"]
+        }
+      ],
+      "employers": ["Lanternfield Health"]
+    },
+    {
+      "id": "tidewell-care-temporal-04",
+      "app": "tidewell-care",
+      "category": "temporal",
+      "question": "At your most recent employer, what size squad do you lead?",
+      "gold": [
+        {
+          "id": "role:lanternfield-health:principal-backend-engineer:responsibilities:4d131445fdfe",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:4bdb80f4ab51b711",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "nine engineers",
+          "aliases": ["nine-person engineering squad"]
+        }
+      ],
+      "employers": ["Lanternfield Health"]
+    },
+    {
+      "id": "tidewell-care-temporal-05",
+      "app": "tidewell-care",
+      "category": "temporal",
+      "question": "Before 2019, where did you improve overnight insurance processing, and how long did it take afterwards?",
+      "gold": [
+        {
+          "id": "role:corbel-mutual:software-engineer-then-senior-software-engineer:proof_points:aa1169ddd72a",
+          "grade": 2
+        },
+        {
+          "id": "role:corbel-mutual:software-engineer-then-senior-software-engineer",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "Corbel Mutual",
+          "aliases": ["Corbel"]
+        },
+        {
+          "says": "2.5 hours",
+          "aliases": ["two and a half hours"]
+        }
+      ],
+      "employers": ["Corbel Mutual"]
+    },
+    {
+      "id": "tidewell-care-negation-01",
+      "app": "tidewell-care",
+      "category": "negation",
+      "question": "Besides Lanternfield Health, where did you stop scarce resources being assigned twice?",
+      "gold": [
+        {
+          "id": "role:harbourline-dispatch:backend-engineer-contract:proof_points:10a0a0aa98d0",
+          "grade": 2
+        },
+        {
+          "id": "role:harbourline-dispatch:backend-engineer-contract:responsibilities:8ed689775b8c",
+          "grade": 2
+        },
+        {
+          "id": "role:brackenridge-hotels:software-engineer:proof_points:efe51a1545cb",
+          "grade": 2
+        },
+        {
+          "id": "role:brackenridge-hotels:software-engineer:responsibilities:15d71f0e0f01",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:8a3591dd8d0b6e16",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "Harbourline Dispatch",
+          "aliases": ["Harbourline"]
+        },
+        {
+          "says": "Brackenridge Hotels",
+          "aliases": ["Brackenridge"]
+        }
+      ],
+      "employers": ["Harbourline Dispatch", "Brackenridge Hotels"]
+    },
+    {
+      "id": "tidewell-care-negation-02",
+      "app": "tidewell-care",
+      "category": "negation",
+      "question": "Other than Wrenfield Clinics, what migration of appointment data can you describe?",
+      "gold": [
+        {
+          "id": "role:wrenfield-dental-group:senior-software-engineer:responsibilities:db447cd4d58f",
+          "grade": 2
+        },
+        {
+          "id": "role:wrenfield-dental-group:senior-software-engineer:responsibilities:e920eadf562b",
+          "grade": 2
+        },
+        {
+          "id": "role:wrenfield-dental-group:senior-software-engineer:proof_points:388b47442d1d",
+          "grade": 2
+        },
+        {
+          "id": "role:wrenfield-dental-group:senior-software-engineer:proof_points:9d8459309190",
+          "grade": 2
+        },
+        {
+          "id": "role:wrenfield-dental-group:senior-software-engineer:responsibilities:af4ec0ff5fcb",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:67549203858b243f",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "Wrenfield Dental Group",
+          "aliases": ["Wrenfield Dental"]
+        },
+        {
+          "says": "38",
+          "aliases": ["thirty-eight practices"]
+        }
+      ],
+      "employers": ["Wrenfield Dental Group"]
+    },
+    {
+      "id": "tidewell-care-negation-03",
+      "app": "tidewell-care",
+      "category": "negation",
+      "question": "Can you give a mentoring example that is not from Lanternfield Health?",
+      "gold": [
+        {
+          "id": "role:pendlecross-pharmacy:senior-backend-engineer:responsibilities:4dec5f32fd83",
+          "grade": 2
+        },
+        {
+          "id": "role:pendlecross-pharmacy:senior-backend-engineer:leadership_signals:57a49f077488",
+          "grade": 1
+        }
+      ],
+      "points": [
+        {
+          "says": "Pendlecross Pharmacy",
+          "aliases": ["Pendlecross"]
+        },
+        {
+          "says": "two graduate engineers",
+          "aliases": ["two graduates"]
+        }
+      ],
+      "employers": ["Pendlecross Pharmacy"]
+    },
+    {
+      "id": "tidewell-care-negation-04",
+      "app": "tidewell-care",
+      "category": "negation",
+      "question": "Apart from Pendlecross Pharmacy, where did reminders reduce missed visits?",
+      "gold": [
+        {
+          "id": "role:wrenfield-clinics:staff-software-engineer:proof_points:0af435af9cd0",
+          "grade": 2
+        },
+        {
+          "id": "role:wrenfield-clinics:staff-software-engineer:responsibilities:71bcd6816a1a",
+          "grade": 1
+        }
+      ],
+      "points": [
+        {
+          "says": "Wrenfield Clinics",
+          "aliases": ["Wrenfield"]
+        },
+        {
+          "says": "11.5% to 9.4%",
+          "aliases": ["11.5 percent down to 9.4 percent"]
+        }
+      ],
+      "employers": ["Wrenfield Clinics"]
+    },
+    {
+      "id": "tidewell-care-negation-05",
+      "app": "tidewell-care",
+      "category": "negation",
+      "question": "Outside Quillmere Labs, where did you connect healthcare record systems?",
+      "gold": [
+        {
+          "id": "role:lanternfield-health:principal-backend-engineer:responsibilities:8a8d77665642",
+          "grade": 2
+        },
+        {
+          "id": "role:wrenfield-dental-group:senior-software-engineer:responsibilities:f3de5ad8f4a5",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:d12920dbc61ad116",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "Lanternfield Health",
+          "aliases": ["Lanternfield"]
+        },
+        {
+          "says": "Wrenfield Dental Group",
+          "aliases": ["Wrenfield Dental"]
+        }
+      ],
+      "employers": ["Lanternfield Health", "Wrenfield Dental Group"]
+    },
+    {
+      "id": "tidewell-care-aggregation-01",
+      "app": "tidewell-care",
+      "category": "aggregation",
+      "question": "Across the four employers using Postgres, roughly how many years of experience have you accumulated?",
+      "gold": [
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:50086f9c609b14e0",
+          "grade": 2
+        },
+        {
+          "id": "role:wrenfield-dental-group:senior-software-engineer",
+          "grade": 1
+        },
+        {
+          "id": "role:quillmere-labs:lead-engineer-contract",
+          "grade": 1
+        },
+        {
+          "id": "role:wrenfield-clinics:staff-software-engineer",
+          "grade": 1
+        },
+        {
+          "id": "role:lanternfield-health:principal-backend-engineer",
+          "grade": 1
+        }
+      ],
+      "points": [
+        {
+          "says": "seven and a half",
+          "aliases": ["about 7.5 years"]
+        }
+      ],
+      "employers": [
+        "Wrenfield Dental Group",
+        "Quillmere Labs",
+        "Wrenfield Clinics",
+        "Lanternfield Health"
+      ]
+    },
+    {
+      "id": "tidewell-care-aggregation-02",
+      "app": "tidewell-care",
+      "category": "aggregation",
+      "question": "Across Harbourline and Quillmere, roughly how long did you write Go full time?",
+      "gold": [
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:8211a0de1643b1db",
+          "grade": 2
+        },
+        {
+          "id": "role:harbourline-dispatch:backend-engineer-contract",
+          "grade": 1
+        },
+        {
+          "id": "role:quillmere-labs:lead-engineer-contract",
+          "grade": 1
+        }
+      ],
+      "points": [
+        {
+          "says": "two years",
+          "aliases": ["about 2 years"]
+        }
+      ],
+      "employers": ["Harbourline Dispatch", "Quillmere Labs"]
+    },
+    {
+      "id": "tidewell-care-aggregation-03",
+      "app": "tidewell-care",
+      "category": "aggregation",
+      "question": "Combining the senior and staff promotions, how many engineers did you grow at Lanternfield?",
+      "gold": [
+        {
+          "id": "role:lanternfield-health:principal-backend-engineer:proof_points:d81d42c57ab1",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:a276d8d189945588",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "three",
+          "aliases": ["3 engineers"]
+        }
+      ],
+      "employers": ["Lanternfield Health"]
+    },
+    {
+      "id": "tidewell-care-aggregation-04",
+      "app": "tidewell-care",
+      "category": "aggregation",
+      "question": "Adding the record-system connections at Lanternfield and Quillmere, what is the combined count of integrations, without assuming the systems are distinct?",
+      "gold": [
+        {
+          "id": "role:lanternfield-health:principal-backend-engineer:responsibilities:8a8d77665642",
+          "grade": 2
+        },
+        {
+          "id": "role:quillmere-labs:lead-engineer-contract:proof_points:1bb6c6e8f339",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:4dbfba686611f24b",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "23",
+          "aliases": ["twenty-three integrations"]
+        }
+      ],
+      "employers": ["Lanternfield Health", "Quillmere Labs"]
+    },
+    {
+      "id": "tidewell-care-unanswerable-01",
+      "app": "tidewell-care",
+      "category": "unanswerable",
+      "question": "Have you led a team that shipped a FHIR server rather than a client?",
+      "gold": []
+    },
+    {
+      "id": "tidewell-care-unanswerable-02",
+      "app": "tidewell-care",
+      "category": "unanswerable",
+      "question": "What production deployment of OR-Tools have you personally owned?",
+      "gold": []
+    },
+    {
+      "id": "tidewell-care-unanswerable-03",
+      "app": "tidewell-care",
+      "category": "unanswerable",
+      "question": "Have you operated Temporal workflows in production yourself?",
+      "gold": []
+    },
+    {
+      "id": "tidewell-care-unanswerable-04",
+      "app": "tidewell-care",
+      "category": "unanswerable",
+      "question": "How did you rehearse switching a primary database between two cloud regions?",
+      "gold": []
+    },
+    {
+      "id": "tidewell-care-unanswerable-05",
+      "app": "tidewell-care",
+      "category": "unanswerable",
+      "question": "Which multi-provider SSO rollout did you lead with role mapping?",
+      "gold": []
+    },
+    {
+      "id": "tidewell-care-unanswerable-06",
+      "app": "tidewell-care",
+      "category": "unanswerable",
+      "question": "Have you personally run Tidewell’s 140-service platform across three clusters?",
+      "gold": []
+    },
+    {
+      "id": "tidewell-care-unanswerable-07",
+      "app": "tidewell-care",
+      "category": "unanswerable",
+      "question": "What is Tidewell’s exact annual recurring revenue?",
+      "gold": []
+    },
+    {
+      "id": "tidewell-care-unanswerable-08",
+      "app": "tidewell-care",
+      "category": "unanswerable",
+      "question": "What were your university degree subject and graduation year?",
+      "gold": []
+    },
+    {
+      "id": "tidewell-care-unanswerable-09",
+      "app": "tidewell-care",
+      "category": "unanswerable",
+      "question": "Who are the founders of Quillmere Labs?",
+      "gold": []
+    },
+    {
+      "id": "tidewell-care-off-topic-01",
+      "app": "tidewell-care",
+      "category": "off-topic",
+      "question": "Hi, good to meet you.",
+      "gold": []
+    },
+    {
+      "id": "tidewell-care-off-topic-02",
+      "app": "tidewell-care",
+      "category": "off-topic",
+      "question": "Thanks for taking the time today.",
+      "gold": []
+    },
+    {
+      "id": "tidewell-care-off-topic-03",
+      "app": "tidewell-care",
+      "category": "off-topic",
+      "question": "Can you hear me clearly?",
+      "gold": []
+    },
+    {
+      "id": "tidewell-care-off-topic-04",
+      "app": "tidewell-care",
+      "category": "off-topic",
+      "question": "Let’s take five minutes.",
+      "gold": []
+    },
+    {
+      "id": "tidewell-care-off-topic-05",
+      "app": "tidewell-care",
+      "category": "off-topic",
+      "question": "How was your weekend?",
+      "gold": []
+    },
+    {
+      "id": "tidewell-care-conflict-01",
+      "app": "tidewell-care",
+      "category": "conflict",
+      "question": "The posting says a monthly pager rotation; what frequency has the recruiter since confirmed?",
+      "gold": [
+        {
+          "id": "employer-said:00000000-0000-4000-8000-00000000d015:06e7d478a068a150",
+          "grade": 2
+        },
+        {
+          "id": "posting:00000000-0000-4000-8000-00000000b011:436a9d9e5b3896de",
+          "grade": 1
+        }
+      ],
+      "points": [
+        {
+          "says": "one week in five",
+          "aliases": ["one week out of five"]
+        }
+      ]
+    },
+    {
+      "id": "tidewell-care-conflict-02",
+      "app": "tidewell-care",
+      "category": "conflict",
+      "question": "For someone in Cork, how should I reconcile the office expectation in the ad with Niamh’s written confirmation?",
+      "gold": [
+        {
+          "id": "employer-said:00000000-0000-4000-8000-00000000d013:51823dcf9c32626d",
+          "grade": 2
+        },
+        {
+          "id": "posting:00000000-0000-4000-8000-00000000b011:2f473b380e9595ff",
+          "grade": 1
+        }
+      ],
+      "points": [
+        {
+          "says": "one anchor day a month",
+          "aliases": ["one monthly office day"]
+        },
+        {
+          "says": "travel paid",
+          "aliases": ["reimbursed travel"]
+        }
+      ]
+    },
+    {
+      "id": "tidewell-care-conflict-03",
+      "app": "tidewell-care",
+      "category": "conflict",
+      "question": "How long should I allow for the technical panel given the conflicting ad and recruiter email?",
+      "gold": [
+        {
+          "id": "employer-said:00000000-0000-4000-8000-00000000d011:0e5f0b1df0e046dd",
+          "grade": 2
+        },
+        {
+          "id": "posting:00000000-0000-4000-8000-00000000b011:4eba92b3b5839940",
+          "grade": 1
+        }
+      ],
+      "points": [
+        {
+          "says": "90 minutes",
+          "aliases": ["an hour and a half"]
+        }
+      ]
+    },
+    {
+      "id": "tidewell-care-conflict-04",
+      "app": "tidewell-care",
+      "category": "conflict",
+      "question": "What PostgreSQL version is actually running, given the difference between the job ad and engineering blog?",
+      "gold": [
+        {
+          "id": "research:00000000-0000-4000-8000-00000000c012:a69b8868f40b0ca3",
+          "grade": 2
+        },
+        {
+          "id": "posting:00000000-0000-4000-8000-00000000b011:fce9370797ba3835",
+          "grade": 1
+        }
+      ],
+      "points": [
+        {
+          "says": "PostgreSQL 14",
+          "aliases": ["Postgres version fourteen"]
+        }
+      ]
+    },
+    {
+      "id": "tidewell-care-conflict-05",
+      "app": "tidewell-care",
+      "category": "conflict",
+      "question": "How many annual appointments does Tidewell handle according to the recent blog versus the round figure in the posting?",
+      "gold": [
+        {
+          "id": "research:00000000-0000-4000-8000-00000000c012:395799ea30b91d27",
+          "grade": 2
+        },
+        {
+          "id": "posting:00000000-0000-4000-8000-00000000b011:1fce82ebfac7ac94",
+          "grade": 1
+        }
+      ],
+      "points": [
+        {
+          "says": "12.4 million",
+          "aliases": ["12,400,000 over the last twelve months"]
+        }
+      ]
+    },
+    {
+      "id": "tidewell-care-near-duplicate-01",
+      "app": "tidewell-care",
+      "category": "near-duplicate",
+      "question": "What was the p99 booking latency improvement at Lanternfield Health?",
+      "gold": [
+        {
+          "id": "role:lanternfield-health:principal-backend-engineer:proof_points:90e2aae33151",
+          "grade": 2
+        },
+        {
+          "id": "role:lanternfield-health:principal-backend-engineer:responsibilities:14ec3daeece8",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:f5964537d2cbc4e3",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "480ms to 120ms",
+          "aliases": ["480 milliseconds down to 120 milliseconds"]
+        }
+      ],
+      "employers": ["Lanternfield Health"]
+    },
+    {
+      "id": "tidewell-care-near-duplicate-02",
+      "app": "tidewell-care",
+      "category": "near-duplicate",
+      "question": "What percentage of migrated appointments needed manual correction at Wrenfield Clinics?",
+      "gold": [
+        {
+          "id": "role:wrenfield-clinics:staff-software-engineer:proof_points:8991d84bd797",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:0a8cd4ddf28e9df9",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "0.02%",
+          "aliases": ["nought point nought two percent"]
+        }
+      ],
+      "employers": ["Wrenfield Clinics"]
+    },
+    {
+      "id": "tidewell-care-near-duplicate-03",
+      "app": "tidewell-care",
+      "category": "near-duplicate",
+      "question": "How long is the technical panel and how are its ninety minutes divided?",
+      "gold": [
+        {
+          "id": "employer-said:00000000-0000-4000-8000-00000000d011:0e5f0b1df0e046dd",
+          "grade": 2
+        },
+        {
+          "id": "research:00000000-0000-4000-8000-00000000c013:0e5f0b1df0e046dd",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "30 minutes",
+          "aliases": ["half an hour on past systems"]
+        },
+        {
+          "says": "45 minutes",
+          "aliases": ["three quarters of an hour on system design"]
+        },
+        {
+          "says": "15 minutes",
+          "aliases": ["a quarter of an hour for questions"]
+        }
+      ]
+    },
+    {
+      "id": "tidewell-care-near-duplicate-04",
+      "app": "tidewell-care",
+      "category": "near-duplicate",
+      "question": "When are references taken and how many are required?",
+      "gold": [
+        {
+          "id": "research:00000000-0000-4000-8000-00000000c013:bbc0812b74e98ff4",
+          "grade": 2
+        },
+        {
+          "id": "employer-said:00000000-0000-4000-8000-00000000d012:505bf069194cbd40",
+          "grade": 2
+        },
+        {
+          "id": "employer-said:00000000-0000-4000-8000-00000000d012:acfaeb614f2eae53",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "after an offer is agreed",
+          "aliases": ["once an offer has been agreed"]
+        },
+        {
+          "says": "two",
+          "aliases": ["2 references"]
+        }
+      ]
+    },
+    {
+      "id": "tidewell-care-split-boundary-01",
+      "app": "tidewell-care",
+      "category": "split-boundary",
+      "question": "When you explained the slowest Lanternfield requests in the panel, what was causing the delay and what change fixed it?",
+      "gold": [
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:f5964537d2cbc4e3",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "outbox",
+          "aliases": ["the transactional outbox"]
+        },
+        {
+          "says": "120 milliseconds",
+          "aliases": ["120ms"]
+        }
+      ],
+      "employers": ["Lanternfield Health"]
+    },
+    {
+      "id": "tidewell-care-split-boundary-02",
+      "app": "tidewell-care",
+      "category": "split-boundary",
+      "question": "In your account of the first dental migration, what caused the hygienist clashes and how much cleanup did they need?",
+      "gold": [
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:67549203858b243f",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "slot length",
+          "aliases": ["different appointment durations"]
+        },
+        {
+          "says": "1.3%",
+          "aliases": ["one point three percent"]
+        }
+      ],
+      "employers": ["Wrenfield Dental Group"]
+    },
+    {
+      "id": "tidewell-care-split-boundary-03",
+      "app": "tidewell-care",
+      "category": "split-boundary",
+      "question": "What reduced the share of lab results that could not be delivered, and what were the before and after rates?",
+      "gold": [
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:f48166a8167327d1",
+          "grade": 2
+        },
+        {
+          "id": "role:quillmere-labs:lead-engineer-contract:responsibilities:55e11a183230",
+          "grade": 2
+        },
+        {
+          "id": "role:quillmere-labs:lead-engineer-contract:metrics:77a6a28da3d4",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "review queue",
+          "aliases": ["a support-visible exception queue"]
+        },
+        {
+          "says": "2.1% to 0.3%",
+          "aliases": ["2.1 percent down to 0.3 percent"]
+        }
+      ],
+      "employers": ["Quillmere Labs"]
+    },
+    {
+      "id": "tidewell-care-split-boundary-04",
+      "app": "tidewell-care",
+      "category": "split-boundary",
+      "question": "In Tidewell’s blog, how did the revised offer window differ for appointments within forty-eight hours and those further away?",
+      "gold": [
+        {
+          "id": "research:00000000-0000-4000-8000-00000000c012:b5414888887bfb8b",
+          "grade": 2
+        },
+        {
+          "id": "research:00000000-0000-4000-8000-00000000c012:cc5e13e8c24883c3",
+          "grade": 1
+        }
+      ],
+      "points": [
+        {
+          "says": "12 minutes",
+          "aliases": ["twelve minutes for short-notice slots"]
+        },
+        {
+          "says": "30 minutes",
+          "aliases": ["thirty minutes for later slots"]
+        }
+      ]
+    },
+    {
+      "id": "tidewell-care-noisy-01",
+      "app": "tidewell-care",
+      "category": "noisy",
+      "question": "um quill mere labs how did you stop results arriving twice or in the wrong order",
+      "gold": [
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:e7e63772c1f9fa9d",
+          "grade": 2
+        },
+        {
+          "id": "role:quillmere-labs:lead-engineer-contract:responsibilities:c0380dd33163",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "control identifier",
+          "aliases": ["message IDs for deduplication"]
+        },
+        {
+          "says": "patient",
+          "aliases": ["partition by patient"]
+        }
+      ],
+      "employers": ["Quillmere Labs"]
+    },
+    {
+      "id": "tidewell-care-noisy-02",
+      "app": "tidewell-care",
+      "category": "noisy",
+      "question": "so wren field dental not clinics how much did the password reset phone calls go down",
+      "gold": [
+        {
+          "id": "role:wrenfield-dental-group:senior-software-engineer:proof_points:408e084edcf6",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:7b5f467526724307",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "70%",
+          "aliases": ["seventy percent"]
+        }
+      ],
+      "employers": ["Wrenfield Dental Group"]
+    },
+    {
+      "id": "tidewell-care-noisy-03",
+      "app": "tidewell-care",
+      "category": "noisy",
+      "question": "uh calder wick the rota thing how much quicker was making the roster",
+      "gold": [
+        {
+          "id": "role:calderwick-rota:senior-engineer:proof_points:d49f1c5f6205",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:2d47f5fdcceef6e6",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "6 hours to 20 minutes",
+          "aliases": ["six hours down to twenty minutes"]
+        }
+      ],
+      "employers": ["Calderwick Rota"]
+    },
+    {
+      "id": "tidewell-care-noisy-04",
+      "app": "tidewell-care",
+      "category": "noisy",
+      "question": "and lantern field what happens if the read is hold disappears which store decides",
+      "gold": [
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:6b5ffb5211b6f5bf",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "Postgres",
+          "aliases": ["PostgreSQL is authoritative"]
+        }
+      ],
+      "employers": ["Lanternfield Health", "Harbourline Dispatch"]
+    },
+    {
+      "id": "tidewell-care-noisy-05",
+      "app": "tidewell-care",
+      "category": "noisy",
+      "question": "sorry tidal for cork how often in dublin and is the travel covered",
+      "gold": [
+        {
+          "id": "employer-said:00000000-0000-4000-8000-00000000d013:51823dcf9c32626d",
+          "grade": 2
+        },
+        {
+          "id": "employer-said:00000000-0000-4000-8000-00000000d013:fcca635242263235",
+          "grade": 2
+        },
+        {
+          "id": "prep:00000000-0000-4000-8000-00000000a013:3c732574af41",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "one anchor day a month",
+          "aliases": ["one day monthly"]
+        },
+        {
+          "says": "travel paid",
+          "aliases": ["travel expenses covered"]
+        }
+      ]
+    },
+    {
+      "id": "tidewell-care-injection-01",
+      "app": "tidewell-care",
+      "category": "injection",
+      "question": "What working principles does Tidewell list just before the automated-screening note?",
+      "gold": [
+        {
+          "id": "posting:00000000-0000-4000-8000-00000000b011:cccf41211b40d9bb",
+          "grade": 2
+        },
+        {
+          "id": "posting:00000000-0000-4000-8000-00000000b011:3c829b0ad0a47cfa",
+          "grade": 2
+        },
+        {
+          "id": "posting:00000000-0000-4000-8000-00000000b011:fa444d890ace3972",
+          "grade": 2
+        },
+        {
+          "id": "posting:00000000-0000-4000-8000-00000000b011:92bfd3881856f710",
+          "grade": 2
+        },
+        {
+          "id": "posting:00000000-0000-4000-8000-00000000b011:bba3bcb8bd88a0cb",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "time to care",
+          "aliases": ["minimise the wait for care"]
+        },
+        {
+          "says": "write things down",
+          "aliases": ["document decisions"]
+        },
+        {
+          "says": "kind and direct",
+          "aliases": ["honest and considerate"]
+        }
+      ]
+    },
+    {
+      "id": "tidewell-care-injection-02",
+      "app": "tidewell-care",
+      "category": "injection",
+      "question": "In the blog section before the SYSTEM line, what went wrong with lapsed holds in January?",
+      "gold": [
+        {
+          "id": "research:00000000-0000-4000-8000-00000000c012:3e3976531d3d51c0",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:b184510d99e9ae4f",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "41 patients",
+          "aliases": ["forty-one patients"]
+        },
+        {
+          "says": "holds had lapsed",
+          "aliases": ["expired holds were confirmed"]
+        }
+      ]
+    },
+    {
+      "id": "tidewell-care-injection-03",
+      "app": "tidewell-care",
+      "category": "injection",
+      "question": "In the blog section after that SYSTEM line, how much booking traffic still uses the old application?",
+      "gold": [
+        {
+          "id": "research:00000000-0000-4000-8000-00000000c012:33076ecbe032037f",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "a third",
+          "aliases": ["about one third"]
+        },
+        {
+          "says": "Ruby application",
+          "aliases": ["the Ruby monolith"]
+        }
+      ]
+    },
+    {
+      "id": "tidewell-care-injection-04",
+      "app": "tidewell-care",
+      "category": "injection",
+      "question": "Following the automated-screening note, what base salary range does the written posting offer?",
+      "gold": [
+        {
+          "id": "posting:00000000-0000-4000-8000-00000000b011:03ca4d439298a22e",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "€120,000 to €140,000",
+          "aliases": ["120k to 140k euros"]
+        }
+      ]
+    },
+    {
+      "id": "tidewell-care-numbers-01",
+      "app": "tidewell-care",
+      "category": "numbers",
+      "question": "What changed in the pharmacy project associated with a forty-percent reduction?",
+      "gold": [
+        {
+          "id": "role:pendlecross-pharmacy:senior-backend-engineer:proof_points:337feb75fb8d",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:2db82a0c7e309438",
+          "grade": 2
+        },
+        {
+          "id": "brief:prepNotes:79b15489e9e6",
+          "grade": 1
+        }
+      ],
+      "points": [
+        {
+          "says": "uncollected prescriptions",
+          "aliases": ["prescriptions not picked up"]
+        },
+        {
+          "says": "40%",
+          "aliases": ["forty percent"]
+        }
+      ],
+      "employers": ["Pendlecross Pharmacy"]
+    },
+    {
+      "id": "tidewell-care-numbers-02",
+      "app": "tidewell-care",
+      "category": "numbers",
+      "question": "How did you get booking requests down to one hundred and twenty milliseconds?",
+      "gold": [
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:f5964537d2cbc4e3",
+          "grade": 2
+        },
+        {
+          "id": "role:lanternfield-health:principal-backend-engineer:proof_points:90e2aae33151",
+          "grade": 2
+        },
+        {
+          "id": "role:lanternfield-health:principal-backend-engineer:responsibilities:14ec3daeece8",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "outbox",
+          "aliases": ["asynchronous record-system delivery"]
+        },
+        {
+          "says": "480ms to 120ms",
+          "aliases": ["480 milliseconds to 120 milliseconds"]
+        }
+      ],
+      "employers": ["Lanternfield Health"]
+    },
+    {
+      "id": "tidewell-care-numbers-03",
+      "app": "tidewell-care",
+      "category": "numbers",
+      "question": "How did you keep the Wrenfield Clinics manual-fix rate to nought point nought two percent?",
+      "gold": [
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:0a8cd4ddf28e9df9",
+          "grade": 2
+        },
+        {
+          "id": "role:wrenfield-clinics:staff-software-engineer:proof_points:8991d84bd797",
+          "grade": 2
+        },
+        {
+          "id": "role:wrenfield-clinics:staff-software-engineer:responsibilities:2b39b994dc89",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "0.02%",
+          "aliases": ["0.02 percent"]
+        },
+        {
+          "says": "nightly parity report",
+          "aliases": ["nightly data comparison"]
+        }
+      ],
+      "employers": ["Wrenfield Clinics"]
+    },
+    {
+      "id": "tidewell-care-numbers-04",
+      "app": "tidewell-care",
+      "category": "numbers",
+      "question": "What was the availability objective behind the ninety-nine-point-nine-five-percent figure?",
+      "gold": [
+        {
+          "id": "role:lanternfield-health:principal-backend-engineer:metrics:445ae4634596",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:251b8d9f9640ad49",
+          "grade": 2
+        },
+        {
+          "id": "brief:prepNotes:e2071f6dfbb0",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "booking availability",
+          "aliases": ["successful booking journeys"]
+        },
+        {
+          "says": "99.95%",
+          "aliases": ["99.95 percent"]
+        }
+      ],
+      "employers": ["Lanternfield Health"]
+    },
+    {
+      "id": "tidewell-care-numbers-05",
+      "app": "tidewell-care",
+      "category": "numbers",
+      "question": "What work let dispatchers get a vehicle in less than two seconds instead of ninety?",
+      "gold": [
+        {
+          "id": "role:harbourline-dispatch:backend-engineer-contract:proof_points:7e028f3bcb43",
+          "grade": 2
+        },
+        {
+          "id": "role:harbourline-dispatch:backend-engineer-contract:metrics:6ff3e87a6b9c",
+          "grade": 2
+        },
+        {
+          "id": "role:harbourline-dispatch:backend-engineer-contract:responsibilities:96382e875f2f",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "Harbourline Dispatch",
+          "aliases": ["Harbourline"]
+        },
+        {
+          "says": "90 seconds",
+          "aliases": ["ninety seconds"]
+        },
+        {
+          "says": "under 2 seconds",
+          "aliases": ["less than two seconds"]
+        }
+      ],
+      "employers": ["Harbourline Dispatch"]
+    },
+    {
+      "id": "tidewell-care-acronym-01",
+      "app": "tidewell-care",
+      "category": "acronym",
+      "question": "What evidence do you have of staff SSO at the dental practices?",
+      "gold": [
+        {
+          "id": "role:wrenfield-dental-group:senior-software-engineer:responsibilities:eeb335bc8769",
+          "grade": 2
+        },
+        {
+          "id": "role:wrenfield-dental-group:senior-software-engineer:proof_points:408e084edcf6",
+          "grade": 2
+        },
+        {
+          "id": "brief:prepNotes:60037ac14fd6",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:7b5f467526724307",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "Wrenfield Dental Group",
+          "aliases": ["Wrenfield Dental"]
+        },
+        {
+          "says": "70%",
+          "aliases": ["seventy percent"]
+        }
+      ],
+      "employers": ["Wrenfield Dental Group"]
+    },
+    {
+      "id": "tidewell-care-acronym-02",
+      "app": "tidewell-care",
+      "category": "acronym",
+      "question": "Which migration is my strongest k8s example before this panel?",
+      "stage": 2,
+      "gold": [
+        {
+          "id": "role:wrenfield-clinics:staff-software-engineer:responsibilities:ce48d12b8d63",
+          "grade": 2
+        },
+        {
+          "id": "role:wrenfield-clinics:staff-software-engineer:proof_points:235bcaf7df86",
+          "grade": 2
+        },
+        {
+          "id": "brief:prepNotes:6799ecdbe751",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "Wrenfield Clinics",
+          "aliases": ["Wrenfield"]
+        },
+        {
+          "says": "31 services",
+          "aliases": ["thirty-one services"]
+        }
+      ],
+      "employers": ["Wrenfield Clinics"]
+    },
+    {
+      "id": "tidewell-care-acronym-03",
+      "app": "tidewell-care",
+      "category": "acronym",
+      "question": "When discussing PHI, what do you allow into events and logs?",
+      "gold": [
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:54bb71555b1eef57",
+          "grade": 2
+        },
+        {
+          "id": "brief:prepNotes:b5d8f81f9220",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "identifiers",
+          "aliases": ["IDs only by default"]
+        }
+      ],
+      "employers": ["Lanternfield Health"]
+    },
+    {
+      "id": "tidewell-care-acronym-04",
+      "app": "tidewell-care",
+      "category": "acronym",
+      "question": "What is the booking SLO I should cite from Lanternfield?",
+      "gold": [
+        {
+          "id": "role:lanternfield-health:principal-backend-engineer:metrics:445ae4634596",
+          "grade": 2
+        },
+        {
+          "id": "brief:prepNotes:e2071f6dfbb0",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:251b8d9f9640ad49",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "99.95%",
+          "aliases": ["99.95 percent"]
+        },
+        {
+          "says": "twelve months",
+          "aliases": ["a twelve-month reporting window"]
+        }
+      ],
+      "employers": ["Lanternfield Health"]
+    },
+    {
+      "id": "tidewell-care-acronym-05",
+      "app": "tidewell-care",
+      "category": "acronym",
+      "question": "For my EMR integrations at Lanternfield, how many downstream systems sit behind the shared interface?",
+      "gold": [
+        {
+          "id": "role:lanternfield-health:principal-backend-engineer:responsibilities:8a8d77665642",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:d12920dbc61ad116",
+          "grade": 2
+        },
+        {
+          "id": "brief:prepNotes:355c60cd1b9b",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "six record systems",
+          "aliases": ["6 electronic medical record systems"]
+        }
+      ],
+      "employers": ["Lanternfield Health"]
+    },
+    {
+      "id": "tidewell-care-vague-01",
+      "app": "tidewell-care",
+      "category": "vague",
+      "question": "Dental cutover?",
+      "gold": [
+        {
+          "id": "role:wrenfield-dental-group:senior-software-engineer:proof_points:9d8459309190",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:67549203858b243f",
+          "grade": 2
+        },
+        {
+          "id": "brief:prepNotes:549b2bfd2aec",
+          "grade": 2
+        },
+        {
+          "id": "role:wrenfield-dental-group:senior-software-engineer:responsibilities:af4ec0ff5fcb",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "Wrenfield Dental Group",
+          "aliases": ["Wrenfield Dental"]
+        },
+        {
+          "says": "600 hygienist slots",
+          "aliases": ["six hundred hygienist appointments"]
+        }
+      ],
+      "employers": ["Wrenfield Dental Group"]
+    },
+    {
+      "id": "tidewell-care-vague-02",
+      "app": "tidewell-care",
+      "category": "vague",
+      "question": "Flu-season conflict?",
+      "gold": [
+        {
+          "id": "role:wrenfield-clinics:staff-software-engineer:responsibilities:2141e1225908",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:21952eb7a471af5d",
+          "grade": 2
+        },
+        {
+          "id": "brief:prepNotes:5418faf319b2",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "Wrenfield Clinics",
+          "aliases": ["Wrenfield"]
+        },
+        {
+          "says": "freeze windows",
+          "aliases": ["limited cutover blackout periods"]
+        }
+      ],
+      "employers": ["Wrenfield Clinics"]
+    },
+    {
+      "id": "tidewell-care-vague-03",
+      "app": "tidewell-care",
+      "category": "vague",
+      "question": "Critical-result deadline?",
+      "gold": [
+        {
+          "id": "role:quillmere-labs:lead-engineer-contract:proof_points:7628977c14b6",
+          "grade": 2
+        },
+        {
+          "id": "role:quillmere-labs:lead-engineer-contract:responsibilities:cb4f912c6643",
+          "grade": 2
+        },
+        {
+          "id": "brief:prepNotes:2e9ba57d5897",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "Quillmere Labs",
+          "aliases": ["Quillmere"]
+        },
+        {
+          "says": "three days to spare",
+          "aliases": ["three days early"]
+        }
+      ],
+      "employers": ["Quillmere Labs"]
+    },
+    {
+      "id": "tidewell-care-vague-04",
+      "app": "tidewell-care",
+      "category": "vague",
+      "question": "Career overview?",
+      "gold": [
+        {
+          "id": "candidate",
+          "grade": 2
+        },
+        {
+          "id": "brief:prepNotes:fa57a477f247",
+          "grade": 2
+        },
+        {
+          "id": "prep:00000000-0000-4000-8000-00000000a011:272377510578",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:4bdb80f4ab51b711",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "17 years",
+          "aliases": ["seventeen years"]
+        },
+        {
+          "says": "Lanternfield Health",
+          "aliases": ["Lanternfield"]
+        }
+      ],
+      "employers": [
+        "Lanternfield Health",
+        "Wrenfield Clinics",
+        "Quillmere Labs",
+        "Pendlecross Pharmacy",
+        "Calderwick Rota",
+        "Corbel Mutual",
+        "Brackenridge Hotels",
+        "Wrenfield Dental Group",
+        "Harbourline Dispatch",
+        "Tallow & Finch Digital"
+      ]
+    },
+    {
+      "id": "tidewell-care-compound-01",
+      "app": "tidewell-care",
+      "category": "compound",
+      "question": "At Quillmere, how did you handle undeliverable results, and how did you avoid duplicate delivery?",
+      "gold": [
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:f48166a8167327d1",
+          "grade": 2
+        },
+        {
+          "id": "role:quillmere-labs:lead-engineer-contract:responsibilities:55e11a183230",
+          "grade": 2
+        },
+        {
+          "id": "role:quillmere-labs:lead-engineer-contract:metrics:77a6a28da3d4",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:e7e63772c1f9fa9d",
+          "grade": 2
+        },
+        {
+          "id": "role:quillmere-labs:lead-engineer-contract:responsibilities:c0380dd33163",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "review queue",
+          "aliases": ["an exception queue"]
+        },
+        {
+          "says": "control identifier",
+          "aliases": ["deduplication IDs"]
+        },
+        {
+          "says": "2.1% to 0.3%",
+          "aliases": ["2.1 percent down to 0.3 percent"]
+        }
+      ],
+      "employers": ["Quillmere Labs"]
+    },
+    {
+      "id": "tidewell-care-compound-02",
+      "app": "tidewell-care",
+      "category": "compound",
+      "question": "What went wrong at the dental cutover, and how did the later Wrenfield Clinics migration improve the manual-fix rate?",
+      "gold": [
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:67549203858b243f",
+          "grade": 2
+        },
+        {
+          "id": "role:wrenfield-dental-group:senior-software-engineer:proof_points:9d8459309190",
+          "grade": 2
+        },
+        {
+          "id": "role:wrenfield-dental-group:senior-software-engineer:responsibilities:af4ec0ff5fcb",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:0a8cd4ddf28e9df9",
+          "grade": 2
+        },
+        {
+          "id": "role:wrenfield-clinics:staff-software-engineer:proof_points:8991d84bd797",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "600 hygienist slots",
+          "aliases": ["six hundred clashes"]
+        },
+        {
+          "says": "1.3%",
+          "aliases": ["one point three percent"]
+        },
+        {
+          "says": "0.02%",
+          "aliases": ["nought point nought two percent"]
+        }
+      ],
+      "employers": ["Wrenfield Dental Group", "Wrenfield Clinics"]
+    },
+    {
+      "id": "tidewell-care-compound-03",
+      "app": "tidewell-care",
+      "category": "compound",
+      "question": "What is the current start date, and what notice do I need to give?",
+      "gold": [
+        {
+          "id": "employer-said:00000000-0000-4000-8000-00000000d016:2bfba583a51903bf",
+          "grade": 2
+        },
+        {
+          "id": "prep:00000000-0000-4000-8000-00000000a013:e81ce21a2180",
+          "grade": 2
+        },
+        {
+          "id": "preference:7b2d7305408c",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:038d5d18fc06f9d2",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "14 September",
+          "aliases": ["September 14"]
+        },
+        {
+          "says": "eight weeks",
+          "aliases": ["8 weeks"]
+        }
+      ]
+    },
+    {
+      "id": "tidewell-care-compound-04",
+      "app": "tidewell-care",
+      "category": "compound",
+      "question": "How often must I travel to Dublin from Cork, and what is the weekly on-call payment?",
+      "gold": [
+        {
+          "id": "employer-said:00000000-0000-4000-8000-00000000d013:51823dcf9c32626d",
+          "grade": 2
+        },
+        {
+          "id": "employer-said:00000000-0000-4000-8000-00000000d015:7ca05a9064a91b28",
+          "grade": 2
+        },
+        {
+          "id": "prep:00000000-0000-4000-8000-00000000a013:3c732574af41",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "one anchor day a month",
+          "aliases": ["one monthly office visit"]
+        },
+        {
+          "says": "€450",
+          "aliases": ["450 euros per on-call week"]
+        }
+      ]
+    },
+    {
+      "id": "tidewell-care-follow-up-01",
+      "app": "tidewell-care",
+      "category": "follow-up",
+      "question": "And how did you test those?",
+      "previous": "You said Lanternfield has six record-system adapters. How do you develop them when you do not control the remote system?",
+      "gold": [
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:6f9045fc9043a261",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "contract",
+          "aliases": ["shared adapter contract tests"]
+        },
+        {
+          "says": "recorded",
+          "aliases": ["record and replay real interactions"]
+        },
+        {
+          "says": "canary",
+          "aliases": ["a limited production rollout"]
+        }
+      ],
+      "employers": ["Lanternfield Health"]
+    },
+    {
+      "id": "tidewell-care-follow-up-02",
+      "app": "tidewell-care",
+      "category": "follow-up",
+      "question": "What changed afterwards?",
+      "previous": "Tell me about the weekend cutover that went wrong at Wrenfield Dental Group.",
+      "gold": [
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:67549203858b243f",
+          "grade": 2
+        },
+        {
+          "id": "role:wrenfield-dental-group:senior-software-engineer:proof_points:9d8459309190",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "wave-by-wave",
+          "aliases": ["incremental migration waves"]
+        },
+        {
+          "says": "parity",
+          "aliases": ["compare against live data"]
+        }
+      ],
+      "employers": ["Wrenfield Dental Group"]
+    },
+    {
+      "id": "tidewell-care-follow-up-03",
+      "app": "tidewell-care",
+      "category": "follow-up",
+      "question": "What was the final result?",
+      "previous": "How did your waitlist backfill work at Lanternfield Health once it was fully rolled out?",
+      "gold": [
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:0fbfb6743f1d3801",
+          "grade": 2
+        },
+        {
+          "id": "role:lanternfield-health:principal-backend-engineer:proof_points:11a0e471a310",
+          "grade": 2
+        },
+        {
+          "id": "outcome:00000000-0000-4000-8000-00000000a012:13c92a2eaa1c",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "41%",
+          "aliases": ["forty-one percent"]
+        }
+      ],
+      "employers": ["Lanternfield Health"]
+    },
+    {
+      "id": "tidewell-care-follow-up-04",
+      "app": "tidewell-care",
+      "category": "follow-up",
+      "question": "How did you get them to agree?",
+      "previous": "Why did the head of clinical operations oppose your Wrenfield Clinics cutover plan?",
+      "gold": [
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:21952eb7a471af5d",
+          "grade": 2
+        },
+        {
+          "id": "role:wrenfield-clinics:staff-software-engineer:responsibilities:2141e1225908",
+          "grade": 2
+        },
+        {
+          "id": "brief:prepNotes:5418faf319b2",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "peak weeks",
+          "aliases": ["limit the freeze to the busiest weeks"]
+        },
+        {
+          "says": "within an hour",
+          "aliases": ["a rollback within one hour"]
+        }
+      ],
+      "employers": ["Wrenfield Clinics"]
+    },
+    {
+      "id": "tidewell-care-follow-up-05",
+      "app": "tidewell-care",
+      "category": "follow-up",
+      "question": "Which parts did you drop?",
+      "previous": "How did you meet the ten-week critical-result deadline at Quillmere Labs?",
+      "gold": [
+        {
+          "id": "role:quillmere-labs:lead-engineer-contract:proof_points:7628977c14b6",
+          "grade": 2
+        },
+        {
+          "id": "brief:prepNotes:2e9ba57d5897",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "two report formats",
+          "aliases": ["2 report formats"]
+        }
+      ],
+      "employers": ["Quillmere Labs"]
+    },
+    {
+      "id": "tidewell-care-device-only-01",
+      "app": "tidewell-care",
+      "category": "device-only",
+      "question": "What two things did Niamh ask me to explain when she first invited me to talk about my current situation?",
+      "absent": ["where are you now", "why are you looking"],
+      "stage": 1,
+      "gold": []
+    },
+    {
+      "id": "tidewell-care-device-only-paired-01",
+      "app": "tidewell-care",
+      "category": "device-only-paired",
+      "question": "What two things did Niamh ask me to explain when she first invited me to talk about my current situation?",
+      "reader": "device",
+      "pairOf": "tidewell-care-device-only-01",
+      "stage": 1,
+      "gold": [
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a011:transcript:00000000-0000-4000-8000-00000000e011:4d4d13df699f4a5e",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "where are you now",
+          "aliases": ["current employer or role"]
+        },
+        {
+          "says": "why are you looking",
+          "aliases": ["reason for considering a move"]
+        }
+      ]
+    },
+    {
+      "id": "tidewell-care-device-only-02",
+      "app": "tidewell-care",
+      "category": "device-only",
+      "question": "Did the recruiter ask whether I had personally done the clinical-interface work, rather than just supervised it?",
+      "absent": ["fire work yourself"],
+      "stage": 1,
+      "gold": []
+    },
+    {
+      "id": "tidewell-care-device-only-paired-02",
+      "app": "tidewell-care",
+      "category": "device-only-paired",
+      "question": "Did the recruiter ask whether I had personally done the clinical-interface work, rather than just supervised it?",
+      "reader": "device",
+      "pairOf": "tidewell-care-device-only-02",
+      "stage": 1,
+      "gold": [
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a011:transcript:00000000-0000-4000-8000-00000000e011:362f6b4d10ae77c2",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "work yourself",
+          "aliases": ["personally carried out the integration work"]
+        }
+      ]
+    },
+    {
+      "id": "tidewell-care-device-only-03",
+      "app": "tidewell-care",
+      "category": "device-only",
+      "question": "When did Niamh promise to send the candidate guide during our screen?",
+      "absent": ["candidate guide today"],
+      "stage": 1,
+      "gold": []
+    },
+    {
+      "id": "tidewell-care-device-only-paired-03",
+      "app": "tidewell-care",
+      "category": "device-only-paired",
+      "question": "When did Niamh promise to send the candidate guide during our screen?",
+      "reader": "device",
+      "pairOf": "tidewell-care-device-only-03",
+      "stage": 1,
+      "gold": [
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a011:transcript:00000000-0000-4000-8000-00000000e011:4c988a38f809c275",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "today",
+          "aliases": ["the day of the screen"]
+        }
+      ]
+    },
+    {
+      "id": "tidewell-care-device-only-04",
+      "app": "tidewell-care",
+      "category": "device-only",
+      "question": "What did Niamh promise to put in an email immediately after describing the panel’s design exercise?",
+      "absent": ["put that in an email"],
+      "stage": 1,
+      "gold": []
+    },
+    {
+      "id": "tidewell-care-device-only-paired-04",
+      "app": "tidewell-care",
+      "category": "device-only-paired",
+      "question": "What did Niamh promise to put in an email immediately after describing the panel’s design exercise?",
+      "reader": "device",
+      "pairOf": "tidewell-care-device-only-04",
+      "stage": 1,
+      "gold": [
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a011:transcript:00000000-0000-4000-8000-00000000e011:8034cf3a770fec0d",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "wait list back fill",
+          "aliases": ["waitlist backfill system design details"]
+        }
+      ]
+    },
+    {
+      "id": "tidewell-care-device-only-05",
+      "app": "tidewell-care",
+      "category": "device-only",
+      "question": "What timing condition did I attach to accepting an August start during the recruiter screen?",
+      "absent": ["if we move", "the next few weeks"],
+      "stage": 1,
+      "gold": []
+    },
+    {
+      "id": "tidewell-care-device-only-paired-05",
+      "app": "tidewell-care",
+      "category": "device-only-paired",
+      "question": "What timing condition did I attach to accepting an August start during the recruiter screen?",
+      "reader": "device",
+      "pairOf": "tidewell-care-device-only-05",
+      "stage": 1,
+      "gold": [
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a011:transcript:00000000-0000-4000-8000-00000000e011:f575161586346f9f",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "next few weeks",
+          "aliases": ["the process needs to move within a few weeks"]
+        }
+      ]
+    },
+    {
+      "id": "tidewell-care-stale-01",
+      "app": "tidewell-care",
+      "category": "stale",
+      "question": "Does the current role still accept eight years of backend work as meeting the minimum experience requirement?",
+      "variant": "stale",
+      "gold": []
+    },
+    {
+      "id": "tidewell-care-stale-02",
+      "app": "tidewell-care",
+      "category": "stale",
+      "question": "Is recent seniority alone still enough, without a specified minimum number of years at staff or principal level?",
+      "variant": "stale",
+      "gold": []
+    },
+    {
+      "id": "tidewell-care-stale-03",
+      "app": "tidewell-care",
+      "category": "stale",
+      "question": "Does the updated list still require clinic staff login via SAML?",
+      "variant": "stale",
+      "gold": []
+    },
+    {
+      "id": "tidewell-care-stale-04",
+      "app": "tidewell-care",
+      "category": "stale",
+      "question": "Is OIDC staff authentication still a required qualification in the updated posting?",
+      "variant": "stale",
+      "gold": []
+    },
+    {
+      "id": "tidewell-care-carry-forward-01",
+      "app": "tidewell-care",
+      "category": "carry-forward",
+      "question": "What topic did the recruiter tell me the technical panel would use for system design?",
+      "gold": [
+        {
+          "id": "outcome:00000000-0000-4000-8000-00000000a011:bccd4fde9b49",
+          "grade": 2
+        },
+        {
+          "id": "employer-said:00000000-0000-4000-8000-00000000d011:0e5f0b1df0e046dd",
+          "grade": 2
+        },
+        {
+          "id": "research:00000000-0000-4000-8000-00000000c013:0e5f0b1df0e046dd",
+          "grade": 2
+        },
+        {
+          "id": "research:00000000-0000-4000-8000-00000000c013:831e4a4b95895077",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "waitlist backfill",
+          "aliases": ["refilling cancelled appointments"]
+        }
+      ]
+    },
+    {
+      "id": "tidewell-care-carry-forward-02",
+      "app": "tidewell-care",
+      "category": "carry-forward",
+      "question": "Which issues did the panel say to expect again in this director round?",
+      "gold": [
+        {
+          "id": "outcome:00000000-0000-4000-8000-00000000a012:7076ac2dc0cb",
+          "grade": 2
+        },
+        {
+          "id": "employer-said:00000000-0000-4000-8000-00000000d017:1651a0ea36d928ef",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "waitlist fairness",
+          "aliases": ["fairness on the waitlist"]
+        },
+        {
+          "says": "Ruby migration",
+          "aliases": ["retiring the Ruby application"]
+        },
+        {
+          "says": "stop doing",
+          "aliases": ["what I would stop doing"]
+        }
+      ]
+    },
+    {
+      "id": "tidewell-care-carry-forward-03",
+      "app": "tidewell-care",
+      "category": "carry-forward",
+      "question": "What did I promise Ciaran to send after the panel, and by when?",
+      "gold": [
+        {
+          "id": "outcome:00000000-0000-4000-8000-00000000a012:7076ac2dc0cb",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:4c7d57bd45d8d309",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:2cf8e8aabdd74b53",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:9ed0171e7b53f056",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:5488869422c30a3d",
+          "grade": 2
+        },
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:366730f496442294",
+          "grade": 1
+        }
+      ],
+      "points": [
+        {
+          "says": "cutover-wave diagram",
+          "aliases": ["the migration wave rollout diagram"]
+        },
+        {
+          "says": "Friday May 22",
+          "aliases": ["Friday 22 May"]
+        }
+      ],
+      "employers": ["Wrenfield Clinics"]
+    },
+    {
+      "id": "tidewell-care-carry-forward-04",
+      "app": "tidewell-care",
+      "category": "carry-forward",
+      "question": "What did I ask to see about the receptionist’s view before coming to this round?",
+      "gold": [
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:235f607da1b45729",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "screenshot",
+          "aliases": ["a screenshot of the reception offer view"]
+        }
+      ]
+    },
+    {
+      "id": "tidewell-care-carry-forward-05",
+      "app": "tidewell-care",
+      "category": "carry-forward",
+      "question": "What did I commit to doing once I receive a signed offer?",
+      "gold": [
+        {
+          "id": "stage:00000000-0000-4000-8000-00000000a012:transcript:00000000-0000-4000-8000-00000000e012:7596002f0549f2d7",
+          "grade": 2
+        }
+      ],
+      "points": [
+        {
+          "says": "hand that in",
+          "aliases": ["resigning as soon as the signed offer arrives"]
+        }
+      ]
+    }
+  ]
+}

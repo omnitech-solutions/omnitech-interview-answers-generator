@@ -32,12 +32,15 @@ import {
   type ContextKind,
   DOMINATES,
   EVIDENCE_PLACES,
+  flagsFor,
   KINDS,
   keyTerms,
   LINKS,
+  type PackFlags,
   type ProjectionId,
   SPEAKS_FOR,
   sameAs,
+  selectingRecipe,
   stageScope,
   wordsOf,
 } from "./recipe";
@@ -182,6 +185,10 @@ export type PackOptions = {
   // everything a model extracted from it. "device" is the person's own
   // screen, which shows all of it.
   reader?: "device" | "remote" | undefined;
+  // Flags that replace a projection's own (recipe.ts, PACK_FLAGS) for every
+  // projection of this pack: how the evaluation's arms switch one mechanism
+  // off or on (eval/arms.ts). Absent: each projection selects by its row.
+  flags?: Partial<PackFlags> | undefined;
 };
 
 // A kept pack without what rests on the sources named: their records, and
@@ -246,9 +253,10 @@ export async function prepareContextPack(
   // [GUARD] Material the recipe does not know is refused whole, naming what
   // was wrong: nothing is dropped silently.
   if (!result.ok) throw new ContextPackError(result.failure.reason);
-  const merged = options.kept
+  const read = options.kept
     ? withKept(result.prepared, withoutSources(options.kept, withheld))
     : result.prepared;
+  const merged = read;
   // [SAFETY] A gap is a requirement with NO evidence: its tie says what is
   // missing and is never followed, or the nearest achievement would be
   // offered as the experience the person lacks.
@@ -270,14 +278,31 @@ export async function prepareContextPack(
           ),
         };
 
+  // [DOMAIN] What a model wrote ABOUT the person's records (its search terms;
+  // kept.ts carries them) is matched only by a projection whose flags say so:
+  // the others select from the same pack without them.
+  const bare: Prepared = prepared.records.some((record) => record.terms)
+    ? {
+        ...prepared,
+        records: prepared.records.map((record) => {
+          if (!record.terms) return record;
+          const { terms: _terms, ...said } = record;
+          return said;
+        }),
+      }
+    : prepared;
+  const flagsOf = (projection: ProjectionId) =>
+    flagsFor(projection, options.flags);
+
   const select = (
     projection: ProjectionId,
     query: string,
     overrides: Parameters<ContextPack["resolve"]>[2],
   ): Resolved => {
+    const flags = flagsOf(projection);
     const resolved = engine.context.resolve({
-      prepared,
-      recipe,
+      prepared: flags.terms ? prepared : bare,
+      recipe: selectingRecipe(flags),
       projection,
       ...(query ? { query } : {}),
       ...(overrides ? { overrides } : {}),
@@ -430,6 +455,10 @@ export async function prepareContextPack(
     return tiers;
   };
 
+  // What a record scored for the question.
+  const worth = (fact: Resolved["selected"][number]) =>
+    fact.score.total ?? fact.score.words;
+
   // [STRATEGY] The engine ranked a shortlist; the places are filled from it
   // by the recipe's three rules. Nothing is found here that the engine did
   // not rank, and what is left out says so with the engine's own reason.
@@ -466,13 +495,13 @@ export async function prepareContextPack(
       : 1;
     const fit = (fact: { recordId: string }) => fits.get(fact.recordId) ?? 0;
     const bears = (fact: Resolved["selected"][number]) =>
-      !asked || fact.score.words > 0 || tier(fact) >= least || fit(fact) > 0;
+      !asked || worth(fact) > 0 || tier(fact) >= least || fit(fact) > 0;
     const ordered = ranked
       .filter(bears)
       .sort(
         (a, b) =>
           group(b) - group(a) ||
-          b.score.words - a.score.words ||
+          worth(b) - worth(a) ||
           (group(a) === NAMED ? tier(b) - tier(a) : 0) ||
           fit(b) - fit(a) ||
           b.score.priority - a.score.priority ||
@@ -497,9 +526,8 @@ export async function prepareContextPack(
       const dominated =
         best !== undefined &&
         next !== undefined &&
-        ((best.score.words > 0 &&
-          best.score.words >= DOMINATES * next.score.words) ||
-          (group(best) > group(next) && next.score.words < SPEAKS_FOR));
+        ((worth(best) > 0 && worth(best) >= DOMINATES * worth(next)) ||
+          (group(best) > group(next) && worth(next) < SPEAKS_FOR));
       const second = dominated ? [] : backup;
       // Rule 2: the primary leads and takes most places; either fills what
       // the other leaves.
@@ -551,6 +579,77 @@ export async function prepareContextPack(
     };
   };
 
+  // [DOMAIN] Under the engine's measured ranking a tie only SUPPORTS a
+  // record: an achievement that shares no word with the question is left out
+  // when another matches it directly. That is right for a tie a model
+  // inferred, and wrong for what the PERSON tied: the note they wrote for
+  // this question names its employer, and the story they chose names its
+  // role. So what the leading note, story or requirement is tied to in code
+  // (`tiers`) is put back among the evidence when the engine left it out for
+  // matching too little, for `arrange` to place by the recipe's rules. What
+  // was left out for any other reason (barred, out of scope, excluded by the
+  // question itself, too long) stays out.
+  const WEAK: ReadonlySet<string> = new Set(["relevance", "cut", "min-score"]);
+  const withNamed = (
+    resolved: Resolved,
+    tiers: ReadonlyMap<string, number>,
+  ): Resolved => {
+    const back = resolved.excluded.filter(
+      (each) =>
+        each.slot === "evidence" &&
+        WEAK.has(each.reason) &&
+        (tiers.get(each.recordId) ?? 0) > 0,
+    );
+    if (back.length === 0) return resolved;
+    const named = back.flatMap((each): Resolved["selected"][number][] => {
+      const record = byId.get(each.recordId);
+      return record
+        ? [
+            {
+              recordId: record.id,
+              slot: "evidence",
+              kind: record.kind,
+              text: record.text,
+              exact: false,
+              source: record.source,
+              hash: record.hash,
+              score: {
+                words: 0,
+                priority: record.priority ?? 0,
+                pinned: false,
+              },
+            },
+          ]
+        : [];
+    });
+    const ids = new Set(named.map((fact) => fact.recordId));
+    // After the evidence the engine ranked, before the slots that follow.
+    const last = resolved.selected.findLastIndex(
+      (fact) => fact.slot === "evidence",
+    );
+    const at =
+      last >= 0
+        ? last + 1
+        : resolved.selected.findIndex((fact) =>
+            ["roles", "preferences", "employer"].includes(fact.slot),
+          );
+    const selected =
+      at < 0
+        ? [...resolved.selected, ...named]
+        : [
+            ...resolved.selected.slice(0, at),
+            ...named,
+            ...resolved.selected.slice(at),
+          ];
+    return {
+      ...resolved,
+      selected,
+      excluded: resolved.excluded.filter(
+        (each) => !(each.slot === "evidence" && ids.has(each.recordId)),
+      ),
+    };
+  };
+
   // [DOMAIN] The slots that hold the person's own record. A story's words
   // and a link widen the search of THESE only: "Larchmont Pay" names a role
   // to tell, and must not find the person's pay among their preferences or
@@ -592,18 +691,25 @@ export async function prepareContextPack(
   };
 
   const resolve: ContextPack["resolve"] = (projection, spoken, overrides) => {
+    const flags = flagsOf(projection);
+    // The question's words as the product's own rules count them (how many
+    // words a note shares, which technology was named).
     const query = keyTerms(spoken);
+    // What the engine is asked: the same words, with an exclusion phrase
+    // ("not at X") kept whole where the engine reads exclusions.
+    const put = (said: string) =>
+      keyTerms(said, flags.match !== "plain" && flags.match.exclusion);
     const person = overrides?.pinned ?? [];
-    const base = select(projection, query, overrides);
+    const base = select(projection, query ? put(spoken) : "", overrides);
     // [DOMAIN] A story the person chose for this kind of question speaks for
     // the question: "conflict with a stakeholder" names the dispute, and the
     // dispute names the role whose facts tell it. So the person's own record
     // is searched again with the chosen story's words beside what was asked.
     const stories = base.selected.filter((fact) => fact.slot === "stories");
-    const asked =
+    const widened =
       query && stories.length > 0
-        ? keyTerms(`${spoken} ${stories.map((story) => story.text).join(" ")}`)
-        : query;
+        ? `${spoken} ${stories.map((story) => story.text).join(" ")}`
+        : undefined;
     // [DOMAIN] What the leading note, story or requirement is linked to is
     // ranked before everything else, whether or not it shares a word with
     // the question: the note that answers "NestJS" names the employer, and
@@ -613,8 +719,8 @@ export async function prepareContextPack(
     const fits = new Map<string, number>();
     const tiers = tiersFor(base, person, query.split(" "), fits);
     let found = base;
-    if (asked !== query) {
-      const own = select(projection, asked, overrides);
+    if (widened !== undefined) {
+      const own = select(projection, put(widened), overrides);
       // What the question's own selection is tied to stays, though the
       // story's words selected other notes.
       const had = new Set(
@@ -652,6 +758,7 @@ export async function prepareContextPack(
               ),
             };
     }
+    if (flags.match !== "plain") found = withNamed(found, tiers);
     const first = arrange(projection, found, tiers, fits, query !== "");
     // [DOMAIN] A question nothing in the material answers by its words
     // ("tell me about yourself") is still about the person: their recent

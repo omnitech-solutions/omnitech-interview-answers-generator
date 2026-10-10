@@ -58,11 +58,48 @@ compared with its own last run
 --from T --to T   the stretch to replay (HH:MM:SS of the file's clock)
 --timing          decisions only, no model
 --latency S       with --timing: how long the absent model takes (default 4)
---runtime claude|codex    who writes the notes (default claude)
+--runtime claude|codex|scripted    who writes the notes (default claude).
+scripted: no model. Each note cites the first fact of a
+role the coach was given, after --latency seconds of the
+file's clock (stepped by hand, as --timing is, so the
+run is the same every time and --speed is not used)
 --speed N         N times faster than it was said (default 1). Above 1 a
 model's delay looks N times longer than it is.
 --studio          also show the notes in the running Studio's notes pane,
 as replay notes: kept apart from your own, in memory
+
+The person's material, and what the notes SAY
+--transcript FILE the transcript, named instead of given first
+--matrix FILE --brief FILE    the person's experience matrix and the
+employer brief (or an application row holding one under
+`employer_brief`). Given, the coach draws its facts from
+the context pack's coach projection exactly as the live
+coach does (coach/context.ts), as a REMOTE reader: a
+device-only source is withheld
+--application FILE    the application: stages, employerSaid, research. A
+transcript may name its words by "textFile", a path from
+that file's folder
+--preferences FILE    the person's preferences, as lines of text
+--kept FILE       a pack a model prepared earlier (a `Prepared`), read
+with today's material wherever its sources still stand
+--stage N         the stage of the application the call is
+--within S        a note's first line is in time when it is on screen
+this many seconds after the question's last word
+(default 10)
+--private         treat the run as one on a person's own files (below)
+Every path may be absolute, under ~, from where the command runs, or from
+the repository's root. With material (or an expected file that names
+`evidence`), each question's note is scored: which employers its verified
+claims belong to, whether the pack offered an accepted employer's fact at
+all, and the figures and employer names it states that nobody gave it
+(coach-notes-score.ts).
+
+[SAFETY] A person's own files. When one of these flags is given and the
+transcript, the plan, the expected file or any material file is OUTSIDE the
+repository, what is printed (without --trace) and what is kept hold ids,
+pointers, counts, clock times and scores only: never the words of a note, a
+fact, a question or a line, and never a speaker's name. The result is then
+kept only under .dev-local/ or outside the repository.
 
 Nothing is kept: the transcript and the notes of a replay live in this
 process, unless --studio is given. With no part named for any label and a

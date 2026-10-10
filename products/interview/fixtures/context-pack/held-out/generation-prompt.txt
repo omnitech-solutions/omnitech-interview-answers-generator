@@ -1,0 +1,56 @@
+You are writing a HELD-OUT evaluation set for a retrieval system. You see only an interview candidate's material for ONE job application (the files in this folder). You do not know, and must not guess, how the system ranks: write the questions a real interviewer, recruiter or the candidate would ask, and say which records answer each.
+
+FILES
+- matrix.json: the candidate's experience (roles, achievements, stories).
+- employer-brief.json, posting.txt: what the employer asks for. posting-edited.txt is the posting AFTER a later edit.
+- preferences.txt: what the candidate wants.
+- stages.json (and any transcript file it names): the interview stages with notes, people, transcripts, what the employer said (employerSaid) and research. A transcript whose capturePolicy is "device-only" may never be shown to a remote model.
+- planted.json: hard cases the author planted, with where each is. Use it to find material; do not copy its wording into questions.
+- records.jsonl: THE CORPUS. One record per line: id, kind, employer (for the candidate's achievements), stage, source, deviceOnly, text. Gold is given as record ids from this file, exactly as written.
+
+WRITE questions.json: a JSON array of objects, each:
+{
+  "id": "<APP>-<category>-<nn>",
+  "app": "<APP>",
+  "category": one of the categories below,
+  "question": the question as it would be said or typed,
+  "previous": (follow-up only) the question asked just before,
+  "stage": (optional) 1, 2 or 3: the stage it is asked in. Omit for the last stage. A record whose "stage" is later than the question's stage cannot be gold.
+  "reader": (only where told) "device",
+  "variant": (stale only) "stale",
+  "gold": [{ "id": "<record id from records.jsonl>", "grade": 2 | 1 }],   2 = the record answers the question; 1 = it supports an answer. Give EVERY record that deserves a grade, at most 6, best first. Records with "deviceOnly": true may be gold ONLY when "reader" is "device".
+  "points": [{ "says": "<1 to 5 words copied EXACTLY from the sources>", "aliases": ["<another way a correct answer might write it>"] }],   1 to 3 things a correct spoken answer must state (an employer, a system, a figure). Omit when the right result is nothing.
+  "employers": ["<employer of matrix.json>"],   for a question answered from the candidate's own record: every employer whose work is an acceptable answer.
+  "absent": ["<2 to 6 words copied EXACTLY from a source>"],   only where told below.
+  "pairOf": "<id>"   only where told below.
+}
+
+CATEGORIES AND HOW MANY (write exactly these counts; <APP> ids numbered 01, 02, ...):
+- direct (4): a plain question whose words the answer shares.
+- paraphrase (6): the question shares NO content word with the record that answers it (ask about the problem, not the technique).
+- multi-hop (5): the answer needs a chain: a requirement of the posting -> a note naming an employer -> that employer's achievements. Gold: the achievements (2) and the note or requirement on the way (1).
+- entity-confusion (5): two employers with similar names or projects, or two people with one first name; the question names one precisely. Gold: only the right one's records.
+- temporal (5): "most recent", "before 2019", "at your last job", or a fact that a later stage changed (gold: the LATER statement, grade 2; never the superseded one).
+- negation (5): "an example that is not from X", "other than X", "besides X". Gold: right records of OTHER employers; "employers" lists the acceptable ones and never X.
+- aggregation (4): "how many years of X", "how many teams", needing several records. Gold: every record that contributes; "points": the total as the sources allow it to be computed, with aliases.
+- unanswerable (9): the material does NOT hold the answer; at least 4 share common words with the material ("Have you led a team that shipped X?" where X is absent). gold: [].
+- off-topic (5): not a question for the material at all: a greeting, thanks, small talk, "can you hear me", "let's take five minutes". gold: [].
+- conflict (5): two sources disagree (posting against transcript or employerSaid). Gold: BOTH records, the later or more direct one first with grade 2, the other grade 1. "points": the later value.
+- near-duplicate (4): a fact stated in several records. Gold: every record that states it, all grade 2.
+- split-boundary (4): a fact whose statement is split across several transcript fragments or sits in the middle of a long paragraph. Gold: the records that hold it.
+- noisy (5): the QUESTION is worded as noisy speech-to-text: disfluencies, a mis-heard technology or company name, no punctuation. Gold as for the clean question.
+- injection (4): a question about the part of a source that sits beside a planted instruction (an "ignore previous instructions" line). Gold: the legitimate records; never a record that states the instruction. "points" as usual.
+- numbers (5): the question names a figure in ANOTHER form than the record ("forty percent" for "40%", "120 milliseconds" for "120ms").
+- acronym (5): the question uses the acronym where the record spells it out, or the other way round.
+- vague (4): one to four words ("Kafka?", "Tell me about yourself.", "Biggest failure?").
+- compound (4): two questions in one. Gold: records for EACH half.
+- follow-up (5): "previous" is a full question; "question" depends on it ("And how did you test that?", "What was the result?"). Gold: the records that answer the follow-up given the previous subject.
+- device-only (5): asks for a fact that ONLY the device-only transcript holds. No "reader" (a remote model asks). gold: []. "absent": 1 to 3 phrases copied exactly from the device-only transcript that state that fact and appear NOWHERE else in any file.
+- device-only-paired (5): the SAME five questions, one each, with "reader": "device" and "pairOf": the id of its device-only twin. Gold: the records with "deviceOnly": true that state the fact (choose facts that such a record states), grade 2. "points" as usual.
+- stale (4): "variant": "stale". A question about a requirement that posting-edited.txt removed or tightened. gold: []. "absent": 1 or 2 phrases copied exactly from posting.txt that state the OLD requirement and appear in NO other file (not in posting-edited.txt, not in employer-brief.json).
+- carry-forward (5): asked at the last stage about what an EARLIER stage asked, promised or said to expect ("What did they say to expect in this round?", "What did I promise to send?"). Gold: the earlier stage's records.
+
+RULES
+- Every gold id must be copied exactly from records.jsonl. Every "says" and every "absent" phrase must be copied exactly from a source file (case does not matter). Before you finish, check both with a script and fix every miss.
+- Questions must be natural and varied; do not reuse a planted case twice in one category; do not quote a record's sentence as the question (except in "direct").
+- Do not write explanations. Write only questions.json, valid JSON.

@@ -6,6 +6,7 @@
 // preferences) is read in the session owner's scope, prepared once into the
 // context pack (ADR-0038), and the pack's "coach" projection is resolved for
 // each stretch. The coach is given exactly what that projection selects.
+import type { Prepared } from "@omnitech/ai-engine";
 import type { PlatformDatabase } from "@omnitech/database";
 import type { CoachTranscriptSession } from "@omnitech/interview-contracts";
 import {
@@ -16,7 +17,10 @@ import {
   prepareContextPack,
   sessionSources,
 } from "../context-pack/index";
-import { loadSessionContext } from "../live-session/session-context";
+import {
+  loadSessionContext,
+  type SessionContext,
+} from "../live-session/session-context";
 
 export type CoachFact = {
   // Where it is in the person's material ("/roles/3/proof_points/1").
@@ -31,6 +35,13 @@ export type CoachFact = {
 export type CoachContextPort = {
   // The facts for `query`, best first. Empty when the session has no context.
   facts(session: CoachTranscriptSession, query: string): Promise<CoachFact[]>;
+};
+
+// What a session's pack is prepared from: its approved material, and the pack
+// a model prepared for its application when one is kept.
+export type CoachMaterial = {
+  context: SessionContext;
+  kept?: Prepared | undefined;
 };
 
 // The material is re-read this often: an edit made during the interview
@@ -48,6 +59,31 @@ export function createCoachContext(
   // no kept pack the coach has exactly the person's material as it stands.
   packs?: PackStore,
 ): CoachContextPort {
+  return createCoachContextFrom(
+    engine,
+    async (session) => {
+      const scope = { tenantId: session.tenantId, actorId: session.actorId };
+      const context = await loadSessionContext(
+        database,
+        scope,
+        session.sessionId,
+      );
+      // A store that does not answer is no kept pack (prepare.ts).
+      return { context, kept: await keptFor(packs, scope, context) };
+    },
+    nowMs,
+  );
+}
+
+// [DOMAIN] The same coach context, with the session's material read by
+// whoever holds it: the database for a live session (above), files for a
+// recorded call replayed as a benchmark. Everything after the read is one
+// path, so a replayed coach is given exactly what a live one would be.
+export function createCoachContextFrom(
+  engine: ContextEngine,
+  read: (session: CoachTranscriptSession) => Promise<CoachMaterial>,
+  nowMs: () => number = Date.now,
+): CoachContextPort {
   let held:
     | { sessionId: string; at: number; pack: ContextPack | null }
     | undefined;
@@ -63,12 +99,8 @@ export function createCoachContext(
         // verifies, or whose material the recipe refuses gives the coach
         // nothing: it then coaches from the conversation alone and marks
         // what it claims as its own inference.
-        const pack = await loadSessionContext(
-          database,
-          scope,
-          session.sessionId,
-        )
-          .then(async (context) =>
+        const pack = await read(session)
+          .then(({ context, kept }) =>
             prepareContextPack(
               engine,
               sessionSources(context),
@@ -78,8 +110,7 @@ export function createCoachContext(
                 for: { kind: "session", id: session.sessionId },
               },
               {
-                // A store that does not answer is no kept pack (prepare.ts).
-                kept: await keptFor(packs, scope, context),
+                kept,
                 // What was extracted from a stage's transcript is given to
                 // the stage the session is in after that stage's own, and a
                 // later stage's is left out.

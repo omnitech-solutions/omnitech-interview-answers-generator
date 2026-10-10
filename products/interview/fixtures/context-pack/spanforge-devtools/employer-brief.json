@@ -1,0 +1,95 @@
+{
+  "company": "Spanforge",
+  "role": "Staff Engineer, Build Intelligence",
+  "summary": "Staff engineer on the Build Intelligence team: sets technical direction for the remote cache and remote build execution, makes the self-hosted edition easy to run, works with Trace on the span model, and stays at least half in code.",
+  "team": "Build Intelligence owns the cache, remote execution and build-time analysis. Six engineers, a product manager and a designer, reporting to the engineering manager. Trace and Enterprise are sister teams.",
+  "interviewFormat": "Recruiter screen (30 min); hiring-manager interview with Dagny Holmqvist (1 hour); take-home of about four hours; system design (60 min); founder conversation. No AI assistants in live rounds.",
+  "companyFacts": [
+    "Remote cache, remote build execution and pipeline tracing for engineering teams",
+    "Founded in Toronto in 2019; hubs in Toronto and Lisbon",
+    "About 1,900 organisations run roughly 800,000 builds a day through it",
+    "Series B, 165 people",
+    "Products: Spanforge Cache, Spanforge Trace, the forge command-line tool, editor extensions",
+    "Spanforge Enterprise is the self-hosted edition, including sites with no outbound network",
+    "Supports Bazel, Gradle and Buck2",
+    "Editor extensions for VS Code and the JetBrains IDEs"
+  ],
+  "values": [
+    "Measure first",
+    "Write it down",
+    "Ship small and reversible",
+    "Treat the customer's time as ours",
+    "Disagree in the open, then commit"
+  ],
+  "mustHaves": [
+    "6+ years building build, continuous integration or developer infrastructure",
+    "Production experience with Rust",
+    "Go for control-plane services",
+    "Remote build execution and content-addressed caching for Bazel, Gradle or Buck2",
+    "Operated ClickHouse or a comparable columnar store at scale",
+    "OpenTelemetry in depth: collectors, semantic conventions, sampling",
+    "Shipped a command-line tool or IDE extension developers use every day",
+    "Delivered software customers run themselves, including air-gapped sites",
+    "Single sign-on (SAML, OIDC) and role-based access for enterprise customers",
+    "Kubernetes operations, including upgrades of stateful workloads",
+    "Written technical leadership: RFCs, design reviews, postmortems",
+    "On-call and incident ownership against service level objectives"
+  ],
+  "niceToHaves": [
+    "Kotlin, for the JetBrains plugin",
+    "Open-source maintainership",
+    "Conference talks or public writing about build systems"
+  ],
+  "techStack": [
+    "Rust",
+    "Go",
+    "TypeScript",
+    "Kotlin",
+    "ClickHouse",
+    "PostgreSQL",
+    "S3-compatible object storage",
+    "gRPC",
+    "Kubernetes",
+    "OpenTelemetry",
+    "Bazel",
+    "Gradle",
+    "Buck2"
+  ],
+  "responsibilities": [
+    "Set technical direction for the cache and remote execution services",
+    "Design eviction, invalidation and integrity checks customers can trust",
+    "Make self-hosted installs boring: upgrades, backups, sizing",
+    "Work with Trace on the span model joining a build action to its pipeline step",
+    "Write and review RFCs; keep decisions written down",
+    "Mentor engineers across three teams",
+    "Share on-call for the hosted service, one week in six",
+    "Join design partner calls and read support tickets",
+    "Stay hands-on: at least half the time in code"
+  ],
+  "prepNotes": [
+    "Round: Dagny Holmqvist, Engineering Manager, Build Intelligence; Tue Sep 15, 13:00-14:00 Eastern; experience and judgment, no coding; she judges depth on caching, written leadership and how I handle a bad day.",
+    "Tell me about yourself: 20 years; build and release since Brightwater; two monorepo migrations; now Quillhaven, where I lead the platform group of 9; 50% code, 30% design and review, 20% coaching.",
+    "Why Spanforge: the tool is the product, not a cost centre; I have built the same three things in-house (cache, tracing, editor tooling) and want to build them once for many teams.",
+    "Faster builds: lead with Quillhaven (41 to 14 minutes at p95); mechanism before number; then Marrowgate as the migration story. Do not mix up the Marrowgate and Marrowfield figures.",
+    "Remote execution: Marrowgate. The shared worker pool is the story; say what ran where, how workers drained, what broke hermeticity.",
+    "Columnar storage: Quillhaven. Span retention and what it cost; schema by action, ordering key, compression; what I would not do again.",
+    "Editor integrations and command-line tools: Lanternfish. Latency budget from save to result; first run with no network; why a language server.",
+    "Customer-run installs with no network: Marrowfield. The offline bundle, signing, upgrades without a visit; be honest that it was factories, not paying customers.",
+    "Rust: Tracewright only, never in paid work. Say so plainly; offer the sampling design as proof I can reason in it.",
+    "Single sign-on and access: Quillhaven, the artifact store with per-team quotas. Thin story; keep it to one minute.",
+    "Failure: Quillhaven, the poisoned artifact of March 2023. What I missed, how we found it, signed writes afterwards. No blame on the engineer who pushed it.",
+    "Conflict: Marrowgate, the mobile group. Trial on their own code, their numbers, their decision. Disagreement with a manager: Pellucid, build versus buy.",
+    "Deadline: Driftline, the signing pipeline before the store freeze. Scope cut first, quality never.",
+    "On-call and alerting: Pellucid for the pager clean-up; Quillhaven for the availability target and error budget on the artifact store.",
+    "Mentoring: Quillhaven promotions, Marrowgate pairing. Open source: Tracewright, how proposals are decided in public.",
+    "Answer shape: context, constraint, my decision, trade-off, result, what I would change; two minutes. Why leaving Quillhaven: platform headcount frozen after the reorganisation; I want the tool to be the business."
+  ],
+  "questionsToAsk": [
+    "Which fails more often for customers today: a wrong cache hit or a missed one?",
+    "How far behind the hosted product do self-hosted customers usually run?",
+    "Who decides the span model when Trace and Build Intelligence disagree?",
+    "What does a bad on-call week look like on the hosted cache?",
+    "How is a staff engineer's time split between code, RFCs and customers here?",
+    "What would make you say, six months in, that this hire worked?"
+  ]
+}

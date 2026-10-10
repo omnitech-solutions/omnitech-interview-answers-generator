@@ -202,6 +202,23 @@ describe("the projections", () => {
       maxChars: 400,
       weights: HEADED,
     },
+    // What the person answered and promised there (PackFlags.said).
+    {
+      id: "answered",
+      mode: "ranked",
+      kind: KINDS.answered,
+      limit: other,
+      maxChars: 400,
+      weights: HEADED,
+    },
+    {
+      id: "commitments",
+      mode: "ranked",
+      kind: KINDS.commitment,
+      limit: other,
+      maxChars: 400,
+      weights: HEADED,
+    },
     {
       id: "evidence",
       mode: "ranked",

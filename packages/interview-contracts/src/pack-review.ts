@@ -100,7 +100,8 @@ export const packReviewSchema = z.object({
     z.object({
       sourceId: z.string(),
       locator: z.string().optional(),
-      reason: z.enum(["locality", "not-extracted"]),
+      // "deferred": a later step of the same preparation reads it.
+      reason: z.enum(["locality", "not-extracted", "deferred"]),
       failure: z.string(),
     }),
   ),

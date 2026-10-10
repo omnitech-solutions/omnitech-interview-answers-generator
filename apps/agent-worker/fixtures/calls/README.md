@@ -30,6 +30,29 @@ Add `-- --trace` to a live run to print every prompt, raw reply and note revisio
 
 A fixture with more than one interviewer label is replayed with each interviewer's lines under their name, and its questions say who asks each (`from`). A live run then reports, per question, who asked and who the note says asked, and in its last line how many notes named the right person, the wrong person and nobody. Naming nobody is safe; naming the wrong person is the failure to watch. When the coach acts does not depend on the names: the `call fixtures` suite replays the panel both ways and holds the decisions equal. A fixture with one interviewer carries no names and no `from`.
 
+## What the notes say
+
+A replay can be given the person's material, and then the coach draws its facts from the context pack exactly as the live coach does (the `coach` projection, read as a remote reader, so a device-only source is withheld):
+
+```
+pnpm coach:replay --bench panel-round --runtime scripted \
+  --matrix products/interview/fixtures/context-pack/kestrel-freight-pay/matrix.json \
+  --brief products/interview/fixtures/context-pack/kestrel-freight-pay/employer-brief.json \
+  --application products/interview/fixtures/context-pack/kestrel-freight-pay/stages.json --stage 2
+```
+
+`--preferences FILE` and `--kept FILE` (a pack a model prepared earlier) add to it. `--transcript FILE` names the transcript by a flag. Every path may be absolute, under `~`, or from the repository's root. `--runtime scripted` writes each note in code from the first fact of a role the coach was given, on a stepped clock: no model, the same run every time.
+
+In `expected.json` a question may say whose evidence a right note draws on: `"evidence": ["Employer A", "Employer B"]`, or `"evidence": []` / `"nothing": true` when the material has nothing for it. Each question is then scored (`src/coach-notes-score.ts`):
+
+- **in time**: the note's first line is on screen within `--within` seconds (default 10) of the question's last word.
+- **evidence / wrong**: the places the note's claims were verified against (the coach's own verifier marks them) that are under an accepted employer's role, and under another employer's. **offered** says whether the facts the coach was given held an accepted employer's at all, so a note that ignored the right fact is told apart from a pack that never offered it.
+- **invented**: figures and employer names of the matrix that the note states and that are in neither the facts it was given, nor the plan, nor anything said so far. A floor, not a verdict: it cannot see an invented technology, project or company, nor a real figure put on the wrong claim.
+
+The last line is the run in short: `TOTALS: right evidence N of M, wrong employer N, invented N, in time N of M`.
+
+When any file is outside the repository (a person's own call or material), what is printed and kept holds ids, pointers, counts, clock times and scores only, never what was said or written (`--trace` is the one way to see it), and the result is kept only under `.dev-local/` or outside the repository.
+
 ## Adding a call
 
 Make a folder, put a `transcript.txt` in it (or a `script.json` and run `pnpm coach:fixture <name>`), write `expected.json`, and run `pnpm coach:replay --bench <name> --timing`. A real recording must hold no names and nothing private.

@@ -21,6 +21,7 @@ import type {
   PreparedStore,
   PrepareStats,
   ProfileSummary,
+  Recipe,
   Source,
 } from "@omnitech/ai-engine";
 import {
@@ -46,6 +47,7 @@ import { FROM_THE_POSTING, sectionOf, standing } from "./kept";
 import { givenLinks } from "./links";
 import { ContextPackError, contextSources } from "./pack";
 import {
+  ANNOTATORS,
   CODE_ONLY_RECIPE,
   EXTRACTORS,
   INTERVIEW_CONTEXT_RECIPE,
@@ -274,13 +276,19 @@ export async function prepareApplicationPack(
     // Read this source again though it has not changed.
     again?: string | undefined;
     concurrency?: number;
+    // Also have the profile write, for each of the person's own records, the
+    // words it would be searched by and the questions it answers (recipe.ts,
+    // ANNOTATORS). Off unless asked for: it costs model calls.
+    annotate?: boolean | undefined;
     // Where the engine keeps the pack, to keep what could not be read (below).
     packs?: PackStore | undefined;
   },
   execution: { scope: Scope; signal: AbortSignal },
   onProgress?: (progress: PrepareProgress) => void | Promise<void>,
 ): Promise<PreparedApplication> {
-  const recipe = INTERVIEW_CONTEXT_RECIPE;
+  const recipe: Recipe = input.annotate
+    ? { ...INTERVIEW_CONTEXT_RECIPE, annotators: ANNOTATORS }
+    : INTERVIEW_CONTEXT_RECIPE;
   const { sources } = input;
   // [GUARD] A pack kept by another recipe version is not this pack's past:
   // the engine reads every source again, so nothing of it is carried here.
