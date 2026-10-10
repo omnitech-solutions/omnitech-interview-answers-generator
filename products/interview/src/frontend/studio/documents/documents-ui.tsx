@@ -1,14 +1,22 @@
 "use client";
 
 import {
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+  Button,
+  Flex,
+  Modal as LibraryModal,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  ModalTitle,
+  Tab,
+  Tabs,
+  TabsBar,
+  Toast,
+  Typography,
+  useToast as useLibraryToast,
+} from "@oc-tech/omni-ui-components";
+import { type ReactNode, useCallback } from "react";
 import { Icon, type IconName } from "../icon";
-import { Dialog } from "../shared/dialog";
 import { DocumentsApiError } from "./documents-client";
 
 export function message(error: unknown): string {
@@ -33,73 +41,62 @@ export function message(error: unknown): string {
   return "This action could not be completed. Try again.";
 }
 
-export function Spinner() {
-  return <span className="dx-spinner" aria-hidden="true" />;
-}
-
-export function IconButton({
-  icon,
-  label,
-  onClick,
-  disabled,
-}: {
-  icon: IconName;
+// A row of buttons described as data: the footer of a modal, the actions of a
+// page or a drawer.
+export type ActionSpec = {
+  id: string;
   label: string;
-  onClick(): void;
+  icon?: IconName;
+  variant?: "default" | "outline" | "ghost";
+  size?: "sm" | "default" | "lg";
   disabled?: boolean;
-}) {
+  ariaLabel?: string;
+  onClick(): void;
+};
+
+export function Actions({ actions }: { actions: readonly ActionSpec[] }) {
   return (
-    <button
-      type="button"
-      className="dx-icon-button"
-      aria-label={label}
-      title={label}
-      onClick={onClick}
-      {...(disabled ? { disabled } : {})}
-    >
-      <Icon name={icon} />
-    </button>
+    <>
+      {actions.map((action) => (
+        <Button
+          key={action.id}
+          type="button"
+          variant={action.variant ?? "outline"}
+          buttonSize={action.size ?? "default"}
+          disabled={action.disabled}
+          aria-label={action.ariaLabel}
+          icon={action.icon ? <Icon name={action.icon} /> : undefined}
+          onClick={action.onClick}
+        >
+          {action.label}
+        </Button>
+      ))}
+    </>
   );
 }
 
-// The same pill group serves page tabs and filters; only the semantics differ.
-export function Segmented<T extends string>({
+// The page tabs: one tab per option, the chosen one is the page showing.
+export function SectionTabs<T extends string>({
   label,
   options,
   value,
   onChange,
-  variant = "tabs",
 }: {
   label: string;
-  options: ReadonlyArray<{ id: T; label: string; count?: number }>;
+  options: ReadonlyArray<{ id: T; label: string }>;
   value: T;
   onChange(id: T): void;
-  variant?: "tabs" | "filter";
 }) {
   return (
-    // biome-ignore lint/a11y/useAriaPropsSupportedByRole: the role is set by a conditional the rule cannot follow; every role it can be takes a label
-    <div
-      className="dx-segmented"
-      role={variant === "tabs" ? "tablist" : "group"}
-      aria-label={label}
-    >
-      {options.map((option) => (
-        <button
-          key={option.id}
-          type="button"
-          {...(variant === "tabs"
-            ? { role: "tab", "aria-selected": option.id === value }
-            : { "aria-pressed": option.id === value })}
-          data-on={option.id === value}
-          onClick={() => onChange(option.id)}
-        >
-          {option.label}
-          {option.count ? (
-            <span className="dx-count">{option.count}</span>
-          ) : null}
-        </button>
-      ))}
-    </div>
+    <Tabs value={value} onValueChange={(next: string) => onChange(next as T)}>
+      <TabsBar aria-label={label}>
+        {options.map((option) => (
+          <Tab key={option.id} value={option.id}>
+            {option.label}
+          </Tab>
+        ))}
+      </TabsBar>
+    </Tabs>
   );
 }
 
@@ -115,17 +112,21 @@ export function PageHeader({
   action: ReactNode;
 }) {
   return (
-    <div className="dx-page-head">
-      <div className="dx-page-title">
-        <h1>{title}</h1>
-        <p>{description}</p>
-      </div>
+    <Flex align="center" gap={16} wrap="wrap" justify="space-between">
+      <Flex vertical gap={4}>
+        <Typography.Title>{title}</Typography.Title>
+        <Typography.Paragraph type="secondary">
+          {description}
+        </Typography.Paragraph>
+      </Flex>
       {tabs}
       {action}
-    </div>
+    </Flex>
   );
 }
 
+// A modal over the page: the library draws the scrim, the close control,
+// Escape and the focus return.
 export function Modal({
   title,
   width,
@@ -140,36 +141,27 @@ export function Modal({
   children: ReactNode;
 }) {
   return (
-    <Dialog
-      title={title}
-      onClose={onClose}
-      scrimClassName="dx-scrim"
-      className="dx-modal"
-      style={{ width: `min(${width}px, 100%)` }}
-    >
-      <div className="dx-modal-head">
-        <span>{title}</span>
-        <IconButton icon="close" label="Close" onClick={onClose} />
-      </div>
-      <div className="dx-modal-body">{children}</div>
-      <div className="dx-modal-foot">{footer}</div>
-    </Dialog>
+    <LibraryModal open onOpenChange={(open) => !open && onClose()}>
+      <ModalContent
+        aria-describedby={undefined}
+        style={{ width: `min(${width}px, 100%)` }}
+      >
+        <ModalHeader>
+          <ModalTitle>{title}</ModalTitle>
+        </ModalHeader>
+        <Flex vertical gap={12} style={{ padding: 16, overflow: "auto" }}>
+          {children}
+        </Flex>
+        {footer ? <ModalFooter>{footer}</ModalFooter> : null}
+      </ModalContent>
+    </LibraryModal>
   );
 }
 
 export function useToast() {
-  const [text, setText] = useState("");
-  const timer = useRef<number | undefined>(undefined);
-  useEffect(() => () => window.clearTimeout(timer.current), []);
-  const show = useCallback((next: string) => {
-    window.clearTimeout(timer.current);
-    setText(next);
-    timer.current = window.setTimeout(() => setText(""), 3800);
-  }, []);
-  const node = text ? (
-    <div className="dx-toast" role="status">
-      {text}
-    </div>
-  ) : null;
+  const toast = useLibraryToast();
+  const { notify } = toast;
+  const show = useCallback((text: string) => notify({ text }), [notify]);
+  const node = toast.toast ? <Toast {...toast.props} /> : null;
   return { show, node };
 }

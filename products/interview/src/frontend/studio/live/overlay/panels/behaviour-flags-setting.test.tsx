@@ -12,6 +12,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   BehaviourFlagsSetting,
@@ -80,11 +81,22 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-// The library Select: the trigger carries the test id and shows the chosen
-// label; its options are `<testid>-option-<value>` once it is open.
-const control = (key: string) => screen.findByTestId(`pn-flag-${key}`);
+// Each flag is found the way a person and the control inventory find it: a
+// button named by the flag's label, which shows the chosen value's name; its
+// values are options once it is open.
+const labelOf = (key: string) => {
+  const flag = BEHAVIOUR_FLAGS.find((each) => each.env === key);
+  if (!flag) throw new Error(`no flag ${key}`);
+  return flag;
+};
+const control = (key: string) =>
+  screen.findByRole("button", { name: labelOf(key).label });
 const option = (key: string, value: string) =>
-  screen.getByTestId(`pn-flag-${key}-option-${value}`);
+  screen.getByRole("option", {
+    name:
+      (labelOf(key).options as Readonly<Record<string, string>>)[value] ??
+      value,
+  });
 
 describe("Settings › Behaviour", () => {
   it("shows nothing until the Studio has answered, and nothing when it refuses", async () => {
@@ -192,7 +204,7 @@ describe("Settings › Behaviour", () => {
       screen.getByText(/^Set by the environment \(INTERVIEW_COACH\)/),
     ).toBeVisible();
     fireEvent.click(select);
-    expect(screen.queryByTestId(`pn-flag-${COACH}-option-codex`)).toBeNull();
+    expect(screen.queryByRole("option")).toBeNull();
     expect(calls).toHaveLength(1);
     // A flag the host did not set is still changed here.
     expect(await control(VOICE)).not.toBeDisabled();
@@ -204,17 +216,48 @@ describe("Settings › Behaviour", () => {
   ])(
     "keeps the value on show and says it was not saved when %s",
     async (_name, refuse) => {
-      studio(state(), refuse);
+      const { calls } = studio(state(), refuse);
       render(<BehaviourFlagsSetting />);
       const select = await control(VOICE);
       fireEvent.click(select);
       fireEvent.click(option(VOICE, "on"));
       expect(await screen.findByText(NOT_SAVED)).toBeVisible();
-      expect(select).toHaveTextContent("Off");
-      // Said for that flag only.
+      // The form is drawn again from what the Studio still holds.
+      expect(await control(VOICE)).toHaveTextContent("Off");
+      // Said for that flag only, under it.
       expect(screen.getAllByText(NOT_SAVED)).toHaveLength(1);
+      expect(screen.getByText(NOT_SAVED).id).toContain(VOICE);
+      // And it can be tried again: the next change is sent.
+      fireEvent.click(await control(VOICE));
+      fireEvent.click(option(VOICE, "on"));
+      await waitFor(() =>
+        expect(calls.filter((call) => call.method === "PUT")).toHaveLength(2),
+      );
     },
   );
+
+  // The library Select, unless it is searchable, does not yet take the arrow
+  // keys once it is open (reported to the library): what the keyboard does
+  // today is reach each flag in the registry's order, open it and leave it.
+  it("is reached and opened from the keyboard, in the registry's order, and Escape leaves it unchanged", async () => {
+    const user = userEvent.setup();
+    const { calls } = studio(state());
+    render(<BehaviourFlagsSetting />);
+    await control(VOICE);
+    for (const flag of BEHAVIOUR_FLAGS) {
+      await user.tab();
+      expect(await control(flag.env)).toHaveFocus();
+    }
+    const select = await control(COACH);
+    select.focus();
+    await user.keyboard("{Enter}");
+    expect(select).toHaveAttribute("aria-expanded", "true");
+    expect(option(COACH, "claude")).toBeVisible();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("option")).toBeNull());
+    expect(select).toHaveTextContent("Off");
+    expect(calls).toHaveLength(1);
+  });
 
   it("puts who set a flag before what it does, only when the host set it", () => {
     for (const flag of BEHAVIOUR_FLAGS) {

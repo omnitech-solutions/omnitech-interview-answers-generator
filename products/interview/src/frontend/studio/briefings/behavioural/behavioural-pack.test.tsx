@@ -697,8 +697,10 @@ describe("an open pack", () => {
     const props = handlers();
     render(<BehaviouralPack artifactId="prep-1" {...props} />);
     fireEvent.click(await screen.findByRole("button", { name: "Edit setup" }));
-    const run = screen.getByTestId("bp-condense-run");
-    const status = screen.getByTestId("bp-condense-status");
+    const run = screen.getByRole("button", {
+      name: /Condense for the assistant|Condense again|Condensing…/,
+    });
+    const status = screen.getByRole("status");
     const count = (characters: number) => characters.toLocaleString("en-US");
     expect(run).toBeEnabled();
     expect(run).toHaveTextContent("Condense for the assistant");
@@ -835,17 +837,20 @@ describe("an open pack", () => {
     expect(row).toHaveTextContent("Two rounds.");
     expect(row).toHaveTextContent("No date");
 
-    fireEvent.change(screen.getByTestId("ib-said-text"), {
+    fireEvent.change(screen.getByRole("textbox", { name: /^What was said/ }), {
       target: { value: "The panel is five people." },
     });
-    fireEvent.change(screen.getByTestId("ib-said-by"), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Who said it" }), {
       target: { value: "Sam" },
     });
-    fireEvent.change(screen.getByTestId("ib-said-on"), {
+    fireEvent.change(screen.getByLabelText("When"), {
       target: { value: "2026-10-02" },
     });
-    fireEvent.click(screen.getByTestId("ib-said-add"));
-    expect(screen.getAllByTestId("ib-said-row")).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: "Add entry" }));
+    // The form hands its values over on submit, a tick after the press.
+    await waitFor(() =>
+      expect(screen.getAllByTestId("ib-said-row")).toHaveLength(2),
+    );
     await waitFor(
       () =>
         expect(pack!.context.employerSaid).toEqual([
@@ -863,13 +868,13 @@ describe("an open pack", () => {
     );
 
     // Removing asks first, in the page.
-    fireEvent.click(screen.getAllByTestId("ib-said-remove")[0] as HTMLElement);
+    fireEvent.click(screen.getAllByRole("button", { name: "Remove" })[0]!);
     expect(screen.getByText("Remove this entry?")).toBeVisible();
     expect(screen.getAllByTestId("ib-said-row")).toHaveLength(2);
     fireEvent.click(
-      screen
-        .getAllByRole("button", { name: "Remove" })
-        .find((button) => !button.hasAttribute("data-testid")) as HTMLElement,
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Remove",
+      }),
     );
     await waitFor(
       () =>
@@ -895,11 +900,13 @@ describe("an open pack", () => {
     fireEvent.click(
       screen.getByRole("button", { name: /Job posting, research and notes/ }),
     );
-    const run = screen.getByTestId("bp-condense-run");
+    const run = screen.getByRole("button", {
+      name: /Condense for the assistant|Condense again|Condensing…/,
+    });
     expect(screen.getByTestId("bp-condense")).toContainElement(run);
     expect(run).toBeDisabled();
     expect(run).toHaveTextContent("Condense for the assistant");
-    expect(screen.getByTestId("bp-condense-status")).toHaveTextContent(
+    expect(screen.getByRole("status")).toHaveTextContent(
       "Short enough as it is: nothing to condense.",
     );
     fireEvent.click(run);
@@ -910,7 +917,7 @@ describe("an open pack", () => {
       target: { value: "r".repeat(4000) },
     });
     expect(run).toBeEnabled();
-    expect(screen.getByTestId("bp-condense-status")).toHaveTextContent(
+    expect(screen.getByRole("status")).toHaveTextContent(
       "The assistant reads all 4,000 characters on every turn.",
     );
   });

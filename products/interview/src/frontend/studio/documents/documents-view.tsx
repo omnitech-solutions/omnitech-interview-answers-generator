@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert, Button, Flex, Typography } from "@oc-tech/omni-ui-components";
 import { useCallback, useEffect, useState } from "react";
 import type { StudioActions } from "../config/commands";
 import { Icon } from "../icon";
@@ -12,7 +13,7 @@ import {
   type TemplateListItem,
 } from "./documents-client";
 import { DocumentsList } from "./documents-list";
-import { message, PageHeader, Segmented, useToast } from "./documents-ui";
+import { message, PageHeader, SectionTabs, useToast } from "./documents-ui";
 import { NewDocumentDialog } from "./new-document-dialog";
 import { TemplateLibrary } from "./template-library";
 
@@ -83,7 +84,7 @@ export function DocumentsView({
   const goDocuments = () => actions.go("documents");
 
   const tabs = (
-    <Segmented
+    <SectionTabs
       label="Documents sections"
       value={tab}
       onChange={(next) =>
@@ -103,35 +104,38 @@ export function DocumentsView({
     actions.go("documents", ["new"]);
   }
 
+  // Sizing only: the view fills the room it is given and scrolls inside.
+  const fill = { height: "100%", minHeight: 0, overflow: "auto" } as const;
+
   if (!data)
     return (
-      <section className="documents-view" aria-label="Documents">
+      <Flex vertical aria-label="Documents" role="region" style={fill}>
         {error ? (
-          <div className="dx-scroll">
-            <div className="dx-page" role="alert">
-              <h1>Documents could not load</h1>
-              <p className="dx-muted">{error}</p>
-              <button
-                type="button"
-                className="dx-button"
-                onClick={refreshCatalog}
-              >
+          <Alert variant="error" role="alert">
+            <Flex vertical gap={8} align="start">
+              <Typography.Title>Documents could not load</Typography.Title>
+              <Typography.Paragraph type="secondary">
+                {error}
+              </Typography.Paragraph>
+              <Button type="button" variant="outline" onClick={refreshCatalog}>
                 Retry
-              </button>
-            </div>
-          </div>
+              </Button>
+            </Flex>
+          </Alert>
         ) : (
-          <p className="dx-loading">Loading documents…</p>
+          <Typography.Paragraph type="secondary">
+            Loading documents…
+          </Typography.Paragraph>
         )}
-      </section>
+      </Flex>
     );
 
   return (
-    <section className="documents-view" aria-label="Documents">
+    <Flex vertical aria-label="Documents" role="region" style={fill}>
       {error && (
-        <p role="alert" className="dx-error dx-error-bar">
+        <Alert variant="error" size="sm" role="alert">
           {error}
-        </p>
+        </Alert>
       )}
       {editorId ? (
         <DocumentEditor
@@ -157,36 +161,34 @@ export function DocumentsView({
           notify={toast.show}
         />
       ) : (
-        <div className="dx-scroll">
-          <div className="dx-page">
-            <PageHeader
-              title="Documents"
-              description="Resumes, cover letters and prep notes, built from your experience matrix and the candidacy they’re for."
-              tabs={tabs}
-              action={
-                <button
-                  type="button"
-                  className="dx-button dx-button-primary dx-button-lg"
-                  onClick={() =>
-                    openNew({
-                      candidacyId: data.context.candidacies[0]?.id ?? null,
-                    })
-                  }
-                >
-                  <Icon name="add" />
-                  New document
-                </button>
-              }
-            />
-            <DocumentsList
-              documents={data.documents}
-              templates={data.templates}
-              context={data.context}
-              onOpen={(id) => actions.go("documents", [id])}
-              onNew={(candidacyId) => openNew({ candidacyId })}
-            />
-          </div>
-        </div>
+        <Flex vertical gap={16} style={{ padding: 16 }}>
+          <PageHeader
+            title="Documents"
+            description="Resumes, cover letters and prep notes, built from your experience matrix and the candidacy they’re for."
+            tabs={tabs}
+            action={
+              <Button
+                type="button"
+                buttonSize="lg"
+                icon={<Icon name="add" />}
+                onClick={() =>
+                  openNew({
+                    candidacyId: data.context.candidacies[0]?.id ?? null,
+                  })
+                }
+              >
+                New document
+              </Button>
+            }
+          />
+          <DocumentsList
+            documents={data.documents}
+            templates={data.templates}
+            context={data.context}
+            onOpen={(id) => actions.go("documents", [id])}
+            onNew={(candidacyId) => openNew({ candidacyId })}
+          />
+        </Flex>
       )}
       {first === "new" && (
         <NewDocumentDialog
@@ -215,6 +217,6 @@ export function DocumentsView({
         />
       )}
       {toast.node}
-    </section>
+    </Flex>
   );
 }

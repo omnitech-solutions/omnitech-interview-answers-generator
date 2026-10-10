@@ -1367,11 +1367,6 @@
   text-transform: uppercase;
   color: var(--ov-muted);
 }
-.pn-context-error {
-  margin: 0;
-  color: var(--ov-danger, #e5484d);
-  font-size: 12px;
-}
 .pn-context-chip {
   max-width: 260px;
 }

@@ -1,10 +1,12 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
   waitFor,
   within,
 } from "@testing-library/react";
+import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { StudioActions } from "../config/commands";
 import { runStatus } from "../run-status";
@@ -283,6 +285,238 @@ describe("Home", () => {
     expect(within(rows[1]!).getByText("In progress")).toBeVisible();
     fireEvent.click(rows[0]!);
     expect(actions.openArtifact).toHaveBeenCalledWith("two-sum");
+  });
+
+  it("opens a new question and starts a rehearsal from the header", async () => {
+    installServer({ interview: null, items: [] });
+    render(<HomeView actions={actions} lists={lists} />);
+    await screen.findByRole("form", { name: "Interview details" });
+    fireEvent.click(screen.getByRole("button", { name: "New question" }));
+    expect(actions.newQuestion).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Start a rehearsal" }));
+    expect(actions.go).toHaveBeenCalledWith("rehearsal");
+    expect(
+      within(screen.getByRole("region", { name: "Prep plan" })).getByText(
+        "Add the interview you’re preparing for, then plan the work for it.",
+      ),
+    ).toBeVisible();
+  });
+
+  it("shows an empty question list and retries a failed question list", async () => {
+    installServer({ interview, items: [] });
+    const { rerender } = render(
+      <HomeView actions={actions} lists={{ ...lists, questions: [] }} />,
+    );
+    expect(
+      screen.getByText("No questions yet. Start with “New question”."),
+    ).toBeVisible();
+    rerender(
+      <HomeView
+        actions={actions}
+        lists={{ ...lists, status: "error", questions: [] }}
+      />,
+    );
+    const error = screen.getByRole("alert");
+    expect(error).toHaveTextContent("Couldn’t load your questions.");
+    fireEvent.click(within(error).getByRole("button", { name: "Retry" }));
+    expect(lists.refresh).toHaveBeenCalledTimes(1);
+    await screen.findByRole("region", { name: "Upcoming interview" });
+  });
+
+  it("limits Continue to eight questions", async () => {
+    installServer({ interview: null, items: [] });
+    render(
+      <HomeView
+        actions={actions}
+        lists={{
+          ...lists,
+          questions: Array.from({ length: 9 }, (_, index) => ({
+            ...lists.questions[0]!,
+            artifactId: `q${index}`,
+            title: `Question ${index}`,
+          })),
+        }}
+      />,
+    );
+    const section = screen.getByRole("region", { name: "Continue" });
+    expect(within(section).getAllByRole("button")).toHaveLength(8);
+    expect(
+      within(section).queryByRole("button", { name: /Question 8/ }),
+    ).toBeNull();
+    fireEvent.click(
+      within(section).getByRole("button", { name: /Question 7/ }),
+    );
+    expect(actions.openArtifact).toHaveBeenCalledWith("q7");
+    await screen.findByRole("form", { name: "Interview details" });
+  });
+
+  it("keeps required interview fields invalid and saves optional empty fields as null", async () => {
+    installServer({ interview: null, items: [] });
+    render(<HomeView actions={actions} lists={lists} />);
+    const form = await screen.findByRole("form", { name: "Interview details" });
+    expect(
+      within(form).getByRole("textbox", { name: "Company" }),
+    ).toBeInvalid();
+    expect(within(form).getByRole("textbox", { name: "Role" })).toBeInvalid();
+    fireEvent.change(within(form).getByRole("textbox", { name: "Company" }), {
+      target: { value: "  Northwind  " },
+    });
+    fireEvent.change(within(form).getByRole("textbox", { name: "Role" }), {
+      target: { value: "  Engineer  " },
+    });
+    fireEvent.change(
+      within(form).getByRole("spinbutton", { name: "Minutes" }),
+      { target: { value: "" } },
+    );
+    fireEvent.click(
+      within(form).getByRole("button", { name: "Add interview" }),
+    );
+    await screen.findByText("Northwind · Engineer");
+    expect(calls.find((call) => call.method === "PUT")?.body).toEqual({
+      id: null,
+      company: "Northwind",
+      role: "Engineer",
+      scheduledAt: null,
+      durationMinutes: null,
+      format: "",
+      topics: [],
+    });
+  });
+
+  it("unticks a completed item and updates the accessible progress value", async () => {
+    installServer({ interview, items });
+    render(<HomeView actions={actions} lists={lists} />);
+    const tick = await screen.findByRole("checkbox", {
+      name: "Done: Brief: recruiter",
+    });
+    expect(tick).toHaveAttribute("aria-checked", "true");
+    expect(
+      screen.getByRole("progressbar", { name: "Prep plan done" }),
+    ).toHaveAttribute("aria-valuenow", "1");
+    fireEvent.click(tick);
+    await waitFor(() => expect(tick).toHaveAttribute("aria-checked", "false"));
+    expect(
+      screen.getByRole("progressbar", { name: "Prep plan done" }),
+    ).toHaveAttribute("aria-valuenow", "0");
+    expect(
+      screen.getByRole("progressbar", { name: "Prep plan done" }),
+    ).toHaveAttribute("aria-valuemax", "4");
+    expect(calls.find((call) => call.method === "PATCH")).toEqual({
+      method: "PATCH",
+      path: "/api/interview/plan/items/i2",
+      body: { done: false },
+    });
+  });
+
+  it("ignores an empty task, trims a task, and closes the add menu outside it", async () => {
+    installServer({ interview, items: [] });
+    render(<HomeView actions={actions} lists={lists} />);
+    const add = await screen.findByRole("button", { name: "Add" });
+    fireEvent.click(add);
+    const task = within(
+      screen.getByRole("menu", { name: "Add to plan" }),
+    ).getByRole("textbox", { name: "New task" });
+    fireEvent.change(task, { target: { value: "   " } });
+    fireEvent.submit(task);
+    expect(calls.filter((call) => call.method === "POST")).toHaveLength(0);
+    expect(add).toHaveAttribute("aria-expanded", "true");
+    fireEvent.mouseDown(screen.getByRole("button", { name: "New question" }));
+    expect(screen.queryByRole("menu", { name: "Add to plan" })).toBeNull();
+    expect(add).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(add);
+    const next = screen.getByRole("textbox", { name: "New task" });
+    fireEvent.change(next, { target: { value: "  Sleep well  " } });
+    fireEvent.submit(next);
+    await screen.findByText("Sleep well");
+    expect(calls.find((call) => call.method === "POST")?.body).toEqual({
+      kind: "task",
+      ref: null,
+      title: "Sleep well",
+    });
+    expect(screen.queryByRole("menu", { name: "Add to plan" })).toBeNull();
+  });
+
+  it("reports a failed plan mutation without losing the existing items", async () => {
+    installServer({ interview, items });
+    render(<HomeView actions={actions} lists={lists} />);
+    await screen.findByRole("checkbox", { name: "Done: Read the job post" });
+    vi.mocked(fetch).mockImplementationOnce(async () =>
+      Response.json({ error: { code: "write-failed" } }, { status: 500 }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Remove Rehearse" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("write-failed");
+    expect(
+      screen.getByRole("checkbox", { name: "Done: Rehearse" }),
+    ).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByText("1 / 4")).toBeVisible();
+  });
+
+  it("drops a late initial load after its effect was cancelled", async () => {
+    installServer({ interview, items: [] });
+    let release: (response: Response) => void = () => undefined;
+    let signal: AbortSignal | null | undefined;
+    vi.mocked(fetch).mockImplementationOnce((_path, init) => {
+      signal = init?.signal;
+      return new Promise<Response>((resolve) => {
+        release = resolve;
+      });
+    });
+    render(
+      <StrictMode>
+        <HomeView actions={actions} lists={lists} />
+      </StrictMode>,
+    );
+    expect(
+      await screen.findByText("Northwind · Senior Backend Engineer"),
+    ).toBeVisible();
+    expect(signal?.aborted).toBe(true);
+    await act(async () =>
+      release(
+        Response.json({
+          interview: { ...interview, company: "Outdated company" },
+          items: [],
+        }),
+      ),
+    );
+    expect(
+      screen.queryByText("Outdated company · Senior Backend Engineer"),
+    ).toBeNull();
+    expect(
+      screen.getByText("Northwind · Senior Backend Engineer"),
+    ).toBeVisible();
+  });
+
+  it("trims interview copy and caps topics at twelve", async () => {
+    installServer({ interview: null, items: [] });
+    render(<HomeView actions={actions} lists={lists} />);
+    const form = await screen.findByRole("form", { name: "Interview details" });
+    fireEvent.change(within(form).getByRole("textbox", { name: "Company" }), {
+      target: { value: "Northwind" },
+    });
+    fireEvent.change(within(form).getByRole("textbox", { name: "Role" }), {
+      target: { value: "Engineer" },
+    });
+    fireEvent.change(within(form).getByRole("textbox", { name: "Format" }), {
+      target: { value: "  System design  " },
+    });
+    const topics = Array.from(
+      { length: 15 },
+      (_, index) => `Topic ${index + 1}`,
+    );
+    fireEvent.change(within(form).getByRole("textbox", { name: "Topics" }), {
+      target: { value: topics.map((topic) => ` ${topic} `).join(",,") },
+    });
+    fireEvent.click(
+      within(form).getByRole("button", { name: "Add interview" }),
+    );
+    await screen.findByText("Northwind · Engineer");
+    expect(calls.find((call) => call.method === "PUT")?.body).toMatchObject({
+      format: "System design",
+      topics: topics.slice(0, 12),
+    });
+    const card = screen.getByRole("region", { name: "Upcoming interview" });
+    expect(within(card).getByText("Topic 12")).toBeVisible();
+    expect(within(card).queryByText("Topic 13")).toBeNull();
   });
 
   it("offers a retry when the plan cannot load", async () => {

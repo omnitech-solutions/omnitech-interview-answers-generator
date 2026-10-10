@@ -13,8 +13,12 @@ export async function addInterview(
   await page.getByTestId("pn-start-add-interview").click();
   const modal = page.getByTestId("pn-context-modal");
   await expect(modal).toBeVisible();
-  await page.getByTestId("pn-context-company").fill(input.company);
-  await page.getByTestId("pn-context-role").fill(input.role);
+  // The form is declared and drawn by the library, so its fields are found by
+  // role and label, as the control inventory names them.
+  await modal.getByRole("textbox", { name: "Company" }).fill(input.company);
+  await modal
+    .getByRole("textbox", { name: "Role", exact: true })
+    .fill(input.role);
   await page.getByTestId("pn-context-save").click();
   // Saved: the picker behind the form names it (company first).
   await expect(page.getByTestId("pn-start-interview")).toContainText(

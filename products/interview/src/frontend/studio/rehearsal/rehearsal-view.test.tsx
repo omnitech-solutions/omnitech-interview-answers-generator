@@ -5,7 +5,6 @@ import {
   render,
   screen,
   waitFor,
-  within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { guidedProse } from "../../../answer-fixture";
@@ -295,9 +294,8 @@ describe("Rehearsal session", () => {
     expect(screen.getByText("[2,7,11,15], 9 → [0,1]")).toBeVisible();
 
     // Hints come from the guide; the solution waits for the complexity.
-    const hints = within(
-      screen.getByText("−3 each").closest(".rehearsal-card") as HTMLElement,
-    );
+    expect(screen.getByText("−3 each")).toBeVisible();
+    const hints = screen;
     expect(
       hints.getByRole("button", { name: /Reference solution/ }),
     ).toBeDisabled();
@@ -345,6 +343,88 @@ describe("Rehearsal session", () => {
     expect(actions.go).toHaveBeenCalledWith("home");
     fireEvent.click(screen.getByRole("button", { name: "Rehearse again" }));
     expect(screen.getByRole("radio", { name: /Full loop/ })).toBeVisible();
+  });
+
+  it("charges each hint only once and unlocks solution and tests only after complexity", async () => {
+    view();
+    fireEvent.click(screen.getByRole("radio", { name: /Coding · 45/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Start coding · 45/ }));
+    await screen.findByText("CODING PHASE");
+    const hint = screen.getByRole("button", { name: /^Hint/ });
+    const solution = screen.getByRole("button", { name: /Reference solution/ });
+    const tests = screen.getByRole("button", { name: /Reference tests/ });
+    expect(hint).toHaveAttribute("aria-expanded", "false");
+    expect(solution).toBeDisabled();
+    expect(tests).toBeDisabled();
+    fireEvent.click(hint);
+    expect(hint).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(hint);
+    fireEvent.change(screen.getByRole("textbox", { name: "Complexity" }), {
+      target: { value: "   " },
+    });
+    expect(solution).toBeDisabled();
+    expect(tests).toBeDisabled();
+    fireEvent.change(screen.getByRole("textbox", { name: "Complexity" }), {
+      target: { value: "O(n) time, O(n) space" },
+    });
+    expect(solution).toBeEnabled();
+    expect(tests).toBeEnabled();
+    fireEvent.click(solution);
+    fireEvent.click(tests);
+    expect(screen.getByText("function twoSum() {}")).toBeVisible();
+    expect(screen.getByText("it('finds the pair')")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "End session" }));
+    await screen.findByText("Saved to your rehearsal history.");
+    expect(saves).toHaveLength(1);
+    expect(saves[0]).toMatchObject({
+      concept: null,
+      reveals: ["hint1", "solution", "tests"],
+    });
+    expect(
+      screen.getByText("0 from the checklist, −9 for 3 hints."),
+    ).toBeVisible();
+  });
+
+  it("starts a built-in concept without requesting a stored brief and restores focus on unmount", async () => {
+    const { unmount } = view(false);
+    fireEvent.click(screen.getByRole("radio", { name: /Concept sprint/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Change" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Concept" }), {
+      target: { value: "prompt:http-caching" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    fireEvent.click(screen.getByRole("button", { name: /Start concept/ }));
+    await screen.findByText("CONCEPT PHASE");
+    await flushEffects();
+    expect(
+      screen.getByRole("heading", {
+        name: "How does HTTP caching work between a browser and an API?",
+      }),
+    ).toBeVisible();
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(([path]) => String(path).includes("/briefs/")),
+    ).toBe(false);
+    expect(setFocus).toHaveBeenLastCalledWith("live");
+    unmount();
+    expect(setFocus).toHaveBeenLastCalledWith(null);
+    expect(saves).toHaveLength(0);
+  });
+
+  it("lets a failed material load be retried from the same setup", async () => {
+    loadFails = true;
+    view();
+    fireEvent.click(screen.getByRole("button", { name: /Start full loop/ }));
+    await screen.findByRole("alert");
+    expect(
+      screen.getByRole("button", { name: /Start full loop/ }),
+    ).toBeEnabled();
+    loadFails = false;
+    fireEvent.click(screen.getByRole("button", { name: /Start full loop/ }));
+    await screen.findByText("CONCEPT PHASE");
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(saves).toHaveLength(0);
   });
 
   it("warns near the end of a strict coding session, then ends it", async () => {

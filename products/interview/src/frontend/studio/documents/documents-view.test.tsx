@@ -461,6 +461,9 @@ function stubFetchFor(match: (path: string) => Response | undefined): void {
   );
 }
 
+// Open one of the editor's menus the way a press does.
+const openMenu = (trigger: HTMLElement) => pointerOpen(trigger);
+
 const posted = (suffix: string) =>
   calls.find((call) => call.method === "POST" && call.path.endsWith(suffix));
 
@@ -509,7 +512,10 @@ describe("Documents list", () => {
   it("switches between documents and templates from the tabs", async () => {
     renderAt([]);
     await screen.findByRole("heading", { name: "Documents" });
-    fireEvent.click(screen.getByRole("tab", { name: "Templates" }));
+    // Library tabs (Radix) choose on the press.
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Templates" }), {
+      button: 0,
+    });
     expect(actions.go).toHaveBeenCalledWith("documents", ["templates"]);
   });
 
@@ -1296,7 +1302,7 @@ describe("New document dialog", () => {
       await screen.findByRole("button", { name: "Create manually" }),
     ).toBeVisible();
     // With no menu open, Escape still closes the dialog.
-    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
     expect(actions.go).toHaveBeenCalledWith("documents");
   });
 
@@ -1405,7 +1411,7 @@ describe("Document editor", () => {
       values: { full_name: "Ada Lovelace", company_name: "Northwind" },
     });
     expect(posted(`/${DOCUMENT_ID}/regenerate`)).toBeUndefined();
-    fireEvent.click(await screen.findByRole("button", { name: /Rev 2/ }));
+    openMenu(await screen.findByRole("button", { name: /Rev 2/ }));
     expect(
       await screen.findByRole("menuitem", { name: /Rev 1.*Created manually/ }),
     ).toBeVisible();
@@ -1421,16 +1427,15 @@ describe("Document editor", () => {
     expect(screen.getByText("110%")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Fit to width" }));
     expect(screen.getByText("Fit")).toBeVisible();
-    const body = screen
-      .getByRole("region", { name: "Document fields" })
-      .closest(".dx-editor-body");
-    expect(body).toHaveAttribute("data-focus", "false");
+    const fieldsPane = () =>
+      screen.queryByRole("region", { name: "Document fields" });
+    expect(fieldsPane()).not.toBeNull();
     fireEvent.click(
       screen.getByRole("button", { name: "Focus on the document" }),
     );
-    expect(body).toHaveAttribute("data-focus", "true");
+    expect(fieldsPane()).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Show fields" }));
-    expect(body).toHaveAttribute("data-focus", "false");
+    expect(fieldsPane()).not.toBeNull();
   });
 
   it("groups fields by where their values come from", async () => {
@@ -1439,7 +1444,7 @@ describe("Document editor", () => {
     expect(screen.getByText("From the application")).toBeVisible();
     expect(screen.getByText("Written from your experience")).toBeVisible();
     expect(screen.getByText("All 2 valid")).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: /Needs attention/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Needs attention/ }));
     expect(screen.getByText("Nothing needs attention")).toBeVisible();
   });
 
@@ -1448,7 +1453,7 @@ describe("Document editor", () => {
     revisionValues[2] = { full_name: "Ada latest", company_name: "Northwind" };
     renderAt([DOCUMENT_ID]);
     await screen.findByRole("textbox", { name: "Full name" });
-    fireEvent.click(screen.getByRole("button", { name: /Rev 2/ }));
+    openMenu(screen.getByRole("button", { name: /Rev 2/ }));
     fireEvent.click(
       await screen.findByRole("menuitem", { name: /Rev 1.*Generated/ }),
     );
@@ -1473,7 +1478,7 @@ describe("Document editor", () => {
     exports = [{ ...exportRow, revision: 1 }];
     renderAt([DOCUMENT_ID]);
     await screen.findByRole("textbox", { name: "Full name" });
-    fireEvent.click(screen.getByRole("button", { name: "Export" }));
+    openMenu(screen.getByRole("button", { name: "Export" }));
     expect(screen.getByText("EXPORT REV 2")).toBeVisible();
     expect(screen.getByText("PREVIOUS EXPORTS")).toBeVisible();
     fireEvent.click(screen.getByRole("menuitem", { name: /Word document/ }));
@@ -1518,7 +1523,7 @@ describe("Document editor", () => {
     renderAt([DOCUMENT_ID]);
     await screen.findByRole("textbox", { name: "Full name" });
     expect(screen.getByText("1 / 2 need attention")).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "Export" }));
+    openMenu(screen.getByRole("button", { name: "Export" }));
     expect(screen.getByText(/Missing fields export blank/)).toBeVisible();
     fireEvent.click(screen.getByRole("menuitem", { name: /Markdown/ }));
     await waitFor(() => expect(posted(`/${DOCUMENT_ID}/exports`)).toBeTruthy());
@@ -1531,7 +1536,7 @@ describe("Document editor", () => {
     validationIssues = [{ key: "full_name", code: "missing" }];
     renderAt([DOCUMENT_ID]);
     await screen.findByRole("textbox", { name: "Full name" });
-    fireEvent.click(screen.getByRole("button", { name: "Regenerate" }));
+    openMenu(screen.getByRole("button", { name: "Regenerate" }));
     fireEvent.click(
       screen.getByRole("menuitem", { name: /Fix fields that need attention/ }),
     );
@@ -1544,13 +1549,13 @@ describe("Document editor", () => {
       aiTargetId: "target-1",
     });
     await waitFor(() => expect(currentRevision).toBe(2));
-    fireEvent.click(await screen.findByRole("button", { name: "Regenerate" }));
+    openMenu(await screen.findByRole("button", { name: "Regenerate" }));
     await waitFor(() =>
       expect(
         screen.getByRole("menuitem", {
           name: /Fix fields that need attention/,
         }),
-      ).toBeDisabled(),
+      ).toHaveAttribute("aria-disabled", "true"),
     );
     fireEvent.click(
       screen.getByRole("menuitem", { name: /Regenerate every field/ }),
@@ -1801,7 +1806,7 @@ describe("Document editor: verification, the three kinds of empty, and the cast"
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Export" })).toBeEnabled(),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Export" }));
+    openMenu(screen.getByRole("button", { name: "Export" }));
     expect(
       screen.getByRole("menuitem", { name: /Word document/ }),
     ).toBeVisible();
@@ -1872,7 +1877,7 @@ describe("Document editor: verification, the three kinds of empty, and the cast"
     expect(await screen.findByText("My company name")).toBeVisible();
     expect(screen.getByText("My company role")).toBeVisible();
     // Only what needs attention is listed under that filter.
-    fireEvent.click(screen.getByRole("button", { name: /Needs attention/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Needs attention/ }));
     expect(
       screen.getByRole("textbox", { name: "Email address" }),
     ).toBeVisible();
@@ -1935,6 +1940,193 @@ describe("Document editor: verification, the three kinds of empty, and the cast"
   });
 });
 
+// [SAFETY] Characterisation: what the editor does today, pinned before the
+// redesign (bionic/inbox/target-architecture-boundaries-and-vertical-slice.md
+// section 5).
+describe("Document editor: regression cases", () => {
+  const revisionPosts = () =>
+    calls.filter(
+      (call) =>
+        call.method === "POST" &&
+        call.path.endsWith(`/${DOCUMENT_ID}/revisions`),
+    );
+  // Answer some requests by hand; the rest go to the mocked API.
+  function intercept(
+    answer: (
+      path: string,
+      init: RequestInit | undefined,
+    ) => Promise<Response> | undefined,
+  ): void {
+    const original = globalThis.fetch;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const held = answer(String(input), init);
+        return held ?? original(input, init);
+      }),
+    );
+  }
+
+  it("makes exactly one revision from one edit, and none when nothing changed", async () => {
+    renderAt([DOCUMENT_ID]);
+    const name = await screen.findByRole("textbox", { name: "Full name" });
+    // Leaving a field untouched saves nothing.
+    fireEvent.focus(name);
+    fireEvent.blur(name);
+    fireEvent.focus(name);
+    fireEvent.change(name, { target: { value: "Ada L" } });
+    fireEvent.change(name, { target: { value: "Ada Lovelace" } });
+    // Typing alone never makes a revision.
+    expect(revisionPosts()).toHaveLength(0);
+    fireEvent.blur(name);
+    expect(await screen.findByText("Saved · rev 2")).toBeVisible();
+    expect(revisionPosts()).toHaveLength(1);
+    expect(revisionPosts()[0]?.body).toEqual({
+      baseRevision: 1,
+      values: { full_name: "Ada Lovelace", company_name: "Northwind" },
+    });
+    expect(currentRevision).toBe(2);
+  });
+
+  it("does not let an earlier preview overwrite a newer one", async () => {
+    const answers: Array<{
+      value: string;
+      answer(validation: DocumentFieldError[]): void;
+    }> = [];
+    intercept((path, init) => {
+      if (init?.method !== "POST" || !path.endsWith(`/${DOCUMENT_ID}/preview`))
+        return undefined;
+      const value = (
+        JSON.parse(String(init.body)) as { values: Record<string, string> }
+      ).values["full_name"]!;
+      return new Promise<Response>((resolve) => {
+        answers.push({
+          value,
+          answer: (validation) =>
+            resolve(Response.json({ html: `<pre>${value}</pre>`, validation })),
+        });
+      });
+    });
+    renderAt([DOCUMENT_ID]);
+    const name = await screen.findByRole("textbox", { name: "Full name" });
+    fireEvent.focus(name);
+    fireEvent.change(name, { target: { value: "First" } });
+    await waitFor(() => expect(answers).toHaveLength(1));
+    fireEvent.change(name, { target: { value: "Second" } });
+    await waitFor(() => expect(answers).toHaveLength(2));
+    expect(answers.map((item) => item.value)).toEqual(["First", "Second"]);
+    // The newer draft is answered first, then the earlier one arrives late.
+    answers[1]!.answer([]);
+    await screen.findByText("All 2 valid");
+    answers[0]!.answer([{ key: "full_name", code: "too-long" }]);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.getByText("All 2 valid")).toBeVisible();
+    expect(screen.queryByText("1 / 2 need attention")).toBeNull();
+    expect(name).toHaveValue("Second");
+  });
+
+  it("focuses a field when its text is clicked in the preview", async () => {
+    intercept((path, init) =>
+      (init?.method ?? "GET") === "GET" &&
+      path.includes(`/${DOCUMENT_ID}/preview`)
+        ? Promise.resolve(
+            Response.json({
+              html: '<p><span class="doc-field" data-field="full_name">Ada</span></p>',
+              revision: 1,
+              validation: [],
+            }),
+          )
+        : undefined,
+    );
+    renderAt([DOCUMENT_ID]);
+    const name = await screen.findByRole("textbox", { name: "Full name" });
+    const frame = screen.getByTitle("Document preview") as HTMLIFrameElement;
+    fireEvent.load(frame);
+    await waitFor(() =>
+      expect(
+        frame.contentDocument!.querySelector('[data-field="full_name"]'),
+      ).not.toBeNull(),
+    );
+    expect(name).not.toHaveFocus();
+    fireEvent.click(
+      frame.contentDocument!.querySelector('[data-field="full_name"]')!,
+    );
+    await waitFor(() => expect(name).toHaveFocus());
+    // The field being edited is the one lit in the page.
+    await waitFor(() =>
+      expect(
+        frame.contentDocument!.querySelector('[data-field="full_name"]'),
+      ).toHaveAttribute("data-selected"),
+    );
+  });
+
+  it("leaves the last revision intact when a regeneration is cancelled", async () => {
+    let aborted = false;
+    intercept((path, init) => {
+      if (
+        init?.method !== "POST" ||
+        !path.endsWith(`/${DOCUMENT_ID}/regenerate`)
+      )
+        return undefined;
+      return new Promise<Response>((_resolve, reject) => {
+        init.signal?.addEventListener("abort", () => {
+          aborted = true;
+          reject(new DOMException("Aborted", "AbortError"));
+        });
+      });
+    });
+    renderAt([DOCUMENT_ID]);
+    await screen.findByRole("textbox", { name: "Full name" });
+    openMenu(screen.getByRole("button", { name: "Regenerate" }));
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: /Regenerate every field/ }),
+    );
+    expect(await screen.findByText("Regenerating every field")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(await screen.findByText("Cancelled — kept rev 1")).toBeVisible();
+    expect(aborted).toBe(true);
+    expect(await screen.findByText("Saved · rev 1")).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "Full name" })).toHaveValue(
+      "Ada",
+    );
+    expect(currentRevision).toBe(1);
+  });
+
+  it("keeps an older revision read-only until it is restored", async () => {
+    currentRevision = 2;
+    revisionValues[2] = { full_name: "Ada latest", company_name: "Northwind" };
+    renderAt([DOCUMENT_ID]);
+    await screen.findByRole("textbox", { name: "Full name" });
+    openMenu(screen.getByRole("button", { name: /Rev 2/ }));
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: /Rev 1.*Generated/ }),
+    );
+    await screen.findByText("Viewing rev 1 of 2. Read-only.");
+    const name = screen.getByRole("textbox", { name: "Full name" });
+    expect(name).toHaveAttribute("readonly");
+    // Nothing is saved from a revision that is only being read.
+    fireEvent.focus(name);
+    fireEvent.blur(name);
+    expect(revisionPosts()).toHaveLength(0);
+    expect(
+      screen.queryByRole("button", { name: "Confirm reviewed" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Regenerate Full name" }),
+    ).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Restore as rev 3" }));
+    expect(await screen.findByText("Restored rev 1 as rev 3")).toBeVisible();
+    const restored = await screen.findByRole("textbox", { name: "Full name" });
+    await waitFor(() => expect(restored).toHaveValue("Ada"));
+    expect(restored).not.toHaveAttribute("readonly");
+    expect(screen.getByText("Saved · rev 3")).toBeVisible();
+  });
+});
+
+// The library's upload keeps its picker input inside the drop zone.
+const templateFileInput = () =>
+  document.querySelector('input[type="file"]') as HTMLInputElement;
+
 describe("Templates", () => {
   it("lists templates with kind, format, field count, and documents using them", async () => {
     renderAt(["templates"]);
@@ -1982,7 +2174,7 @@ describe("Templates", () => {
     expect(
       screen.getByRole("button", { name: "Save template" }),
     ).toBeDisabled();
-    fireEvent.change(screen.getByLabelText("Template file"), {
+    fireEvent.change(templateFileInput(), {
       target: {
         files: [
           new File(["# {{full_name}}"], "notes.md", { type: "text/markdown" }),
@@ -1994,7 +2186,7 @@ describe("Templates", () => {
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "Practice notes" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Interview prep" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Interview prep" }));
     fireEvent.change(screen.getByLabelText("Generation instructions"), {
       target: { value: "Use concise evidence." },
     });
@@ -2019,7 +2211,7 @@ describe("Templates", () => {
     renderAt(["templates"]);
     await screen.findByRole("row", { name: /Resume/ });
     fireEvent.click(screen.getByRole("button", { name: "Upload template" }));
-    fireEvent.change(screen.getByLabelText("Template file"), {
+    fireEvent.change(templateFileInput(), {
       target: { files: [new File(["x"], "notes.txt")] },
     });
     expect(await screen.findByRole("alert")).toHaveTextContent(

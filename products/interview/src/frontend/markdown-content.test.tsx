@@ -1,4 +1,11 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { renderDiagram, initialize } = vi.hoisted(() => ({
@@ -42,7 +49,7 @@ describe("MarkdownContent", () => {
   });
 
   it("renders GFM and Mermaid fenced blocks as accessible diagrams", async () => {
-    const { container } = render(
+    render(
       <MarkdownContent>
         {
           "| Item | Value |\n| --- | --- |\n| Cache | LRU |\n\n```mermaid\nflowchart LR\nA --> B\n```"
@@ -79,9 +86,10 @@ describe("MarkdownContent", () => {
       "panzoom-exclude",
     );
     const parentPointerHandler = vi.fn();
-    container
-      .querySelector(".mermaid-canvas")
-      ?.addEventListener("pointerdown", parentPointerHandler);
+    const canvas = screen.getByLabelText(
+      "Interactive diagram. Drag to pan; pinch or hold Control or Command while scrolling to zoom.",
+    );
+    canvas.addEventListener("pointerdown", parentPointerHandler);
     fireEvent.pointerDown(screen.getByLabelText("Diagram controls"));
     expect(parentPointerHandler).not.toHaveBeenCalled();
 
@@ -92,12 +100,12 @@ describe("MarkdownContent", () => {
     expect(panzoom.zoomOut).toHaveBeenCalledOnce();
     expect(panzoom.reset).toHaveBeenCalledWith({ animate: false });
 
-    fireEvent.wheel(container.querySelector(".mermaid-canvas") as Element, {
+    fireEvent.wheel(canvas, {
       ctrlKey: true,
       deltaY: -100,
     });
     expect(panzoom.zoomWithWheel).toHaveBeenCalledOnce();
-    fireEvent.wheel(container.querySelector(".mermaid-canvas") as Element, {
+    fireEvent.wheel(canvas, {
       deltaY: 100,
     });
     expect(panzoom.zoomWithWheel).toHaveBeenCalledOnce();
@@ -106,17 +114,27 @@ describe("MarkdownContent", () => {
     expect(screen.getByLabelText("Workflow diagram")).toHaveClass(
       "mermaid-diagram-split",
     );
-    expect(container.querySelector(".mermaid-source code")).toHaveTextContent(
-      "flowchart LR",
-    );
-    expect(container.querySelector(".mermaid-source code")).toHaveTextContent(
-      "A --> B",
-    );
+    expect(
+      within(
+        screen.getByRole("figure", { name: "Workflow diagram" }),
+      ).getByRole("code"),
+    ).toHaveTextContent("flowchart LR");
+    expect(
+      within(
+        screen.getByRole("figure", { name: "Workflow diagram" }),
+      ).getByRole("code"),
+    ).toHaveTextContent("A --> B");
     await waitFor(() =>
-      expect(container.querySelector(".mermaid-source .shiki")).not.toBeNull(),
+      expect(
+        within(
+          screen.getByRole("figure", { name: "Workflow diagram" }),
+        ).getByRole("code").parentElement,
+      ).toHaveAttribute("style"),
     );
     expect(
-      container.querySelector(".mermaid-source .shiki span[style]"),
+      within(screen.getByRole("figure", { name: "Workflow diagram" }))
+        .getByRole("code")
+        .querySelector("span[style]"),
     ).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Copy syntax" }));
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
@@ -131,7 +149,11 @@ describe("MarkdownContent", () => {
     expect(screen.getByLabelText("Workflow diagram")).not.toHaveClass(
       "mermaid-diagram-split",
     );
-    expect(container.querySelector(".mermaid-source")).toBeNull();
+    expect(
+      within(
+        screen.getByRole("figure", { name: "Workflow diagram" }),
+      ).queryByRole("code"),
+    ).toBeNull();
 
     const requestFullscreen = vi.fn().mockResolvedValue(undefined);
     const exitFullscreen = vi.fn().mockResolvedValue(undefined);
@@ -250,6 +272,50 @@ describe("MarkdownContent", () => {
       "target",
       "_blank",
     );
+  });
+
+  it("destroys pan and zoom and removes its wheel listener when the diagram closes", async () => {
+    const { unmount } = render(
+      <MarkdownContent>
+        {"```mermaid\nflowchart LR\nA --> B\n```"}
+      </MarkdownContent>,
+    );
+    await screen.findByRole("figure", { name: "Workflow diagram" });
+    await waitFor(() => expect(createPanzoom).toHaveBeenCalledOnce());
+    const canvas = screen.getByLabelText(
+      "Interactive diagram. Drag to pan; pinch or hold Control or Command while scrolling to zoom.",
+    );
+    unmount();
+    expect(panzoom.destroy).toHaveBeenCalledTimes(1);
+    fireEvent.wheel(canvas, { ctrlKey: true, deltaY: -100 });
+    expect(panzoom.zoomWithWheel).not.toHaveBeenCalled();
+  });
+
+  it("drops a diagram rendered after its Markdown has changed", async () => {
+    let release: (value: { svg: string }) => void = () => undefined;
+    renderDiagram.mockImplementationOnce(
+      () =>
+        new Promise<{ svg: string }>((resolve) => {
+          release = resolve;
+        }),
+    );
+    const { rerender } = render(
+      <MarkdownContent>
+        {"```mermaid\nflowchart LR\nOld --> Diagram\n```"}
+      </MarkdownContent>,
+    );
+    await waitFor(() => expect(renderDiagram).toHaveBeenCalledOnce());
+    rerender(
+      <MarkdownContent>
+        {"```mermaid\nflowchart LR\nNew --> Diagram\n```"}
+      </MarkdownContent>,
+    );
+    await screen.findByRole("figure", { name: "Workflow diagram" });
+    await act(async () =>
+      release({ svg: "<svg><title>Outdated diagram</title></svg>" }),
+    );
+    expect(screen.queryByText("Outdated diagram")).toBeNull();
+    expect(screen.getByText("Flow")).toBeInTheDocument();
   });
 
   it("uses Mermaid's light theme when the studio is light", async () => {

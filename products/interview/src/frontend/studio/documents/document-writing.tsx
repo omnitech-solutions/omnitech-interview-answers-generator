@@ -1,9 +1,16 @@
 "use client";
 
+import {
+  Flex,
+  List,
+  ListItem,
+  Panel,
+  Progress,
+  Typography,
+} from "@oc-tech/omni-ui-components";
 import type { DocumentField } from "@omnitech/interview-contracts";
 import { Icon } from "../icon";
 import { DocumentPreview, type PreviewPayload } from "./document-preview";
-import { Spinner } from "./documents-ui";
 
 export type WritingBatch = {
   id: string;
@@ -50,74 +57,61 @@ export function WritingView({
   );
   const percent = finished ? 100 : total ? Math.round((done / total) * 100) : 4;
   return (
-    <div className="dx-writing">
-      <aside className="dx-writing-side" aria-label="Progress">
-        <div className="dx-writing-head">
-          <span className="dx-writing-mark">
-            {finished ? (
-              <Icon name="check_circle" size={20} />
-            ) : (
-              <Icon name="auto_awesome" size={20} />
-            )}
-          </span>
-          <div className="dx-grow">
-            <div className="dx-row-title">
-              {finished ? "Done. Opening it…" : "Writing your document"}
-            </div>
-            <div className="dx-sub dx-ellipsis">{title}</div>
-          </div>
-        </div>
-        <div
-          className="dx-meter"
-          role="progressbar"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={percent}
-          aria-label="Sections written"
-        >
-          <div className="dx-meter-fill" style={{ width: `${percent}%` }} />
-        </div>
-        <div className="dx-writing-meta">
-          <span>
-            {total
-              ? `${done} of ${total} sections`
-              : "Reading your experience…"}
-          </span>
-          <span className="dx-mono">{clock(seconds)}</span>
-        </div>
-        <ol className="dx-steps">
-          {(batches ?? []).map((batch) => (
-            <li
-              key={batch.id}
-              className="dx-step-line"
-              data-state={
-                batch.done
-                  ? "done"
-                  : writingNow.has(batch.id)
-                    ? "writing"
-                    : "waiting"
-              }
-            >
-              <span className="dx-step-icon">
-                {batch.done ? (
-                  <Icon name="check_circle" size={18} />
-                ) : writingNow.has(batch.id) ? (
-                  <Spinner />
-                ) : (
-                  <Icon name="radio_button_unchecked" size={18} />
-                )}
-              </span>
-              <span className="dx-grow dx-ellipsis">{batch.title}</span>
-              <span className="dx-mono dx-faint">{batch.count}</span>
-            </li>
-          ))}
-        </ol>
-        <p className="dx-sub dx-writing-note">
-          {model} writes the sections side by side. Everything is editable once
-          it’s done, and each change is kept as a revision.
-        </p>
-      </aside>
-      <div className="dx-writing-canvas">
+    <Flex gap={16} style={{ height: "100%", minHeight: 0, padding: 16 }}>
+      <Panel title="Progress" width={340} bodyPadding="md">
+        <Flex vertical gap={12}>
+          <Flex align="center" gap={12}>
+            <Icon name={finished ? "check_circle" : "auto_awesome"} size={20} />
+            <Flex vertical>
+              <Typography.Text>
+                {finished ? "Done. Opening it…" : "Writing your document"}
+              </Typography.Text>
+              <Typography.Text type="secondary" size="compact">
+                {title}
+              </Typography.Text>
+            </Flex>
+          </Flex>
+          <Progress
+            percent={percent}
+            showInfo={false}
+            aria-label="Sections written"
+          />
+          <Flex justify="space-between">
+            <Typography.Text size="compact">
+              {total
+                ? `${done} of ${total} sections`
+                : "Reading your experience…"}
+            </Typography.Text>
+            <Typography.Text size="compact">{clock(seconds)}</Typography.Text>
+          </Flex>
+          <List>
+            {(batches ?? []).map((batch) => (
+              <ListItem key={batch.id}>
+                <Flex align="center" gap={8}>
+                  {batch.done ? (
+                    <Icon name="check_circle" size={18} />
+                  ) : writingNow.has(batch.id) ? (
+                    <Progress shape="ring" size={18} aria-hidden />
+                  ) : (
+                    <Icon name="radio_button_unchecked" size={18} />
+                  )}
+                  <Typography.Text style={{ flex: 1 }}>
+                    {batch.title}
+                  </Typography.Text>
+                  <Typography.Text type="secondary" size="compact">
+                    {batch.count}
+                  </Typography.Text>
+                </Flex>
+              </ListItem>
+            ))}
+          </List>
+          <Typography.Paragraph type="secondary" size="compact">
+            {model} writes the sections side by side. Everything is editable
+            once it’s done, and each change is kept as a revision.
+          </Typography.Paragraph>
+        </Flex>
+      </Panel>
+      <Flex style={{ flex: "1 1 0", minWidth: 0, minHeight: 0 }}>
         <DocumentPreview
           preview={preview}
           fields={fields}
@@ -125,7 +119,7 @@ export function WritingView({
           onSelect={() => undefined}
           writing={!finished}
         />
-      </div>
-    </div>
+      </Flex>
+    </Flex>
   );
 }

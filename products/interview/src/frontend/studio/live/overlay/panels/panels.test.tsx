@@ -159,12 +159,12 @@ describe("routing", () => {
       await show("settings");
       await flush();
       for (const flag of BEHAVIOUR_FLAGS)
-        expect(screen.getByTestId(`pn-flag-${flag.env}`)).toBeVisible();
+        expect(screen.getByRole("button", { name: flag.label })).toBeVisible();
       cleanup();
       await show("single");
       await flush();
       expect(
-        screen.queryByTestId(`pn-flag-${BEHAVIOUR_FLAGS[0].env}`),
+        screen.queryByRole("button", { name: BEHAVIOUR_FLAGS[0].label }),
       ).toBeNull();
     } finally {
       vi.unstubAllGlobals();

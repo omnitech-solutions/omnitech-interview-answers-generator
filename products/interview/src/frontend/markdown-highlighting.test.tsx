@@ -1,4 +1,4 @@
-import { render, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { MarkdownContent } from "./markdown-content";
 
@@ -24,14 +24,14 @@ const FENCES = [
 
 describe("code highlighting", () => {
   it.each(FENCES)("colours %s code", async (language, source) => {
-    const { container } = render(
+    render(
       <MarkdownContent>{`\`\`\`${language}\n${source}\n\`\`\``}</MarkdownContent>,
     );
     // Highlighted code has tokens in more than one colour; plain text has one.
     const colours = () =>
       new Set(
-        [...container.querySelectorAll(".shiki span[style]")].map((span) =>
-          span.getAttribute("style"),
+        [...screen.getByRole("code").querySelectorAll("span[style]")].map(
+          (span) => span.getAttribute("style"),
         ),
       ).size;
     await waitFor(() => expect(colours()).toBeGreaterThan(1), {
@@ -40,19 +40,17 @@ describe("code highlighting", () => {
   });
 
   it("shows a language it does not know as plain text", async () => {
-    const { container } = render(
+    render(
       <MarkdownContent>{"```cobol\nDISPLAY 'TOTAL'.\n```"}</MarkdownContent>,
     );
     await waitFor(() =>
-      expect(container.querySelector(".shiki")).not.toBeNull(),
+      expect(screen.getByRole("code").parentElement).toHaveAttribute("style"),
     );
-    expect(container.querySelector(".shiki")?.textContent).toContain(
-      "DISPLAY 'TOTAL'.",
-    );
+    expect(screen.getByRole("code").textContent).toContain("DISPLAY 'TOTAL'.");
     expect(
       new Set(
-        [...container.querySelectorAll(".shiki span[style]")].map((span) =>
-          span.getAttribute("style"),
+        [...screen.getByRole("code").querySelectorAll("span[style]")].map(
+          (span) => span.getAttribute("style"),
         ),
       ).size,
     ).toBeLessThanOrEqual(1);

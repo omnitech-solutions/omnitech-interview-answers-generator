@@ -4,37 +4,35 @@
 // components only; the modal portals to the body (a library surface, so the
 // shell's hit regions cover it).
 import {
+  Alert,
   Button,
-  Input,
+  FormActions,
   Modal,
   ModalContent,
   ModalDescription,
   ModalFooter,
   ModalHeader,
   ModalTitle,
-  Textarea,
 } from "@oc-tech/omni-ui-components";
-import type {
-  CandidacyContext,
-  EmployerBrief,
+import { DynamicForm } from "@oc-tech/omni-ui-components/dynamic-form";
+import {
+  type CandidacyContext,
+  type CandidacyContextInput,
+  candidacyContextInputSchema,
+  type EmployerBrief,
 } from "@omnitech/interview-contracts";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { documentJson, postJson } from "../../../documents/documents-client";
 import { InterviewBriefForm } from "../../../interview-brief/interview-brief-form";
+import { formParser } from "../../../shared/contract-form";
+import {
+  contextFormSchema,
+  contextUiSchema,
+  toContextFormData,
+  toContextInput,
+} from "./interview-context-form";
 
-type Draft = {
-  companyName: string;
-  title: string;
-  jobDescription: string;
-  notes: string;
-};
-
-const EMPTY: Draft = {
-  companyName: "",
-  title: "",
-  jobDescription: "",
-  notes: "",
-};
+const CONTEXT_PARSER = formParser(candidacyContextInputSchema);
 
 // The brief by section, each a heading and its items: what the owner checks
 // the clean-up against before trusting it in a session.
@@ -74,19 +72,30 @@ export function InterviewContextModal({
   // The candidacy as saved (created or updated), so the caller can select it.
   onSaved(context: CandidacyContext): void;
 }) {
-  const [draft, setDraft] = useState<Draft>(EMPTY);
+  // What the form was last given to start from, and a count that remounts it
+  // when that changes (the form keeps its own values once it is typed in).
+  const [seed, setSeed] = useState({ at: 0, values: toContextFormData(null) });
+  // What the form holds now: it decides which actions can be pressed.
+  const [draft, setDraft] = useState<Record<string, unknown>>(seed.values);
   const [current, setCurrent] = useState<CandidacyContext | null>(null);
   const [busy, setBusy] = useState<"load" | "save" | "brief" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Which of the form's two submit buttons was pressed.
+  const intent = useRef<"save" | "clean">("save");
 
   // Opening on an existing candidacy reads it; opening for a new one starts
   // blank. Nothing is kept between opens.
   useEffect(() => {
     if (!open) return;
     setError(null);
+    const start = (context: CandidacyContext | null) => {
+      const values = toContextFormData(context);
+      setCurrent(context);
+      setDraft(values);
+      setSeed((last) => ({ at: last.at + 1, values }));
+    };
     if (!candidacyId) {
-      setDraft(EMPTY);
-      setCurrent(null);
+      start(null);
       return;
     }
     let live = true;
@@ -96,13 +105,7 @@ export function InterviewContextModal({
     ).then(
       (context) => {
         if (!live) return;
-        setCurrent(context);
-        setDraft({
-          companyName: context.companyName,
-          title: context.title,
-          jobDescription: context.jobDescription ?? "",
-          notes: context.notes ?? "",
-        });
+        start(context);
         setBusy(null);
       },
       () => {
@@ -116,22 +119,30 @@ export function InterviewContextModal({
     };
   }, [open, candidacyId]);
 
-  const canSave =
-    draft.companyName.trim() !== "" && draft.title.trim() !== "" && !busy;
+  // Save can be pressed once the contract would take what is typed (a company
+  // and a role); the server's own check of the same contract is the authority.
+  const input = toContextInput(draft);
+  const canSave = input !== null && !busy;
+  const uiSchema = useMemo(
+    () => contextUiSchema({ companyFixed: current !== null }),
+    [current],
+  );
 
   // Save creates the candidacy (with one interview stage, so it can be started
   // for) or updates the existing one's title, spec and notes.
-  async function save(): Promise<CandidacyContext | null> {
+  async function save(
+    typed: CandidacyContextInput,
+  ): Promise<CandidacyContext | null> {
     setBusy("save");
     setError(null);
     try {
       let id = current?.id ?? null;
       if (!id) {
         const made = await postJson<{ candidacyId: string }>("/candidacies", {
-          companyName: draft.companyName.trim(),
-          title: draft.title.trim(),
-          ...(draft.jobDescription.trim()
-            ? { jobDescription: draft.jobDescription }
+          companyName: typed.companyName,
+          title: typed.title,
+          ...(typed.jobDescription.trim()
+            ? { jobDescription: typed.jobDescription }
             : {}),
           interview: { kind: "other", label: "Interview" },
         });
@@ -143,9 +154,9 @@ export function InterviewContextModal({
           method: "PATCH",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
-            title: draft.title.trim(),
-            jobDescription: draft.jobDescription,
-            notes: draft.notes,
+            title: typed.title,
+            jobDescription: typed.jobDescription,
+            notes: typed.notes,
           }),
         },
       );
@@ -162,8 +173,8 @@ export function InterviewContextModal({
 
   // Clean up: save first (the brief is built from what is stored), then ask
   // the model for the brief.
-  async function cleanUp() {
-    const saved = await save();
+  async function cleanUp(typed: CandidacyContextInput) {
+    const saved = await save(typed);
     if (!saved) return;
     setBusy("brief");
     try {
@@ -178,6 +189,14 @@ export function InterviewContextModal({
     } finally {
       setBusy(null);
     }
+  }
+
+  // The form hands over what it holds; the contract reads it (trimmed) before
+  // anything is sent.
+  async function submit(values: unknown) {
+    const typed = toContextInput(values);
+    if (!typed) return;
+    await (intent.current === "clean" ? cleanUp(typed) : save(typed));
   }
 
   const sections = current?.brief ? briefSections(current.brief) : [];
@@ -199,22 +218,6 @@ export function InterviewContextModal({
           </ModalDescription>
         </ModalHeader>
         <div className="pn-context-fields">
-          <Input
-            label="Company"
-            value={draft.companyName}
-            onChange={(companyName) => setDraft({ ...draft, companyName })}
-            disabled={busy !== null || current !== null}
-            required
-            data-testid="pn-context-company"
-          />
-          <Input
-            label="Role"
-            value={draft.title}
-            onChange={(title) => setDraft({ ...draft, title })}
-            disabled={busy !== null}
-            required
-            data-testid="pn-context-role"
-          />
           {/* The concise brief leads: it is what a live answer reads. The raw
               posting, long and untidy, is the source beneath it. */}
           {sections.length > 0 && (
@@ -236,31 +239,45 @@ export function InterviewContextModal({
               ))}
             </section>
           )}
-          <Textarea
-            label="Your notes"
-            description="What you know about the team and the process. Notes for one round belong to its stage, below."
-            rows={4}
-            value={draft.notes}
-            onChange={(notes) => setDraft({ ...draft, notes })}
+          <DynamicForm
+            key={seed.at}
+            schema={contextFormSchema}
+            uiSchema={uiSchema}
+            zodSchema={CONTEXT_PARSER}
+            formData={seed.values}
             disabled={busy !== null}
-            data-testid="pn-context-notes"
-          />
-          <Textarea
-            label="Job spec (the raw posting)"
-            description="Paste the posting as it is; the clean-up reads it, you do not have to tidy it."
-            rows={4}
-            value={draft.jobDescription}
-            onChange={(jobDescription) =>
-              setDraft({ ...draft, jobDescription })
-            }
-            disabled={busy !== null}
-            data-testid="pn-context-spec"
-          />
-          {error && (
-            <p className="pn-context-error" role="alert">
-              {error}
-            </p>
-          )}
+            onChange={setDraft}
+            onSubmit={submit}
+          >
+            {error && <Alert variant="error" title={error} />}
+            <FormActions>
+              <Button
+                type="submit"
+                variant="outline"
+                buttonSize="sm"
+                loading={busy === "save"}
+                disabled={!canSave}
+                onClick={() => {
+                  intent.current = "save";
+                }}
+                data-testid="pn-context-save"
+              >
+                Save
+              </Button>
+              <Button
+                type="submit"
+                buttonSize="sm"
+                loading={busy === "brief"}
+                disabled={!canSave || input?.jobDescription.trim() === ""}
+                onClick={() => {
+                  intent.current = "clean";
+                }}
+                data-testid="pn-context-clean"
+              >
+                {current?.brief ? "Clean up again" : "Clean up with AI"}
+              </Button>
+            </FormActions>
+          </DynamicForm>
           {/* The interview's stages, what the employer said and the research:
               kept per application, so they appear once it is saved. */}
           {current && <InterviewBriefForm candidacyId={current.id} />}
@@ -273,25 +290,6 @@ export function InterviewContextModal({
             disabled={busy !== null}
           >
             Close
-          </Button>
-          <Button
-            variant="outline"
-            buttonSize="sm"
-            loading={busy === "save"}
-            disabled={!canSave}
-            onClick={() => void save()}
-            data-testid="pn-context-save"
-          >
-            Save
-          </Button>
-          <Button
-            buttonSize="sm"
-            loading={busy === "brief"}
-            disabled={!canSave || draft.jobDescription.trim() === ""}
-            onClick={() => void cleanUp()}
-            data-testid="pn-context-clean"
-          >
-            {current?.brief ? "Clean up again" : "Clean up with AI"}
           </Button>
         </ModalFooter>
       </ModalContent>

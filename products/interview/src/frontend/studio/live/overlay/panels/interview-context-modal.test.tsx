@@ -14,6 +14,7 @@ import {
   screen,
   within,
 } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   briefSections,
@@ -60,8 +61,15 @@ const stored = (over: Partial<CandidacyContext> = {}): CandidacyContext => ({
 });
 
 const settle = () => act(async () => undefined);
-const type = (testId: string, value: string) =>
-  fireEvent.change(screen.getByTestId(testId), { target: { value } });
+// The form's fields are found the way a person and the control inventory
+// find them: a text box with its label as its name.
+const COMPANY = "Company";
+const ROLE = "Role";
+const NOTES = "Your notes";
+const SPEC = "Job spec (the raw posting)";
+const field = (name: string) => screen.getByRole("textbox", { name });
+const type = (name: string, value: string) =>
+  fireEvent.change(field(name), { target: { value } });
 
 function show(candidacyId: string | null) {
   const onSaved = vi.fn();
@@ -129,13 +137,13 @@ describe("adding an interview", () => {
     expect(screen.queryByTestId("ib-form-stub")).toBeNull();
     expect(screen.getByTestId("pn-context-save")).toBeDisabled();
     expect(screen.getByTestId("pn-context-clean")).toBeDisabled();
-    type("pn-context-company", " Example Corp ");
-    type("pn-context-role", "Staff Engineer");
+    type(COMPANY, " Example Corp ");
+    type(ROLE, "Staff Engineer");
     expect(screen.getByTestId("pn-context-save")).toBeEnabled();
     // Clean up needs a spec to clean.
     expect(screen.getByTestId("pn-context-clean")).toBeDisabled();
-    type("pn-context-spec", "Posting text");
-    type("pn-context-notes", "Met Sam");
+    type(SPEC, "Posting text");
+    type(NOTES, "Met Sam");
     expect(screen.getByTestId("pn-context-clean")).toBeEnabled();
     fireEvent.click(screen.getByTestId("pn-context-save"));
     await settle();
@@ -159,7 +167,7 @@ describe("adding an interview", () => {
     // Now it exists, its stages, employer-said entries and research are here.
     expect(screen.getByTestId("ib-form-stub")).toHaveTextContent(ID);
     // Saved once: the company is fixed and a second Save updates, not creates.
-    expect(screen.getByTestId("pn-context-company")).toBeDisabled();
+    expect(field(COMPANY)).toBeDisabled();
     documentJson.mockResolvedValueOnce(saved);
     fireEvent.click(screen.getByTestId("pn-context-save"));
     await settle();
@@ -171,8 +179,8 @@ describe("adding an interview", () => {
   it("a refused create changes nothing on screen and says so", async () => {
     postJson.mockRejectedValueOnce(new Error("request-failed"));
     const { onSaved } = show(null);
-    type("pn-context-company", "Example Corp");
-    type("pn-context-role", "Staff Engineer");
+    type(COMPANY, "Example Corp");
+    type(ROLE, "Staff Engineer");
     fireEvent.click(screen.getByTestId("pn-context-save"));
     await settle();
     expect(screen.getByRole("alert")).toHaveTextContent(
@@ -180,7 +188,7 @@ describe("adding an interview", () => {
     );
     expect(documentJson).not.toHaveBeenCalled();
     expect(onSaved).not.toHaveBeenCalled();
-    expect(screen.getByTestId("pn-context-company")).toBeEnabled();
+    expect(field(COMPANY)).toBeEnabled();
   });
 });
 
@@ -193,19 +201,17 @@ describe("editing an interview", () => {
     await settle();
     expect(documentJson).toHaveBeenCalledWith(`/candidacies/${ID}/context`);
     expect(screen.getByText("Interview context")).toBeInTheDocument();
-    expect(screen.getByTestId("pn-context-company")).toHaveValue(
-      "Example Corp",
-    );
-    expect(screen.getByTestId("pn-context-company")).toBeDisabled();
-    expect(screen.getByTestId("pn-context-role")).toHaveValue("Staff Engineer");
-    expect(screen.getByTestId("pn-context-spec")).toHaveValue("Old posting");
-    expect(screen.getByTestId("pn-context-notes")).toHaveValue("Old notes");
+    expect(field(COMPANY)).toHaveValue("Example Corp");
+    expect(field(COMPANY)).toBeDisabled();
+    expect(field(ROLE)).toHaveValue("Staff Engineer");
+    expect(field(SPEC)).toHaveValue("Old posting");
+    expect(field(NOTES)).toHaveValue("Old notes");
     // An existing application opens with its stages.
     expect(screen.getByTestId("ib-form-stub")).toHaveTextContent(ID);
     expect(screen.getByTestId("pn-context-clean")).toHaveTextContent(
       "Clean up with AI",
     );
-    type("pn-context-spec", "New posting");
+    type(SPEC, "New posting");
     const saved = stored({ jobDescription: "New posting", notes: "Old notes" });
     const briefed = stored({ ...saved, brief: BRIEF });
     documentJson.mockResolvedValueOnce(saved);
@@ -238,10 +244,9 @@ describe("editing an interview", () => {
     expect(within(brief).getByRole("heading", { level: 4 })).toHaveTextContent(
       "The concise brief · what the answers lean on",
     );
-    const notes = screen.getByLabelText("Your notes");
-    const spec = screen.getByLabelText("Job spec (the raw posting)");
-    expect(notes).toBe(screen.getByTestId("pn-context-notes"));
-    expect(spec).toBe(screen.getByTestId("pn-context-spec"));
+    const notes = field(NOTES);
+    const spec = field(SPEC);
+    expect(notes).toHaveAttribute("rows", "4");
     expect(spec).toHaveAttribute("rows", "4");
     const follows = (first: Element, second: Element) =>
       Boolean(
@@ -267,5 +272,104 @@ describe("editing an interview", () => {
       /clean-up did not finish. The spec is saved/,
     );
     expect(screen.queryByTestId("pn-context-brief")).toBeNull();
+  });
+});
+
+describe("the form's own rules", () => {
+  it("marks the two fields the contract requires, and lets Save be pressed only once the contract would take what is typed", () => {
+    show(null);
+    expect(field(COMPANY)).toBeRequired();
+    expect(field(ROLE)).toBeRequired();
+    expect(field(NOTES)).not.toBeRequired();
+    expect(field(SPEC)).not.toBeRequired();
+    // The contract bounds each field; the control holds the same bound.
+    expect(field(COMPANY)).toHaveAttribute("maxlength", "200");
+    expect(field(SPEC)).toHaveAttribute("maxlength", "20000");
+    type(COMPANY, "Example Corp");
+    expect(screen.getByTestId("pn-context-save")).toBeDisabled();
+    // Spaces are not a role.
+    type(ROLE, "   ");
+    expect(screen.getByTestId("pn-context-save")).toBeDisabled();
+    type(ROLE, "Staff Engineer");
+    expect(screen.getByTestId("pn-context-save")).toBeEnabled();
+    type(COMPANY, "");
+    expect(screen.getByTestId("pn-context-save")).toBeDisabled();
+    expect(postJson).not.toHaveBeenCalled();
+  });
+
+  it("says what each long field is for, under it", () => {
+    show(null);
+    expect(
+      screen.getByText(/What you know about the team and the process/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Paste the posting as it is/)).toBeInTheDocument();
+  });
+
+  it("is filled and saved from the keyboard: Tab moves company, role, notes, spec, and Enter in a field saves", async () => {
+    const user = userEvent.setup();
+    postJson.mockResolvedValueOnce({ candidacyId: ID });
+    documentJson.mockResolvedValueOnce(stored({ notes: "Met Sam" }));
+    const { onSaved } = show(null);
+    field(COMPANY).focus();
+    await user.keyboard("Example Corp");
+    await user.tab();
+    expect(field(ROLE)).toHaveFocus();
+    await user.keyboard("Staff Engineer");
+    await user.tab();
+    expect(field(NOTES)).toHaveFocus();
+    await user.keyboard("Met Sam");
+    await user.tab();
+    expect(field(SPEC)).toHaveFocus();
+    // Enter in a one-line field is Save, never Clean up.
+    field(ROLE).focus();
+    await user.keyboard("{Enter}");
+    await settle();
+    expect(postJson).toHaveBeenCalledTimes(1);
+    expect(postJson.mock.calls[0]?.[0]).toBe("/candidacies");
+    const [, init] = documentJson.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).toEqual({
+      title: "Staff Engineer",
+      jobDescription: "",
+      notes: "Met Sam",
+    });
+    expect(onSaved).toHaveBeenCalledTimes(1);
+  });
+
+  it("Enter does nothing while the contract would refuse what is typed", async () => {
+    const user = userEvent.setup();
+    show(null);
+    field(COMPANY).focus();
+    await user.keyboard("Example Corp{Enter}");
+    await settle();
+    expect(postJson).not.toHaveBeenCalled();
+  });
+
+  it("cannot be typed in while it saves, and can again once the save has answered", async () => {
+    let answer: (made: { candidacyId: string }) => void = () => undefined;
+    postJson.mockReturnValueOnce(
+      new Promise((resolve) => {
+        answer = resolve;
+      }),
+    );
+    documentJson.mockResolvedValueOnce(stored());
+    show(null);
+    type(COMPANY, "Example Corp");
+    type(ROLE, "Staff Engineer");
+    fireEvent.click(screen.getByTestId("pn-context-save"));
+    await settle();
+    expect(field(ROLE)).toBeDisabled();
+    expect(field(SPEC)).toBeDisabled();
+    answer({ candidacyId: ID });
+    await settle();
+    expect(field(ROLE)).toBeEnabled();
+    expect(field(ROLE)).toHaveValue("Staff Engineer");
+  });
+
+  it("a context that could not be read says so and leaves the form empty", async () => {
+    documentJson.mockRejectedValueOnce(new Error("offline"));
+    show(ID);
+    await settle();
+    expect(screen.getByRole("alert")).toHaveTextContent(/could not be read/);
+    expect(field(COMPANY)).toHaveValue("");
   });
 });

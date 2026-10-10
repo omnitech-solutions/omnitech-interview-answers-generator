@@ -1,6 +1,13 @@
 "use client";
 
-import { SplitButton } from "@oc-tech/omni-ui-components";
+import {
+  Alert,
+  Flex,
+  Input,
+  SplitButton,
+  Textarea,
+  Typography,
+} from "@oc-tech/omni-ui-components";
 import type { DocumentField } from "@omnitech/interview-contracts";
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "../icon";
@@ -24,7 +31,7 @@ import {
   type TemplateListItem,
 } from "./documents-client";
 import { KIND_ICON, KIND_LABEL } from "./documents-model";
-import { Modal, message } from "./documents-ui";
+import { Actions, Modal, message } from "./documents-ui";
 
 // "New application" is a choice in the list, made real when generating.
 const NEW_APPLICATION = "__new";
@@ -374,9 +381,12 @@ export function NewDocumentDialog({
       }}
       footer={
         <>
-          <div className="dx-grow dx-footer-summary">
-            <div className="dx-row-title">{title}</div>
-            <div className={error ? "dx-sub dx-error" : "dx-sub"}>
+          <Flex vertical style={{ flex: 1, minWidth: 0 }}>
+            <Typography.Text>{title}</Typography.Text>
+            <Typography.Text
+              type={error ? "danger" : "secondary"}
+              size="compact"
+            >
               {error
                 ? error
                 : busy
@@ -390,18 +400,21 @@ export function NewDocumentDialog({
                           : "written in a few parallel calls"
                       }`
                     : "Choose a template"}
-            </div>
-          </div>
-          <button
-            type="button"
-            className="dx-button dx-button-lg"
-            onClick={() => {
-              pending.current?.abort();
-              onClose();
-            }}
-          >
-            {busy && !manual ? "Cancel generation" : "Cancel"}
-          </button>
+            </Typography.Text>
+          </Flex>
+          <Actions
+            actions={[
+              {
+                id: "cancel",
+                label: busy && !manual ? "Cancel generation" : "Cancel",
+                size: "lg",
+                onClick: () => {
+                  pending.current?.abort();
+                  onClose();
+                },
+              },
+            ]}
+          />
           <SplitButton
             tone="accent"
             main={{
@@ -468,20 +481,20 @@ export function NewDocumentDialog({
       ) : (
         <>
           {templates.length === 0 && (
-            <p className="dx-notice" role="status">
+            <Alert variant="info" size="sm" role="status">
               No templates are available. Open Templates to add one.
-            </p>
+            </Alert>
           )}
           {context.profiles.length === 0 && (
-            <p className="dx-notice" role="status">
+            <Alert variant="info" size="sm" role="status">
               Save an experience matrix before generating a document.
-            </p>
+            </Alert>
           )}
           {context.targets.length === 0 && (
-            <p className="dx-notice" role="status">
+            <Alert variant="info" size="sm" role="status">
               No model is available for document generation.
               {manual ? " You can still create the document manually." : ""}
-            </p>
+            </Alert>
           )}
 
           <section className="dx-step" aria-label="Template">
@@ -568,58 +581,45 @@ export function NewDocumentDialog({
             </div>
             {isNew && (
               <div className="dx-two-up">
-                <label className="dx-label">
-                  Company
-                  <input
-                    className="dx-input"
-                    value={company}
-                    maxLength={200}
-                    placeholder="Zensurance"
-                    onChange={(event) => setCompany(event.target.value)}
-                  />
-                </label>
-                <label className="dx-label">
-                  Role
-                  <input
-                    className="dx-input"
-                    value={role}
-                    maxLength={200}
-                    placeholder="Tech Lead, Core / Payments"
-                    onChange={(event) => setRole(event.target.value)}
-                  />
-                </label>
+                <Input
+                  label="Company"
+                  value={company}
+                  maxLength={200}
+                  placeholder="Zensurance"
+                  onChange={setCompany}
+                />
+                <Input
+                  label="Role"
+                  value={role}
+                  maxLength={200}
+                  placeholder="Tech Lead, Core / Payments"
+                  onChange={setRole}
+                />
               </div>
             )}
             {(candidacy || isNew) && profile && (
               <>
                 {candidacy && (
-                  <div className="dx-inline-note dx-plain">
+                  <Flex align="center" gap={8}>
                     <Icon name="link" size={15} />
-                    <span className="dx-grow">
+                    <Typography.Text type="secondary" size="compact">
                       Uses the {candidacy.company_name} job description and
                       role. Your {profile.name.toLowerCase()} (rev{" "}
                       {profile.revision}) is attached automatically.
-                    </span>
-                  </div>
+                    </Typography.Text>
+                  </Flex>
                 )}
-                <div className="dx-label">
-                  <label htmlFor="new-document-job-description">
-                    Job description
-                  </label>
-                  <textarea
-                    id="new-document-job-description"
-                    className="dx-textarea"
-                    rows={4}
-                    maxLength={20_000}
-                    value={jobDescription}
-                    onChange={(event) => setJobDescription(event.target.value)}
-                    placeholder="Paste the role's job description"
-                  />
-                  <span className="dx-sub">
-                    Saved to this application when you{" "}
-                    {manual ? "create the document" : "generate"}.
-                  </span>
-                </div>
+                <Textarea
+                  label="Job description"
+                  rows={4}
+                  maxLength={20_000}
+                  value={jobDescription}
+                  onChange={setJobDescription}
+                  placeholder="Paste the role's job description"
+                  description={`Saved to this application when you ${
+                    manual ? "create the document" : "generate"
+                  }.`}
+                />
               </>
             )}
           </section>
@@ -677,26 +677,31 @@ export function NewDocumentDialog({
           </div>
 
           {matchId && (
-            <div className="dx-inline-note" role="status">
-              <Icon name="content_copy" size={16} />
-              <span className="dx-grow">
-                {existingId
-                  ? "A matching document already exists."
-                  : `You already have “${duplicate?.title}”.`}
-              </span>
-              <button
-                type="button"
-                className="dx-button dx-button-sm"
-                onClick={() => onOpenExisting(matchId)}
-              >
-                Open it
-              </button>
-            </div>
+            <Alert variant="info" size="sm" role="status">
+              <Flex align="center" gap={8} wrap="wrap">
+                <Icon name="content_copy" size={16} />
+                <Typography.Text size="compact">
+                  {existingId
+                    ? "A matching document already exists."
+                    : `You already have “${duplicate?.title}”.`}
+                </Typography.Text>
+                <Actions
+                  actions={[
+                    {
+                      id: "open",
+                      label: "Open it",
+                      size: "sm",
+                      onClick: () => onOpenExisting(matchId),
+                    },
+                  ]}
+                />
+              </Flex>
+            </Alert>
           )}
           {error && (
-            <p role="alert" className="dx-error">
+            <Alert variant="error" size="sm" role="alert">
               {error}
-            </p>
+            </Alert>
           )}
         </>
       )}

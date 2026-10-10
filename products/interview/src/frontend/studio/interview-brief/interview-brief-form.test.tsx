@@ -650,10 +650,10 @@ describe("employer said", () => {
 
   it("adds a dated entry with who said it and how", async () => {
     await show();
-    typeIn("ib-said-text", " No AI assistants in live rounds. ");
-    typeIn("ib-said-by", "Sam Reyes");
-    choose("ib-said-channel", "email");
-    typeIn("ib-said-on", "2026-10-28");
+    typeIn("root_said", " No AI assistants in live rounds. ");
+    typeIn("root_saidBy", "Sam Reyes");
+    choose("root_channel", "email");
+    typeIn("root_saidOn", "2026-10-28");
     client.addEmployerSaid.mockResolvedValueOnce(
       brief({ employerSaid: [entry] }),
     );
@@ -668,7 +668,7 @@ describe("employer said", () => {
     expect(screen.getByTestId("ib-said-row")).toHaveTextContent(
       "2026-10-28, Sam Reyes (email): No AI assistants in live rounds.",
     );
-    expect(screen.getByTestId("ib-said-text")).toHaveValue("");
+    expect(screen.getByTestId("root_said")).toHaveValue("");
   });
 
   it("adds an entry with only what was said, and marks one with no date", async () => {
@@ -678,7 +678,7 @@ describe("employer said", () => {
       }),
     );
     expect(screen.getByTestId("ib-said-row")).toHaveTextContent("No date");
-    typeIn("ib-said-text", "Two rounds.");
+    typeIn("root_said", "Two rounds.");
     client.addEmployerSaid.mockResolvedValueOnce(brief());
     click("ib-said-add");
     await settle();
@@ -825,7 +825,7 @@ describe("while a write is in flight", () => {
         release = resolve;
       }),
     );
-    typeIn("ib-said-text", "Two rounds.");
+    typeIn("root_said", "Two rounds.");
     click("ib-said-add");
     await settle();
     expect(screen.getByTestId("ib-form")).toHaveAttribute("aria-busy", "true");

@@ -7,6 +7,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -103,6 +104,164 @@ describe("Knowledge", () => {
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
+  });
+
+  it("hydrates every supported filter and excludes unknown content types", async () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/library?q=state&type=concept-guide&type=invalid&collection=react&tag=hooks&official=true",
+    );
+    render(<Library basePath={base} />);
+    expect(
+      screen.getByRole("searchbox", { name: "Search knowledge" }),
+    ).toHaveValue("state");
+    const card = await screen.findByRole("link", { name: /React state/ });
+    expect(card).toHaveAttribute(
+      "href",
+      "/library/react-state?q=state&type=concept-guide&collection=react&tag=hooks&official=true#ownership",
+    );
+    const searchCall = vi
+      .mocked(fetch)
+      .mock.calls.find(([path]) => String(path).includes("/search"));
+    const parameters = new URL(String(searchCall![0]), "http://localhost")
+      .searchParams;
+    expect(parameters.getAll("type")).toEqual(["concept-guide"]);
+    expect(parameters.get("collection")).toBe("react");
+    expect(parameters.get("tag")).toBe("hooks");
+    expect(parameters.get("official")).toBe("true");
+  });
+
+  it.each(["facets", "search", "items/react-state"])(
+    "reports a failed %s request",
+    async (endpoint) => {
+      vi.mocked(fetch).mockImplementation(async (input) => {
+        const path = String(input);
+        if (path.includes(`/library/${endpoint}`))
+          return response(
+            {
+              error: {
+                message: "Knowledge unavailable",
+                issues: ["Try later"],
+              },
+            },
+            false,
+          );
+        if (path.includes("/facets")) return response(facets);
+        if (path.includes("/search")) return response(searchResponse);
+        return response(article);
+      });
+      render(
+        <Library
+          basePath={base}
+          {...(endpoint.startsWith("items")
+            ? { initialSlug: "react-state" }
+            : {})}
+        />,
+      );
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Knowledge unavailable Try later",
+      );
+    },
+  );
+
+  it("responds to browser navigation into and out of an article", async () => {
+    render(<Library basePath={base} />);
+    await screen.findByRole("heading", {
+      name: "Recently verified and reviewed",
+    });
+    window.history.pushState({}, "", "/library/react-state#ownership");
+    fireEvent.popState(window);
+    expect(
+      await screen.findByRole("heading", { name: "React state", level: 1 }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "← Back to Knowledge" }),
+    ).toBeVisible();
+    window.history.pushState({}, "", "/library");
+    fireEvent.popState(window);
+    expect(
+      await screen.findByRole("heading", {
+        name: "Find the exact answer, fast.",
+      }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("complementary", { name: "On this page" }),
+    ).toBeNull();
+  });
+
+  it("replaces the technology filter while retaining popular tags", async () => {
+    window.history.replaceState({}, "", "/library?tag=hooks&tag=typescript");
+    render(<Library basePath={base} />);
+    await screen.findByRole("link", { name: /React state/ });
+    const technologies = screen.getByRole("navigation", {
+      name: "Filter by technology",
+    });
+    fireEvent.click(
+      within(technologies).getByRole("button", { name: /^React/ }),
+    );
+    expect(
+      within(technologies).getByRole("button", { name: /^React/ }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(
+      within(technologies).getByRole("button", { name: /^TypeScript/ }),
+    ).toHaveAttribute("aria-pressed", "false");
+    await waitFor(() =>
+      expect(window.location.search).toBe("?tag=hooks&tag=react"),
+    );
+    fireEvent.click(within(technologies).getByRole("button", { name: "All" }));
+    await waitFor(() => expect(window.location.search).toBe("?tag=hooks"));
+    expect(
+      within(technologies).getByRole("button", { name: "All" }),
+    ).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("does not steal slash focus while typing", async () => {
+    render(<Library basePath={base} />);
+    const search = screen.getByRole("searchbox", { name: "Search knowledge" });
+    const input = document.createElement("input");
+    document.body.append(input);
+    try {
+      input.focus();
+      fireEvent.keyDown(input, { key: "/" });
+      expect(input).toHaveFocus();
+      expect(search).not.toHaveFocus();
+    } finally {
+      input.remove();
+    }
+    await screen.findByRole("heading", {
+      name: "Recently verified and reviewed",
+    });
+  });
+
+  it.each([
+    { ctrlKey: true },
+    { metaKey: true },
+    { shiftKey: true },
+    { altKey: true },
+    { button: 1 },
+  ])("leaves modified result clicks to the browser (%j)", async (modifier) => {
+    window.history.replaceState({}, "", "/library?q=state");
+    render(<Library basePath={base} />);
+    const card = await screen.findByRole("link", { name: /React state/ });
+    let intercepted: boolean | undefined;
+    const preventNavigation = (event: MouseEvent) => {
+      intercepted = event.defaultPrevented;
+      event.preventDefault();
+    };
+    document.body.addEventListener("click", preventNavigation);
+    try {
+      fireEvent.click(card, modifier);
+    } finally {
+      document.body.removeEventListener("click", preventNavigation);
+    }
+    expect(intercepted).toBe(false);
+    expect(window.location.pathname).toBe("/library");
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(([path]) => String(path).includes("/items/")),
+    ).toBe(false);
   });
 
   it("shows the collection index, then result cards for a search", async () => {
@@ -269,6 +428,75 @@ describe("Knowledge", () => {
     });
     await user.click(screen.getByRole("button", { name: "Filters" }));
     expect(index).toHaveClass("open");
+  });
+
+  it("renders Studio-authored articles without claiming an official source", async () => {
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const path = String(input);
+      if (path.includes("/facets")) return response(facets);
+      if (path.includes("/items/"))
+        return response({ ...article, source: undefined });
+      return response(searchResponse);
+    });
+    render(<Library basePath={base} initialSlug="react-state" />);
+    await screen.findByRole("heading", { name: "React state", level: 1 });
+    expect(
+      screen.getByText("Focused Interview Studio reference"),
+    ).toBeVisible();
+    expect(screen.queryByText("Official source")).toBeNull();
+    expect(
+      screen.queryByRole("link", { name: "Open canonical docs ↗" }),
+    ).toBeNull();
+  });
+
+  it("links adjacent references while preserving filters and removes duplicate article hits", async () => {
+    const previous = {
+      ...hit,
+      itemId: "previous",
+      slug: "react-hooks",
+      title: "Hooks",
+      anchor: "hooks",
+      headingPath: ["Hooks"],
+    };
+    const next = {
+      ...hit,
+      itemId: "next",
+      slug: "react-context",
+      title: "Context",
+      anchor: "providers",
+      headingPath: ["Context", "Providers"],
+    };
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const path = String(input);
+      if (path.includes("/facets")) return response(facets);
+      if (path.includes("/items/")) return response(article);
+      return response({
+        ...searchResponse,
+        hits: [previous, hit, { ...hit, anchor: "other" }, next],
+        total: 4,
+      });
+    });
+    render(<Library basePath={base} initialSlug="react-state" />);
+    const adjacent = await screen.findByRole("navigation", {
+      name: "Adjacent references",
+    });
+    expect(within(adjacent).getAllByRole("link")).toHaveLength(2);
+    expect(
+      within(adjacent).getByRole("link", { name: /Previous\s*Hooks/ }),
+    ).toHaveAttribute("href", "/library/react-hooks");
+    expect(
+      within(adjacent).getByRole("link", { name: /Next\s*Context/ }),
+    ).toHaveAttribute("href", "/library/react-context#providers");
+    fireEvent.change(
+      screen.getByRole("searchbox", { name: "Search knowledge" }),
+      { target: { value: "state" } },
+    );
+    expect(
+      within(adjacent).getByRole("link", { name: /Previous\s*Hooks/ }),
+    ).toHaveAttribute("href", "/library/react-hooks?q=state");
+    expect(
+      within(adjacent).getByRole("link", { name: /Next\s*Context/ }),
+    ).toHaveAttribute("href", "/library/react-context?q=state#providers");
   });
 
   it("renders provenance, the article, and an on-page table of contents", async () => {

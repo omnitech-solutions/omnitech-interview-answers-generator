@@ -235,6 +235,185 @@ describe("Briefings", () => {
     expect(screen.getByText("Preparation pack pack-1")).toBeVisible();
   });
 
+  it("shows the empty list and marks the selected brief or pack", async () => {
+    const { rerender } = render(
+      <BriefingsView
+        rest={[]}
+        actions={actions}
+        lists={{ ...lists, briefings: [], briefs: [] }}
+        onDirtyChange={() => undefined}
+      />,
+    );
+    expect(screen.getByText("Your briefings will appear here.")).toBeVisible();
+    rerender(
+      <BriefingsView
+        rest={["brief", "b1"]}
+        actions={actions}
+        lists={lists}
+        onDirtyChange={() => undefined}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: /How does React re-render/ }),
+    ).toHaveAttribute("aria-current", "page");
+    expect(
+      screen.getByRole("button", { name: /Northwind recruiter/ }),
+    ).not.toHaveAttribute("aria-current");
+    await screen.findByText(/React re-renders on/);
+    rerender(
+      <BriefingsView
+        rest={["pack-1", "draft"]}
+        actions={actions}
+        lists={lists}
+        onDirtyChange={() => undefined}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: /Northwind recruiter/ }),
+    ).toHaveAttribute("aria-current", "page");
+    expect(
+      screen.getByText("Preparation pack pack-1 (drafting)"),
+    ).toBeVisible();
+  });
+
+  it("ignores blank topics and blocks a second build while the first is pending", async () => {
+    let release: (response: Response) => void = () => undefined;
+    vi.mocked(fetch).mockImplementationOnce(
+      () =>
+        new Promise<Response>((resolve) => {
+          release = resolve;
+        }),
+    );
+    view([]);
+    const topic = screen.getByRole("textbox", { name: "Topic" });
+    fireEvent.change(topic, { target: { value: "   " } });
+    expect(
+      screen.getByRole("button", { name: "Build briefing" }),
+    ).toBeDisabled();
+    fireEvent.submit(topic);
+    expect(fetch).not.toHaveBeenCalled();
+    fireEvent.change(topic, { target: { value: "  Explain a cache  " } });
+    fireEvent.click(screen.getByRole("button", { name: "Build briefing" }));
+    expect(screen.getByRole("button", { name: "Building…" })).toBeDisabled();
+    fireEvent.submit(topic);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(
+      JSON.parse(String(vi.mocked(fetch).mock.calls[0]![1]?.body)),
+    ).toEqual({ kind: "concept", topic: "Explain a cache" });
+    await act(async () => release(Response.json(brief)));
+    await waitFor(() => expect(actions.openBrief).toHaveBeenCalledWith("b1"));
+  });
+
+  it("retries a failed build and clears its error", async () => {
+    buildStatus = 502;
+    view([]);
+    fireEvent.change(screen.getByRole("textbox", { name: "Topic" }), {
+      target: { value: "State" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Build briefing" }));
+    await screen.findByRole("alert");
+    expect(actions.openBrief).not.toHaveBeenCalled();
+    expect(lists.refresh).not.toHaveBeenCalled();
+    buildStatus = 200;
+    fireEvent.click(screen.getByRole("button", { name: "Build briefing" }));
+    await waitFor(() => expect(actions.openBrief).toHaveBeenCalledWith("b1"));
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(lists.refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops a late brief response after a different brief is selected", async () => {
+    let release: (response: Response) => void = () => undefined;
+    let signal: AbortSignal | null | undefined;
+    vi.mocked(fetch).mockImplementationOnce((_path, init) => {
+      signal = init?.signal;
+      return new Promise<Response>((resolve) => {
+        release = resolve;
+      });
+    });
+    const { rerender } = view(["brief", "b1"]);
+    expect(screen.getByRole("status")).toHaveTextContent("Loading brief…");
+    rerender(
+      <BriefingsView
+        rest={["brief", "missing"]}
+        actions={actions}
+        lists={lists}
+        onDirtyChange={() => undefined}
+      />,
+    );
+    expect(signal?.aborted).toBe(true);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "This brief couldn’t be loaded.",
+    );
+    await act(async () => release(Response.json(brief)));
+    expect(screen.queryByText(/React re-renders on/)).toBeNull();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "This brief couldn’t be loaded.",
+    );
+  });
+
+  it("collapses an open follow-up when it is clicked again", async () => {
+    view(["brief", "b1"]);
+    await screen.findByText(/React re-renders on/);
+    const question = screen.getByRole("button", {
+      name: "What does memo compare?",
+    });
+    expect(question).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(question);
+    expect(question).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("Props, shallowly.")).toBeNull();
+    fireEvent.click(question);
+    expect(screen.getByText("Props, shallowly.")).toBeVisible();
+  });
+
+  it("shows the empty CLI explanations state", () => {
+    view(["explanations"]);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "No concept explanations have been pushed yet.",
+    );
+    expect(selectionOf(["explanations"])).toEqual({ kind: "explanations" });
+  });
+
+  it("lists CLI explanations and opens the first while later explanations start collapsed", () => {
+    const explanations = [
+      { title: "State ownership", topic: "React", markdown: "Keep one owner." },
+      { title: "Follow-up", topic: "React", markdown: "Lift shared state." },
+    ];
+    const { rerender } = render(
+      <BriefingsView
+        rest={[]}
+        actions={actions}
+        lists={lists}
+        explanations={explanations}
+        onDirtyChange={() => undefined}
+      />,
+    );
+    const entry = screen.getByRole("button", {
+      name: /State ownership.*Concept explanations/,
+    });
+    fireEvent.click(entry);
+    expect(actions.go).toHaveBeenCalledWith("briefings", ["explanations"]);
+    rerender(
+      <BriefingsView
+        rest={["explanations"]}
+        actions={actions}
+        lists={lists}
+        explanations={explanations}
+        onDirtyChange={() => undefined}
+      />,
+    );
+    expect(
+      screen.getByRole("button", {
+        name: /State ownership.*Concept explanations/,
+      }),
+    ).toHaveAttribute("aria-current", "page");
+    const groups = screen.getAllByRole("group");
+    expect(groups).toHaveLength(2);
+    expect(groups[0]).toHaveAttribute("open");
+    expect(groups[1]).not.toHaveAttribute("open");
+    expect(screen.getByText("Keep one owner.")).toBeVisible();
+    expect(screen.getByText("Lift shared state.")).not.toBeVisible();
+  });
+
   it("reads the selection from the path", () => {
     expect(selectionOf([])).toEqual({ kind: "new" });
     expect(selectionOf(["brief", "b1"])).toEqual({ kind: "brief", id: "b1" });
@@ -252,6 +431,26 @@ describe("Briefings", () => {
 });
 
 describe("PracticeTimer", () => {
+  it("pauses and resumes practice without resetting the remaining time", () => {
+    vi.useFakeTimers();
+    const { unmount } = render(<PracticeTimer seconds={10} />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Practise it out loud" }),
+    );
+    act(() => vi.advanceTimersByTime(2000));
+    fireEvent.click(screen.getByRole("button", { name: "Pause practice" }));
+    expect(screen.getByLabelText("Time left")).toHaveTextContent("0:08");
+    act(() => vi.advanceTimersByTime(3000));
+    expect(screen.getByLabelText("Time left")).toHaveTextContent("0:08");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Practise it out loud" }),
+    );
+    act(() => vi.advanceTimersByTime(1000));
+    expect(screen.getByLabelText("Time left")).toHaveTextContent("0:07");
+    unmount();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it("counts down, stops at zero and starts again", () => {
     vi.useFakeTimers();
     render(<PracticeTimer seconds={3} />);

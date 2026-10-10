@@ -6,19 +6,34 @@
 //
 // [SAFETY] Each line of help says what the flag really does and when a change
 // takes hold; the words are the registry's, so they cannot drift from it.
-import { Divider, Select } from "@oc-tech/omni-ui-components";
+//
+// [STRATEGY] The section is a declared form (behaviour-flags-form.ts): its
+// schema, its help and its read-only state are all read from the registry and
+// drawn by the library's DynamicForm. A new flag needs no code here.
+import { Divider } from "@oc-tech/omni-ui-components";
+import { DynamicForm } from "@oc-tech/omni-ui-components/dynamic-form";
 import {
-  BEHAVIOUR_FLAGS,
-  type BehaviourFlagDefinition,
   type BehaviourFlagState,
   behaviourFlagsResponseSchema,
 } from "@omnitech/interview-contracts";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { formParser } from "../../../shared/contract-form";
 import { TENANT_HEADER } from "../../../studio-fetch";
+import {
+  behaviourFlagsSchema,
+  behaviourFlagsUiSchema,
+  behaviourFlagsValues,
+  changedFlag,
+  toFlagValues,
+} from "./behaviour-flags-form";
 import { windowTenant } from "./use-account";
 
+export { flagHelp, NOT_SAVED } from "./behaviour-flags-form";
+
 const ENDPOINT = "/api/v1/behaviour-flags";
-export const NOT_SAVED = "Not saved. Try again.";
+// The registry does not change while the app runs: read once.
+const SCHEMA = behaviourFlagsSchema();
+const VALUES = formParser(behaviourFlagsValues());
 
 const stateOf = async (response: Response) =>
   response.ok
@@ -30,12 +45,15 @@ const stateOf = async (response: Response) =>
 export function useBehaviourFlags(): {
   flags: readonly BehaviourFlagState[] | null;
   failed: string | null;
+  // How many changes have not saved, so the form can be drawn again.
+  failures: number;
   choose(key: string, value: string): Promise<void>;
 } {
   const [flags, setFlags] = useState<readonly BehaviourFlagState[] | null>(
     null,
   );
   const [failed, setFailed] = useState<string | null>(null);
+  const [failures, setFailures] = useState(0);
   useEffect(() => {
     let live = true;
     fetch(ENDPOINT, { headers: { [TENANT_HEADER]: windowTenant() } })
@@ -49,6 +67,10 @@ export function useBehaviourFlags(): {
     };
   }, []);
   const choose = useCallback(async (key: string, value: string) => {
+    const refused = () => {
+      setFailed(key);
+      setFailures((count) => count + 1);
+    };
     setFailed(null);
     try {
       const next = await stateOf(
@@ -62,51 +84,40 @@ export function useBehaviourFlags(): {
         }),
       );
       if (next) setFlags(next);
-      else setFailed(key);
+      else refused();
     } catch {
-      setFailed(key);
+      refused();
     }
   }, []);
-  return { flags, failed, choose };
+  return { flags, failed, failures, choose };
 }
 
-// What stands under a flag: who set it, when the host did, then what it does.
-export const flagHelp = (
-  flag: BehaviourFlagDefinition,
-  state: BehaviourFlagState,
-): string =>
-  state.source === "environment"
-    ? `Set by the environment (${flag.env}); change it there. ${flag.help}`
-    : flag.help;
-
 export function BehaviourFlagsSetting() {
-  const { flags, failed, choose } = useBehaviourFlags();
-  if (!flags) return null;
+  const { flags, failed, failures, choose } = useBehaviourFlags();
+  const values = useMemo(() => (flags ? toFlagValues(flags) : null), [flags]);
+  const uiSchema = useMemo(
+    () => (flags ? behaviourFlagsUiSchema(flags, failed) : null),
+    [flags, failed],
+  );
+  if (!values || !uiSchema) return null;
   return (
     <>
       <Divider>Behaviour</Divider>
-      {BEHAVIOUR_FLAGS.map((flag) => {
-        const state = flags.find((each) => each.key === flag.env);
-        if (!state) return null;
-        return (
-          <Select
-            key={flag.env}
-            label={flag.label}
-            description={flagHelp(flag, state)}
-            data-testid={`pn-flag-${flag.env}`}
-            value={state.value}
-            disabled={state.source === "environment"}
-            {...(failed === flag.env ? { error: NOT_SAVED } : {})}
-            onChange={(value) => void choose(flag.env, value)}
-            options={flag.values.map((value) => ({
-              value,
-              label:
-                (flag.options as Readonly<Record<string, string>>)[value] ??
-                value,
-            }))}
-          />
-        );
-      })}
+      {/* A change is saved as it is made (no Save button). The form holds what
+          was chosen, so after a change that did not save it is drawn again
+          from what the Studio still holds. */}
+      <DynamicForm
+        key={failures}
+        schema={SCHEMA}
+        uiSchema={uiSchema}
+        zodSchema={VALUES}
+        formData={values}
+        onChange={(next) => {
+          const change = changedFlag(values, next);
+          if (change) void choose(change.key, change.value);
+        }}
+        onSubmit={() => undefined}
+      />
     </>
   );
 }

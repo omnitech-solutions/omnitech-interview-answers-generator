@@ -1,5 +1,20 @@
 "use client";
 
+import {
+  Alert,
+  Button,
+  Empty,
+  FileUpload,
+  Flex,
+  IconButton,
+  Input,
+  Panel,
+  SegmentedPrimitive,
+  Table,
+  Tag,
+  Textarea,
+  Typography,
+} from "@oc-tech/omni-ui-components";
 import type {
   DocumentField,
   DocumentFormat,
@@ -22,13 +37,7 @@ import {
   relativeTime,
   templateUsage,
 } from "./documents-model";
-import {
-  IconButton,
-  Modal,
-  message,
-  PageHeader,
-  Segmented,
-} from "./documents-ui";
+import { Actions, Modal, message, PageHeader } from "./documents-ui";
 
 const KINDS = (Object.keys(KIND_LABEL) as DocumentTemplateKind[]).map((id) => ({
   id,
@@ -55,95 +64,98 @@ export function TemplateLibrary({
   const [uploading, setUploading] = useState(false);
   const selected = templates.find((item) => item.template.id === selectedId);
   return (
-    <div className="dx-split">
-      <div className="dx-scroll">
-        <div className="dx-page">
-          <PageHeader
-            title="Documents"
-            description="A template is a .docx or .md file with {placeholders}. The fields are read from it, so there’s no schema to maintain."
-            tabs={tabs}
-            action={
-              <button
-                type="button"
-                className="dx-button dx-button-lg"
-                onClick={() => setUploading(true)}
-              >
-                <Icon name="upload" />
-                Upload template
-              </button>
-            }
-          />
-          {/* biome-ignore lint/a11y/useSemanticElements: the grid is laid out with CSS on divs and spans; table elements would change the layout, and the roles carry the table semantics */}
-          <div className="dx-card" role="table" aria-label="Templates">
-            {/* biome-ignore lint/a11y/useFocusableInteractive: a static header of a read-only table: nothing to operate, so it takes no focus */}
-            {/* biome-ignore lint/a11y/useSemanticElements: the grid is laid out with CSS on divs and spans; table elements would change the layout, and the roles carry the table semantics */}
-            <div className="dx-table-row dx-table-head" role="row">
-              {/* biome-ignore lint/a11y/useSemanticElements: the grid is laid out with CSS on divs and spans; table elements would change the layout, and the roles carry the table semantics */}
-              {/* biome-ignore lint/a11y/useFocusableInteractive: a static header of a read-only table: nothing to operate, so it takes no focus */}
-              <span role="columnheader">TEMPLATE</span>
-              {/* biome-ignore lint/a11y/useSemanticElements: the grid is laid out with CSS on divs and spans; table elements would change the layout, and the roles carry the table semantics */}
-              {/* biome-ignore lint/a11y/useFocusableInteractive: a static header of a read-only table: nothing to operate, so it takes no focus */}
-              <span role="columnheader">KIND</span>
-              {/* biome-ignore lint/a11y/useSemanticElements: the grid is laid out with CSS on divs and spans; table elements would change the layout, and the roles carry the table semantics */}
-              {/* biome-ignore lint/a11y/useFocusableInteractive: a static header of a read-only table: nothing to operate, so it takes no focus */}
-              <span role="columnheader">FORMAT</span>
-              {/* biome-ignore lint/a11y/useSemanticElements: the grid is laid out with CSS on divs and spans; table elements would change the layout, and the roles carry the table semantics */}
-              {/* biome-ignore lint/a11y/useFocusableInteractive: a static header of a read-only table: nothing to operate, so it takes no focus */}
-              <span role="columnheader">FIELDS</span>
-              {/* biome-ignore lint/a11y/useSemanticElements: the grid is laid out with CSS on divs and spans; table elements would change the layout, and the roles carry the table semantics */}
-              {/* biome-ignore lint/a11y/useFocusableInteractive: a static header of a read-only table: nothing to operate, so it takes no focus */}
-              <span role="columnheader">USED BY</span>
-            </div>
-            {templates.length === 0 && (
-              <div className="dx-empty-row">
-                No templates yet. Upload a .docx or .md file to add one.
-              </div>
-            )}
-            {templates.map((item) => {
-              const used = templateUsage(documents, item);
-              return (
-                // biome-ignore lint/a11y/useSemanticElements: the grid is laid out with CSS on divs and spans; table elements would change the layout, and the roles carry the table semantics
-                <button
-                  key={item.template.id}
-                  type="button"
-                  role="row"
-                  className="dx-table-row dx-table-body"
-                  data-selected={item.template.id === selectedId}
-                  onClick={() => onSelect(item.template.id)}
-                >
-                  {/* biome-ignore lint/a11y/useSemanticElements: the grid is laid out with CSS on divs and spans; table elements would change the layout, and the roles carry the table semantics */}
-                  <span className="dx-cell-name" role="cell">
+    <Flex style={{ height: "100%", minHeight: 0 }}>
+      <Flex
+        vertical
+        gap={16}
+        style={{ flex: "1 1 0", minWidth: 0, padding: 16, overflow: "auto" }}
+      >
+        <PageHeader
+          title="Documents"
+          description="A template is a .docx or .md file with {placeholders}. The fields are read from it, so there’s no schema to maintain."
+          tabs={tabs}
+          action={
+            <Button
+              type="button"
+              variant="outline"
+              buttonSize="lg"
+              icon={<Icon name="upload" />}
+              onClick={() => setUploading(true)}
+            >
+              Upload template
+            </Button>
+          }
+        />
+        {templates.length === 0 ? (
+          <Empty description="No templates yet. Upload a .docx or .md file to add one." />
+        ) : (
+          <Table<TemplateListItem>
+            aria-label="Templates"
+            pagination={false}
+            rowKey={(item) => item.template.id}
+            dataSource={[...templates]}
+            columns={[
+              {
+                key: "template",
+                title: "TEMPLATE",
+                render: (_, item) => (
+                  <Flex align="center" gap={8}>
                     <Icon name={KIND_ICON[item.template.kind]} size={20} />
-                    <span className="dx-cell-text">
-                      <span className="dx-row-title">{item.template.name}</span>
-                      <span className="dx-sub">
+                    <Flex vertical>
+                      <Typography.Text>{item.template.name}</Typography.Text>
+                      <Typography.Text type="secondary" size="compact">
                         {item.template.ownerUserId ? "You" : "Built-in"} · rev{" "}
                         {item.latestRevision}
-                      </span>
-                    </span>
-                  </span>
-                  {/* biome-ignore lint/a11y/useSemanticElements: the grid is laid out with CSS on divs and spans; table elements would change the layout, and the roles carry the table semantics */}
-                  <span className="dx-muted" role="cell">
+                      </Typography.Text>
+                    </Flex>
+                  </Flex>
+                ),
+              },
+              {
+                key: "kind",
+                title: "KIND",
+                render: (_, item) => (
+                  <Typography.Text type="secondary">
                     {KIND_LABEL[item.template.kind]}
-                  </span>
-                  {/* biome-ignore lint/a11y/useSemanticElements: the grid is laid out with CSS on divs and spans; table elements would change the layout, and the roles carry the table semantics */}
-                  <span className="dx-mono dx-muted" role="cell">
+                  </Typography.Text>
+                ),
+              },
+              {
+                key: "format",
+                title: "FORMAT",
+                render: (_, item) => (
+                  <Typography.Text type="secondary">
                     {item.template.format.toUpperCase()}
-                  </span>
-                  {/* biome-ignore lint/a11y/useSemanticElements: the grid is laid out with CSS on divs and spans; table elements would change the layout, and the roles carry the table semantics */}
-                  <span className="dx-mono" role="cell">
-                    {item.fieldCount}
-                  </span>
-                  {/* biome-ignore lint/a11y/useSemanticElements: the grid is laid out with CSS on divs and spans; table elements would change the layout, and the roles carry the table semantics */}
-                  <span className="dx-muted" role="cell">
-                    {used ? `${used} doc${used > 1 ? "s" : ""}` : "—"}
-                  </span>
-                </button>
-              );
+                  </Typography.Text>
+                ),
+              },
+              {
+                key: "fields",
+                title: "FIELDS",
+                render: (_, item) => (
+                  <Typography.Text>{item.fieldCount}</Typography.Text>
+                ),
+              },
+              {
+                key: "used",
+                title: "USED BY",
+                render: (_, item) => {
+                  const used = templateUsage(documents, item);
+                  return (
+                    <Typography.Text type="secondary">
+                      {used ? `${used} doc${used > 1 ? "s" : ""}` : "—"}
+                    </Typography.Text>
+                  );
+                },
+              },
+            ]}
+            onRow={(item) => ({
+              onClick: () => onSelect(item.template.id),
+              "aria-selected": item.template.id === selectedId,
             })}
-          </div>
-        </div>
-      </div>
+          />
+        )}
+      </Flex>
       {selected && (
         <TemplateDrawer
           key={selected.template.id}
@@ -165,7 +177,7 @@ export function TemplateLibrary({
           }}
         />
       )}
-    </div>
+    </Flex>
   );
 }
 
@@ -226,40 +238,54 @@ function TemplateDrawer({
   const current = detail?.revision.revision ?? latestRevision;
 
   return (
-    <aside className="dx-drawer" aria-label={`${template.name} details`}>
-      <div className="dx-drawer-head">
-        <span className="dx-grow dx-ellipsis">{template.name}</span>
-        <IconButton icon="close" label="Close details" onClick={onClose} />
-      </div>
-      <div className="dx-drawer-body">
-        <div className="dx-stack">
-          <div className="dx-eyebrow">SOURCE FILE</div>
-          <div className="dx-file">
+    <Panel
+      as="aside"
+      title={template.name}
+      aria-label={`${template.name} details`}
+      width={420}
+      bodyPadding="md"
+      actions={
+        <IconButton
+          variant="ghost"
+          icon={<Icon name="close" />}
+          label="Close details"
+          onClick={onClose}
+        />
+      }
+    >
+      <Flex vertical gap={20}>
+        <Flex vertical gap={8} align="start">
+          <Typography.Text type="secondary" size="compact">
+            SOURCE FILE
+          </Typography.Text>
+          <Flex align="center" gap={8}>
             <Icon name={KIND_ICON[template.kind]} />
-            <div className="dx-grow">
-              <div className="dx-mono dx-ellipsis">
+            <Flex vertical>
+              <Typography.Text>
                 {template.format.toUpperCase()} source
-              </div>
-              <div className="dx-sub">
+              </Typography.Text>
+              <Typography.Text type="secondary" size="compact">
                 Rev {latestRevision}
                 {item.revisions[0]
                   ? ` · ${relativeTime(item.revisions[0].createdAt)}`
                   : ""}{" "}
                 · stored as an artifact
-              </div>
-            </div>
-          </div>
+              </Typography.Text>
+            </Flex>
+          </Flex>
           {mine ? (
             <>
-              <button
+              <Button
                 type="button"
-                className="dx-button dx-button-sm dx-self-start"
+                variant="outline"
+                buttonSize="sm"
+                icon={<Icon name="upload" size={16} />}
                 disabled={busy || !detail}
                 onClick={() => picker.current?.click()}
               >
-                <Icon name="upload" size={16} />
                 Upload new version
-              </button>
+              </Button>
+              {/* The library has no compact file-picker button: the hidden input stays. */}
               <input
                 ref={picker}
                 type="file"
@@ -295,118 +321,132 @@ function TemplateDrawer({
               />
             </>
           ) : (
-            <div className="dx-inline-note">
-              <span className="dx-grow">Built-in templates are read-only.</span>
-              <button
-                type="button"
-                className="dx-button dx-button-sm"
-                disabled={busy}
-                onClick={() =>
-                  void run(async () => {
-                    const copy = await postJson<{ template: { id: string } }>(
-                      `/templates/${encodeURIComponent(template.id)}/duplicate`,
-                      { name: `${template.name} (copy)` },
-                    );
-                    onChanged();
-                    onSelect(copy.template.id);
-                    notify("Duplicated — you can edit this one");
-                  })
-                }
-              >
-                Duplicate to customize
-              </button>
-            </div>
+            <Alert variant="info" size="sm">
+              <Flex align="center" gap={8} wrap="wrap">
+                <Typography.Text size="compact">
+                  Built-in templates are read-only.
+                </Typography.Text>
+                <Actions
+                  actions={[
+                    {
+                      id: "duplicate",
+                      label: "Duplicate to customize",
+                      size: "sm",
+                      disabled: busy,
+                      onClick: () =>
+                        void run(async () => {
+                          const copy = await postJson<{
+                            template: { id: string };
+                          }>(
+                            `/templates/${encodeURIComponent(template.id)}/duplicate`,
+                            { name: `${template.name} (copy)` },
+                          );
+                          onChanged();
+                          onSelect(copy.template.id);
+                          notify("Duplicated — you can edit this one");
+                        }),
+                    },
+                  ]}
+                />
+              </Flex>
+            </Alert>
           )}
-        </div>
+        </Flex>
 
-        <div className="dx-stack">
-          <div className="dx-eyebrow-row">
-            <span className="dx-eyebrow dx-grow">
+        <Flex vertical gap={8}>
+          <Flex justify="space-between">
+            <Typography.Text type="secondary" size="compact">
               FIELDS READ FROM THE FILE
-            </span>
-            <span className="dx-mono dx-muted">
+            </Typography.Text>
+            <Typography.Text type="secondary" size="compact">
               {detail?.fields.length ?? item.fieldCount} fields
-            </span>
-          </div>
+            </Typography.Text>
+          </Flex>
           {groupFields(detail?.fields ?? []).map((group) => (
-            <div key={group.id} className="dx-field-group">
-              <div className="dx-field-group-head">
-                <span className="dx-grow">{group.title}</span>
-                <span className="dx-mono dx-muted">{group.fields.length}</span>
-              </div>
-              <div className="dx-chips">
+            <Flex key={group.id} vertical gap={4}>
+              <Flex justify="space-between">
+                <Typography.Text>{group.title}</Typography.Text>
+                <Typography.Text type="secondary" size="compact">
+                  {group.fields.length}
+                </Typography.Text>
+              </Flex>
+              <Flex wrap="wrap" gap={4}>
                 {group.fields.map((field) => (
-                  <span key={field.key} className="dx-chip">
+                  <Tag key={field.key} mono>
                     {`{${field.key}}`}
-                  </span>
+                  </Tag>
                 ))}
-              </div>
-            </div>
+              </Flex>
+            </Flex>
           ))}
-        </div>
+        </Flex>
 
-        <div className="dx-stack">
-          <label className="dx-eyebrow" htmlFor="template-instructions">
-            GENERATION INSTRUCTIONS
-          </label>
-          <textarea
-            id="template-instructions"
-            className="dx-textarea"
+        <Flex vertical gap={8}>
+          <Textarea
+            label="GENERATION INSTRUCTIONS"
             rows={9}
             maxLength={16_000}
             value={draft}
             readOnly={!mine}
-            data-readonly={!mine}
-            onChange={(event) => setInstructions(event.target.value)}
+            onChange={setInstructions}
           />
-          <div className="dx-eyebrow-row">
-            <span className="dx-grow dx-sub">
+          <Flex align="center" gap={8} justify="space-between">
+            <Typography.Text type="secondary" size="compact">
               {mine
                 ? "Changes create a new template revision. Existing documents keep the revision they were built from."
                 : "Sent with the field list to the model, a few calls at a time."}
-            </span>
+            </Typography.Text>
             {dirty && (
-              <button
-                type="button"
-                className="dx-button dx-button-primary dx-button-sm"
-                disabled={busy}
-                onClick={() =>
-                  void run(async () => {
-                    await postJson(
-                      `/templates/${encodeURIComponent(template.id)}/instructions`,
-                      { expectedRevision: current, instructions: draft },
-                    );
-                    setInstructions(null);
-                    onChanged();
-                    notify(`${template.name} saved as rev ${current + 1}`);
-                  })
-                }
-              >
-                Save as rev {current + 1}
-              </button>
+              <Actions
+                actions={[
+                  {
+                    id: "save",
+                    label: `Save as rev ${current + 1}`,
+                    variant: "default",
+                    size: "sm",
+                    disabled: busy,
+                    onClick: () =>
+                      void run(async () => {
+                        await postJson(
+                          `/templates/${encodeURIComponent(template.id)}/instructions`,
+                          { expectedRevision: current, instructions: draft },
+                        );
+                        setInstructions(null);
+                        onChanged();
+                        notify(`${template.name} saved as rev ${current + 1}`);
+                      }),
+                  },
+                ]}
+              />
             )}
-          </div>
-        </div>
+          </Flex>
+        </Flex>
 
-        <div className="dx-stack">
-          <div className="dx-eyebrow">REVISIONS</div>
+        <Flex vertical gap={8}>
+          <Typography.Text type="secondary" size="compact">
+            REVISIONS
+          </Typography.Text>
           {item.revisions.map((entry) => (
-            <div key={entry.revision} className="dx-revision-line">
-              <span className="dx-mono dx-muted">rev {entry.revision}</span>
-              <span className="dx-grow">
+            <Flex key={entry.revision} align="center" gap={8}>
+              <Typography.Text type="secondary" size="compact">
+                rev {entry.revision}
+              </Typography.Text>
+              <Typography.Text style={{ flex: 1 }}>
                 {entry.revision === latestRevision ? "Current" : "Earlier"}
-              </span>
-              <span className="dx-faint">{relativeTime(entry.createdAt)}</span>
-            </div>
+              </Typography.Text>
+              <Typography.Text type="secondary" size="compact">
+                {relativeTime(entry.createdAt)}
+              </Typography.Text>
+            </Flex>
           ))}
-        </div>
+        </Flex>
         {error && (
-          <p role="alert" className="dx-error">
+          <Alert variant="error" size="sm" role="alert">
             {error}
-          </p>
+          </Alert>
         )}
-      </div>
-    </aside>
+      </Flex>
+    </Panel>
   );
 }
 
@@ -422,7 +462,6 @@ function UploadDialog({
   onClose(): void;
   onSaved(templateId: string, fieldCount: number): void;
 }) {
-  const picker = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [found, setFound] = useState<DocumentField[] | null>(null);
   const [name, setName] = useState("");
@@ -434,8 +473,10 @@ function UploadDialog({
 
   async function choose(next: File | undefined) {
     setFound(null);
-    setError("");
+    // No file means the picker refused one and has already said why
+    // (`onError`): that message stays.
     if (!next) return;
+    setError("");
     const nextFormat = formatOf(next);
     if (!nextFormat) {
       setFile(null);
@@ -487,124 +528,94 @@ function UploadDialog({
       width={560}
       onClose={onClose}
       footer={
-        <>
-          <button type="button" className="dx-button" onClick={onClose}>
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="dx-button dx-button-primary"
-            disabled={busy || !found}
-            onClick={() => void save()}
-          >
-            Save template
-          </button>
-        </>
+        <Actions
+          actions={[
+            { id: "cancel", label: "Cancel", onClick: onClose },
+            {
+              id: "save",
+              label: "Save template",
+              variant: "default",
+              disabled: busy || !found,
+              onClick: () => void save(),
+            },
+          ]}
+        />
       }
     >
-      <input
-        ref={picker}
-        type="file"
-        hidden
-        aria-label="Template file"
-        accept=".docx,.md"
-        onChange={(event) => {
-          const next = event.target.files?.[0];
-          event.target.value = "";
-          void choose(next);
-        }}
-      />
       {!file && (
-        <button
-          type="button"
-          className="dx-dropzone"
-          onClick={() => picker.current?.click()}
-        >
-          <Icon name="upload_file" size={26} />
-          <span className="dx-row-title">Choose a .docx or .md file</span>
-          <span className="dx-sub">
-            Write placeholders like {"{company_name}"} or {"{opening_summary}"}
-          </span>
-        </button>
+        <FileUpload
+          aria-label="Template file"
+          accept=".docx,.md"
+          value={null}
+          onChange={(files) => void choose(files[0])}
+          onError={() => setError("Choose a .docx or .md file.")}
+        />
       )}
       {file && (
         <>
-          <div className="dx-file">
+          <Flex align="center" gap={8}>
             <Icon name="article" />
-            <span className="dx-grow dx-mono">{file.name}</span>
+            <Typography.Text style={{ flex: 1 }}>{file.name}</Typography.Text>
             {found ? (
-              <span className="dx-ok">
+              <Typography.Text type="success" size="compact">
                 <Icon name="check" size={15} />
                 {found.length} fields found
-              </span>
+              </Typography.Text>
             ) : (
-              <span className="dx-sub" role="status">
+              <Typography.Text type="secondary" size="compact" role="status">
                 Reading placeholders…
-              </span>
+              </Typography.Text>
             )}
-          </div>
+          </Flex>
           {found && (
             <>
-              <div className="dx-chips">
+              <Flex wrap="wrap" gap={4}>
                 {found.map((field) => {
                   const auto =
                     field.source === "candidacy" ||
                     field.source === "interview";
                   return (
-                    <span
-                      key={field.key}
-                      className="dx-chip dx-chip-lg"
-                      data-auto={auto}
-                    >
+                    <Tag key={field.key} mono>
                       {`{${field.key}}`}
-                      {auto && (
-                        <span className="dx-chip-note">· from candidacy</span>
-                      )}
-                    </span>
+                      {auto ? " · from candidacy" : ""}
+                    </Tag>
                   );
                 })}
-              </div>
-              <p className="dx-sub">
+              </Flex>
+              <Typography.Paragraph type="secondary" size="compact">
                 Fields named like candidacy details (company, role, stage) are
                 filled in for you. The model only writes the rest.
-              </p>
-              <label className="dx-label">
-                Name
-                <input
-                  className="dx-input"
-                  value={name}
-                  maxLength={200}
-                  onChange={(event) => setName(event.target.value)}
-                />
-              </label>
-              <div className="dx-label">
-                Kind
-                <Segmented<DocumentTemplateKind>
-                  label="Template kind"
-                  variant="filter"
-                  options={KINDS}
-                  value={kind}
-                  onChange={setKind}
-                />
-              </div>
-              <label className="dx-label">
-                Generation instructions
-                <textarea
-                  className="dx-textarea"
-                  rows={4}
-                  maxLength={16_000}
-                  value={instructions}
-                  onChange={(event) => setInstructions(event.target.value)}
-                />
-              </label>
+              </Typography.Paragraph>
+              <Input
+                label="Name"
+                value={name}
+                maxLength={200}
+                onChange={setName}
+              />
+              <SegmentedPrimitive
+                aria-label="Template kind"
+                options={KINDS.map((entry) => ({
+                  value: entry.id,
+                  label: entry.label,
+                }))}
+                value={kind}
+                onChange={(next) => setKind(next as DocumentTemplateKind)}
+              />
+              <Textarea
+                label="Generation instructions"
+                rows={4}
+                maxLength={16_000}
+                value={instructions}
+                onChange={setInstructions}
+              />
             </>
           )}
         </>
       )}
       {error && (
-        <p role="alert" className="dx-error">
+        <Alert variant="error" size="sm" role="alert">
           {error}
-        </p>
+        </Alert>
       )}
     </Modal>
   );

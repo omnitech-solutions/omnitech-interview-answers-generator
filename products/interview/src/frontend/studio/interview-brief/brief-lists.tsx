@@ -11,28 +11,33 @@ import {
   CardTitle,
   FileUpload,
   Flex,
+  FormActions,
   Input,
   Popconfirm,
-  Select,
   Tag,
   Textarea,
   Typography,
 } from "@oc-tech/omni-ui-components";
+import { DynamicForm } from "@oc-tech/omni-ui-components/dynamic-form";
 import {
-  EMPLOYER_SAID_CHANNELS,
   type EmployerSaidInput,
   employerSaidLine,
   INTERVIEW_BRIEF_BOUNDS,
 } from "@omnitech/interview-contracts";
 import { type ReactNode, useState } from "react";
+import { z } from "zod";
+import { formParser } from "../shared/contract-form";
+import {
+  employerSaidFormSchema,
+  employerSaidUiSchema,
+  emptyEmployerSaid,
+  toEmployerSaidInput,
+} from "./employer-said-form";
 
-const CHANNEL_LABEL: Record<(typeof EMPLOYER_SAID_CHANNELS)[number], string> = {
-  email: "Email",
-  call: "Call",
-  message: "Message",
-  other: "Other",
-};
-const NO_CHANNEL = "none";
+// The form holds an empty text where the contract has an absent field, so its
+// own gate takes any record; `toEmployerSaidInput` is the contract's reading.
+const SAID_PARSER = formParser(z.record(z.string(), z.unknown()));
+const EMPTY_SAID = emptyEmployerSaid();
 
 export type SaidRow = EmployerSaidInput & { id: string };
 
@@ -100,23 +105,16 @@ export function EmployerSaidList({
   onAdd(entry: EmployerSaidInput): void;
   onRemove(id: string): void;
 }) {
-  const [said, setSaid] = useState("");
-  const [saidBy, setSaidBy] = useState("");
-  const [channel, setChannel] = useState(NO_CHANNEL);
-  const [saidOn, setSaidOn] = useState("");
-  const add = () => {
-    onAdd({
-      said: said.trim(),
-      ...(saidBy.trim() ? { saidBy: saidBy.trim() } : {}),
-      ...(channel !== NO_CHANNEL
-        ? { channel: channel as EmployerSaidInput["channel"] }
-        : {}),
-      ...(saidOn ? { saidOn } : {}),
-    });
-    setSaid("");
-    setSaidBy("");
-    setChannel(NO_CHANNEL);
-    setSaidOn("");
+  // What the form holds decides whether Add can be pressed; a count remounts
+  // the form empty once an entry is added.
+  const [draft, setDraft] = useState(emptyEmployerSaid);
+  const [added, setAdded] = useState(0);
+  const add = (values: unknown) => {
+    const entry = toEmployerSaidInput(values);
+    if (!entry) return;
+    onAdd(entry);
+    setDraft(emptyEmployerSaid());
+    setAdded((count) => count + 1);
   };
   return (
     <Card data-testid="ib-said">
@@ -151,55 +149,28 @@ export function EmployerSaidList({
               {!entry.saidOn && <Tag>No date</Tag>}
             </Row>
           ))}
-          <Textarea
-            label="What was said"
-            rows={3}
-            maxLength={INTERVIEW_BRIEF_BOUNDS.employerSaidChars}
-            value={said}
-            onChange={setSaid}
+          <DynamicForm
+            key={added}
+            schema={employerSaidFormSchema}
+            uiSchema={employerSaidUiSchema}
+            zodSchema={SAID_PARSER}
+            formData={EMPTY_SAID}
             disabled={disabled}
-            data-testid="ib-said-text"
-          />
-          <Flex gap={8} wrap="wrap" align="end">
-            <Input
-              label="Who said it"
-              value={saidBy}
-              onChange={setSaidBy}
-              disabled={disabled}
-              data-testid="ib-said-by"
-            />
-            <Select
-              label="How"
-              value={channel}
-              onChange={setChannel}
-              disabled={disabled}
-              options={[
-                { value: NO_CHANNEL, label: "Not said" },
-                ...EMPLOYER_SAID_CHANNELS.map((value) => ({
-                  value,
-                  label: CHANNEL_LABEL[value],
-                })),
-              ]}
-              data-testid="ib-said-channel"
-            />
-            <Input
-              label="When"
-              type="date"
-              value={saidOn}
-              onChange={setSaidOn}
-              disabled={disabled}
-              data-testid="ib-said-on"
-            />
-            <Button
-              buttonSize="sm"
-              variant="outline"
-              disabled={disabled || said.trim() === ""}
-              onClick={add}
-              data-testid="ib-said-add"
-            >
-              Add entry
-            </Button>
-          </Flex>
+            onChange={setDraft}
+            onSubmit={add}
+          >
+            <FormActions divider={false} align="start">
+              <Button
+                type="submit"
+                buttonSize="sm"
+                variant="outline"
+                disabled={disabled || toEmployerSaidInput(draft) === null}
+                data-testid="ib-said-add"
+              >
+                Add entry
+              </Button>
+            </FormActions>
+          </DynamicForm>
         </Flex>
       </CardContent>
     </Card>
