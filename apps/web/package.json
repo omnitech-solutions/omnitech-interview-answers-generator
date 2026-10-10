@@ -22,6 +22,7 @@
     "@omnitech-assistant/storage-postgres": "file:../../vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz",
     "@omnitech/ai-engine": "0.1.0",
     "@omnitech/database": "workspace:*",
+    "@omnitech/logging": "workspace:*",
     "@omnitech/platform-api": "workspace:*",
     "@omnitech/platform-contracts": "workspace:*",
     "@omnitech/platform-integrations": "workspace:*",
