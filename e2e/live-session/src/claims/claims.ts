@@ -2287,6 +2287,15 @@ NATIVE_CLAIMS.push(
       "server",
       "the flag is saved and the coach's next call continues or opens a session accordingly",
     ],
+    [
+      "native.settings.coach-grounding",
+      "settings",
+      "button",
+      "Coach keeps to your record and your notes",
+      "Switches whether a note keeps to the facts it was given and each claim is checked against the fact it cites",
+      "server",
+      "the flag is saved and the coach's next call is built with or without the grounding rules; off is the coach as it was",
+    ],
   ]),
 );
 
