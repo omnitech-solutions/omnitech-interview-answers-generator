@@ -2,4 +2,4 @@
 
 _Source: `products/interview/src/backend/documents/context.ts` (header-comment fallback)_
 
-"Calgary, AB" is a city and a province.
+The fields that hold contact details: the document's, never a prompt's.

@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  type EmployerSaidInput,
+  employerSaidInputSchema,
+  employerSaidLine,
+} from "./interview-brief";
 
 const id = z.string().trim().min(1).max(256);
 const text = z.string().max(32_000);
@@ -74,6 +79,9 @@ export const candidateMatrixSchema = z.looseObject({
 });
 export type CandidateMatrix = z.infer<typeof candidateMatrixSchema>;
 
+// A briefing pack's research, as a document: a title and its text.
+export type BriefingResearchDocument = { title: string; text: string };
+
 export const briefingContextSchema = z.strictObject({
   company: word,
   role: word,
@@ -84,8 +92,16 @@ export const briefingContextSchema = z.strictObject({
   interviewerTitle: word.optional(),
   durationMinutes: z.number().int().min(5).max(480).optional(),
   jobDescription: text.optional(),
+  // [DOMAIN] What the employer or a recruiter told the person, as dated
+  // entries (who said it, how, when). `employerNotes` is the same entries as
+  // one text, kept beside them for every reader that takes text: a pack saved
+  // before the list existed has only the text, and reads as one undated entry
+  // (briefingEmployerSaid).
+  employerSaid: z.array(employerSaidInputSchema).max(40).optional(),
   employerNotes: text.optional(),
   // What the person found out: interviewer background, candidate reports.
+  // One text here (the condensed copy below is made from it); read as one
+  // research document by briefingResearchDocuments.
   research: text.optional(),
   // A model-condensed copy of the two long fields above, for what reads the
   // pack on every turn (the assistant). The originals stay exactly as pasted;
@@ -410,4 +426,33 @@ export function briefingCategoryOf(
   )
     return "delivery";
   return "background";
+}
+
+// [DOMAIN] The carry-over of the briefing form's two old texts. A pack saved
+// with the list of what the employer said reads it; one saved before reads its
+// single "employer notes" text as ONE entry with no date. The pack's research
+// is one text and reads as ONE document. Nothing typed is lost, and nothing is
+// rewritten until the person saves again.
+export function briefingEmployerSaid(context: {
+  employerSaid?: readonly EmployerSaidInput[] | undefined;
+  employerNotes?: string | undefined;
+}): EmployerSaidInput[] {
+  if (context.employerSaid) return [...context.employerSaid];
+  return context.employerNotes?.trim() ? [{ said: context.employerNotes }] : [];
+}
+export const CARRIED_RESEARCH_TITLE = "Research";
+export function briefingResearchDocuments(context: {
+  research?: string | undefined;
+}): BriefingResearchDocument[] {
+  return context.research?.trim()
+    ? [{ title: CARRIED_RESEARCH_TITLE, text: context.research }]
+    : [];
+}
+// The entries as the one text every reader of `employerNotes` takes. One
+// carried-over entry renders as exactly the text it was carried from, so an
+// untouched older pack is unchanged by a save.
+export function employerSaidText(
+  entries: readonly EmployerSaidInput[],
+): string {
+  return entries.map(employerSaidLine).join("\n\n");
 }

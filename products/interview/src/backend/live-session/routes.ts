@@ -45,8 +45,7 @@ import {
   type ContextEngine,
   PROJECTIONS,
   type ProjectionId,
-  prepareContextPack,
-  sessionSources,
+  prepareStagePack,
 } from "../context-pack/index";
 import { SessionError, type SessionErrorCode } from "./errors";
 import { type IngestOptions, ingestObservation } from "./ingest";
@@ -460,13 +459,30 @@ export function createSessionRoutes(options: SessionRoutesOptions) {
     // [SAFETY] A pinned record that no longer verifies, or material the
     // recipe refuses, is answered by a code alone: what it says never rides
     // along in an error.
+    // [DOMAIN] The stage to resolve for: `stage=2` is the application's
+    // second stage, `stage=all` none; absent, the stage the session was
+    // started for. That stage's records lead, an earlier stage's follow.
+    const wanted = new URL(c.req.url).searchParams.get("stage");
+    const asked =
+      wanted === null || wanted === ""
+        ? undefined
+        : wanted === "all"
+          ? ("all" as const)
+          : Number(wanted);
+    if (typeof asked === "number" && !(Number.isInteger(asked) && asked >= 1))
+      throw new SessionError("invalid_input");
     const pack = await loadSessionContext(options.database, scope, sessionId)
       .then((context) =>
-        prepareContextPack(engine, sessionSources(context), {
-          scope,
-          signal: c.req.raw.signal,
-          for: { kind: "session", id: sessionId },
-        }),
+        prepareStagePack(
+          engine,
+          context,
+          {
+            scope,
+            signal: c.req.raw.signal,
+            for: { kind: "session", id: sessionId },
+          },
+          asked,
+        ),
       )
       .catch((error: unknown) => {
         throw error instanceof SessionError

@@ -30,6 +30,8 @@ import { Hono } from "hono";
 import { ZodError, z } from "zod";
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
 import { promptMessages } from "../ai-messages";
+import { readBrief } from "../brief/repository";
+import { registerBriefRoutes } from "../brief/routes";
 import { createInFlight, linkedAbort, ndjsonResponse } from "../work-guards";
 import { builtInAssetUrl } from "./built-in-assets";
 import { type BuiltInKey, builtInTemplates } from "./built-in-templates";
@@ -364,6 +366,9 @@ export function createDocumentsApi(options: {
   localContact?: (scope: DocumentScope) => Promise<ContactDetails | null>;
   // How documents are written; defaults suit a long template.
   config?: DocumentsConfig;
+  // Where the Studio's own transcript recordings are, for attaching one to
+  // an interview stage. Absent: none are offered.
+  recordingsDirectory?: string;
 }) {
   const config = options.config ?? DEFAULT_DOCUMENTS_CONFIG;
   const app = new Hono<{ Variables: { documentScope: DocumentScope } }>();
@@ -473,6 +478,13 @@ export function createDocumentsApi(options: {
     if (error instanceof SyntaxError)
       return c.json({ error: { code: "invalid-request" } }, 400);
     throw error;
+  });
+  // The interview brief (stages, transcripts, employer-said, research) of an
+  // application: behind the same guard, in its own module (brief/routes.ts).
+  registerBriefRoutes(app, {
+    database: options.database,
+    prefix,
+    recordingsDirectory: options.recordingsDirectory,
   });
   async function contextFor(
     scope: DocumentScope,
@@ -832,11 +844,22 @@ export function createDocumentsApi(options: {
     );
     if (!row) throw new DocumentContextNotFound();
     const current = candidacyContextOf(row as Record<string, unknown>);
+    // [DOMAIN] The person's notes are the application's old notes and each
+    // stage's own (brief/repository.ts): notes moved onto a stage are still
+    // what the brief's prep lines are distilled from.
+    const stageNotes = await withTenant(
+      scope,
+      async (db) =>
+        (await readBrief(db, scope, id)).stages.flatMap((stage) =>
+          stage.notes ? [`${stage.label} stage:\n${stage.notes}`] : [],
+        ),
+      { database: options.database },
+    );
     const material = {
       company: current.companyName,
       role: current.title,
       jobDescription: current.jobDescription ?? "",
-      notes: current.notes ?? "",
+      notes: [current.notes ?? "", ...stageNotes].filter(Boolean).join("\n\n"),
     };
     const sourceSha = createHash("sha256")
       .update(JSON.stringify(material))

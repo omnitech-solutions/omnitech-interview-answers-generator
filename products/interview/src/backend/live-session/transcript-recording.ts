@@ -110,9 +110,11 @@ export type TranscriptRecordings = ReturnType<
   typeof createTranscriptRecordings
 >;
 
-export const transcriptRecordings = createTranscriptRecordings(
-  join(
-    process.env["INTERVIEW_DATA_DIR"] ?? resolve(process.cwd(), ".data"),
-    "transcripts",
-  ),
+// Where the recordings are: also read by "attach the transcript I just
+// recorded" on the Interview form (brief/routes.ts).
+export const transcriptsDirectory = join(
+  process.env["INTERVIEW_DATA_DIR"] ?? resolve(process.cwd(), ".data"),
+  "transcripts",
 );
+export const transcriptRecordings =
+  createTranscriptRecordings(transcriptsDirectory);

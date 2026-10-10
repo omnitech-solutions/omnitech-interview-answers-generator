@@ -58,6 +58,8 @@
     "coach:bench:timing": "pnpm --filter @omnitech/agent-worker exec tsx src/coach-replay.ts --bench screening-services --timing",
     "coach:fixture": "pnpm --filter @omnitech/agent-worker exec tsx src/coach-fixture.ts",
     "coach:replay": "pnpm --filter @omnitech/agent-worker exec tsx src/coach-replay.ts",
+    "pack:bench": "pnpm --filter @omnitech/agent-worker exec tsx ../../scripts/pack-bench.ts",
+    "pack:bench:timing": "pnpm --filter @omnitech/agent-worker exec tsx ../../scripts/pack-bench.ts",
     "engine:sync": "pnpm --dir ../omnitech-ai-engine --filter @omnitech/ai-engine build && pnpm --dir ../omnitech-ai-engine/packages/ai-engine pack --pack-destination \"$PWD/vendor/omnitech-ai-engine\" && pnpm install"
   },
   "devDependencies": {

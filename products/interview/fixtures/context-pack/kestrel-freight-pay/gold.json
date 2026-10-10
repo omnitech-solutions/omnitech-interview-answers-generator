@@ -1,0 +1,472 @@
+{
+  "name": "kestrel-freight-pay",
+  "questions": [
+    {
+      "id": "hm-yourself",
+      "stage": "hiring-manager",
+      "question": "Tell me about yourself.",
+      "evidence": [
+        {
+          "company": "Larchmont Pay"
+        },
+        {
+          "company": "Quotewright"
+        },
+        {
+          "company": "Saffron Mutual Tech"
+        }
+      ],
+      "prep": ["Tell me about yourself"]
+    },
+    {
+      "id": "hm-why-company",
+      "stage": "hiring-manager",
+      "question": "Why Kestrel?",
+      "evidence": [
+        {
+          "company": "Quotewright"
+        }
+      ],
+      "prep": ["Why Kestrel"]
+    },
+    {
+      "id": "hm-why-lead",
+      "stage": "hiring-manager",
+      "question": "Why do you want to be a tech lead?",
+      "prep": ["Why Tech Lead"]
+    },
+    {
+      "id": "hm-proudest",
+      "stage": "hiring-manager",
+      "question": "What project are you proudest of?",
+      "evidence": [
+        {
+          "company": "Quotewright"
+        }
+      ],
+      "prep": ["Proudest and most relevant project"]
+    },
+    {
+      "id": "hm-migration",
+      "stage": "hiring-manager",
+      "question": "Tell me about a time you led a migration.",
+      "evidence": [
+        {
+          "company": "Larchmont Pay"
+        },
+        {
+          "company": "Copperleaf Learning"
+        }
+      ],
+      "prep": [
+        "Modernization, recent work, leadership",
+        "MongoDB to PostgreSQL"
+      ]
+    },
+    {
+      "id": "hm-carrier-apis",
+      "stage": "hiring-manager",
+      "question": "How do you approach third-party carrier API integrations?",
+      "evidence": [
+        {
+          "company": "Quotewright"
+        }
+      ],
+      "prep": ["Third-party integrations"]
+    },
+    {
+      "id": "hm-mongo-postgres",
+      "stage": "hiring-manager",
+      "question": "How would you move a service from MongoDB to PostgreSQL?",
+      "evidence": [
+        {
+          "company": "Copperleaf Learning"
+        }
+      ],
+      "prep": ["MongoDB to PostgreSQL"]
+    },
+    {
+      "id": "hm-nestjs",
+      "stage": "hiring-manager",
+      "question": "What is your experience with NestJS?",
+      "evidence": [
+        {
+          "company": "Larchmont Pay"
+        }
+      ],
+      "prep": ["NestJS"]
+    },
+    {
+      "id": "hm-dora",
+      "stage": "hiring-manager",
+      "question": "How do you use DORA metrics with a team?",
+      "evidence": [
+        {
+          "company": "Tallyclock"
+        },
+        {
+          "company": "Larchmont Pay"
+        },
+        {
+          "company": "Saffron Mutual Tech"
+        }
+      ],
+      "prep": ["DORA, mentoring, disagreement"]
+    },
+    {
+      "id": "hm-salary",
+      "stage": "hiring-manager",
+      "question": "What are your salary expectations?",
+      "preferences": ["Base salary"]
+    },
+    {
+      "id": "hm-conflict",
+      "stage": "hiring-manager",
+      "question": "Tell me about a conflict with a stakeholder.",
+      "prep": ["DORA, mentoring, disagreement"]
+    },
+    {
+      "id": "hm-90-days",
+      "stage": "hiring-manager",
+      "question": "What would your first 90 days look like?",
+      "prep": ["First 90 days and AI"]
+    },
+    {
+      "id": "hm-start",
+      "stage": "hiring-manager",
+      "question": "When could you start?",
+      "preferences": ["Notice period"]
+    },
+    {
+      "id": "hm-mentoring",
+      "stage": "hiring-manager",
+      "question": "How do you mentor engineers?",
+      "evidence": [
+        {
+          "company": "Larchmont Pay"
+        },
+        {
+          "company": "Copperleaf Learning"
+        }
+      ],
+      "prep": ["DORA, mentoring, disagreement"]
+    },
+    {
+      "id": "hm-deadline",
+      "stage": "hiring-manager",
+      "question": "How do you handle deadline pressure and technical debt?",
+      "prep": ["Product, deadline pressure, technical debt"]
+    },
+    {
+      "id": "hm-leaving",
+      "stage": "hiring-manager",
+      "question": "Why are you leaving your current role?",
+      "prep": ["Answer shape"]
+    },
+    {
+      "id": "hm-remote",
+      "stage": "hiring-manager",
+      "question": "Are you open to working from the office?",
+      "preferences": ["Remote first", "in the office"]
+    },
+    {
+      "id": "hm-questions",
+      "stage": "hiring-manager",
+      "question": "Do you have any questions for us?",
+      "prep": [
+        "Which part of Settlements",
+        "What decided the move",
+        "How do Settlements and Quoting",
+        "What does a bad on-call week",
+        "How is a Tech Lead's time",
+        "What would make you say"
+      ]
+    },
+    {
+      "id": "hm-team-size",
+      "stage": "hiring-manager",
+      "question": "How large a team have you led?",
+      "evidence": [
+        {
+          "company": "Saffron Mutual Tech"
+        },
+        {
+          "company": "Quotewright"
+        }
+      ]
+    },
+    {
+      "id": "hm-incident",
+      "stage": "hiring-manager",
+      "question": "Tell me about a production incident you handled.",
+      "evidence": [
+        {
+          "company": "Copperleaf Learning"
+        },
+        {
+          "company": "Larchmont Pay"
+        }
+      ],
+      "prep": ["Observability and incidents"]
+    },
+    {
+      "id": "t-nestjs-module",
+      "stage": "technical",
+      "question": "How would you structure a NestJS module for payouts?",
+      "evidence": [
+        {
+          "company": "Larchmont Pay"
+        }
+      ],
+      "prep": ["NestJS"]
+    },
+    {
+      "id": "t-twice",
+      "stage": "technical",
+      "question": "How do you make sure a payout is never sent twice?",
+      "evidence": [
+        {
+          "company": "Pledgewell"
+        },
+        {
+          "company": "Copperleaf Learning"
+        },
+        {
+          "company": "Quotewright"
+        },
+        {
+          "company": "Stonebridge Equity"
+        }
+      ],
+      "prep": ["Third-party integrations"]
+    },
+    {
+      "id": "t-boundaries",
+      "stage": "technical",
+      "question": "When would you split a service out of a monolith?",
+      "evidence": [
+        {
+          "company": "Larchmont Pay"
+        }
+      ],
+      "prep": ["Microservices and service boundaries"]
+    },
+    {
+      "id": "t-testing",
+      "stage": "technical",
+      "question": "What is your testing strategy for a service that moves money?",
+      "evidence": [
+        {
+          "company": "Saffron Mutual Tech"
+        }
+      ],
+      "prep": ["Security and testing"]
+    },
+    {
+      "id": "t-observability",
+      "stage": "technical",
+      "question": "How do you approach observability for payouts?",
+      "prep": ["Observability and incidents"]
+    },
+    {
+      "id": "t-forms",
+      "stage": "technical",
+      "question": "How would you build a form-heavy internal tool in React?",
+      "evidence": [
+        {
+          "company": "Quotewright"
+        },
+        {
+          "company": "HearthHR"
+        },
+        {
+          "company": "Dockside Listings"
+        }
+      ],
+      "prep": ["Proudest and most relevant project"]
+    },
+    {
+      "id": "t-kafka",
+      "stage": "technical",
+      "question": "Have you worked with Kafka or event-driven systems?",
+      "evidence": [
+        {
+          "company": "Vantage Networks"
+        },
+        {
+          "company": "Tallyclock"
+        }
+      ]
+    },
+    {
+      "id": "t-contract",
+      "stage": "technical",
+      "question": "How do you keep an API contract stable across teams?",
+      "evidence": [
+        {
+          "company": "Larchmont Pay"
+        },
+        {
+          "company": "Quotewright"
+        }
+      ]
+    },
+    {
+      "id": "t-security",
+      "stage": "technical",
+      "question": "How do you build security into a payments system?",
+      "evidence": [
+        {
+          "company": "Saffron Mutual Tech"
+        },
+        {
+          "company": "Larchmont Pay"
+        }
+      ],
+      "prep": ["Security and testing"]
+    },
+    {
+      "id": "t-ingestion",
+      "stage": "technical",
+      "question": "Have you built ingestion for large files from a bank or a partner?",
+      "evidence": [
+        {
+          "company": "Dockside Listings"
+        },
+        {
+          "company": "Stonebridge Equity"
+        }
+      ]
+    },
+    {
+      "id": "t-sso",
+      "stage": "technical",
+      "question": "Have you implemented single sign-on?",
+      "evidence": [
+        {
+          "company": "Copperleaf Learning"
+        },
+        {
+          "company": "Trailmark Telematics"
+        }
+      ]
+    },
+    {
+      "id": "t-typescript",
+      "stage": "technical",
+      "question": "How much TypeScript have you written on the server?",
+      "evidence": [
+        {
+          "company": "Quotewright"
+        },
+        {
+          "company": "Copperleaf Learning"
+        },
+        {
+          "company": "Dockside Listings"
+        },
+        {
+          "company": "Saffron Mutual Tech"
+        }
+      ]
+    },
+    {
+      "id": "t-ai",
+      "stage": "technical",
+      "question": "How do you use AI tools when you code?",
+      "evidence": [
+        {
+          "company": "Larchmont Pay",
+          "says": "code generation"
+        }
+      ],
+      "prep": ["First 90 days and AI"]
+    },
+    {
+      "id": "t-reconciliation",
+      "stage": "technical",
+      "question": "How would you design reconciliation between payouts and bank files?",
+      "evidence": [
+        {
+          "company": "Stonebridge Equity"
+        },
+        {
+          "company": "Copperleaf Learning"
+        },
+        {
+          "company": "Quotewright"
+        }
+      ]
+    },
+    {
+      "id": "t-state-machine",
+      "stage": "technical",
+      "question": "How would you model the states of a payout workflow?",
+      "evidence": [
+        {
+          "company": "Tallyclock"
+        },
+        {
+          "company": "Quotewright"
+        }
+      ]
+    },
+    {
+      "id": "t-design-walk",
+      "stage": "technical",
+      "question": "Walk me through a system you designed end to end.",
+      "evidence": [
+        {
+          "company": "Quotewright"
+        },
+        {
+          "company": "Larchmont Pay"
+        }
+      ],
+      "prep": ["Proudest and most relevant project"]
+    },
+    {
+      "id": "t-partner-down",
+      "stage": "technical",
+      "question": "What do you do when a partner API is slow or down?",
+      "evidence": [
+        {
+          "company": "Quotewright"
+        }
+      ],
+      "prep": ["Third-party integrations"]
+    },
+    {
+      "id": "t-risky-change",
+      "stage": "technical",
+      "question": "How do you roll out a risky change without breaking production?",
+      "evidence": [
+        {
+          "company": "Larchmont Pay"
+        },
+        {
+          "company": "Copperleaf Learning"
+        },
+        {
+          "company": "Trailmark Telematics"
+        }
+      ],
+      "prep": [
+        "MongoDB to PostgreSQL",
+        "Modernization, recent work, leadership"
+      ]
+    },
+    {
+      "id": "n-elixir",
+      "stage": "technical",
+      "question": "Do you know Elixir?",
+      "nothing": true
+    },
+    {
+      "id": "n-rust",
+      "stage": "technical",
+      "question": "Any Rust or Haskell in your background?",
+      "nothing": true
+    }
+  ]
+}

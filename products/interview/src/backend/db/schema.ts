@@ -195,6 +195,12 @@ export const interviews = interview.table.withRLS(
     durationMinutes: integer("duration_minutes"),
     format: interviewFormat("format"),
     status: interviewStatus("status").notNull().default("scheduled"),
+    // The stage as a thing of its own: the person's preparation for it, and
+    // afterwards what happened and what comes next. Its transcripts are
+    // interview.interview_transcripts (brief.ts).
+    notes: text("notes"),
+    outcome: text("outcome"),
+    nextSteps: text("next_steps"),
   },
   (t) => [
     tenantUnique("interviews", t.tenantId, t.id),

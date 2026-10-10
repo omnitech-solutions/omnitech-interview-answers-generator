@@ -18,7 +18,12 @@ import {
   TIDEWATER,
 } from "./fixture";
 import { KINDS } from "./recipe";
-import { briefSource, matrixSource, preferencesSource } from "./sources";
+import {
+  briefSource,
+  headingsOf,
+  matrixSource,
+  preferencesSource,
+} from "./sources";
 
 const PROFILE = { id: "profile-1", revision: 3 };
 const short = (text: string) =>
@@ -29,6 +34,12 @@ const recordsOf = (matrix: CandidateMatrix) =>
   matrixSource(matrix, PROFILE).records ?? [];
 const byLocator = (matrix: CandidateMatrix) =>
   new Map(recordsOf(matrix).map((record) => [record.locator, record]));
+// What an achievement was composed from, as the record keeps it.
+type Part = { section: string; locator: string; text: string };
+const partsOf = (record: { fields?: Record<string, unknown> }) =>
+  (record.fields?.["parts"] ?? []) as Part[];
+const sectionOf = (record: { fields?: Record<string, unknown> }) =>
+  (record.fields?.["of"] as { section?: string } | undefined)?.section;
 const at = (matrix: CandidateMatrix, locator: string) => {
   const record = byLocator(matrix).get(locator);
   if (!record) throw new Error(`no record at ${locator}`);
@@ -150,20 +161,44 @@ describe("the experience matrix as a source", () => {
     expect(at(matrix, "/roles/1").id).toBe(`role:${"h".repeat(48)}:engineer`);
   });
 
-  it("names evidence by its role, its section and what it says", () => {
+  it("names an achievement by its role, its section and what it says", () => {
     const said = HARBOURLINE.proof_points[0] as string;
     expect(at(MATRIX, "/roles/0/proof_points/0")).toEqual({
       id: `role:harbourline:staff-engineer:proof_points:${short(said)}`,
-      kind: KINDS.evidence,
-      text: said,
+      kind: KINDS.achievement,
+      // Who, where, when and what, in one line; the stack it was done on.
+      // The metric it states the value of is written after it, because its
+      // label says something the proof point does not ("p95").
+      text: `At Harbourline (2022 to 2025, Staff Engineer): ${said}; p95 latency: 120ms (down). Stack: Go, PostgreSQL, Kafka.`,
       fields: {
         company: "Harbourline",
         title: "Staff Engineer",
-        technologies: ["Go", "PostgreSQL", "Kafka"],
+        period: "2022 to 2025",
+        // The one technology its own words name, and the role's whole stack.
+        technologies: ["PostgreSQL"],
+        stack: ["Go", "PostgreSQL", "Kafka"],
+        themes: [],
         tags: ["platform"],
-        section: "proof_points",
+        of: {
+          role: "role:harbourline:staff-engineer",
+          section: "proof_points",
+        },
+        // The metric whose value it states is part of it, at its own place.
+        parts: [
+          {
+            section: "proof_points",
+            locator: "/roles/0/proof_points/0",
+            text: said,
+          },
+          {
+            section: "metrics",
+            locator: "/roles/0/metrics/1",
+            text: "p95 latency: 120ms (down)",
+          },
+        ],
       },
-      priority: 3,
+      // The newest role (10), a proof point (4), listed first (9).
+      priority: 1049,
       locator: "/roles/0/proof_points/0",
     });
 
@@ -199,7 +234,7 @@ describe("the experience matrix as a source", () => {
       "/roles/0/leadership_signals/0",
       "/roles/0/responsibilities/0",
       "/roles/0/metrics/0",
-      "/roles/0/metrics/1",
+      // "/roles/0/metrics/1" is part of the proof point that states it.
       "/roles/1",
       "/roles/1/proof_points/0",
       "/roles/1/responsibilities/0",
@@ -210,28 +245,226 @@ describe("the experience matrix as a source", () => {
     ]);
   });
 
-  it("writes a metric as its label, its value and its direction", () => {
+  // Every place of the matrix a role holds is in exactly one achievement:
+  // composing drops nothing and says nothing twice.
+  it("keeps every proof point, signal, responsibility and metric as a part of one achievement", () => {
+    const parts = recordsOf(MATRIX)
+      .filter((record) => record.kind === KINDS.achievement)
+      .flatMap((record) => partsOf(record).map((part) => part.locator));
+    expect([...parts].sort()).toEqual(
+      [
+        "/roles/0/proof_points/0",
+        "/roles/0/proof_points/1",
+        "/roles/0/leadership_signals/0",
+        "/roles/0/responsibilities/0",
+        "/roles/0/metrics/0",
+        "/roles/0/metrics/1",
+        "/roles/1/proof_points/0",
+        "/roles/1/responsibilities/0",
+        "/roles/1/metrics/0",
+        "/roles/2/proof_points/0",
+      ].sort(),
+    );
+    expect(new Set(parts).size).toBe(parts.length);
+    // A part keeps its own words, as the matrix has them.
+    expect(partsOf(at(MATRIX, "/roles/0/leadership_signals/0"))).toEqual([
+      {
+        section: "leadership_signals",
+        locator: "/roles/0/leadership_signals/0",
+        text: "Mentored four engineers through the ledger rewrite",
+      },
+    ]);
+  });
+
+  it("writes a metric that belongs to no statement as an achievement of its own, with its role", () => {
     expect(at(MATRIX, "/roles/0/metrics/0")).toMatchObject({
       id: `role:harbourline:staff-engineer:metrics:${short("uptime: 99.95%")}`,
-      kind: KINDS.evidence,
-      text: "uptime: 99.95%",
-      fields: { section: "metrics", company: "Harbourline" },
+      kind: KINDS.achievement,
+      text: "At Harbourline (2022 to 2025, Staff Engineer): uptime: 99.95%. Stack: Go, PostgreSQL, Kafka.",
+      fields: { company: "Harbourline", of: { section: "metrics" } },
     });
-    expect(at(MATRIX, "/roles/0/metrics/1").text).toBe(
-      "p95 latency: 120ms (down)",
-    );
-    // A number is written as it is.
+    // A number is written as it is; a role with no period says none.
     expect(at(MATRIX, "/roles/1/metrics/0").text).toBe(
-      "invoices per day: 42000",
+      "At Quayside Freight (Senior Engineer): invoices per day: 42000. Stack: NestJS, TypeScript, Redis.",
     );
   });
 
-  it("ranks what was achieved above what was led, and that above what was merely done", () => {
+  describe("a metric and the statement it belongs to", () => {
+    const role = (more: object) =>
+      matrixOf([{ company: "Harbourline", title: "Staff Engineer", ...more }]);
+
+    it("belongs to the proof point that states its value, and is not said twice when the proof point says all of it", () => {
+      const matrix = role({
+        proof_points: ["Kept the scheduler up", "Cut p95 latency to 120ms"],
+        metrics: [{ label: "p95 latency", value: "120ms", direction: "down" }],
+      });
+      const owner = at(matrix, "/roles/0/proof_points/1");
+      expect(owner.text).toBe(
+        "At Harbourline (Staff Engineer): Cut p95 latency to 120ms.",
+      );
+      // A label that says more than the proof point does is written out: a
+      // claim is checked against this text, and "p95" is a figure.
+      const partly = role({
+        proof_points: ["Cut query latency to 120ms"],
+        metrics: [{ label: "p95 latency", value: "120ms", direction: "down" }],
+      });
+      expect(at(partly, "/roles/0/proof_points/0").text).toBe(
+        "At Harbourline (Staff Engineer): Cut query latency to 120ms; p95 latency: 120ms (down).",
+      );
+      expect(partsOf(owner).map((part) => part.locator)).toEqual([
+        "/roles/0/proof_points/1",
+        "/roles/0/metrics/0",
+      ]);
+      expect(byLocator(matrix).has("/roles/0/metrics/0")).toBe(false);
+    });
+
+    it("belongs to the statement that says every word of its label, and is then written after it", () => {
+      const matrix = role({
+        proof_points: ["Grew API usage across partner teams"],
+        metrics: [
+          { label: "API usage", value: "2M weekly calls", direction: "up" },
+        ],
+      });
+      expect(at(matrix, "/roles/0/proof_points/0").text).toBe(
+        "At Harbourline (Staff Engineer): Grew API usage across partner teams; API usage: 2M weekly calls (up).",
+      );
+    });
+
+    it("is tried on proof points before responsibilities, and never on a leadership signal", () => {
+      const matrix = role({
+        responsibilities: ["Owned uptime for the scheduler"],
+        leadership_signals: ["uptime champion"],
+        proof_points: ["Raised uptime after the storm season"],
+        metrics: [{ label: "uptime", value: "99.95%" }],
+      });
+      expect(
+        partsOf(at(matrix, "/roles/0/proof_points/0")).map(
+          (part) => part.section,
+        ),
+      ).toEqual(["proof_points", "metrics"]);
+      const responsible = role({
+        responsibilities: ["Owned uptime for the scheduler"],
+        leadership_signals: ["uptime champion"],
+        metrics: [{ label: "uptime", value: "99.95%" }],
+      });
+      expect(
+        partsOf(at(responsible, "/roles/0/responsibilities/0")).length,
+      ).toBe(2);
+      expect(
+        partsOf(at(responsible, "/roles/0/leadership_signals/0")).length,
+      ).toBe(1);
+    });
+
+    it("does not take a figure inside another figure for its value", () => {
+      // "6" is not stated by "65%", and "team size" is not said by "a team".
+      const matrix = role({
+        proof_points: ["Cut defects by 65% with a team of six"],
+        metrics: [{ label: "team size", value: "6" }],
+      });
+      expect(at(matrix, "/roles/0/metrics/0").text).toBe(
+        "At Harbourline (Staff Engineer): team size: 6.",
+      );
+    });
+  });
+
+  describe("an achievement's themes and technologies", () => {
+    const matrix = matrixOf([
+      {
+        company: "Harbourline",
+        title: "Staff Engineer",
+        technologies: ["Go", "PostgreSQL", "Node.js", "Kafka", "Redis"],
+        tags: ["safe-modernization", "ports"],
+        patterns: ["staged cutover"],
+        problem_spaces: ["berth scheduling"],
+        system_types: ["legacy modernization"],
+        industry: ["shipping"],
+        proof_points: [
+          "Led modernization of the legacy berth monolith",
+          "Tuned the Node scheduler queue",
+        ],
+      },
+    ]);
+    const led = at(matrix, "/roles/0/proof_points/0");
+    const tuned = at(matrix, "/roles/0/proof_points/1");
+
+    it("takes a subject of the role as a theme when its own words say half of it", () => {
+      // "safe-modernization": one of two words; "legacy modernization": both;
+      // "berth scheduling": one of two. "staged cutover" and "ports": none.
+      expect(led.fields?.["themes"]).toEqual([
+        "safe-modernization",
+        "berth scheduling",
+        "legacy modernization",
+      ]);
+      // Another achievement of the same role has no part in that subject.
+      expect(tuned.fields?.["themes"]).toEqual([]);
+    });
+
+    it("never takes a theme from outside the role's own subjects, and keeps them all as tags", () => {
+      const subjects = [
+        "safe-modernization",
+        "ports",
+        "staged cutover",
+        "berth scheduling",
+        "legacy modernization",
+      ];
+      for (const record of [led, tuned]) {
+        for (const theme of (record.fields?.["themes"] ?? []) as string[])
+          expect(subjects).toContain(theme);
+        // The industry is a tag of the role, never a theme of one line.
+        expect(record.fields?.["tags"]).toEqual([...subjects, "shipping"]);
+      }
+    });
+
+    it("names the technologies its own words name, in any accepted form, beside the role's stack", () => {
+      expect(led.fields?.["technologies"]).toEqual([]);
+      // "Node" is "Node.js".
+      expect(tuned.fields?.["technologies"]).toEqual(["Node.js"]);
+      for (const record of [led, tuned])
+        expect(record.fields?.["stack"]).toEqual([
+          "Go",
+          "PostgreSQL",
+          "Node.js",
+          "Kafka",
+          "Redis",
+        ]);
+    });
+
+    it("says the first three of the role's technologies, and none when the role has none", () => {
+      expect(led.text.endsWith(" Stack: Go, PostgreSQL, Node.js.")).toBe(true);
+      expect(
+        at(
+          matrixOf([
+            {
+              company: "Harbourline",
+              title: "Engineer",
+              proof_points: ["Shipped it."],
+            },
+          ]),
+          "/roles/0/proof_points/0",
+        ).text,
+      ).toBe("At Harbourline (Engineer): Shipped it.");
+    });
+  });
+
+  it("ranks the recent role first, then what was achieved above what was led and that above what was done, then the order listed", () => {
     const priority = (locator: string) => at(MATRIX, locator).priority;
-    expect(priority("/roles/0/proof_points/0")).toBe(3);
-    expect(priority("/roles/0/metrics/0")).toBe(3);
-    expect(priority("/roles/0/leadership_signals/0")).toBe(2);
-    expect(priority("/roles/0/responsibilities/0")).toBe(1);
+    expect(priority("/roles/0/proof_points/0")).toBe(1049);
+    expect(priority("/roles/0/proof_points/1")).toBe(1048);
+    // A metric no statement states: a result with no account of how.
+    expect(priority("/roles/0/metrics/0")).toBe(1039);
+    expect(priority("/roles/0/leadership_signals/0")).toBe(1029);
+    expect(priority("/roles/0/responsibilities/0")).toBe(1019);
+    // The next role's best is below the newest role's least.
+    expect(priority("/roles/1/proof_points/0")).toBe(949);
+    // Past the tenth role and the tenth line, neither counts for less.
+    const long = matrixOf(
+      Array.from({ length: 12 }, (_, index) => ({
+        company: `Employer ${index}`,
+        title: "Engineer",
+        proof_points: Array.from({ length: 11 }, (_, line) => `Did ${line}`),
+      })),
+    );
+    expect(at(long, "/roles/11/proof_points/10").priority).toBe(40);
   });
 
   it("ranks a role by how recent it is: ten less its place, never below zero", () => {
@@ -299,9 +532,11 @@ describe("the experience matrix as a source", () => {
       { ...HARBOURLINE, proof_points: [twice, "Something else", twice] },
     ]);
     const proof = recordsOf(matrix).filter(
-      (record) => record.fields?.["section"] === "proof_points",
+      (record) => sectionOf(record) === "proof_points",
     );
-    expect(proof.map((record) => [record.text, record.locator])).toEqual([
+    expect(
+      proof.map((record) => [partsOf(record)[0]?.text, record.locator]),
+    ).toEqual([
       [twice, "/roles/0/proof_points/0"],
       ["Something else", "/roles/0/proof_points/1"],
     ]);
@@ -318,8 +553,42 @@ describe("the experience matrix as a source", () => {
       },
     ]);
     expect(at(matrix, "/roles/0/proof_points/0").text).toBe(
-      "Cut latency from 900ms to 120ms",
+      "At Harbourline (Staff Engineer): Cut latency from 900ms to 120ms.",
     );
+  });
+});
+
+// The fixture's lines have no heading; one that has keeps it as a field.
+const headed = (said: string) =>
+  headingsOf(said).length > 0 ? { heading: headingsOf(said) } : {};
+
+describe("the words a line is headed with", () => {
+  it("are the words before a sentence's colon", () => {
+    expect(headingsOf("NestJS: a framework, not the architecture.")).toEqual([
+      "NestJS",
+    ]);
+    expect(headingsOf("Base salary: 140k minimum.")).toEqual(["Base salary"]);
+    expect(headingsOf("Write things down")).toEqual([]);
+  });
+
+  it("are none when the colon comes after many words, as in a time of day", () => {
+    expect(
+      headingsOf(
+        "Hiring-manager interview with the head of platform, Tue Mar 3 2026, 10:00-11:00 Atlantic: not coding.",
+      ),
+    ).toEqual([]);
+    // Only a sentence's first colon heads it.
+    expect(headingsOf("Round: Tuesday, 10:00-11:00; not coding.")).toEqual([
+      "Round",
+    ]);
+  });
+
+  it("are not the label of the proof a note names", () => {
+    expect(
+      headingsOf(
+        "Data moves: backfill, parity checks. Proof: Harbourline, near-zero drift. Example: the ledger.",
+      ),
+    ).toEqual(["Data moves"]);
   });
 });
 
@@ -366,12 +635,32 @@ describe("the employer brief as a source", () => {
           id: `brief:${section}:${short(said)}`,
           kind,
           text: said,
-          fields: { section, label },
+          fields: { section, label, ...headed(said) },
           priority,
         })),
       );
     },
   );
+
+  it("keeps what a line is headed with, and nothing for a line with no heading", () => {
+    const headedBrief = briefSource(
+      {
+        ...BRIEF,
+        prepNotes: [
+          "NestJS: a delivery framework, not the architecture.",
+          "Answer shape: context, decision, result. Why leaving Harbourline: broader ownership.",
+          "The round is with the head of platform",
+        ],
+      },
+      { id: "c", revision: "r" },
+    ).records?.filter((record) => record.fields?.["section"] === "prepNotes");
+    expect(headedBrief?.map((record) => record.fields?.["heading"])).toEqual([
+      ["NestJS"],
+      // A later sentence's heading counts as the first one's does.
+      ["Answer shape", "Why leaving Harbourline"],
+      undefined,
+    ]);
+  });
 
   it("makes the summary, the team and the interview format records only when they are given", () => {
     expect(inSection("summary")).toEqual([
@@ -468,8 +757,15 @@ describe("the person's preferences as a source", () => {
         id: `preference:${short(text)}`,
         kind: KINDS.preference,
         text,
+        // What a line is headed with is kept; a line with no heading has none.
+        ...(headingsOf(text).length > 0
+          ? { fields: { heading: headingsOf(text) } }
+          : {}),
         locator: `/context/candidatePreferences/${index}`,
       })),
+    );
+    expect(source.records?.map((record) => record.fields?.["heading"])).toEqual(
+      [["Base salary"], ["Notice period"], undefined, undefined],
     );
   });
 

@@ -6,6 +6,7 @@ import {
   tablesOf,
 } from "@omnitech/database/test-support";
 import { afterAll, beforeAll, expect, it } from "vitest";
+import * as brief from "./brief";
 import * as documents from "./documents";
 import * as liveSession from "./live-session";
 import * as domain from "./schema";
@@ -23,8 +24,9 @@ it("declares Interview Studio's and the domain's tables exactly as the migration
     ...tablesOf(studio),
     ...tablesOf(domain),
     ...tablesOf(documents),
+    ...tablesOf(brief),
     ...tablesOf(liveSession),
   ];
-  expect(tables).toHaveLength(32);
+  expect(tables).toHaveLength(35);
   expect(await schemaDrift(pg.owner, tables)).toEqual([]);
 });

@@ -2,12 +2,16 @@ import type {
   BriefingClient,
   BriefingProfileSummary,
 } from "@omnitech/interview-api-client";
-import type {
-  BriefingContext,
-  CandidateMatrix,
+import {
+  type BriefingContext,
+  briefingEmployerSaid,
+  type CandidateMatrix,
+  type EmployerSaidInput,
+  employerSaidText,
 } from "@omnitech/interview-contracts";
 import { useState } from "react";
 import { Icon } from "../../icon";
+import { EmployerSaidList } from "../../interview-brief/brief-lists";
 import { STAGES } from "./config";
 import { MatrixPicker, type ProfileRef } from "./matrix-picker";
 
@@ -22,7 +26,9 @@ export type PackSetup = {
   duration: string;
   stage: BriefingContext["stage"];
   jobDescription: string;
-  employerNotes: string;
+  // What the employer or a recruiter said, as dated entries (the old single
+  // "employer notes" text reads as one entry with no date).
+  employerSaid: readonly EmployerSaidInput[];
   research: string;
   roleIds: readonly string[];
 };
@@ -36,7 +42,7 @@ export const emptySetup = (profile: ProfileRef | null): PackSetup => ({
   duration: "30",
   stage: "recruiter",
   jobDescription: "",
-  employerNotes: "",
+  employerSaid: [],
   research: "",
   roleIds: [],
 });
@@ -51,7 +57,7 @@ export function setupOf(context: BriefingContext): PackSetup {
     duration: String(context.durationMinutes ?? ""),
     stage: context.stage,
     jobDescription: context.jobDescription ?? "",
-    employerNotes: context.employerNotes ?? "",
+    employerSaid: briefingEmployerSaid(context),
     research: context.research ?? "",
     roleIds: context.roleIds ?? [],
   };
@@ -89,10 +95,15 @@ export function contextOf(
     ["interviewer", optional(setup.interviewer)],
     ["interviewerTitle", optional(setup.interviewerTitle)],
     ["jobDescription", optional(setup.jobDescription)],
-    ["employerNotes", optional(setup.employerNotes)],
     ["research", optional(setup.research)],
   ] as const)
     if (value) context[key] = value;
+  // [DOMAIN] The entries are kept as they were typed, and beside them as the
+  // one text every reader of the pack's employer notes takes.
+  if (setup.employerSaid.length > 0) {
+    context.employerSaid = [...setup.employerSaid];
+    context.employerNotes = employerSaidText(setup.employerSaid);
+  }
   if (minutes >= 5 && minutes <= 480) context.durationMinutes = minutes;
   if (setup.roleIds.length) context.roleIds = [...setup.roleIds];
   return context;
@@ -208,7 +219,9 @@ export function SetupCard({
   };
 }) {
   const [moreContext, setMoreContext] = useState(
-    Boolean(setup.jobDescription || setup.employerNotes || setup.research),
+    Boolean(
+      setup.jobDescription || setup.employerSaid.length > 0 || setup.research,
+    ),
   );
   const [allRoles, setAllRoles] = useState(false);
   const set = (patch: Partial<PackSetup>) => onChange({ ...setup, ...patch });
@@ -232,7 +245,7 @@ export function SetupCard({
   );
   const area = (
     label: string,
-    key: "jobDescription" | "employerNotes" | "research",
+    key: "jobDescription" | "research",
     placeholder: string,
   ) => (
     <label className="bp-field">
@@ -304,11 +317,22 @@ export function SetupCard({
         {moreContext && (
           <div className="bp-grid wide">
             {area("Job description", "jobDescription", "Paste the posting")}
-            {area(
-              "Employer notes",
-              "employerNotes",
-              "What the recruiter told you, team, values…",
-            )}
+            <EmployerSaidList
+              entries={setup.employerSaid.map((entry, at) => ({
+                ...entry,
+                id: String(at),
+              }))}
+              onAdd={(entry) =>
+                set({ employerSaid: [...setup.employerSaid, entry] })
+              }
+              onRemove={(id) =>
+                set({
+                  employerSaid: setup.employerSaid.filter(
+                    (_, at) => String(at) !== id,
+                  ),
+                })
+              }
+            />
             {area(
               "Research",
               "research",

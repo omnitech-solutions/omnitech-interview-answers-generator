@@ -770,6 +770,117 @@ describe("an open pack", () => {
     expect(pack!.context).not.toHaveProperty("condensed");
   });
 
+  // [DOMAIN] "Employer notes" became "Employer said": dated entries. A pack
+  // saved with the old single text reads it as ONE entry with no date, and a
+  // save writes the entries and, beside them, the same words as the one text
+  // every reader of the pack takes.
+  it("carries the old employer notes over as one undated entry, unchanged by a save", () => {
+    const old = {
+      ...context,
+      employerNotes: "Two rounds.\nNo AI in live ones.",
+    };
+    const setup = setupOf(old);
+    expect(setup.employerSaid).toEqual([
+      { said: "Two rounds.\nNo AI in live ones." },
+    ]);
+    expect(contextOf(setup, old)).toEqual({
+      ...old,
+      employerSaid: [{ said: "Two rounds.\nNo AI in live ones." }],
+    });
+    // A pack with neither has no entry, and writes neither.
+    expect(setupOf(context).employerSaid).toEqual([]);
+    const none = contextOf(setupOf(context), context);
+    expect(none).not.toHaveProperty("employerSaid");
+    expect(none).not.toHaveProperty("employerNotes");
+    // Entries render as one text: when, who and how lead what was said.
+    expect(
+      contextOf(
+        {
+          ...setup,
+          employerSaid: [
+            ...setup.employerSaid,
+            {
+              said: "The panel is five people.",
+              saidBy: "Sam",
+              channel: "email",
+              saidOn: "2026-10-02",
+            },
+          ],
+        },
+        old,
+      )?.employerNotes,
+    ).toBe(
+      "Two rounds.\nNo AI in live ones.\n\n2026-10-02, Sam (email): The panel is five people.",
+    );
+    // Removing every entry removes the text with them.
+    const cleared = contextOf({ ...setup, employerSaid: [] }, old);
+    expect(cleared).not.toHaveProperty("employerSaid");
+    expect(cleared).not.toHaveProperty("employerNotes");
+  });
+
+  it("replaces the employer notes field with the list of what the employer said", async () => {
+    pack = {
+      kind: "non-technical-briefing",
+      title: "Northwind · Tech Lead",
+      context: { ...context, employerNotes: "Two rounds." },
+      expected: ["Tell me about yourself."],
+      questions: [answer("Tell me about yourself.", "q1")],
+    };
+    revision = 2;
+    render(<BehaviouralPack artifactId="prep-1" {...handlers()} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Edit setup" }));
+    // The single text field is gone; its words are the first entry.
+    expect(screen.queryByLabelText("Employer notes")).toBeNull();
+    const row = screen.getByTestId("ib-said-row");
+    expect(row).toHaveTextContent("Two rounds.");
+    expect(row).toHaveTextContent("No date");
+
+    fireEvent.change(screen.getByTestId("ib-said-text"), {
+      target: { value: "The panel is five people." },
+    });
+    fireEvent.change(screen.getByTestId("ib-said-by"), {
+      target: { value: "Sam" },
+    });
+    fireEvent.change(screen.getByTestId("ib-said-on"), {
+      target: { value: "2026-10-02" },
+    });
+    fireEvent.click(screen.getByTestId("ib-said-add"));
+    expect(screen.getAllByTestId("ib-said-row")).toHaveLength(2);
+    await waitFor(
+      () =>
+        expect(pack!.context.employerSaid).toEqual([
+          { said: "Two rounds." },
+          {
+            said: "The panel is five people.",
+            saidBy: "Sam",
+            saidOn: "2026-10-02",
+          },
+        ]),
+      { timeout: 2000 },
+    );
+    expect(pack!.context.employerNotes).toBe(
+      "Two rounds.\n\n2026-10-02, Sam: The panel is five people.",
+    );
+
+    // Removing asks first, in the page.
+    fireEvent.click(screen.getAllByTestId("ib-said-remove")[0] as HTMLElement);
+    expect(screen.getByText("Remove this entry?")).toBeVisible();
+    expect(screen.getAllByTestId("ib-said-row")).toHaveLength(2);
+    fireEvent.click(
+      screen
+        .getAllByRole("button", { name: "Remove" })
+        .find((button) => !button.hasAttribute("data-testid")) as HTMLElement,
+    );
+    await waitFor(
+      () =>
+        expect(pack!.context.employerNotes).toBe(
+          "2026-10-02, Sam: The panel is five people.",
+        ),
+      { timeout: 2000 },
+    );
+    expect(pack!.context.employerSaid).toHaveLength(1);
+  });
+
   it("has nothing to condense while the posting and research are short", async () => {
     pack = {
       kind: "non-technical-briefing",
@@ -832,7 +943,7 @@ describe("an open pack", () => {
           ...setup,
           jobDescription: "  The posting\n",
           interviewer: "Johnnie",
-          employerNotes: "New notes",
+          employerSaid: [{ said: "New notes" }],
         },
         previous,
       )?.condensed,

@@ -1374,6 +1374,161 @@ describe("ContextPane", () => {
       expect(screen.getByText(READING)).toBeInTheDocument();
     });
 
+    // [DOMAIN] The stage the selection is resolved for: the session's own
+    // until the person picks another by its place, or every stage.
+    describe("the stage it is selected for", () => {
+      const STAGES = [
+        {
+          id: "33333333-3333-4333-8333-333333333331",
+          ordinal: 1,
+          label: "Hiring manager",
+          kind: "hiring_manager",
+        },
+        {
+          id: "33333333-3333-4333-8333-333333333332",
+          ordinal: 2,
+          label: "Technical",
+          kind: "technical",
+        },
+      ];
+      const staged = (stage: (typeof STAGES)[number] | null): ContextView => ({
+        ...VIEW,
+        selected: [
+          given("prep", "Live coding plan: read the tests first", {
+            about: "employer",
+            pointer: "/stages/x/notes/1",
+            stage: 2,
+          }),
+          given("prep", "Rota onboarding: shadow first", {
+            about: "employer",
+            pointer: "/stages/y/notes/1",
+            stage: 1,
+          }),
+          given("evidence", "Cut retries by 40%"),
+        ],
+        excluded: [
+          { ...leftOut("scope", 0), slot: "prep", stage: 2 },
+          leftOut("relevance", 1),
+        ],
+        stage,
+        stages: STAGES,
+      });
+      const pickStage = (label: RegExp) =>
+        pick("pn-context-stage", "The stage this is selected for", label);
+
+      it("offers no stage to pick for an application without stages", async () => {
+        const fetched = serve(() => answer({ view: VIEW }));
+        try {
+          await showSelected(QUESTION);
+          await waitFor(() => expect(slots().length).toBeGreaterThan(0));
+          expect(screen.queryByTestId("pn-context-stage")).toBeNull();
+          expect(reads[0]?.url.searchParams.has("stage")).toBe(false);
+        } finally {
+          fetched.mockRestore();
+        }
+      });
+
+      it("says the stage the session was started for, marks each fact with its stage, and counts what a later stage holds", async () => {
+        const fetched = serve(() =>
+          answer({ view: staged(STAGES[1] ?? null) }),
+        );
+        try {
+          await showSelected(QUESTION);
+          await waitFor(() => expect(slots().length).toBeGreaterThan(0));
+          expect(screen.getByTestId("pn-context-stage")).toHaveTextContent(
+            "Stage 2: Technical",
+          );
+          // Nothing was asked for: the server chose the session's own stage.
+          expect(reads[0]?.url.searchParams.has("stage")).toBe(false);
+          const prep = slots().find((slot) =>
+            slot.textContent?.includes("Live coding plan"),
+          );
+          expect(prep?.textContent).toMatch(
+            /Live coding plan: read the tests first.*Stage 2.*Rota onboarding: shadow first.*Stage 1/s,
+          );
+          // A fact of no stage carries no stage.
+          const evidence = slots().find((slot) =>
+            slot.textContent?.includes("Cut retries"),
+          );
+          expect(evidence?.textContent).not.toMatch(/Stage \d/);
+          expect(screen.getByTestId("pn-context-left-out")).toHaveTextContent(
+            "1 belongs to a later stage",
+          );
+        } finally {
+          fetched.mockRestore();
+        }
+      });
+
+      it("reads the selection again for the stage picked, and for every stage", async () => {
+        const fetched = serve(({ url }) => {
+          const wanted = url.searchParams.get("stage");
+          return answer({
+            view: staged(
+              wanted === "all"
+                ? null
+                : ((wanted === "1" ? STAGES[0] : STAGES[1]) ?? null),
+            ),
+          });
+        });
+        try {
+          await showSelected(QUESTION);
+          await waitFor(() =>
+            expect(screen.getByTestId("pn-context-stage")).toHaveTextContent(
+              "Stage 2: Technical",
+            ),
+          );
+          pickStage(/^1\. Hiring manager$/);
+          await waitFor(() =>
+            expect(screen.getByTestId("pn-context-stage")).toHaveTextContent(
+              "Stage 1: Hiring manager",
+            ),
+          );
+          expect(reads).toHaveLength(2);
+          expect([...(reads[1]?.url.searchParams ?? [])]).toEqual([
+            ["projection", "coach"],
+            ["q", QUESTION],
+            ["stage", "1"],
+          ]);
+          pickStage(/^Every stage$/);
+          await waitFor(() =>
+            expect(screen.getByTestId("pn-context-stage")).toHaveTextContent(
+              /^Every stage$/,
+            ),
+          );
+          expect(reads[2]?.url.searchParams.get("stage")).toBe("all");
+        } finally {
+          fetched.mockRestore();
+        }
+      });
+
+      it("goes back to the session's own stage for another session", async () => {
+        const fetched = serve(() =>
+          answer({ view: staged(STAGES[1] ?? null) }),
+        );
+        try {
+          const drawn = await showSelected(QUESTION);
+          await waitFor(() => expect(slots().length).toBeGreaterThan(0));
+          pickStage(/^1\. Hiring manager$/);
+          await waitFor(() => expect(reads).toHaveLength(2));
+          drawn.rerender(
+            <ContextPane
+              s={started("session-2")}
+              notes={[]}
+              question={QUESTION}
+            />,
+          );
+          await waitFor(() =>
+            expect(reads.at(-1)?.url.pathname).toContain(
+              "/sessions/session-2/",
+            ),
+          );
+          expect(reads.at(-1)?.url.searchParams.has("stage")).toBe(false);
+        } finally {
+          fetched.mockRestore();
+        }
+      });
+    });
+
     it("a read still under way when the pane goes is given up, and raises nothing", async () => {
       serve(() => new Promise<Response>(() => undefined));
       const errors = vi

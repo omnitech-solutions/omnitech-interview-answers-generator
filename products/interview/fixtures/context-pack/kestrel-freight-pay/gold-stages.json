@@ -1,0 +1,60 @@
+{
+  "name": "kestrel-freight-pay-stages",
+  "questions": [
+    {
+      "id": "s2-live-coding",
+      "stage": 2,
+      "question": "How will you approach the live coding exercise?",
+      "prep": ["Live coding plan"]
+    },
+    {
+      "id": "s2-data-ownership",
+      "stage": 2,
+      "question": "How do you think about data ownership between two teams?",
+      "prep": ["Data ownership"],
+      "follows": ["Outcome: Imre pressed on data ownership"]
+    },
+    {
+      "id": "s2-whiteboard",
+      "stage": 2,
+      "question": "How would you open a whiteboard design session?",
+      "prep": ["Whiteboard opener"]
+    },
+    {
+      "id": "s2-rota",
+      "stage": 2,
+      "question": "How would you bring a new engineer into the on-call rota?",
+      "prep": ["Rota onboarding"]
+    },
+    {
+      "id": "s1-rota",
+      "stage": 1,
+      "question": "How would you bring a new engineer into the on-call rota?",
+      "prep": ["Rota onboarding"]
+    },
+    {
+      "id": "s1-data-ownership",
+      "stage": 1,
+      "question": "How do you think about data ownership between two teams?",
+      "absent": ["Data ownership"]
+    },
+    {
+      "id": "s1-live-coding",
+      "stage": 1,
+      "question": "How will you approach the live coding exercise?",
+      "absent": ["Live coding plan"]
+    },
+    {
+      "id": "s2-round-length",
+      "stage": 2,
+      "question": "How long is the technical round and what is in it?",
+      "employer": ["The technical round is two hours"]
+    },
+    {
+      "id": "s2-ledger",
+      "stage": 2,
+      "question": "What do you know about how the settlement ledger is balanced?",
+      "employer": ["The settlement ledger is append-only"]
+    }
+  ]
+}

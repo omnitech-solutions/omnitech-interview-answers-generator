@@ -1,0 +1,95 @@
+{
+  "company": "Kestrel Freight Pay",
+  "role": "Tech Lead, Settlements",
+  "summary": "Tech Lead for the Settlements team: sets technical direction for carrier payouts and reconciliation, stays hands-on in a NestJS and React codebase, and grows a team of six with a focus on correctness and scale.",
+  "team": "Settlements owns carrier payouts, reconciliation, statements and the rules that decide when a load is paid. Quoting owns rates and carrier selection. Six engineers, a product manager and a designer.",
+  "interviewFormat": "Hiring-manager interview with Imre Solvang (Manager, Engineering), Tue Mar 3 2026, 10:00-11:00 Atlantic: leadership and experience deep dive, not coding. Next: technical round, live coding on a NestJS and React repository, then system design. No AI assistants in live interviews.",
+  "companyFacts": [
+    "Pays freight carriers within two days of delivery for brokers across Canada",
+    "Named to the Maritime Growth 50 in 2024 and 2025",
+    "Processes about 400,000 carrier payouts a year",
+    "Integrates with 30 carrier and factoring partners",
+    "Series B, 140 employees, remote first with a Halifax hub",
+    "Began as a factoring service and became a broker-facing settlement platform",
+    "Customers are small and mid-size freight brokers",
+    "Publishes a quarterly carrier payment index"
+  ],
+  "values": [
+    "DELIVER: set ambitious goals and meet them",
+    "OWN IT: act like the outcome is yours",
+    "BE CANDID: say the hard thing kindly",
+    "STAY CURIOUS: learn from every incident",
+    "CARRIERS FIRST: a late payout is a broken promise"
+  ],
+  "mustHaves": [
+    "7+ years building complex, scalable APIs, including third-party API integration",
+    "Strong TypeScript and Node on the server; NestJS preferred",
+    "Relational data modelling in PostgreSQL, including migrations of live data",
+    "Experience leading a team's technical direction and mentoring engineers",
+    "React for internal and customer-facing tools",
+    "Event-driven design with a message broker such as Kafka",
+    "Testing strategy across unit, contract and end-to-end layers",
+    "Operational ownership: on-call, incident response, observability",
+    "Security-minded design for systems that move money",
+    "Clear written communication with product and partner teams"
+  ],
+  "niceToHaves": [
+    "Freight, logistics or payments domain experience",
+    "Moving a service from MongoDB to PostgreSQL",
+    "Experience introducing delivery metrics to a team"
+  ],
+  "techStack": [
+    "Node",
+    "NestJS",
+    "React",
+    "Redux",
+    "TypeScript",
+    "JavaScript",
+    "PostgreSQL",
+    "MongoDB",
+    "Kafka",
+    "Redis",
+    "AWS",
+    "Docker",
+    "Terraform",
+    "GitHub Actions"
+  ],
+  "responsibilities": [
+    "Manage third-party carrier and factoring integrations for reliability, performance and security",
+    "Set technical direction for the Settlements services",
+    "Lead design reviews and keep decisions written down",
+    "Mentor engineers and raise the bar on code review",
+    "Own reconciliation correctness between payouts and bank files",
+    "Plan the move of settlement data from MongoDB to PostgreSQL",
+    "Partner with product on scope, sequencing and deadlines",
+    "Improve observability and incident response for payouts",
+    "Reduce technical debt that slows delivery",
+    "Stay hands-on: roughly half the time in code"
+  ],
+  "prepNotes": [
+    "Round: Imre Solvang, Manager Engineering; Tue Mar 3, 10:00-11:00 AT; leadership and experience deep dive, not coding; judges technical judgment, hands-on credibility, leadership, delivery judgment, operational ownership.",
+    "Tell me about yourself: 18 years; integration- and workflow-heavy platforms; freight and insurance at Quotewright and Saffron; now Larchmont Pay payments modernization; 50% implementation, 30% architecture, 20% mentoring.",
+    "Why Kestrel: direct domain fit (quoting, carrier integrations, payout workflows); a stack I want, PostgreSQL and NestJS; a role that stays hands-on with technical direction and mentoring.",
+    "Why Tech Lead: stay close to the code so decisions are grounded; multiply the team through standards and review; if every hard call still needs me after six months, I built a dependency, not a stronger team.",
+    "Proudest and most relevant project: Quotewright multi-carrier quoting; carrier adapters behind one contract; schema-driven forms; server-owned quote state; 9 weeks, 30% less front-end code, 20% quoting efficiency, about $2M impact.",
+    "Modernization, recent work, leadership: Larchmont Pay; seams around the legacy PHP monolith with Laravel, Node, NestJS and contracts, no rewrite; six mentored, two promoted; 75% less scaffolding; 30% fewer incidents.",
+    "NestJS: a delivery and composition framework, not the architecture. Nest owns transport, validation and wiring; the domain layer owns workflows, rules and state changes; no business logic in controllers.",
+    "Microservices and service boundaries: logical boundary first; extract only for independent deployment, team ownership or failure isolation; otherwise a modular monolith; never because the codebase is large.",
+    "MongoDB to PostgreSQL, data consistency: move only for a real problem (integrity, transactions); by bounded context; backfill, parity checks, shadow reads; one writer; reversible cutover. Proof: Copperleaf, 3M+ learners, near-zero drift.",
+    "Third-party integrations, carrier APIs: the partner's API is not our domain model; adapter boundary, deadlines, bounded retries, idempotency keys, circuit breaking, reconciliation, per-partner latency and failure metrics.",
+    "Observability and incidents: start from the customer workflow (quote, book, pay); traces across services; alerts on symptoms; as incident lead, evidence over speculation, two owned follow-ups rather than ten vague ones.",
+    "Security and testing: built in, not a checklist; least privilege, validation at boundaries; unit for rules, contract for adapters, e2e for key journeys. Proof: Saffron Mutual, 65% fewer vulnerabilities, 80% coverage.",
+    "Product, deadline pressure, technical debt: clarify the outcome and its date; cut scope before quality; never hide risk; rank debt by incidents, security exposure and delivery friction.",
+    "DORA, mentoring, disagreement: metrics are system signals, never a ranking of people; mentor by pairing, review, delegate. Disagree with explicit reasons, a decision owner, a written decision.",
+    "First 90 days and AI: 30 learn the workflows and incidents and ship a small fix; 60 own a slice; 90 lead one improvement. AI is an accelerator, not an authority: contracts and tests define correctness.",
+    "Answer shape: context, problem, my part, decision, trade-off, result, lesson; two minutes. Why leaving Larchmont Pay: proud of the work; want stronger senior peers and broader ownership."
+  ],
+  "questionsToAsk": [
+    "Which part of Settlements would this Tech Lead own first: payouts, reconciliation, statements or the payment rules?",
+    "What decided the move from MongoDB to PostgreSQL, and how far along is it?",
+    "How do Settlements and Quoting agree on a contract when both need to change it?",
+    "What does a bad on-call week look like today?",
+    "How is a Tech Lead's time split between code, design and people here?",
+    "What would make you say, six months in, that this hire worked?"
+  ]
+}

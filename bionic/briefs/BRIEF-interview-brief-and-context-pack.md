@@ -197,6 +197,32 @@ A benchmark, like the coach's: a fixed brief, fixed questions, a score, compared
 - **The first row of the comparison is the baseline above**, re-run on the fixture before any
   change, so every later number has something to stand against.
 
+### Baseline on the fixture
+
+Measured 2026-10-10 by `pnpm pack:bench` on the fixture
+`products/interview/fixtures/context-pack/kestrel-freight-pay/` (13 roles, a 16-note employer
+brief, 5 preference lines, 40 gold questions over two stages), with the pack code as it stood at
+`f3521a1` (recipe version 1), before any change. Section 10 has the same table after phase 1.
+
+| Measure (coach projection) | Fixture, before | Real material, before |
+|---|---|---|
+| Records | 265 (161 evidence fragments) | 279 (172 evidence fragments) |
+| Right evidence first | 16 of 28 | 2 of 10 (1 right, 1 partly) |
+| Right evidence in the first three | 16 of 28 | 2 of 10 |
+| Right prep note first | 14 of 27 | 6 of 10 |
+| Right preference first | 3 of 3 | none typed |
+| Questions with nothing useful | 1 (of the 2 that honestly have nothing; the other found a "background job") | 2 (salary, conflict) |
+| Wrong-employer evidence in the first three | 10 of 28 | 4 of 10 |
+| Characters per question (median, largest) | 1,255 and 2,017 (answer: 1,657 and 3,103) | 1,273 and 2,056 |
+| Time to prepare; to resolve one question | 6 ms; 1.6 ms median | 7 ms; 2.8 ms median |
+
+The fixture is easier than the real material on evidence (57% against 20%) because half its
+questions are technical ones whose words the matrix shares. It fails on the same questions for
+the same reasons: on the nine hiring-manager questions that mirror the real ten (yourself, why
+this company, proudest project, a migration, carrier APIs, MongoDB to PostgreSQL, NestJS, DORA,
+mentoring) the right evidence led on 3, and "a migration", "MongoDB to PostgreSQL" and "NestJS"
+each put a wrong employer in all of the first three places.
+
 ## 8. Order of work, and how it is run
 
 The owner's session orchestrates; workers build; nothing is committed on a red gate.
@@ -235,3 +261,338 @@ and 1 can start now. Phases 2 and 3 need the decisions below.
    of phase 3 in parallel with them, then phases 3 to 6 in the product.
 7. **Live proof**: `pnpm pack:bench:<model>` commands that can run side by side (each writes its
    own result file and uses its own model session), and a "run them all" command.
+
+## 10. Result of phases 0 and 1 (2026-10-10)
+
+No model is called anywhere in either phase, no schema changed, and the engine was not changed.
+
+### The benchmark (phase 0)
+
+- **Fixture:** `products/interview/fixtures/context-pack/kestrel-freight-pay/`: `matrix.json`
+  (13 roles of the real shape, a consultancy with five client roles marked `engaged_through`, 8
+  stories, the other top-level sections), `employer-brief.json` (the real shape, 16 prep notes of
+  the "Topic: answer shape; Proof: employer" kind), `preferences.txt`, `gold.json`. Every name,
+  employer and figure is invented. It is kept as files beside the product, not in `fixture.ts`,
+  because the same reader takes a person's own files from outside the repository.
+- **Traps it holds**, each one seen in the real material: a 2008 role filed under "migration"
+  while the right answer says "modernization"; a note that says "Proof: Copperleaf" while an
+  older role lists both databases; NestJS, which the matrix never says, tied to one employer
+  only by a note about something else; a "Tell me about yourself" note whose "20% mentoring" is
+  also another role's metric; a "Why this company" note that names no employer; salary and
+  conflict questions with no word of the material in them; two questions with no answer at all.
+- **Gold:** 40 questions (20 hiring manager, 20 technical). A right answer is named by what it
+  says, never by a record's id: evidence by its employer (and, where one achievement matters,
+  words it must contain), a prep note or a preference by the words it starts with.
+- **Commands:** `pnpm pack:bench` (also `pnpm pack:bench:timing`) scores the `coach` and `answer`
+  projections, prints them beside the last run and keeps the result in `.dev-local/benchmarks/`
+  (scores and pointers only, never the text of a fact). `--show ID[,ID]` prints what the coach
+  is given for a question. A brief kept outside the repository is scored with
+  `--matrix FILE --brief FILE --gold FILE [--preferences FILE]`; `--brief` may be an application
+  row holding `employer_brief`.
+- **Gate:** `products/interview/src/backend/context-pack/bench.test.ts` runs the benchmark on
+  the fixture and asserts the "after" column below as floors.
+
+### Before and after
+
+Coach projection. The answer projection scores the same on every count; its characters are
+given in the last row.
+
+| Measure | Fixture before | Fixture after | Real before | Real after |
+|---|---|---|---|---|
+| Records | 265 | 243 (139 whole achievements) | 279 | 275 (168 achievements) |
+| Right evidence first | 16 of 28 (57%) | **24 of 28 (86%)** | 2 of 10 | **6 of 10** |
+| Right evidence in the first three | 16 of 28 | 24 of 28 | 2 of 10 | 6 of 10 |
+| Right prep note first | 14 of 27 (52%) | **23 of 27 (85%)** | 6 of 10 | **9 of 10** |
+| Right preference first | 3 of 3 | 3 of 3 | none typed | none typed |
+| Questions with nothing useful | 1 | 2, the two that honestly have nothing | 2 | 1 (salary: no preference is typed) |
+| Wrong-employer evidence in the first three | 10 of 28 | **2 of 28** | 4 of 10 | 2 of 10 |
+| Characters per question (median, largest) | 1,255; 2,017 | 1,605; 2,421 (+28%, +20%) | 1,273; 2,056 | 1,445; 2,445 (+14%, +19%) |
+| Answer projection, characters | 1,657; 3,103 | 2,101; 3,471 (+27%, +12%) | 1,815; 2,999 | 1,699; 3,430 |
+| Time to prepare; to resolve | 6 ms; 1.6 ms | 19 ms; 2.1 ms | 7 ms; 2.8 ms | 21 ms; 2.7 ms |
+
+The ten questions of the worked example, on the real material, after:
+
+| # | Question | Evidence chosen (first three) | Right? | Prep note chosen (first) | Right? |
+|---|---|---|---|---|---|
+| 1 | Tell me about yourself. | Helcim, then Relay Platform (the employers the note names) | yes (was none) | "Tell me about yourself" | yes |
+| 2 | Why Zensurance? | none | no (the note names no employer) | "Why Zensurance" | yes |
+| 3 | Tell me about a time you led a migration. | Helcim | yes (was Shaw, 2008) | "Modernization, recent work, leadership" | yes (was "Round") |
+| 4 | Third-party carrier API integrations? | Relay Platform | yes | "Third-party integrations, carrier APIs" | yes |
+| 5 | MongoDB to PostgreSQL? | MajorClarity, the achievement whose figure the note states first | yes (was Cisco) | "MongoDB to PostgreSQL, data consistency" | yes |
+| 6 | Experience with NestJS? | Helcim (through the note that says NestJS beside Helcim) | yes (was PeopleWell) | "NestJS" | yes (was "Round") |
+| 7 | DORA metrics with a team? | Kickbooster | no (the note names no employer; "team" is all that matches) | "DORA, mentoring, disagreement" | yes |
+| 8 | Salary expectations? | none | no (no preference is typed) | none | no |
+| 9 | A conflict with a stakeholder? | Hubstaff, one line that says "stakeholders" | no by the table's standard (there is no conflict story) | "DORA, mentoring, disagreement" | yes (was none) |
+| 10 | First 90 days? | Helcim | yes (was partly) | "First 90 days and AI" | yes |
+
+**Targets.** Right evidence first at least 70%: 86%. Wrong-employer evidence in the first three
+near zero: 2 of 28. Right prep note first at least 85%: 85%. The two honest "nothing" questions
+still nothing: yes, and no other question is empty. Characters no more than a third larger:
++28% (coach), +27% (answer).
+
+**What still fails on the fixture, and why** (none of it was tuned away):
+
+- Evidence: "Why Kestrel?" (the note names no employer, as the real "Why Zensurance" note does
+  not); "How do you make sure a payout is never sent twice?" (no word of the question is in the
+  record: it needs a reader to know that is idempotency); "ingestion for large files from a
+  bank" (finds webhook ingestion at one role, not the bulk importer at another); "a partner API
+  is slow or down" (finds the roles that say "partner" and "API", not the carrier adapters).
+- Prep notes: two ties between two notes headed with one word of the question each ("service"
+  against "testing"; "heavy" against "forms"), broken by nothing better than the record id; two
+  questions with no word of the right note in them.
+
+### How an achievement is composed (`sources.ts`)
+
+One `candidate-achievement` per proof point, leadership signal, responsibility and unattached
+metric, as one line: `At <employer> (<period>, <title>): <the statement>[; <its metric>].
+Stack: <the role's first three technologies>.` Everything in it is the matrix's own words.
+
+- **A metric belongs to a statement** that states its value as a whole ("120ms", never the "6"
+  inside "65%"), or failing that says every word of its label. Proof points are tried before
+  responsibilities; a leadership signal carries none; a metric that fits nothing stands as an
+  achievement of its own with its role. The metric is written after the statement unless the
+  statement already says its value and every word of its label.
+- **Fields:** `technologies` (those its own words name), `stack` (the role's), `themes` (the
+  role's own tags, patterns, problem spaces and system types that its words say at least half
+  of: a closed vocabulary), `tags` (all of the role's), `parts` (each part's section, locator
+  and own words) and `of` (its role).
+- **Identity and pointer** are the statement's own, as before (`<role>:<section>:<hash>`,
+  `/roles/3/proof_points/1`), so a pointer still opens the same place.
+- **The fragments are dropped as records**, not kept unranked. A fact a model was never shown
+  cannot verify a claim, so keeping them would add nothing to verification and would let a
+  pinned fragment put a context-free figure back; every part stays addressable in `parts`.
+- **Verification is unchanged and still exact**: the coach checks a claim against the text and
+  pointer it was given, and that text now holds every figure of the statement and of its
+  metric. A suite proves it on what the coach is really given (`coach/context.test.ts`): a
+  figure verifies under the statement's pointer, an invented figure does not, and a pointer to a
+  part that is no longer a fact of its own does not.
+
+### The rules, as written (`recipe.ts`, `links.ts`, `pack.ts`)
+
+1. **Where a word was found says how much it means.** Evidence: a technology the achievement
+   names, or its employer, counts 3; a theme or the role's stack 2; a role-wide tag or the text
+   1; the period 0. Notes, requirements, employer facts and preferences: a word in the
+   **heading** (the words before a sentence's colon, at most eight; "Proof:" is not a heading)
+   counts 3, anywhere else 1. A technology a requirement names counts 3.
+2. **Words that mean the same** (`SAME`): migration and modernization; conflict, disagreement
+   and dispute; mentoring and coaching; Node and Node.js; the earlier groups. "Legacy",
+   "pushback", "rate" and "base" stay out, each with its reason. **One word in its forms**
+   (`FORMS`): incident and incidents, API and APIs, idempotent and idempotency, and so on,
+   because the engine does not stem. **Compounds** (`COMPOUNDS`): "event-driven" is one term,
+   so "driven" alone no longer finds "schema-driven".
+3. **How a question is put is not what it is about**: "experience", "background", "approach",
+   "handle", "ever", "used", "know", "worked" are dropped with the other filler.
+4. **Links made in code** (`links.ts`): a note or story is linked to an **employer it names**
+   (the whole name, or its first word when the material only ever writes that word as a name);
+   to an **achievement whose figure it states** with one of the achievement's own words beside
+   it ("65% fewer vulnerabilities", never "60% implementation"); a requirement to the **person's
+   technologies it names**, and, **through a note** that says one of the employer's technologies
+   and names exactly one employer, to that employer (this is how NestJS finds Helcim).
+5. **Linked first.** The evidence linked to whatever leads the stories, prep and requirements
+   slots is ranked before evidence that merely shares a word. A line speaks for the question
+   only when it matches on its heading or on two words (or on every word of a one-word
+   question). A requirement that names several technologies is followed only for the ones the
+   question names, when it names any. A requirement's technologies are followed only when no
+   note or story names anything.
+6. **Two roles.** The coach has 4 places for evidence (was 6 fragments) and an answer 6 (was
+   16): the primary role first with up to 3 (4), then one backup role. The backup is left out
+   when the primary matches at least twice as many words, or is linked while the backup was
+   found on fewer than two words. The inspecting view is not arranged by role.
+7. **A story's words search the person's own record only** (evidence and roles). Before, "the
+   Larchmont Pay story" put the person's pay preference into a question about mentoring.
+
+### What the engine would need
+
+Everything was done in the product with what `resolve` offers; three things are approximations
+the engine could make exact.
+
+- **Preferred records per call.** A link is passed as `overrides.pinned`, the only way to rank a
+  record first and keep it when it shares no word with the question. So a linked fact reports
+  `score.pinned: true`, which says "a person's pin". Wanted: `overrides.preferred` (ids ranked
+  after pins and before the rest, exempt from the relevance cut), or a preference by tier.
+- **A cap per group in a slot.** "At most two roles, the primary leading" is done after the
+  engine has ranked: the product asks for up to 60 and fills 4 places itself, then rewrites
+  `selected`, `excluded`, the slot's resolution and the digest (`+arranged`). Wanted: a slot
+  option such as `groupBy: "of.role", groups: 2, lead: 3`, so the digest covers the result.
+- **A query per slot.** A story's words must reach evidence and roles and nothing else, so two
+  `resolve` calls are merged by slot and both digests joined. Wanted: `queries: { slot: text }`.
+- Smaller: stemming or a `forms` list (the 20 word-form groups exist only because there is
+  none); a score for an excluded record; hyphenated compounds kept as one term.
+
+### What is left, and what phase 2 should know
+
+- The misses above need meaning, not words: a model's links (phase 5) or the `answers` labels
+  of phase 3. A note that names no employer links nothing in code.
+- The recipe is at version 2 and `candidate-evidence` is gone. The readers were lifted (the
+  coach, the context route, their suites); the view contract and the Context pane name no
+  kinds and needed no change.
+- **A decision to record.** ADR-0041 has a chosen story widen the whole question; rule 7
+  narrows that to the person's own record, and the coach is now given 4 whole achievements
+  where it was given 6 fragments. Both want an ADR that amends ADR-0041.
+- A stage's records should join the same rules: a stage's prep note links by the same code (its
+  kind must be `prep-note`, or `links.ts` must be told the new kind), and a stage filter belongs
+  before `arrange` in `pack.ts`, which assumes the slot named `evidence` holds achievements.
+- `walkthrough-context-pack.md` describes recipe version 1 and is stale on records, scores and
+  the worked selections.
+
+## 11. Result of phase 2 (2026-10-10)
+
+Stages are things: each has its people, notes, transcripts and outcome; an application has
+dated "employer said" entries and research documents; all of it reaches the pack as sources with
+a stage, with no model call. Phase 3 builds on the shapes below.
+
+### The data model as built
+
+One migration, `20261010051810_interview_brief_stages`. Nothing existing is moved or rewritten.
+
+| Table | What | Columns added or held |
+|---|---|---|
+| `interview.interviews` (existing) | a stage | new, all nullable: `notes`, `outcome`, `next_steps` |
+| `interview.interview_participants`, `interview.people` (existing, reused) | a stage's people | unchanged. A person met is a `people` row of the employer (`company_id`), tied to the stage by a participant row with a role. They fit: name, title and role are all there, and the same person met in two stages is one row |
+| `interview.interview_transcripts` (new) | what was said in a stage | `owner_user_id`, `interview_id`, `title`, `origin` (`recorded`, `uploaded`, `pasted`), `origin_name`, `capture_policy` (`device-only`, `permitted-remote`), `occurred_at`, `content`, `content_sha256`, `chars`, `turns` |
+| `interview.employer_said_entries` (new) | one thing the employer said | `owner_user_id`, `candidacy_id`, `said`, `said_by`, `channel` (`email`, `call`, `message`, `other`), `said_on` (null: no date), `content_sha256` |
+| `interview.research_documents` (new) | one research document | `owner_user_id`, `company_id`, `candidacy_id` (null: the company's, read by every application to it), `title`, `origin` (`url`, `file`, `pasted`), `origin_ref`, `content`, `content_sha256`, `chars`, `updated_at` |
+
+The three new tables are private to their owner: forced row-level security pins a row to its
+tenant and its `owner_user_id`, and every reference to a tenant-owned row is composite on
+`(tenant_id, id)`. A transcript and an application's research go when their stage or application
+goes (cascade). The stage's own notes and outcome are columns of `interviews`, which is
+tenant-scoped like `candidacies.notes` has always been; the routes settle ownership (the
+application's candidate is the member) before anything is read.
+
+Contracts are in `packages/interview-contracts/src/interview-brief.ts`
+(`interviewBriefSchema`, the stage, transcript, employer-said and research request schemas,
+`INTERVIEW_BRIEF_BOUNDS`, `mayLeaveDevice`). The repository is
+`products/interview/src/backend/brief/repository.ts` (query builder only), the routes
+`brief/routes.ts`, registered on the documents API behind its guard:
+
+```
+GET    /api/interview/documents/candidacies/:id/interview-brief
+POST   …/stages            PATCH …/stages/:stageId     DELETE …/stages/:stageId
+PUT    …/stages/order      POST  …/notes/move
+POST   …/stages/:stageId/transcripts            (pasted text)
+POST   …/stages/:stageId/transcripts/upload     (a file: .txt, .vtt, .srt)
+GET    …/recordings        POST  …/stages/:stageId/transcripts/recordings
+GET | PATCH | DELETE  …/stages/:stageId/transcripts/:transcriptId
+POST   …/employer-said     PATCH | DELETE …/employer-said/:entryId
+POST   …/research          POST  …/research/upload     POST …/research/keep-carried
+GET | PATCH | DELETE  …/research/:documentId
+```
+
+A refusal is `{ error: { code } }` and nothing else: `not-found`, `invalid-request`,
+`body-too-large`, `limit-reached`, `invalid-transcript`, `unsupported-format`, `stage-in-use`,
+`loosening-refused`, `nothing-to-carry`. Another member, and another workspace, get `not-found`.
+
+### Bounds chosen
+
+| What | Bound |
+|---|---|
+| Stages per application; people per stage; transcripts per stage | 12; 12; 8 |
+| Employer-said entries; research documents per application | 100; 40 |
+| A stage's notes; outcome; what comes next | 20,000; 4,000; 2,000 characters |
+| A transcript | 1,000,000 characters (about sixteen hours of speech); an upload of 4 MiB |
+| An employer-said entry; a research document | 8,000; 200,000 characters (an upload of 1 MiB) |
+
+A transcript is one bounded request, neither streamed nor chunked: the documents API already
+reads a 5 MiB upload in one body, and a pasted transcript's JSON body is allowed twice the
+bound's bytes for escaping. A file must be text in a format `readTranscript` parses, and
+something must be said in it.
+
+### What was carried over
+
+| Old | Now | How |
+|---|---|---|
+| `candidacies.notes` | stays readable where it was; offered to the first stage (`offeredNotes`) while that stage has no notes | `POST …/notes/move` puts it on the first stage and empties the old field, in one transaction, when the person says so |
+| `companies.research` | offered as one document, `carried-company-research` | `POST …/research/keep-carried` makes it a document of the company and empties the old field |
+| The briefing form's `employerNotes` | one entry with no date (`briefingEmployerSaid`) | the form's field is the "Employer said" list; a save writes `employerSaid` and, beside it, the same entries as the text `employerNotes`, so every reader of the pack is unchanged |
+| The briefing form's `research` | one document (`briefingResearchDocuments`) | the field is still one text on that form: its condensed copy is made from that text, and a briefing pack is not tied to an application, so it has no document store to move into |
+
+The employer brief's clean-up now reads the application's notes and each stage's, so notes moved
+onto a stage are still what its prep lines are distilled from. The session's snapshot gains the
+stage's notes (its own and earlier stages'), the employer-said lines and up to 20,000 characters
+of research; never a transcript.
+
+### The surface
+
+The Interview form is the modal the native panel opens from the start screen and the task bar
+(`interview-context-modal.tsx`): it is where an application is made and its posting and notes are
+kept, so the stages belong there. Under its fields, once the application is saved,
+`InterviewBriefForm` (`frontend/studio/interview-brief/`) shows each stage as its own section
+(people, when, minutes, format, status, notes, transcripts, outcome, what comes next), "Employer
+said" and "Research". A stage is added, moved earlier or later, and removed after a confirmation
+in the page. A transcript is pasted, uploaded, or attached from the Studio's own recordings (the
+member's only: a recording is theirs when the session it names is). The documents picker and the
+live start screen still only choose an application and a stage; they were not changed. Built from
+the library's parts alone. Two parts did not do what their types say in the vendored build, and
+the nearest part was used: `Empty` shows "No data" whatever its `title`, so an empty list is a
+line of `Typography.Text`; `Alert` does not pass `data-testid` on, so it sits in a `Flex` that
+carries it. The library has no reorder handle for a `Collapse`; the two buttons do it.
+
+### Into the pack (what phase 3 can rely on)
+
+`context-pack/brief-sources.ts`, from `readBriefMaterial` (the brief with its words, read in the
+owner's scope). Every source carries `id`, `revision` (the first 16 characters of `sha256`),
+`kind`, `sha256`, `chars`, `sendable`, and `stage` and `stageId` where it has one.
+
+| Source id | Source kind | Record kind | Record id | Fields |
+|---|---|---|---|---|
+| `stage:<stageId>:notes` | `candidate-notes` | `prep-note` | `prep:<stageId>:<hash12>` | `section: "prepNotes"`, `stage`, `stageId`, `heading`, `carried` |
+| `stage:<stageId>:outcome` | `stage-outcome` | `prep-note` | `outcome:<stageId>:<hash12>` | `section: "stageOutcome"`, `stage`, `stageId` |
+| `stage:<stageId>:details` | `stage-details` | `employer-fact` | `stage-detail:<stageId>:<hash12>` | `section: "stageDetails"`, `stage`, `stageId` |
+| `stage:<stageId>:transcript:<transcriptId>` | `transcript` (with `capturePolicy`) | `transcript-turn` | `turn:<transcriptId>:<n>` | `speaker`, `startMs`, `endMs`, `clock`, `turn`, `transcriptId`, `stage`, `stageId`, `deviceOnly` |
+| `employer-said:<entryId>` | `employer-said` | `employer-fact` | `said:<entryId>:<hash12>` | `section: "employerSaid"`, `saidBy`, `channel`, `saidOn`, `said` |
+| `research:<documentId>` | `research` | `employer-fact` | `research:<documentId>:<hash12>` | `section: "research"`, `title`, `scope`, `origin`, `originRef` |
+
+- Text is cut by line; a line over 360 characters at its sentences (a slot leaves out a record
+  over 400). A record's `locator` is `/stages/<stageId>/notes/<line>`, `/employerSaid/<id>/<line>`,
+  `/research/<id>/<line>`; a turn's is its clock span, `10:39:54-10:40:09`.
+- A turn is consecutive fragments of one speaker. `transcript-turn` is declared in the recipe and
+  in no slot, so it is prepared, counted and inspectable and never offered as a fact.
+- `sourceMayLeaveDevice(source)` and `remoteSources(sources)` say what a remote model may be
+  given; a device-only transcript's turns say `deviceOnly: true`.
+- `stage` on a record is the stage's place (1 first). `scopeToStage(sources, n)` leaves a later
+  stage's records out and returns them; `withStageBrief(base, brief, n)` scopes, then links
+  (a stage's note is linked by `links.ts` exactly as the brief's are); `prepareStagePack` does
+  both for a session. Of two records that match a question equally the stage's own leads, an
+  earlier stage's follows, the application's comes after; a record that bears on the question
+  more still comes first.
+- The view (`GET sessions/:id/context`) takes `stage=<n>` or `stage=all`; absent, the stage the
+  session was started for. It answers with `stage`, `stages`, each fact's `stage`, each source's
+  `kind`, `stage`, `records` and `sendable`, and a later stage's records under reason `scope`.
+  The window's Context pane has the picker.
+- Notes offered from the application (not yet moved) are left out of the pack while the employer
+  brief has prep lines, which are those notes distilled: the same note is not given twice.
+
+### Measured
+
+`pnpm pack:bench --stages` on the fixture, extended with `stages.json` (two stages with people
+and notes, a synthetic device-only transcript, three employer-said entries, three research
+documents) and `gold-stages.json`:
+
+| Measure | Result |
+|---|---|
+| Stages with material of their own | 2 of 2 (0 of 2 before) |
+| Right stage note first | 5 of 5 |
+| An earlier stage's line follows | 1 of 1 |
+| A later stage's line left out | 2 of 2 |
+| The employer's line offered | 2 of 2 |
+| The first benchmark, with the stage material present | 24/28 evidence, 23/27 prep, 2 wrong-employer: unchanged |
+
+`pnpm pack:bench` itself is unchanged (24/28, 23/27, 2/28). One thing was learned from it: the
+first version put every record of the stage ahead of the application's in a slot, whatever it
+matched, and cost the first benchmark six prep notes (17/27). The rule is now relevance first and
+the stage as the tie-break. A tie still goes to the stage: a stage line that shares one word with
+a question wins over an application line found by one word.
+
+### What is left
+
+- No model reads any of this yet (phases 3 and 4): research and employer-said are offered as
+  their own lines, not as extracted facts, and a transcript's turns are raw.
+- The "request" per stage (section 3) is not stored.
+- A recording file's name carries only the first eight characters of its session's id; a
+  recording is offered to the member whose session matches them. Writing the owner into the
+  recording would settle it exactly.
+- Research uploads are plain text and Markdown only. A PDF or a Word file is refused.
+- Removing a stage a live session or a document was made for is refused (`stage-in-use`).
+- The Briefings form's research is still one text (see the carry-over table).
+- The real window was not seen: the form and the picker are proven by their suites, not by eye.

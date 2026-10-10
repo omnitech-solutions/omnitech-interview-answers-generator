@@ -1,0 +1,1226 @@
+{
+  "candidate": {
+    "name": "Rowan Achterberg",
+    "headline": "Staff-level systems architect for integration-heavy, workflow-heavy and data-intensive platforms",
+    "location": "Halifax, NS",
+    "profile_tags": [
+      "staff-engineer",
+      "architect",
+      "full-stack",
+      "integration-heavy",
+      "mentor"
+    ]
+  },
+  "resume_variants": [
+    {
+      "id": "base-short",
+      "label": "Base Short Resume",
+      "best_for": ["general staff engineer roles"],
+      "tech_emphasis": ["TypeScript", "PostgreSQL"],
+      "example_pool": ["Larchmont Pay", "Quotewright"]
+    },
+    {
+      "id": "fintech-lead",
+      "label": "Fintech Tech Lead Resume",
+      "best_for": ["payments and settlement platforms"],
+      "tech_emphasis": ["Node.js", "PostgreSQL", "OpenAPI"],
+      "example_pool": ["Larchmont Pay", "Stonebridge Equity"]
+    },
+    {
+      "id": "integration-architect",
+      "label": "Integration Architect Resume",
+      "best_for": ["partner and carrier integration roles"],
+      "tech_emphasis": ["TypeScript", "GraphQL"],
+      "example_pool": ["Quotewright", "Copperleaf Learning"]
+    }
+  ],
+  "contracting_companies": [
+    {
+      "company": "Fernhill Systems",
+      "title": "Lead Full Stack Developer / Architect / Contractor",
+      "period": "June 2020 – August 2023",
+      "from": "June 2020",
+      "to": "August 2023",
+      "description": "The candidate's own consultancy. Each client below was an engagement delivered through it.",
+      "clients": [
+        "Copperleaf Learning",
+        "Dockside Listings",
+        "Trailmark Telematics",
+        "Pledgewell",
+        "Quotewright"
+      ]
+    }
+  ],
+  "roles": [
+    {
+      "company": "Larchmont Pay",
+      "title": "Senior Software Developer / Architect",
+      "period": "2024–Present",
+      "industry": ["fintech", "payments", "platform engineering"],
+      "system_types": [
+        "payments platform",
+        "legacy modernization",
+        "code generation platform",
+        "micro-frontend ecosystem"
+      ],
+      "problem_spaces": [
+        "technical transformation",
+        "developer velocity",
+        "contract-first delivery",
+        "security and compliance alignment"
+      ],
+      "technologies": [
+        "Laravel",
+        "PHP 8.x",
+        "Vue.js",
+        "Vue-Query",
+        "Node.js",
+        "OpenAPI",
+        "MySQL",
+        "AWS",
+        "Golang"
+      ],
+      "patterns": [
+        "contract-first architecture",
+        "schema-driven generation",
+        "micro-frontends",
+        "service-oriented architecture",
+        "deterministic templates"
+      ],
+      "responsibilities": [
+        "Led modernization of the legacy PHP monolith behind service seams",
+        "Architected the Laravel service and micro-frontend direction",
+        "Built an AI-assisted code generation pipeline from OpenAPI contracts",
+        "Set standards for scalable contracts and test automation",
+        "Mentored engineers and partnered with Product and Security"
+      ],
+      "metrics": [
+        {
+          "label": "scaffolding effort",
+          "value": "75%",
+          "direction": "decrease"
+        },
+        {
+          "label": "production incidents",
+          "value": "30%",
+          "direction": "decrease"
+        },
+        {
+          "label": "release cycles",
+          "value": "monthly to daily",
+          "direction": "decrease"
+        }
+      ],
+      "leadership_signals": [
+        "architecture ownership",
+        "guild participation",
+        "mentorship",
+        "cross-functional collaboration",
+        "standards setting"
+      ],
+      "proof_points": [
+        "Cut release cycles from monthly to daily",
+        "Established a repeatable contract-first delivery model",
+        "Improved developer onboarding and consistency across six squads"
+      ],
+      "tags": [
+        "fintech",
+        "payments",
+        "contract-first",
+        "ai-assisted-codegen",
+        "developer-platform",
+        "micro-frontends",
+        "api-first",
+        "laravel",
+        "nodejs",
+        "openapi",
+        "mentorship",
+        "standards-and-governance",
+        "safe-modernization",
+        "security"
+      ]
+    },
+    {
+      "company": "Copperleaf Learning",
+      "title": "Lead Software Developer / Architect",
+      "period": "2023",
+      "engaged_through": "Fernhill Systems",
+      "industry": ["edtech", "k-12", "saas"],
+      "system_types": [
+        "rostering platform",
+        "identity and SSO",
+        "data synchronization pipeline"
+      ],
+      "problem_spaces": [
+        "district onboarding",
+        "data consistency",
+        "identity federation",
+        "operational support"
+      ],
+      "technologies": [
+        "Ruby on Rails",
+        "PostgreSQL",
+        "Sidekiq",
+        "React",
+        "TypeScript",
+        "GraphQL",
+        "SAML",
+        "OAuth 2.0",
+        "Redis",
+        "AWS",
+        "Terraform"
+      ],
+      "patterns": [
+        "idempotent sync jobs",
+        "reconciliation reports",
+        "adapter per provider",
+        "feature flags",
+        "backfill with parity checks"
+      ],
+      "responsibilities": [
+        "Led the rostering sync rebuild across district data providers",
+        "Designed SAML and OAuth single sign-on for districts",
+        "Moved roster storage onto relational tables with backfill and shadow reads",
+        "Built reconciliation reports for support and onboarding staff",
+        "Coached two developers into ownership of the sync pipeline"
+      ],
+      "metrics": [
+        {
+          "label": "learner accounts",
+          "value": "3M+",
+          "direction": "increase"
+        },
+        {
+          "label": "roster drift",
+          "value": "near zero",
+          "direction": "decrease"
+        },
+        {
+          "label": "district onboarding time",
+          "value": "3 weeks to 4 days",
+          "direction": "decrease"
+        },
+        { "label": "support tickets", "value": "45%", "direction": "decrease" },
+        { "label": "sync failures", "value": "60%", "direction": "decrease" },
+        {
+          "label": "single sign-on providers",
+          "value": "5",
+          "direction": "increase"
+        }
+      ],
+      "leadership_signals": [
+        "technical direction",
+        "stakeholder communication",
+        "coaching",
+        "incident leadership"
+      ],
+      "proof_points": [
+        "Kept roster drift near zero across 3M+ learner accounts",
+        "Cut district onboarding from 3 weeks to 4 days",
+        "Delivered single sign-on for five identity providers"
+      ],
+      "tags": [
+        "edtech",
+        "rostering",
+        "sso",
+        "identity",
+        "saml",
+        "oauth",
+        "data-sync",
+        "reconciliation",
+        "postgresql",
+        "rails",
+        "graphql",
+        "onboarding",
+        "idempotency",
+        "backfill",
+        "data-consistency"
+      ]
+    },
+    {
+      "company": "Dockside Listings",
+      "title": "Lead Full Stack Developer",
+      "period": "2022",
+      "engaged_through": "Fernhill Systems",
+      "industry": ["proptech", "marketplace", "commercial real estate"],
+      "system_types": [
+        "listing marketplace",
+        "bulk importer",
+        "back-office tooling"
+      ],
+      "problem_spaces": [
+        "broker onboarding",
+        "bulk data import",
+        "operations tooling",
+        "search relevance"
+      ],
+      "technologies": [
+        "Ruby on Rails",
+        "PostgreSQL",
+        "React",
+        "TypeScript",
+        "Elasticsearch",
+        "Sidekiq",
+        "AWS S3",
+        "Stimulus",
+        "Heroku"
+      ],
+      "patterns": [
+        "staged import pipeline",
+        "validation with row-level errors",
+        "background jobs",
+        "admin tooling"
+      ],
+      "responsibilities": [
+        "Built the bulk listing importer with row-level validation",
+        "Designed broker onboarding tooling for the operations team",
+        "Tuned search relevance for listing queries",
+        "Owned release management for the marketplace",
+        "Paired with operations staff to remove manual spreadsheet work"
+      ],
+      "metrics": [
+        {
+          "label": "listings imported",
+          "value": "120k",
+          "direction": "increase"
+        },
+        {
+          "label": "import error rate",
+          "value": "70%",
+          "direction": "decrease"
+        },
+        {
+          "label": "broker onboarding time",
+          "value": "50%",
+          "direction": "decrease"
+        },
+        {
+          "label": "manual data entry",
+          "value": "20 hours a week",
+          "direction": "decrease"
+        },
+        {
+          "label": "search response",
+          "value": "800ms to 150ms",
+          "direction": "decrease"
+        }
+      ],
+      "leadership_signals": [
+        "ownership",
+        "operations partnership",
+        "pragmatic delivery"
+      ],
+      "proof_points": [
+        "Imported 120k listings with 70% fewer import errors",
+        "Halved broker onboarding time",
+        "Removed 20 hours a week of manual data entry for operations"
+      ],
+      "tags": [
+        "proptech",
+        "marketplace",
+        "importers",
+        "onboarding",
+        "operations",
+        "search",
+        "rails",
+        "react",
+        "elasticsearch",
+        "bulk-data",
+        "admin-tooling",
+        "validation"
+      ]
+    },
+    {
+      "company": "Trailmark Telematics",
+      "title": "Senior Full Stack Developer",
+      "period": "2021–2022",
+      "engaged_through": "Fernhill Systems",
+      "industry": ["iot", "asset tracking", "logistics"],
+      "system_types": [
+        "telematics platform",
+        "identity and access",
+        "reporting dashboards"
+      ],
+      "problem_spaces": [
+        "enterprise single sign-on",
+        "role-based access",
+        "fleet reporting"
+      ],
+      "technologies": [
+        "Ruby on Rails",
+        "PostgreSQL",
+        "React",
+        "Redux",
+        "SAML",
+        "Okta",
+        "Azure AD",
+        "Docker",
+        "AWS",
+        "RSpec"
+      ],
+      "patterns": [
+        "role-based access control",
+        "tenant-scoped authorization",
+        "service objects"
+      ],
+      "responsibilities": [
+        "Delivered enterprise single sign-on with Okta and Azure AD",
+        "Reworked role-based access for fleet managers",
+        "Built fleet reporting dashboards in React",
+        "Raised automated test coverage on the access layer"
+      ],
+      "metrics": [
+        {
+          "label": "enterprise logins through single sign-on",
+          "value": "90%",
+          "direction": "increase"
+        },
+        {
+          "label": "access-related support tickets",
+          "value": "55%",
+          "direction": "decrease"
+        },
+        {
+          "label": "access layer test coverage",
+          "value": "88%",
+          "direction": "increase"
+        }
+      ],
+      "leadership_signals": [
+        "security ownership",
+        "client communication",
+        "code review"
+      ],
+      "proof_points": [
+        "Moved 90% of enterprise logins to single sign-on",
+        "Cut access-related support tickets by 55%",
+        "Shipped tenant-scoped authorization without a breaking release"
+      ],
+      "tags": [
+        "iot",
+        "logistics",
+        "sso",
+        "identity",
+        "rbac",
+        "okta",
+        "azure-ad",
+        "reporting",
+        "rails",
+        "react",
+        "multi-tenant"
+      ]
+    },
+    {
+      "company": "Pledgewell",
+      "title": "Senior Full Stack Developer",
+      "period": "2021",
+      "engaged_through": "Fernhill Systems",
+      "industry": ["ecommerce", "crowdfunding", "marketing technology"],
+      "system_types": ["referral platform", "storefront integrations"],
+      "problem_spaces": [
+        "partner integrations",
+        "campaign attribution",
+        "team delivery"
+      ],
+      "technologies": [
+        "Ruby on Rails",
+        "PostgreSQL",
+        "React",
+        "Shopify API",
+        "Stripe",
+        "Sidekiq"
+      ],
+      "patterns": [
+        "webhook ingestion",
+        "idempotent handlers",
+        "background jobs"
+      ],
+      "responsibilities": [
+        "Built storefront integrations against the Shopify API",
+        "Hardened webhook ingestion with idempotent handlers",
+        "Helped the team adopt weekly delivery reviews",
+        "Supported campaign attribution reporting"
+      ],
+      "leadership_signals": [
+        "team delivery habits",
+        "pairing",
+        "pragmatic scoping"
+      ],
+      "proof_points": [
+        "Stabilized webhook ingestion during a seasonal campaign peak",
+        "Helped a team of five move to weekly delivery"
+      ],
+      "tags": [
+        "ecommerce",
+        "crowdfunding",
+        "shopify",
+        "stripe",
+        "webhooks",
+        "integrations",
+        "rails",
+        "team-delivery",
+        "attribution"
+      ]
+    },
+    {
+      "company": "Quotewright",
+      "title": "Lead Full Stack Developer / Architect",
+      "period": "2020–2021",
+      "engaged_through": "Fernhill Systems",
+      "industry": ["freight", "logistics", "insurtech"],
+      "system_types": [
+        "multi-carrier quoting platform",
+        "workflow engine",
+        "schema-driven forms"
+      ],
+      "problem_spaces": [
+        "carrier integration",
+        "quote workflow orchestration",
+        "form complexity",
+        "time to market"
+      ],
+      "technologies": [
+        "TypeScript",
+        "Node.js",
+        "React",
+        "GraphQL",
+        "PostgreSQL",
+        "JSON Schema",
+        "Redis",
+        "AWS Lambda",
+        "Jest",
+        "Docker"
+      ],
+      "patterns": [
+        "adapter per carrier",
+        "schema-driven UI",
+        "server-owned workflow state",
+        "anti-corruption layer",
+        "contract tests"
+      ],
+      "responsibilities": [
+        "Architected multi-carrier quoting behind one quoting contract",
+        "Built carrier adapters with retries and reconciliation",
+        "Designed schema-driven forms rendered from JSON Schema",
+        "Kept quote workflow state on the server",
+        "Led a team of four through an eight-week launch plan"
+      ],
+      "metrics": [
+        { "label": "front-end code", "value": "30%", "direction": "decrease" },
+        {
+          "label": "quoting efficiency",
+          "value": "20%",
+          "direction": "increase"
+        },
+        {
+          "label": "time to launch",
+          "value": "9 weeks",
+          "direction": "decrease"
+        },
+        { "label": "revenue impact", "value": "$2M", "direction": "increase" }
+      ],
+      "leadership_signals": [
+        "architecture ownership",
+        "team leadership",
+        "client-facing delivery"
+      ],
+      "proof_points": [
+        "Launched multi-carrier quoting in 9 weeks",
+        "Onboarded six carrier APIs through one adapter contract",
+        "Reduced front-end code by 30% with schema-driven forms"
+      ],
+      "tags": [
+        "freight",
+        "insurtech",
+        "quoting",
+        "carrier-integrations",
+        "workflow-orchestration",
+        "schema-driven-ui",
+        "typescript",
+        "nodejs",
+        "react",
+        "graphql",
+        "adapters",
+        "api-integration"
+      ]
+    },
+    {
+      "company": "Saffron Mutual Tech",
+      "title": "Senior Software Engineer / Team Lead",
+      "period": "2018–2020",
+      "industry": ["insurance", "insurtech", "consumer web"],
+      "system_types": [
+        "policy self-service portal",
+        "quote and bind flows",
+        "agent tooling"
+      ],
+      "problem_spaces": [
+        "application security",
+        "test strategy",
+        "release confidence",
+        "legacy integration"
+      ],
+      "technologies": [
+        "Ruby on Rails",
+        "Angular",
+        "TypeScript",
+        "PostgreSQL",
+        "Redis",
+        "RSpec",
+        "Cypress",
+        "Jenkins",
+        "Docker",
+        "Kubernetes",
+        "AWS",
+        "OWASP ZAP",
+        "SonarQube",
+        "GraphQL",
+        "Sidekiq"
+      ],
+      "patterns": [
+        "test pyramid",
+        "contract tests for adapters",
+        "least privilege",
+        "secure defaults"
+      ],
+      "responsibilities": [
+        "Led a team of six on the policy self-service portal",
+        "Introduced a security review step and automated scanning",
+        "Rebuilt the test strategy around unit, contract and end-to-end layers",
+        "Integrated the portal with the legacy policy administration system",
+        "Ran weekly architecture reviews"
+      ],
+      "metrics": [
+        {
+          "label": "security vulnerabilities",
+          "value": "65%",
+          "direction": "decrease"
+        },
+        {
+          "label": "automated test coverage",
+          "value": "80%",
+          "direction": "increase"
+        },
+        {
+          "label": "release frequency",
+          "value": "monthly to weekly",
+          "direction": "increase"
+        },
+        {
+          "label": "regression defects",
+          "value": "40%",
+          "direction": "decrease"
+        },
+        { "label": "page load time", "value": "35%", "direction": "decrease" },
+        {
+          "label": "self-service adoption",
+          "value": "25%",
+          "direction": "increase"
+        },
+        { "label": "team size", "value": "6", "direction": "increase" }
+      ],
+      "leadership_signals": [
+        "team leadership",
+        "security advocacy",
+        "quality standards",
+        "hiring"
+      ],
+      "proof_points": [
+        "Reduced security vulnerabilities by 65%",
+        "Raised automated test coverage to 80%",
+        "Moved releases from monthly to weekly"
+      ],
+      "tags": [
+        "insurtech",
+        "insurance",
+        "security",
+        "testing",
+        "team-lead",
+        "rails",
+        "angular",
+        "kubernetes",
+        "ci-cd",
+        "quality",
+        "owasp",
+        "legacy-integration"
+      ]
+    },
+    {
+      "company": "HearthHR",
+      "title": "Senior Full Stack Developer",
+      "period": "2018",
+      "industry": ["hr technology", "benefits", "saas"],
+      "system_types": ["employee experience platform", "benefits enrollment"],
+      "problem_spaces": [
+        "enrollment workflows",
+        "agile delivery",
+        "product discovery"
+      ],
+      "technologies": [
+        "Ruby on Rails",
+        "React",
+        "PostgreSQL",
+        "Redux",
+        "RSpec",
+        "Capybara",
+        "Heroku",
+        "Sidekiq",
+        "Bootstrap",
+        "Webpack",
+        "CircleCI",
+        "Sentry"
+      ],
+      "patterns": ["wizard workflows", "form objects", "service objects"],
+      "responsibilities": [
+        "Built the benefits enrollment wizard",
+        "Ran story mapping with the product owner",
+        "Facilitated backlog refinement for the squad"
+      ],
+      "leadership_signals": [
+        "story mapping",
+        "backlog refinement",
+        "product partnership",
+        "developer experience advocacy"
+      ],
+      "proof_points": [
+        "Delivered open enrollment on schedule for 40 employers",
+        "Shortened the enrollment flow from nine steps to five"
+      ],
+      "tags": [
+        "hr-tech",
+        "benefits",
+        "employee-experience",
+        "agile-delivery",
+        "rails",
+        "react",
+        "workflows",
+        "product-discovery",
+        "developer-experience"
+      ]
+    },
+    {
+      "company": "Tallyclock",
+      "title": "Senior Software Engineer",
+      "period": "2017–2018",
+      "industry": ["workforce management", "saas"],
+      "system_types": [
+        "time tracking platform",
+        "payroll workflow",
+        "background processing"
+      ],
+      "problem_spaces": [
+        "workflow orchestration",
+        "delivery cadence",
+        "remote team practices"
+      ],
+      "technologies": [
+        "Ruby on Rails",
+        "PostgreSQL",
+        "Sidekiq",
+        "Redis",
+        "AngularJS",
+        "RSpec",
+        "AWS",
+        "Stripe"
+      ],
+      "patterns": [
+        "state machines",
+        "background jobs",
+        "event-driven workflows"
+      ],
+      "responsibilities": [
+        "Rebuilt the payroll approval workflow as a state machine",
+        "Improved the team's delivery metrics and release cadence",
+        "Worked with a fully remote team across six time zones"
+      ],
+      "metrics": [
+        {
+          "label": "deployment frequency",
+          "value": "weekly to daily",
+          "direction": "increase"
+        }
+      ],
+      "leadership_signals": [
+        "delivery metrics for the team",
+        "remote collaboration",
+        "written communication"
+      ],
+      "proof_points": [
+        "Moved the team from weekly to daily deployments",
+        "Cut payroll approval errors with an explicit state machine"
+      ],
+      "tags": [
+        "workforce",
+        "payroll",
+        "workflow-orchestration",
+        "state-machines",
+        "rails",
+        "remote-team",
+        "delivery-metrics",
+        "background-jobs",
+        "saas",
+        "team-metrics"
+      ]
+    },
+    {
+      "company": "Vantage Networks",
+      "title": "Software Engineer III",
+      "period": "2014–2017",
+      "industry": ["networking", "enterprise software", "developer tools"],
+      "system_types": [
+        "partner API gateway",
+        "developer portal",
+        "internal services",
+        "license service"
+      ],
+      "problem_spaces": [
+        "API usage growth",
+        "partner onboarding",
+        "service reliability",
+        "documentation"
+      ],
+      "technologies": [
+        "Java",
+        "Spring",
+        "Node.js",
+        "MongoDB",
+        "PostgreSQL",
+        "AngularJS",
+        "Docker",
+        "Jenkins",
+        "Kafka",
+        "Elasticsearch",
+        "Python"
+      ],
+      "patterns": [
+        "API gateway",
+        "rate limiting",
+        "service registry",
+        "consumer-driven contracts"
+      ],
+      "responsibilities": [
+        "Built partner API services on Node.js and MongoDB",
+        "Maintained the license service on PostgreSQL",
+        "Ran the developer portal and its API documentation",
+        "Supported partner onboarding to the API gateway",
+        "Took part in the on-call rotation for the gateway service"
+      ],
+      "metrics": [
+        {
+          "label": "API usage",
+          "value": "2M+ weekly calls",
+          "direction": "increase"
+        },
+        {
+          "label": "partner onboarding",
+          "value": "40 partners",
+          "direction": "increase"
+        }
+      ],
+      "leadership_signals": [
+        "API stewardship",
+        "documentation",
+        "cross-team collaboration"
+      ],
+      "proof_points": [
+        "Grew API usage to 2M+ weekly calls",
+        "Onboarded 40 partners to the developer portal"
+      ],
+      "tags": [
+        "enterprise",
+        "api-gateway",
+        "developer-portal",
+        "java",
+        "nodejs",
+        "mongodb",
+        "postgresql",
+        "kafka",
+        "partner-onboarding",
+        "service-reliability",
+        "documentation"
+      ]
+    },
+    {
+      "company": "Stonebridge Equity",
+      "title": "Software Developer",
+      "period": "2013–2014",
+      "industry": ["fintech", "equity compensation"],
+      "system_types": [
+        "equity plan administration",
+        "transaction processing",
+        "reporting"
+      ],
+      "problem_spaces": [
+        "financial accuracy",
+        "regulatory reporting",
+        "batch processing"
+      ],
+      "technologies": [
+        "C#",
+        ".NET",
+        "SQL Server",
+        "Knockout.js",
+        "MSMQ",
+        "TeamCity"
+      ],
+      "patterns": [
+        "double-entry ledger",
+        "batch reconciliation",
+        "audit trails"
+      ],
+      "responsibilities": [
+        "Built transaction processing for equity plan trades",
+        "Wrote batch reconciliation against the custodian's files",
+        "Maintained regulatory reports for plan administrators",
+        "Fixed rounding defects in the vesting calculator"
+      ],
+      "metrics": [
+        {
+          "label": "reconciliation breaks",
+          "value": "90%",
+          "direction": "decrease"
+        },
+        {
+          "label": "report run time",
+          "value": "4 hours to 25 minutes",
+          "direction": "decrease"
+        },
+        {
+          "label": "plans administered",
+          "value": "300",
+          "direction": "increase"
+        }
+      ],
+      "leadership_signals": ["attention to financial accuracy"],
+      "proof_points": [
+        "Cut reconciliation breaks by 90%",
+        "Reduced report run time from 4 hours to 25 minutes"
+      ],
+      "tags": [
+        "fintech",
+        "equity",
+        "ledger",
+        "reconciliation",
+        "dotnet",
+        "sql-server",
+        "batch-processing",
+        "audit"
+      ]
+    },
+    {
+      "company": "Pixelforge",
+      "title": "Web Developer",
+      "period": "2010–2011",
+      "industry": ["digital agency", "marketing"],
+      "system_types": ["campaign sites", "content management"],
+      "problem_spaces": [
+        "tight deadlines",
+        "client communication",
+        "browser compatibility"
+      ],
+      "technologies": [
+        "PHP",
+        "MySQL",
+        "JavaScript",
+        "jQuery",
+        "ActionScript",
+        "HTML",
+        "CSS",
+        "Drupal",
+        "WordPress",
+        "Subversion"
+      ],
+      "patterns": [
+        "template inheritance",
+        "content modelling",
+        "progressive enhancement"
+      ],
+      "responsibilities": [
+        "Built campaign sites for consumer brands",
+        "Worked directly with client stakeholders on scope",
+        "Handled launches under fixed advertising deadlines",
+        "Maintained shared front-end components"
+      ],
+      "leadership_signals": ["client communication", "deadline ownership"],
+      "proof_points": [
+        "Launched 14 campaign sites on fixed advertising dates",
+        "Built a shared component kit reused across client work"
+      ],
+      "tags": [
+        "agency",
+        "campaigns",
+        "php",
+        "javascript",
+        "deadlines",
+        "client-facing",
+        "cms"
+      ]
+    },
+    {
+      "company": "Northgate Cable",
+      "title": "Application Developer",
+      "period": "2008–2010",
+      "industry": ["telecommunications", "billing"],
+      "system_types": [
+        "billing reports",
+        "mainframe migration",
+        "internal tools"
+      ],
+      "problem_spaces": [
+        "reporting accuracy",
+        "data migration",
+        "internal automation"
+      ],
+      "technologies": [
+        "Java",
+        "Oracle",
+        "PL/SQL",
+        "COBOL",
+        "JSP",
+        "Struts",
+        "Unix shell",
+        "Crystal Reports",
+        "Ant",
+        "CVS"
+      ],
+      "patterns": [
+        "batch jobs",
+        "extract and load scripts",
+        "report templates"
+      ],
+      "responsibilities": [
+        "Supported the migration of billing reports off the mainframe",
+        "Wrote extract and load scripts for the data migration",
+        "Maintained internal tools for the billing group"
+      ],
+      "leadership_signals": ["led lunch-and-learn sessions", "initiative"],
+      "proof_points": [
+        "Delivered high-profile side projects for the regional sales group",
+        "Automated a monthly billing report that had taken two days by hand"
+      ],
+      "tags": [
+        "telecom",
+        "billing",
+        "migration",
+        "mainframe",
+        "java",
+        "oracle",
+        "reporting",
+        "data-migration"
+      ]
+    }
+  ],
+  "industry_mappings": [
+    {
+      "industry": "fintech",
+      "best_fit_roles": ["Larchmont Pay", "Stonebridge Equity"],
+      "themes": ["payments", "reconciliation", "contract-first delivery"],
+      "preferred_technologies": ["Node.js", "PostgreSQL", "OpenAPI"]
+    },
+    {
+      "industry": "logistics and freight",
+      "best_fit_roles": ["Quotewright", "Trailmark Telematics"],
+      "themes": ["carrier integration", "quoting", "workflow orchestration"],
+      "preferred_technologies": ["TypeScript", "GraphQL", "PostgreSQL"]
+    },
+    {
+      "industry": "insurtech",
+      "best_fit_roles": ["Saffron Mutual Tech", "Quotewright"],
+      "themes": ["quote and bind", "security", "legacy integration"],
+      "preferred_technologies": ["TypeScript", "PostgreSQL"]
+    },
+    {
+      "industry": "edtech",
+      "best_fit_roles": ["Copperleaf Learning"],
+      "themes": ["rostering", "identity", "data consistency"],
+      "preferred_technologies": ["PostgreSQL", "GraphQL"]
+    }
+  ],
+  "technology_mappings": [
+    {
+      "technology": "TypeScript",
+      "roles": [
+        "Quotewright",
+        "Copperleaf Learning",
+        "Dockside Listings",
+        "Saffron Mutual Tech"
+      ],
+      "proof_points": ["schema-driven forms", "reconciliation reports"]
+    },
+    {
+      "technology": "PostgreSQL",
+      "roles": [
+        "Copperleaf Learning",
+        "Quotewright",
+        "Dockside Listings",
+        "Trailmark Telematics"
+      ],
+      "proof_points": ["roster storage", "search response"]
+    },
+    {
+      "technology": "Node.js",
+      "roles": ["Larchmont Pay", "Quotewright", "Vantage Networks"],
+      "proof_points": ["carrier adapters", "code generation pipeline"]
+    },
+    {
+      "technology": "React",
+      "roles": [
+        "Quotewright",
+        "Trailmark Telematics",
+        "Dockside Listings",
+        "HearthHR"
+      ],
+      "proof_points": ["schema-driven forms", "reporting dashboards"]
+    },
+    {
+      "technology": "Ruby on Rails",
+      "roles": [
+        "Copperleaf Learning",
+        "Dockside Listings",
+        "Saffron Mutual Tech",
+        "Tallyclock"
+      ],
+      "proof_points": ["rostering sync", "payroll workflow"]
+    }
+  ],
+  "leadership_signals": [
+    {
+      "signal": "architecture ownership",
+      "evidence": ["Larchmont Pay", "Quotewright"]
+    },
+    {
+      "signal": "team leadership",
+      "evidence": ["Saffron Mutual Tech", "Quotewright"]
+    },
+    {
+      "signal": "mentorship",
+      "evidence": ["Larchmont Pay", "Copperleaf Learning"]
+    },
+    {
+      "signal": "standards setting",
+      "evidence": ["Larchmont Pay", "Saffron Mutual Tech"]
+    }
+  ],
+  "story_selector": [
+    {
+      "need": "fintech modernization",
+      "primary_story": "Larchmont Pay",
+      "backup_story": "Stonebridge Equity"
+    },
+    {
+      "need": "identity / SSO",
+      "primary_story": "Copperleaf Learning",
+      "backup_story": "Trailmark Telematics"
+    },
+    {
+      "need": "workflow orchestration",
+      "primary_story": "Quotewright",
+      "backup_story": "Tallyclock"
+    },
+    {
+      "need": "importers / onboarding / ops",
+      "primary_story": "Dockside Listings",
+      "backup_story": "Copperleaf Learning"
+    },
+    {
+      "need": "developer experience / automation",
+      "primary_story": "Larchmont Pay",
+      "backup_story": "HearthHR"
+    },
+    {
+      "need": "schema-driven UI",
+      "primary_story": "Quotewright",
+      "backup_story": "Saffron Mutual Tech"
+    },
+    {
+      "need": "enterprise backend / java",
+      "primary_story": "Vantage Networks",
+      "backup_story": "Northgate Cable"
+    },
+    {
+      "need": "staff-level mentoring / standards",
+      "primary_story": "Larchmont Pay",
+      "backup_story": "Saffron Mutual Tech"
+    }
+  ],
+  "tag_taxonomy": {
+    "domains": [
+      "fintech",
+      "payments",
+      "freight",
+      "logistics",
+      "insurtech",
+      "edtech",
+      "proptech",
+      "iot",
+      "hr-tech",
+      "ecommerce"
+    ],
+    "architecture": [
+      "contract-first",
+      "schema-driven-ui",
+      "adapters",
+      "workflow-orchestration",
+      "micro-frontends",
+      "safe-modernization",
+      "state-machines",
+      "api-gateway",
+      "multi-tenant"
+    ],
+    "leadership": [
+      "mentorship",
+      "team-lead",
+      "standards-and-governance",
+      "architecture ownership"
+    ],
+    "delivery": [
+      "ci-cd",
+      "delivery-metrics",
+      "onboarding",
+      "importers",
+      "operations"
+    ],
+    "frontend": ["react", "angular", "vue", "schema-driven-ui"],
+    "backend": [
+      "nodejs",
+      "rails",
+      "laravel",
+      "java",
+      "dotnet",
+      "postgresql",
+      "graphql",
+      "kafka"
+    ]
+  },
+  "repositories_of_note": [
+    {
+      "name": "contract-forge",
+      "owner": "fernhill-systems",
+      "type": "tooling",
+      "why_it_matters": "Generates service scaffolding from an OpenAPI contract.",
+      "signals": ["code generation", "contract-first"],
+      "relevance_tags": ["developer-platform", "api-first"]
+    },
+    {
+      "name": "schema-forms-kit",
+      "owner": "fernhill-systems",
+      "type": "library",
+      "why_it_matters": "Renders multi-step forms from JSON Schema.",
+      "signals": ["schema-driven UI"],
+      "relevance_tags": ["react", "schema-driven-ui"]
+    }
+  ],
+  "experience_matrix_extensions": {
+    "new_cross_cutting_themes": [
+      "integration boundaries",
+      "data consistency under change",
+      "delivery cadence",
+      "mentoring through standards"
+    ],
+    "suggested_tag_improvements": [
+      "split onboarding into customer and partner",
+      "add reconciliation as a pattern",
+      "name the observability work"
+    ]
+  }
+}

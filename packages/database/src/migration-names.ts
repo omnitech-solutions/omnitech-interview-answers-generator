@@ -29,4 +29,5 @@ export const expectedMigrations: readonly string[] = [
   "20261006152815_session_paused_time",
   "20261007231047_action_progress",
   "20261008000838_employer_brief",
+  "20261010051810_interview_brief_stages",
 ];

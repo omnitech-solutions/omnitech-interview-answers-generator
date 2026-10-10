@@ -412,10 +412,13 @@ function Mapping({
 // [DOMAIN] The server's selection for the question on show (the context
 // pack's "coach" projection). Read again when the question changes; a failed
 // read says so and keeps nothing stale on show.
+// `stage` is the stage to resolve for, by its place, or "all"; null leaves it
+// to the server: the stage the session was started for.
 function useContextView(
   sessionId: string | null,
   question: string,
   enabled: boolean,
+  stage: string | null,
 ) {
   const [view, setView] = useState<ContextView | null>(null);
   const [failed, setFailed] = useState(false);
@@ -424,7 +427,11 @@ function useContextView(
     setFailed(false);
     if (!enabled || !sessionId) return;
     const stop = new AbortController();
-    const query = new URLSearchParams({ projection: "coach", q: question });
+    const query = new URLSearchParams({
+      projection: "coach",
+      q: question,
+      ...(stage === null ? {} : { stage }),
+    });
     studioFetch(
       `/api/interview/t/${encodeURIComponent(tenantFromLocation())}/sessions/${encodeURIComponent(sessionId)}/context?${query}`,
       { signal: stop.signal },
@@ -439,7 +446,7 @@ function useContextView(
         if (!stop.signal.aborted) setFailed(true);
       });
     return () => stop.abort();
-  }, [sessionId, question, enabled]);
+  }, [sessionId, question, enabled, stage]);
   return { view, failed };
 }
 
@@ -469,18 +476,72 @@ const REASON_LABEL: Record<ContextView["excluded"][number]["reason"], string> =
     "over-limit": "too long to give whole",
     budget: "no room left",
     excluded: "excluded by you",
+    scope: "belongs to a later stage",
   };
+
+const EVERY_STAGE = "all";
+
+// [DOMAIN] Which stage of the application the selection is resolved for: that
+// stage's records lead, an earlier stage's follow, a later stage's are left
+// out. Shown only when the application has stages.
+function StagePicker({
+  view,
+  onStage,
+}: {
+  view: ContextView;
+  onStage(stage: string): void;
+}) {
+  const stages = view.stages ?? [];
+  if (stages.length === 0) return null;
+  const current = view.stage ? String(view.stage.ordinal) : EVERY_STAGE;
+  return (
+    <ActionMenu
+      label="The stage this is selected for"
+      title="Stage"
+      width={250}
+      sections={[
+        {
+          id: "stage",
+          selection: "single",
+          value: current,
+          items: [
+            ...stages.map((stage) => ({
+              id: String(stage.ordinal),
+              label: `${stage.ordinal}. ${stage.label}`,
+            })),
+            { id: EVERY_STAGE, label: "Every stage" },
+          ],
+        },
+      ]}
+      onValueChange={(_group, id) => onStage(id)}
+      trigger={
+        <Button
+          buttonSize="sm"
+          variant="outline"
+          iconAfter={<Icon name="expand_more" />}
+          data-testid="pn-context-stage"
+        >
+          {view.stage
+            ? `Stage ${view.stage.ordinal}: ${view.stage.label}`
+            : "Every stage"}
+        </Button>
+      }
+    />
+  );
+}
 
 function SelectedView({
   view,
   failed,
   hasSession,
   question,
+  onStage,
 }: {
   view: ContextView | null;
   failed: boolean;
   hasSession: boolean;
   question: string;
+  onStage(stage: string): void;
 }) {
   if (!hasSession)
     return (
@@ -506,6 +567,7 @@ function SelectedView({
     left.set(reason, (left.get(reason) ?? 0) + 1);
   return (
     <>
+      <StagePicker view={view} onStage={onStage} />
       <Typography.Text type="secondary" data-testid="pn-context-selected-for">
         {question
           ? `For: “${question}”`
@@ -534,6 +596,9 @@ function SelectedView({
                       >
                         <Typography.Text>{fact.text}</Typography.Text>
                         <Tag variant="outline">{ABOUT_LABEL[fact.about]}</Tag>
+                        {fact.stage !== undefined && (
+                          <Tag variant="outline">{`Stage ${fact.stage}`}</Tag>
+                        )}
                         {fact.pointer.startsWith("/") && (
                           <Tag mono variant="filled">
                             {fact.pointer}
@@ -586,10 +651,15 @@ export function ContextPane({
   const [projection, setProjection] = useState<ProjectionId>("ranked");
   const [allRoles, setAllRoles] = useState(false);
   const sessionId = s.session?.id ?? null;
+  // The stage the selection is resolved for: the session's own until the
+  // person picks another, and the session's own again for another session.
+  const [stage, setStage] = useState<string | null>(null);
+  useEffect(() => setStage(null), [sessionId]);
   const selected = useContextView(
     sessionId,
     question,
     projection === "selected",
+    stage,
   );
   const loaded = matrix.loaded;
   const latest = matrix.profile?.latest ?? null;
@@ -781,6 +851,7 @@ export function ContextPane({
               failed={selected.failed}
               hasSession={sessionId !== null}
               question={question}
+              onStage={setStage}
             />
           )}
           {loaded && (projection === "ranked" || projection === "facts") && (

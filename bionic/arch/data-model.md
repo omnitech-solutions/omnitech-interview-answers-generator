@@ -1,8 +1,8 @@
 # Data model
 
-_Derived from `packages/database/drizzle/20261008000838_employer_brief/snapshot.json` (drizzle-kit snapshot; static read, no Drizzle executed)._
+_Derived from `packages/database/drizzle/20261010051810_interview_brief_stages/snapshot.json` (drizzle-kit snapshot; static read, no Drizzle executed)._
 
-## Entities (67 tables)
+## Entities (70 tables)
 
 | table | column | type | nullable | default | primary key | references |
 |---|---|---|---|---|---|---|
@@ -326,6 +326,18 @@ _Derived from `packages/database/drizzle/20261008000838_employer_brief/snapshot.
 | interview.documents | `tenant_id` | uuid | no | — | — | interview.candidacies.tenant_id, interview.document_template_revisions.tenant_id, interview.interviews.tenant_id |
 | interview.documents | `title` | text | no | — | — | — |
 | interview.documents | `updated_at` | timestamp with time zone | no | now() | — | — |
+| interview.employer_said_entries | `candidacy_id` | uuid | no | — | — | interview.candidacies.id |
+| interview.employer_said_entries | `channel` | text | yes | — | — | — |
+| interview.employer_said_entries | `content_sha256` | text | no | — | — | — |
+| interview.employer_said_entries | `created_at` | timestamp with time zone | no | now() | — | — |
+| interview.employer_said_entries | `created_by` | uuid | yes | — | — | platform.users.id |
+| interview.employer_said_entries | `id` | uuid | no | gen_random_uuid() | yes | — |
+| interview.employer_said_entries | `owner_user_id` | uuid | no | — | — | platform.users.id |
+| interview.employer_said_entries | `said` | text | no | — | — | — |
+| interview.employer_said_entries | `said_by` | text | yes | — | — | — |
+| interview.employer_said_entries | `said_on` | date | yes | — | — | — |
+| interview.employer_said_entries | `tenant_id` | uuid | no | — | — | interview.candidacies.tenant_id, platform.tenants.id |
+| interview.employer_said_entries | `updated_at` | timestamp with time zone | no | now() | — | — |
 | interview.interview_participants | `created_at` | timestamp with time zone | no | now() | — | — |
 | interview.interview_participants | `created_by` | uuid | yes | — | — | platform.users.id |
 | interview.interview_participants | `id` | uuid | no | gen_random_uuid() | yes | — |
@@ -358,6 +370,22 @@ _Derived from `packages/database/drizzle/20261008000838_employer_brief/snapshot.
 | interview.interview_plans | `tenant_id` | text | no | — | yes | — |
 | interview.interview_plans | `topics` | jsonb | no | '[]' | — | — |
 | interview.interview_plans | `updated_at` | timestamp with time zone | no | now() | — | — |
+| interview.interview_transcripts | `capture_policy` | text | no | — | — | — |
+| interview.interview_transcripts | `chars` | integer | no | — | — | — |
+| interview.interview_transcripts | `content` | text | no | — | — | — |
+| interview.interview_transcripts | `content_sha256` | text | no | — | — | — |
+| interview.interview_transcripts | `created_at` | timestamp with time zone | no | now() | — | — |
+| interview.interview_transcripts | `created_by` | uuid | yes | — | — | platform.users.id |
+| interview.interview_transcripts | `id` | uuid | no | gen_random_uuid() | yes | — |
+| interview.interview_transcripts | `interview_id` | uuid | no | — | — | interview.interviews.id |
+| interview.interview_transcripts | `occurred_at` | timestamp with time zone | yes | — | — | — |
+| interview.interview_transcripts | `origin` | text | no | — | — | — |
+| interview.interview_transcripts | `origin_name` | text | yes | — | — | — |
+| interview.interview_transcripts | `owner_user_id` | uuid | no | — | — | platform.users.id |
+| interview.interview_transcripts | `tenant_id` | uuid | no | — | — | interview.interviews.tenant_id, platform.tenants.id |
+| interview.interview_transcripts | `title` | text | no | — | — | — |
+| interview.interview_transcripts | `turns` | integer | no | — | — | — |
+| interview.interview_transcripts | `updated_at` | timestamp with time zone | no | now() | — | — |
 | interview.interviews | `candidacy_id` | uuid | no | — | — | interview.candidacies.id |
 | interview.interviews | `created_at` | timestamp with time zone | no | now() | — | — |
 | interview.interviews | `created_by` | uuid | yes | — | — | platform.users.id |
@@ -366,7 +394,10 @@ _Derived from `packages/database/drizzle/20261008000838_employer_brief/snapshot.
 | interview.interviews | `id` | uuid | no | gen_random_uuid() | yes | — |
 | interview.interviews | `kind` | interview.interview_kind | no | — | — | — |
 | interview.interviews | `label` | text | no | — | — | — |
+| interview.interviews | `next_steps` | text | yes | — | — | — |
+| interview.interviews | `notes` | text | yes | — | — | — |
 | interview.interviews | `ordinal` | integer | no | — | — | — |
+| interview.interviews | `outcome` | text | yes | — | — | — |
 | interview.interviews | `scheduled_at` | timestamp with time zone | yes | — | — | — |
 | interview.interviews | `status` | interview.interview_status | no | 'scheduled' | — | — |
 | interview.interviews | `tenant_id` | uuid | no | — | — | interview.candidacies.tenant_id, platform.tenants.id |
@@ -396,6 +427,20 @@ _Derived from `packages/database/drizzle/20261008000838_employer_brief/snapshot.
 | interview.rehearsal_sessions | `score` | integer | no | — | — | — |
 | interview.rehearsal_sessions | `tenant_id` | text | no | — | yes | — |
 | interview.rehearsal_sessions | `value` | jsonb | no | — | — | — |
+| interview.research_documents | `candidacy_id` | uuid | yes | — | — | interview.candidacies.id |
+| interview.research_documents | `chars` | integer | no | — | — | — |
+| interview.research_documents | `company_id` | uuid | no | — | — | interview.companies.id |
+| interview.research_documents | `content` | text | no | — | — | — |
+| interview.research_documents | `content_sha256` | text | no | — | — | — |
+| interview.research_documents | `created_at` | timestamp with time zone | no | now() | — | — |
+| interview.research_documents | `created_by` | uuid | yes | — | — | platform.users.id |
+| interview.research_documents | `id` | uuid | no | gen_random_uuid() | yes | — |
+| interview.research_documents | `origin` | text | no | — | — | — |
+| interview.research_documents | `origin_ref` | text | yes | — | — | — |
+| interview.research_documents | `owner_user_id` | uuid | no | — | — | platform.users.id |
+| interview.research_documents | `tenant_id` | uuid | no | — | — | interview.candidacies.tenant_id, interview.companies.tenant_id, platform.tenants.id |
+| interview.research_documents | `title` | text | no | — | — | — |
+| interview.research_documents | `updated_at` | timestamp with time zone | no | now() | — | — |
 | interview.session_actions | `action_kind` | text | no | — | — | — |
 | interview.session_actions | `attempt` | integer | no | 1 | — | — |
 | interview.session_actions | `created_at` | timestamp with time zone | no | now() | — | — |
@@ -682,13 +727,16 @@ _Derived from `packages/database/drizzle/20261008000838_employer_brief/snapshot.
 - `interview.document_template_revisions`: primary key (tenant_id, template_id, revision); index (tenant_id, source_artifact_id)
 - `interview.document_templates`: primary key (id); unique (tenant_id, id); index (tenant_id, owner_user_id)
 - `interview.documents`: primary key (id); unique (tenant_id, owner_user_id, template_id, template_revision, profile_id, profile_revision, candidacy_id, interview_id); unique (tenant_id, owner_user_id, id); index (tenant_id, owner_user_id, updated_at)
+- `interview.employer_said_entries`: primary key (id); unique (tenant_id, id); index (tenant_id, candidacy_id)
 - `interview.interview_participants`: primary key (id); unique (tenant_id, id); unique (interview_id, person_id, role); index (tenant_id, interview_id); index (tenant_id, person_id)
 - `interview.interview_plan_items`: primary key (tenant_id, actor_id, product_id, id)
 - `interview.interview_plans`: primary key (tenant_id, actor_id, product_id, id)
+- `interview.interview_transcripts`: primary key (id); unique (tenant_id, interview_id, content_sha256); unique (tenant_id, id); index (tenant_id, interview_id)
 - `interview.interviews`: primary key (id); unique (candidacy_id, ordinal); unique (tenant_id, id, candidacy_id); unique (tenant_id, id); index (tenant_id, candidacy_id)
 - `interview.member_people`: primary key (tenant_id, user_id); unique (tenant_id, person_id); index (tenant_id, person_id)
 - `interview.people`: primary key (id); unique (tenant_id, id); index (tenant_id, company_id)
 - `interview.rehearsal_sessions`: primary key (tenant_id, actor_id, product_id, id)
+- `interview.research_documents`: primary key (id); unique (tenant_id, id); index (tenant_id, candidacy_id); index (tenant_id, company_id)
 - `interview.session_actions`: primary key (id); unique (tenant_id, job_id); unique (tenant_id, owner_user_id, id); unique index (tenant_id, owner_user_id, session_id, task_id, task_revision, action_kind) where dispatch_status IN ('in_flight', 'succeeded'); index (tenant_id, owner_user_id, session_id)
 - `interview.session_observations`: primary key (tenant_id, owner_user_id, session_id, source_id, event_id); unique (tenant_id, owner_user_id, session_id, sequence); index (tenant_id, screenshot_artifact_id)
 - `platform.artifact_payloads`: primary key (tenant_id, artifact_id)
@@ -761,11 +809,19 @@ _Derived from `packages/database/drizzle/20261008000838_employer_brief/snapshot.
 - `interview.documents` (tenant_id, candidacy_id) → `interview.candidacies` (tenant_id, id), on delete no action
 - `interview.documents` (tenant_id, interview_id, candidacy_id) → `interview.interviews` (tenant_id, id, candidacy_id), on delete no action
 - `interview.documents` (tenant_id, template_id, template_revision) → `interview.document_template_revisions` (tenant_id, template_id, revision), on delete no action
+- `interview.employer_said_entries` (tenant_id, candidacy_id) → `interview.candidacies` (tenant_id, id), on delete cascade
+- `interview.employer_said_entries` (created_by) → `platform.users` (id), on delete no action
+- `interview.employer_said_entries` (owner_user_id) → `platform.users` (id), on delete no action
+- `interview.employer_said_entries` (tenant_id) → `platform.tenants` (id), on delete cascade
 - `interview.interview_participants` (created_by) → `platform.users` (id), on delete no action
 - `interview.interview_participants` (tenant_id, interview_id) → `interview.interviews` (tenant_id, id), on delete no action
 - `interview.interview_participants` (tenant_id, person_id) → `interview.people` (tenant_id, id), on delete no action
 - `interview.interview_participants` (tenant_id) → `platform.tenants` (id), on delete cascade
 - `interview.interview_plan_items` (tenant_id, actor_id, product_id, plan_id) → `interview.interview_plans` (tenant_id, actor_id, product_id, id), on delete cascade
+- `interview.interview_transcripts` (created_by) → `platform.users` (id), on delete no action
+- `interview.interview_transcripts` (tenant_id, interview_id) → `interview.interviews` (tenant_id, id), on delete cascade
+- `interview.interview_transcripts` (owner_user_id) → `platform.users` (id), on delete no action
+- `interview.interview_transcripts` (tenant_id) → `platform.tenants` (id), on delete cascade
 - `interview.interviews` (tenant_id, candidacy_id) → `interview.candidacies` (tenant_id, id), on delete no action
 - `interview.interviews` (created_by) → `platform.users` (id), on delete no action
 - `interview.interviews` (tenant_id) → `platform.tenants` (id), on delete cascade
@@ -775,6 +831,11 @@ _Derived from `packages/database/drizzle/20261008000838_employer_brief/snapshot.
 - `interview.people` (created_by) → `platform.users` (id), on delete no action
 - `interview.people` (linked_user_id) → `platform.users` (id), on delete no action
 - `interview.people` (tenant_id) → `platform.tenants` (id), on delete cascade
+- `interview.research_documents` (tenant_id, candidacy_id) → `interview.candidacies` (tenant_id, id), on delete cascade
+- `interview.research_documents` (tenant_id, company_id) → `interview.companies` (tenant_id, id), on delete no action
+- `interview.research_documents` (created_by) → `platform.users` (id), on delete no action
+- `interview.research_documents` (owner_user_id) → `platform.users` (id), on delete no action
+- `interview.research_documents` (tenant_id) → `platform.tenants` (id), on delete cascade
 - `interview.session_actions` (tenant_id, owner_user_id, session_id) → `interview.active_sessions` (tenant_id, owner_user_id, id), on delete no action
 - `interview.session_observations` (tenant_id, screenshot_artifact_id) → `platform.artifacts` (tenant_id, id), on delete no action
 - `interview.session_observations` (tenant_id, owner_user_id, session_id) → `interview.active_sessions` (tenant_id, owner_user_id, id), on delete no action
@@ -869,13 +930,16 @@ _The snapshot records whether RLS is enabled and each policy; whether it is FORC
 - `interview.document_template_revisions`: RLS enabled; policies: document_template_revisions_catalog_insert (insert), document_template_revisions_insert (insert), document_template_revisions_read (select)
 - `interview.document_templates`: RLS enabled; policies: document_templates_catalog_insert (insert), document_templates_delete (delete), document_templates_insert (insert), document_templates_read (select), document_templates_update (update)
 - `interview.documents`: RLS enabled; policies: documents_private_scope (all)
+- `interview.employer_said_entries`: RLS enabled; policies: tenant_user_employer_said_entries (all)
 - `interview.interview_participants`: RLS enabled; policies: tenant_interview_participants (all)
 - `interview.interview_plan_items`: RLS enabled; policies: plan_private_scope (all)
 - `interview.interview_plans`: RLS enabled; policies: plan_private_scope (all)
+- `interview.interview_transcripts`: RLS enabled; policies: tenant_user_interview_transcripts (all)
 - `interview.interviews`: RLS enabled; policies: tenant_interviews (all)
 - `interview.member_people`: RLS enabled; policies: tenant_member_people (all)
 - `interview.people`: RLS enabled; policies: tenant_people (all)
 - `interview.rehearsal_sessions`: RLS enabled; policies: rehearsal_private_scope (all)
+- `interview.research_documents`: RLS enabled; policies: tenant_user_research_documents (all)
 - `interview.session_actions`: RLS enabled; policies: session_actions_owner_delete (delete), session_actions_owner_insert (insert), session_actions_owner_select (select), session_actions_owner_update (update)
 - `interview.session_observations`: RLS enabled; policies: session_observations_owner_delete (delete), session_observations_owner_insert (insert), session_observations_owner_select (select)
 - `platform.artifact_payloads`: RLS enabled; policies: artifact_payloads_insert (insert), artifact_payloads_select (select), artifact_payloads_session_delete (delete)
@@ -910,8 +974,8 @@ _The snapshot records whether RLS is enabled and each policy; whether it is FORC
 
 Not shown here (read the snapshot or the schema source):
 
-- 104 policy expressions (`using` / `with check`): names only above
-- 78 check constraints
+- 107 policy expressions (`using` / `with check`): names only above
+- 82 check constraints
 - generated and identity columns
 - index methods, operator classes, sort order
 - roles, grants, triggers, functions, views

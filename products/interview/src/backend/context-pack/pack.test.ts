@@ -6,6 +6,7 @@
 import { createAiEngine } from "@omnitech/ai-engine";
 import type { CandidateMatrix } from "@omnitech/interview-contracts";
 import { beforeAll, describe, expect, it } from "vitest";
+import { preparePackForBench, readFixture } from "./bench";
 import {
   BRIEF,
   contextOf,
@@ -44,6 +45,18 @@ let pack: ContextPack;
 beforeAll(async () => {
   pack = await packOf();
 });
+
+// An achievement as it reads: who, where, when and what, then the stack.
+const HARBOUR = "At Harbourline (2022 to 2025, Staff Engineer)";
+const HARBOUR_STACK = "Stack: Go, PostgreSQL, Kafka.";
+const QUAY = "At Quayside Freight (Senior Engineer)";
+const QUAY_STACK = "Stack: NestJS, TypeScript, Redis.";
+const REWROTE = `${HARBOUR}: Rewrote the berth scheduler in Go for the harbour pilots. ${HARBOUR_STACK}`;
+const NEST = `${QUAY}: Built a NestJS reporting service for dock invoices. ${QUAY_STACK}`;
+const REVIEWED = `${QUAY}: Reviewed every change to the invoice ledger. ${QUAY_STACK}`;
+const INVOICES = `${QUAY}: invoices per day: 42000. ${QUAY_STACK}`;
+const RAILS =
+  "At Tidewater Labs (Engineer): Shipped a Rails booking flow for ferry crews. Stack: Ruby, Rails.";
 
 const inSlot = <Fact extends { slot: string }>(
   facts: readonly Fact[],
@@ -100,19 +113,21 @@ describe("a question that names a technology", () => {
   it("selects the evidence and the role of the role that used it, and no other role's", () => {
     const facts = pack.facts("inspect", GO);
     const evidence = inSlot(facts, "evidence");
-    expect(evidence.length).toBe(6);
+    // Five achievements: the role's two proof points, its signal, its
+    // responsibility and the one metric no proof point states.
+    expect(evidence.length).toBe(5);
     for (const fact of evidence) {
       expect(fact.id, fact.text).toMatch(/^role:harbourline:staff-engineer:/);
       expect(fact.pointer, fact.text).toMatch(/^\/roles\/0\//);
+      expect(fact.text.startsWith(`${HARBOUR}: `), fact.text).toBe(true);
       expect(fact).toMatchObject({
-        kind: KINDS.evidence,
+        kind: KINDS.achievement,
         about: "candidate",
         exact: false,
       });
     }
-    expect(texts(evidence)).toContain(
-      "Rewrote the berth scheduler in Go for the harbour pilots",
-    );
+    // The achievement that names Go leads the ones merely done on it.
+    expect(texts(evidence)[0]).toBe(REWROTE);
     expect(inSlot(facts, "roles")).toEqual([
       {
         id: "role:harbourline:staff-engineer",
@@ -130,12 +145,7 @@ describe("a question that names a technology", () => {
     const view = pack.view("inspect", GO);
     const left = view.excluded.filter((fact) => fact.slot === "evidence");
     expect(texts(left).sort()).toEqual(
-      [
-        "Built a NestJS reporting service for dock invoices",
-        "Reviewed every change to the invoice ledger",
-        "invoices per day: 42000",
-        "Shipped a Rails booking flow for ferry crews",
-      ].sort(),
+      [NEST, REVIEWED, INVOICES, RAILS].sort(),
     );
     for (const fact of left)
       expect(fact).toMatchObject({ reason: "relevance", about: "candidate" });
@@ -170,28 +180,23 @@ describe("a question that names a technology", () => {
       "role:quayside-freight:senior-engineer",
     ]);
     const evidence = texts(inSlot(facts, "evidence"));
-    expect(evidence).toContain(
-      "Built a NestJS reporting service for dock invoices",
-    );
-    expect(evidence).toContain(
-      "Rewrote the berth scheduler in Go for the harbour pilots",
-    );
-    expect(evidence).not.toContain(
-      "Shipped a Rails booking flow for ferry crews",
-    );
+    expect(evidence).toContain(NEST);
+    expect(evidence).toContain(REWROTE);
+    expect(evidence).not.toContain(RAILS);
   });
 
-  it("gives the coach fewer of the same facts, and says the rest were over its limit", () => {
+  it("gives the coach four of the same facts, and says the rest were over its limit", () => {
     const question =
       "Which of these have you used in production: NestJS, Go, PostgreSQL?";
     const coach = pack.view("coach", question);
     const inspect = pack.view("inspect", question);
     const coachEvidence = inSlot(coach.selected, "evidence");
     const inspectEvidence = inSlot(inspect.selected, "evidence");
-    expect(coachEvidence.length).toBe(6);
-    expect(inspectEvidence.length).toBe(9);
-    // The coach's are the first of the inspector's: one ranking, cut shorter.
-    expect(coachEvidence).toEqual(inspectEvidence.slice(0, 6));
+    expect(coachEvidence.length).toBe(4);
+    expect(inspectEvidence.length).toBe(8);
+    // One ranking: the coach is given none the inspector is not.
+    for (const fact of coachEvidence)
+      expect(inspectEvidence).toContainEqual(fact);
     expect(
       coach.excluded
         .filter((fact) => fact.reason === "limit")
@@ -199,7 +204,7 @@ describe("a question that names a technology", () => {
         .sort(),
     ).toEqual(
       inspectEvidence
-        .slice(6)
+        .filter((fact) => !coachEvidence.some((kept) => kept.id === fact.id))
         .map((fact) => fact.id)
         .sort(),
     );
@@ -283,11 +288,10 @@ describe("what the employer wants", () => {
         .filter((fact) => /nestjs/i.test(fact.text))
         .map((fact) => [fact.text, fact.about, fact.slot]),
     ).toEqual([
-      [
-        "Built a NestJS reporting service for dock invoices",
-        "candidate",
-        "evidence",
-      ],
+      // The achievement that names NestJS, then the others done on it.
+      [NEST, "candidate", "evidence"],
+      [INVOICES, "candidate", "evidence"],
+      [REVIEWED, "candidate", "evidence"],
       ["Five years of NestJS in production", "employer", "requirements"],
     ]);
   });
@@ -401,11 +405,7 @@ describe("a question a chosen story answers", () => {
     // The question never said "Quayside": the story did.
     const evidence = inSlot(facts, "evidence");
     expect(texts(evidence).slice(0, 3).sort()).toEqual(
-      [
-        "Built a NestJS reporting service for dock invoices",
-        "Reviewed every change to the invoice ledger",
-        "invoices per day: 42000",
-      ].sort(),
+      [NEST, REVIEWED, INVOICES].sort(),
     );
     for (const fact of evidence.slice(0, 3))
       expect(fact.id).toMatch(/^role:quayside-freight:senior-engineer:/);
@@ -477,7 +477,14 @@ describe("a question none of the person's facts answers", () => {
 
   it("offers nothing when nothing was asked: the selection is by priority alone", () => {
     const facts = pack.facts("coach", "");
-    expect(inSlot(facts, "evidence").length).toBe(6);
+    // The coach's four places: three from the newest role, best first, and
+    // the next role's best. Nothing was asked, so neither role dominates.
+    expect(inSlot(facts, "evidence").map((fact) => fact.pointer)).toEqual([
+      "/roles/0/proof_points/0",
+      "/roles/0/proof_points/1",
+      "/roles/0/metrics/0",
+      "/roles/1/proof_points/0",
+    ]);
     expect(inSlot(facts, "stories").length).toBe(1);
   });
 
@@ -511,7 +518,10 @@ describe("the same selection, reproduced", () => {
     const again = await packOf();
     for (const projection of Object.values(PROJECTIONS)) {
       const first = pack.view(projection, GO);
-      expect(first.digest).toMatch(/^[0-9a-f]{8,}$/);
+      // The engine's digest, marked when the places were then filled by the
+      // recipe's rules (the coach has four places for Harbourline's five).
+      expect(first.digest).toMatch(/^[0-9a-f]{8,}(\+arranged)?$/);
+      expect(first.digest.endsWith("+arranged")).toBe(projection === "coach");
       expect(pack.view(projection, GO).digest).toBe(first.digest);
       expect(again.view(projection, GO)).toEqual(first);
     }
@@ -557,7 +567,7 @@ describe("the view a person inspects", () => {
     expect(view).toMatchObject({
       projection: "inspect",
       spoken: GO,
-      terms: "used go",
+      terms: "go",
       records: pack.prepared.records.length,
       sources: [
         { id: "matrix:profile-1", revision: "3" },
@@ -610,7 +620,7 @@ describe("the view a person inspects", () => {
       { slot: "employer.company", state: "covered", count: 1 },
       { slot: "employer.role", state: "covered", count: 1 },
       { slot: "stories", state: "no-such-fact", count: 0 },
-      { slot: "evidence", state: "covered", count: 6 },
+      { slot: "evidence", state: "covered", count: 5 },
       { slot: "roles", state: "covered", count: 1 },
       { slot: "preferences", state: "no-such-fact", count: 0 },
       { slot: "requirements", state: "no-such-fact", count: 0 },
@@ -634,9 +644,13 @@ describe("the view a person inspects", () => {
   // Scenario 3: "Cut: reason over the per-fact limit; shown in the inspector
   // with that reason."
   it("shows a fact over the per-fact limit as cut for that reason, and gives it to no reader", async () => {
-    const over = "Go ".repeat(134).trim();
-    const fits = over.slice(0, 400);
-    expect([over.length, fits.length]).toEqual([401, 400]);
+    // The limit is on the whole fact a model reads: the achievement with
+    // its role, not the proof point alone.
+    const whole = (said: string) => `${HARBOUR}: ${said}. ${HARBOUR_STACK}`;
+    const said = (length: number) =>
+      `Go ${"x".repeat(length - whole("Go ").length)}`;
+    const [over, fits] = [said(401), said(400)];
+    expect([whole(over).length, whole(fits).length]).toEqual([401, 400]);
     const long = await packOf(
       contextOf({}, {
         ...MATRIX,
@@ -644,17 +658,17 @@ describe("the view a person inspects", () => {
       } as CandidateMatrix),
     );
     const view = long.view("inspect", GO);
-    expect(texts(view.selected)).toContain(fits);
-    expect(texts(view.selected)).not.toContain(over);
-    expect(texts(long.facts("inspect", GO))).not.toContain(over);
-    expect(view.excluded.filter((fact) => fact.text === over)).toEqual([
+    expect(texts(view.selected)).toContain(whole(fits));
+    expect(texts(view.selected)).not.toContain(whole(over));
+    expect(texts(long.facts("inspect", GO))).not.toContain(whole(over));
+    expect(view.excluded.filter((fact) => fact.text === whole(over))).toEqual([
       {
         id: expect.stringMatching(
           /^role:harbourline:staff-engineer:proof_points:/,
         ),
         pointer: "/roles/0/proof_points/0",
-        text: over,
-        kind: KINDS.evidence,
+        text: whole(over),
+        kind: KINDS.achievement,
         about: "candidate",
         slot: "evidence",
         reason: "over-limit",
@@ -863,5 +877,315 @@ describe("a matrix with a role inserted first", () => {
         fact.pointer,
       ]),
     ).toEqual([["role:saltmarsh-robotics:principal-engineer", "/roles/0"]]);
+  });
+});
+
+// The benchmark's brief: thirteen roles, sixteen prep notes and the traps a
+// real application showed (an old role that says "migration", a technology
+// the matrix names differently, a note that names its proof). Invented.
+describe("evidence for a question, on a whole brief", () => {
+  let kestrel: ContextPack;
+  beforeAll(async () => {
+    kestrel = await preparePackForBench(
+      readFixture("kestrel-freight-pay").material,
+    );
+  });
+  const company = (id: string) =>
+    String(
+      kestrel.prepared.records.find((record) => record.id === id)?.fields?.[
+        "company"
+      ],
+    );
+  const evidenceFor = (question: string, projection: ProjectionId = "coach") =>
+    inSlot(kestrel.facts(projection, question), "evidence");
+  const employers = (question: string, projection: ProjectionId = "coach") =>
+    evidenceFor(question, projection).map((fact) => company(fact.id));
+  const leading = (question: string, slot: string) =>
+    inSlot(kestrel.facts("coach", question), slot)[0]?.text ?? "";
+
+  describe("a note that names its proof", () => {
+    const question = "How would you move a service from MongoDB to PostgreSQL?";
+
+    // The note says "Proof: Copperleaf, 3M+ learners"; an older role lists
+    // both databases and used to win on that alone.
+    it("brings the named employer's achievements first, the one whose figure it states leading", () => {
+      expect(leading(question, "prep")).toMatch(/^MongoDB to PostgreSQL/);
+      expect(employers(question)).toEqual([
+        "Copperleaf Learning",
+        "Copperleaf Learning",
+        "Copperleaf Learning",
+        "Vantage Networks",
+      ]);
+      expect(evidenceFor(question)[0]?.text).toContain(
+        "Kept roster drift near zero across 3M+ learner accounts",
+      );
+    });
+
+    it("orders what it names by the question first: the modernization itself before its results", () => {
+      const migration = "Tell me about a time you led a migration.";
+      expect(leading(migration, "prep")).toMatch(/^Modernization/);
+      expect(evidenceFor(migration)[0]?.text).toContain(
+        "Led modernization of the legacy PHP monolith",
+      );
+      // The 2008 role files itself under "migration" and no longer leads.
+      expect(employers(migration)).not.toContain("Northgate Cable");
+    });
+
+    it("answers a question none of the record's words answer", () => {
+      // The note is headed with the question; the record never says it.
+      expect(leading("Tell me about yourself.", "prep")).toMatch(
+        /^Tell me about yourself/,
+      );
+      expect(employers("Tell me about yourself.")).toEqual([
+        "Larchmont Pay",
+        "Larchmont Pay",
+        "Larchmont Pay",
+        "Quotewright",
+      ]);
+    });
+  });
+
+  describe("a technology the person's record names differently", () => {
+    // The matrix says "Node.js"; the brief asks for NestJS; one note says
+    // NestJS beside one employer.
+    it("is found through the note that ties it to an employer", () => {
+      const question = "What is your experience with NestJS?";
+      expect(leading(question, "prep")).toMatch(/^NestJS:/);
+      expect(new Set(employers(question))).toEqual(new Set(["Larchmont Pay"]));
+      for (const fact of evidenceFor(question))
+        expect(fact.text).not.toMatch(/nestjs/i);
+    });
+
+    it("follows only the technology the question names, of a requirement that names several", () => {
+      // "Strong TypeScript and Node on the server; NestJS preferred": this
+      // question is about TypeScript, which Larchmont Pay never used.
+      expect(
+        employers("How much TypeScript have you written on the server?"),
+      ).not.toContain("Larchmont Pay");
+    });
+  });
+
+  describe("a requirement that names a technology", () => {
+    it("brings the achievements done on it when the question does not name it", () => {
+      // "Event-driven design with a message broker such as Kafka": only one
+      // role's stack has Kafka, and no line of it says "event".
+      const from = employers(
+        "How do you design event-driven systems around a message broker?",
+      );
+      expect(from.slice(0, 3)).toEqual([
+        "Vantage Networks",
+        "Vantage Networks",
+        "Vantage Networks",
+      ]);
+      // The fourth place is a backup found by the question's own words.
+      expect(from[3]).not.toBe("Vantage Networks");
+    });
+
+    it("links nothing when it was only found in passing", () => {
+      // "Moving a service from MongoDB to PostgreSQL" shares one word with
+      // this question; its databases are not what was asked.
+      const question = "When would you split a service out of a monolith?";
+      expect(employers(question)[0]).toBe("Larchmont Pay");
+      expect(evidenceFor(question)[0]?.text).toContain("monolith");
+    });
+  });
+
+  describe("the places a projection has for evidence", () => {
+    const QUESTIONS_ASKED = readFixture(
+      "kestrel-freight-pay",
+    ).gold.questions.map((each) => each.question);
+
+    it("go to at most two roles for the coach and an answer, the primary first", () => {
+      for (const [projection, places, lead] of [
+        ["coach", 4, 3],
+        ["answer", 6, 4],
+      ] as const)
+        for (const question of QUESTIONS_ASKED) {
+          const from = employers(question, projection);
+          expect(from.length, question).toBeLessThanOrEqual(places);
+          const roles = [...new Set(from)];
+          expect(roles.length, question).toBeLessThanOrEqual(2);
+          // One role's achievements are together, never interleaved.
+          expect(from.join("|"), question).toBe(
+            roles
+              .flatMap((role) => from.filter((each) => each === role))
+              .join("|"),
+          );
+          // The backup never takes more than the primary leaves it.
+          if (roles.length === 2)
+            expect(
+              from.filter((each) => each === roles[1]).length,
+              question,
+            ).toBeLessThanOrEqual(
+              Math.max(
+                places - lead,
+                places - from.filter((each) => each === roles[0]).length,
+              ),
+            );
+        }
+    });
+
+    it("are not kept to two roles for the view a person inspects", () => {
+      expect(
+        new Set(
+          employers(
+            "How much TypeScript have you written on the server?",
+            "inspect",
+          ),
+        ).size,
+      ).toBeGreaterThan(2);
+    });
+
+    it("leave the backup out when the primary clearly dominates", () => {
+      // The linked role takes every place: nothing else matches a word of
+      // the question, so there is no backup to give the fourth place to.
+      const from = employers("What is your experience with NestJS?");
+      expect(new Set(from).size).toBe(1);
+      expect(from.length).toBe(4);
+    });
+
+    it("say what was left out for want of a place, with the engine's own reason", () => {
+      const question = "Tell me about a time you led a migration.";
+      const view = kestrel.view("coach", question);
+      const kept = inSlot(view.selected, "evidence").map((fact) => fact.id);
+      const left = view.excluded.filter(
+        (fact) => fact.slot === "evidence" && fact.reason === "limit",
+      );
+      expect(left.length).toBeGreaterThan(0);
+      for (const fact of left) expect(kept).not.toContain(fact.id);
+      expect(view.slots).toContainEqual({
+        slot: "evidence",
+        state: "covered",
+        count: kept.length,
+      });
+      // Every achievement is accounted for once.
+      const all = [
+        ...kept,
+        ...view.excluded
+          .filter((fact) => fact.slot === "evidence")
+          .map((fact) => fact.id),
+      ];
+      expect(new Set(all).size).toBe(all.length);
+      expect(all.length).toBe(
+        kestrel.prepared.records.filter(
+          (record) => record.kind === KINDS.achievement,
+        ).length,
+      );
+    });
+
+    it("keep a person's pin first, whatever its role", () => {
+      const question = "Tell me about a time you led a migration.";
+      const pinned = kestrel.prepared.records.find(
+        (record) =>
+          record.kind === KINDS.achievement &&
+          record.fields?.["company"] === "Pixelforge",
+      )?.id as string;
+      const resolved = kestrel.resolve("coach", question, { pinned: [pinned] });
+      const evidence = resolved.selected.filter(
+        (fact) => fact.slot === "evidence",
+      );
+      expect(evidence[0]?.recordId).toBe(pinned);
+      expect(evidence.length).toBe(4);
+      // The pin took a place; the two roles share the other three.
+      expect(
+        new Set(evidence.slice(1).map((fact) => company(fact.recordId))).size,
+      ).toBeLessThanOrEqual(2);
+    });
+  });
+
+  describe("a chosen story's words", () => {
+    const question = "How do you mentor engineers?";
+
+    it("find the person's own record", () => {
+      expect(leading(question, "stories")).toMatch(
+        /^For "staff-level mentoring \/ standards": Larchmont Pay/,
+      );
+      expect(employers(question)[0]).toBe("Larchmont Pay");
+    });
+
+    // The story names "Larchmont Pay", and "pay" is another word for
+    // salary: the story's words must not reach the person's preferences or
+    // re-order the notes they prepared.
+    it("do not reach the person's preferences, the employer's material or the prep notes", () => {
+      const facts = kestrel.facts("coach", question);
+      expect(texts(inSlot(facts, "preferences"))).not.toContain(
+        "Base salary: 185k CAD minimum, target 200k.",
+      );
+      expect(leading(question, "prep")).toMatch(
+        /^DORA, mentoring, disagreement/,
+      );
+      // The view says the words the question itself came to.
+      expect(kestrel.view("coach", question).terms).toBe("mentor engineers");
+    });
+  });
+
+  describe("a question the material has an answer for only in other words", () => {
+    it("finds the pay preference, and the notice period for a start date", () => {
+      expect(leading("What are your salary expectations?", "preferences")).toBe(
+        "Base salary: 185k CAD minimum, target 200k.",
+      );
+      expect(leading("When could you start?", "preferences")).toBe(
+        "Notice period: three weeks.",
+      );
+    });
+
+    it("finds the note on disagreement for a question about a conflict", () => {
+      expect(
+        leading("Tell me about a conflict with a stakeholder.", "prep"),
+      ).toMatch(/^DORA, mentoring, disagreement/);
+    });
+
+    it("finds the note headed with the topic before one that says it in passing", () => {
+      // "Round: … leadership and experience deep dive" used to lead here.
+      expect(
+        leading("How would you structure a NestJS module for payouts?", "prep"),
+      ).toMatch(/^NestJS:/);
+      expect(leading("Why are you leaving your current role?", "prep")).toMatch(
+        /^Answer shape: .*Why leaving Larchmont Pay/,
+      );
+    });
+  });
+
+  describe("a question the material has nothing for", () => {
+    it.each(["Do you know Elixir?", "Any Rust or Haskell in your background?"])(
+      "offers no evidence, no note and no preference for: %s",
+      (question) => {
+        const facts = kestrel
+          .facts("coach", question)
+          .filter((fact) => !fact.exact);
+        // Only the recent roles, offered because nothing was found.
+        expect(facts.map((fact) => fact.slot)).toEqual([
+          "roles",
+          "roles",
+          "roles",
+        ]);
+        expect(kestrel.view("coach", question).digest).toMatch(
+          /\+recent-roles$/,
+        );
+      },
+    );
+  });
+
+  it("gives the reader and the view the same selection, for every question and projection", () => {
+    for (const projection of Object.values(PROJECTIONS))
+      for (const { question } of readFixture("kestrel-freight-pay").gold
+        .questions) {
+        const view = kestrel.view(projection, question);
+        expect(view.selected, `${projection}: ${question}`).toEqual(
+          kestrel.facts(projection, question),
+        );
+        // Each slot counts exactly what was selected for it.
+        for (const slot of view.slots)
+          expect(slot.count, `${question}: ${slot.slot}`).toBe(
+            inSlot(view.selected, slot.slot).length,
+          );
+        // Nothing is both given and left out.
+        const given = new Set(
+          view.selected.map((fact) => `${fact.slot}:${fact.id}`),
+        );
+        for (const fact of view.excluded)
+          expect(given.has(`${fact.slot}:${fact.id}`), fact.id).toBe(false);
+        expect(kestrel.view(projection, question).digest).toBe(view.digest);
+      }
   });
 });

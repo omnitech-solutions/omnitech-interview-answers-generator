@@ -2678,3 +2678,74 @@ describe("a resume written under a cast and verified", () => {
     ]);
   }, 30_000);
 });
+
+// [DOMAIN] Notes moved onto a stage are still the person's notes: the
+// employer brief's prep lines are distilled from the application's old notes
+// and every stage's own (brief/repository.ts).
+describe("the employer brief and a stage's notes", () => {
+  it("gives the model the application's notes and each stage's, under the stage's name", async () => {
+    const mine = app(ownerId);
+    const created = (await (
+      await mine.request(
+        `${url}/candidacies`,
+        post({
+          companyName: "Larkspur Analytics",
+          title: "Principal Engineer",
+          jobDescription: "Rebuild the forecasting pipeline.",
+          interview: { kind: "technical", label: "Technical" },
+        }),
+      )
+    ).json()) as { candidacyId: string; interviewId: string };
+    const patch = (path: string, body: unknown) =>
+      mine.request(`${url}/candidacies/${created.candidacyId}${path}`, {
+        ...post(body),
+        method: "PATCH",
+      });
+    expect(
+      (await patch("/context", { notes: "Round: the head of platform." }))
+        .status,
+    ).toBe(200);
+    expect(
+      (
+        await patch(`/stages/${created.interviewId}`, {
+          notes: "System design: start from the invariants.",
+        })
+      ).status,
+    ).toBe(200);
+    let prompt = "";
+    script = (call) => {
+      prompt = call.prompt;
+      return {
+        company: "Larkspur Analytics",
+        role: "Principal Engineer",
+        summary: "A principal engineer for the pipeline.",
+        mustHaves: [],
+        niceToHaves: [],
+        techStack: [],
+        responsibilities: [],
+        values: [],
+        questionsToAsk: [],
+        prepNotes: ["System design: start from the invariants."],
+      };
+    };
+    try {
+      const briefed = await mine.request(
+        `${url}/candidacies/${created.candidacyId}/brief`,
+        post({}),
+      );
+      expect(briefed.status, await briefed.clone().text()).toBe(200);
+      expect(
+        ((await briefed.json()) as { brief: { prepNotes: string[] } }).brief
+          .prepNotes,
+      ).toEqual(["System design: start from the invariants."]);
+    } finally {
+      script = null;
+    }
+    const material = JSON.parse(
+      prompt.slice(prompt.indexOf("{"), prompt.lastIndexOf("}") + 1),
+    ) as { notes: string };
+    expect(material.notes).toBe(
+      "Round: the head of platform.\n\nTechnical stage:\nSystem design: start from the invariants.",
+    );
+  });
+});

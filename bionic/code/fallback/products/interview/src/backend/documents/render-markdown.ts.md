@@ -2,4 +2,4 @@
 
 _Source: `products/interview/src/backend/documents/render-markdown.ts` (header-comment fallback)_
 
-Each value is tagged with its field, so a click can select it.
+The placeholders of one line, with whether each will be empty.

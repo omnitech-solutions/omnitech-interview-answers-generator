@@ -18,6 +18,7 @@ import {
   type SessionContext,
 } from "../live-session/session-context";
 import { createCoachContext } from "./context";
+import { parseCoachReply } from "./reply";
 
 vi.mock("../live-session/session-context", () => ({
   loadSessionContext: vi.fn(),
@@ -192,9 +193,10 @@ describe("the coach's facts for a live session", () => {
     ];
     for (const fact of facts)
       expect(Object.keys(fact).sort()).toEqual(["about", "pointer", "text"]);
+    // An achievement is given whole: who, where and what, then the stack.
     expect(facts).toContainEqual({
       pointer: "/roles/1/proof_points/0",
-      text: "Built a NestJS reporting service for dock invoices",
+      text: "At Quayside Freight (Senior Engineer): Built a NestJS reporting service for dock invoices. Stack: NestJS, TypeScript, Redis.",
       about: "candidate",
     });
     expect(facts).toContainEqual({
@@ -225,7 +227,7 @@ describe("the coach's facts for a live session", () => {
       "What are your salary expectations?",
     );
     expect(go.map((fact) => fact.text)).toContain(
-      "Rewrote the berth scheduler in Go for the harbour pilots",
+      "At Harbourline (2022 to 2025, Staff Engineer): Rewrote the berth scheduler in Go for the harbour pilots. Stack: Go, PostgreSQL, Kafka.",
     );
     expect(go.some((fact) => fact.about === "preference")).toBe(false);
     expect(pay.slice(5)).toEqual([
@@ -235,6 +237,60 @@ describe("the coach's facts for a live session", () => {
         about: "preference",
       },
     ]);
+  });
+
+  // The coach marks a claim verified only when a code check finds it in a
+  // fact it was given (reply.ts). An achievement is composed from several
+  // places of the matrix, so the check is made on what the coach is really
+  // given: the composed text under the statement's own pointer.
+  it("gives achievements a claim still verifies against: its figure, its metric's figure, and its pointer", async () => {
+    load.mockResolvedValue(contextOf());
+    const facts = await clocked().context.facts(
+      SESSION,
+      "How did you cut latency in PostgreSQL?",
+    );
+    const known = new Map(
+      facts
+        .filter((fact) => fact.about !== "employer")
+        .map((fact) => [fact.pointer, fact.text]),
+    );
+    // The proof point and the metric whose value it states are one fact,
+    // at the proof point's place; the metric's own place is not given.
+    expect(known.get("/roles/0/proof_points/0")).toBe(
+      "At Harbourline (2022 to 2025, Staff Engineer): Cut tide-table query latency from 900ms to 120ms by repartitioning PostgreSQL; p95 latency: 120ms (down). Stack: Go, PostgreSQL, Kafka.",
+    );
+    expect(known.has("/roles/0/metrics/1")).toBe(false);
+    // Every pointer the coach may cite is one the note contract shows.
+    for (const pointer of known.keys())
+      expect(pointer).toMatch(
+        /^\/(?:candidate\/\w+|roles\/\d+(?:\/[\w-]+)*|context\/\w+(?:\/\d+)?)$/,
+      );
+    const segments = (say: string) =>
+      parseCoachReply(`ASK: Evidence\nSAY: ${say}`, true, known)?.note
+        .sections?.[0]?.lines[0]?.segments;
+    const claim = (say: string) =>
+      segments(say)?.find((segment) => segment.role === "evidence");
+    // Cited: the pointer was given and the figures are the fact's own.
+    expect(
+      claim(
+        "I **cut p95 latency from 900ms to 120ms**[/roles/0/proof_points/0].",
+      ),
+    ).toMatchObject({
+      grounding: "verified",
+      source: "/roles/0/proof_points/0",
+    });
+    // Uncited: one fact holds all its words, the role it was done in among them.
+    expect(
+      claim("At **Harbourline** I **repartitioned PostgreSQL**."),
+    ).toMatchObject({ grounding: "verified" });
+    // A figure the achievement does not hold stays the coach's inference,
+    // and so does a pointer to a part that is no fact of its own.
+    expect(
+      claim("I **cut latency to 45ms**[/roles/0/proof_points/0].")?.grounding,
+    ).toBe("inferred");
+    expect(claim("We held **150ms**[/roles/0/metrics/1].")?.grounding).toBe(
+      "inferred",
+    );
   });
 
   it("gives only the candidate's record when the session has no employer material or preferences", async () => {

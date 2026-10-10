@@ -77,6 +77,8 @@ const ANSWER_SYSTEM = [
 const briefContext = ({
   request: _request,
   jobDescription: _jobDescription,
+  // The entries are sent once, as the text of `employerNotes`.
+  employerSaid: _employerSaid,
   employerNotes: _employerNotes,
   research: _research,
   candidatePreferences: _preferences,

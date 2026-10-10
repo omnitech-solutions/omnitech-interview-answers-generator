@@ -179,6 +179,8 @@ function packContext(
     candidatePreferences,
     profile: _profile,
     roleIds: _roleIds,
+    // What the employer said is read once, as the text of `employerNotes`.
+    employerSaid: _employerSaid,
     condensed,
     ...pasted
   } = briefing.context;

@@ -133,7 +133,19 @@ const surfaces: Record<string, SurfaceRow> = {
   // blocks do not apply, so both read `withFieldGroups`, `documentBlocks`
   // and `documentLayout` (with the `DocumentBlock` type) from here; and
   // `UnsupportedClaim` is what a failed field carries from one to the other.
-  "@omnitech/interview-contracts": { entrypoints: 1, names: 449 },
+  // 489, up from 449: the interview brief (BRIEF-interview-brief-and-context-
+  // pack, phase 2). An application's stages, transcripts, employer-said
+  // entries and research documents are written by the product's routes and
+  // read by its Interview form, so both take the same shapes, bounds and
+  // enumerations from here: the request and response schemas of the routes
+  // under /documents/candidacies/:id/…, the bounds the form shows as limits,
+  // `mayLeaveDevice` (the one rule on what a remote model may be sent, asked
+  // by the server and the context pack), and `employerSaidLine`,
+  // `briefingEmployerSaid` and `employerSaidText` (the Briefings form and the
+  // server render the same entries the same way). Only names another package
+  // imports are exported; the row and enumeration schemas they are built from
+  // stay private to the contract's own file.
+  "@omnitech/interview-contracts": { entrypoints: 1, names: 489 },
   "@omnitech/interview-library": { entrypoints: 1, names: 5 },
   "@omnitech/interview-playground-control": { entrypoints: 1, names: 16 },
   "@omnitech/interview-storage": { entrypoints: 1, names: 8 },

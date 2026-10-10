@@ -2,4 +2,4 @@
 
 _Source: `products/interview/src/frontend/studio/documents/documents-client.ts` (header-comment fallback)_
 
-What a document being written reports, a line at a time.
+How the document stands now, computed by the server from the matrix.

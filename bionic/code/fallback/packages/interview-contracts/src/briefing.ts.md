@@ -2,4 +2,4 @@
 
 _Source: `packages/interview-contracts/src/briefing.ts` (header-comment fallback)_
 
-What the person wants from this preparation, in their words.
+A briefing pack's research, as a document: a title and its text.

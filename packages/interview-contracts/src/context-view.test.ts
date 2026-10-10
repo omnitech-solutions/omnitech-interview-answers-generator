@@ -189,3 +189,69 @@ describe("the projection view's response", () => {
     ).toBe(false);
   });
 });
+
+// [DOMAIN] The stage a selection was resolved for, and each fact's own.
+describe("the projection view's stage", () => {
+  const stage = {
+    id: "33333333-3333-4333-8333-333333333332",
+    ordinal: 2,
+    label: "Technical",
+    kind: "technical",
+  };
+  const selected = view.selected[0];
+  const excluded = view.excluded[0];
+
+  it("is absent from an older server's view, null for the whole application, or one of its stages", () => {
+    expect(accepts(view)).toBe(true);
+    expect(accepts({ ...view, stage: null, stages: [] })).toBe(true);
+    const staged = {
+      ...view,
+      stage,
+      stages: [{ ...stage, ordinal: 1 }, stage],
+    };
+    expect(contextViewSchema.parse(staged)).toEqual(staged);
+    expect(accepts({ ...view, stage: { ...stage, ordinal: 0 } })).toBe(false);
+    expect(accepts({ ...view, stage: { ...stage, id: "second" } })).toBe(false);
+    expect(accepts({ ...view, stages: [{ ordinal: 1 }] })).toBe(false);
+  });
+
+  it("marks a fact with its stage, by place, and a later stage's as out of scope", () => {
+    expect(accepts({ ...view, selected: [{ ...selected, stage: 2 }] })).toBe(
+      true,
+    );
+    expect(accepts({ ...view, selected: [{ ...selected, stage: 0 }] })).toBe(
+      false,
+    );
+    expect(
+      accepts({
+        ...view,
+        excluded: [{ ...excluded, reason: "scope", stage: 3 }],
+      }),
+    ).toBe(true);
+    expect(
+      accepts({ ...view, excluded: [{ ...excluded, reason: "stage" }] }),
+    ).toBe(false);
+  });
+
+  it("says of each source its kind, its stage, its records and whether it may leave this machine", () => {
+    const sources = [
+      {
+        id: "stage:x:transcript:y",
+        revision: "0123456789abcdef",
+        kind: "transcript",
+        stage: 1,
+        records: 12,
+        sendable: false,
+      },
+    ];
+    expect(contextViewSchema.parse({ ...view, sources }).sources).toEqual(
+      sources,
+    );
+    expect(
+      accepts({ ...view, sources: [{ ...sources[0], sendable: "no" }] }),
+    ).toBe(false);
+    expect(
+      accepts({ ...view, sources: [{ ...sources[0], records: -1 }] }),
+    ).toBe(false);
+  });
+});

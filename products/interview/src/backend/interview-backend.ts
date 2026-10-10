@@ -28,7 +28,10 @@ import { coachTranscript, speakerOfSource } from "./coach-transcript";
 import { createDocumentsApi, resolveDocumentsScope } from "./documents/api";
 import { resolveDocumentsConfig } from "./documents/config";
 import { createSessionRoutes } from "./live-session/routes";
-import { transcriptRecordings } from "./live-session/transcript-recording";
+import {
+  transcriptRecordings,
+  transcriptsDirectory,
+} from "./live-session/transcript-recording";
 import { tellCoachWhoSpeaks } from "./live-session/voice-activity";
 import { loadLocalDefaultProfile } from "./local-default-profile";
 import {
@@ -335,6 +338,7 @@ export function createInterviewBackend(services: InterviewBackendServices) {
       database: services.database,
       engine: services.engine,
       config: documentsConfig,
+      recordingsDirectory: transcriptsDirectory,
       localTemplates: async (scope) =>
         (await isLocalMember(services, scope)) ? loadLocalTemplates() : null,
       localContact: async (scope) =>

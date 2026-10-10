@@ -1828,11 +1828,20 @@ describe("the projection view (ADR-0038)", () => {
       about: string;
       slot: string;
       exact: boolean;
+      stage?: number;
     }>;
-    excluded: Array<{ id: string; text: string; slot: string; reason: string }>;
+    excluded: Array<{
+      id: string;
+      text: string;
+      slot: string;
+      reason: string;
+      stage?: number;
+    }>;
     slots: Array<{ slot: string; state: string; count: number }>;
     digest: string;
     sources: Array<{ id: string; revision: string }>;
+    stage?: { id: string; ordinal: number; label: string; kind: string } | null;
+    stages?: Array<{ ordinal: number; label: string }>;
   };
   const viewOf = async (response: Response) => {
     expect(response.status).toBe(200);
@@ -1938,6 +1947,109 @@ describe("the projection view (ADR-0038)", () => {
     expect(await response.json()).toEqual({ error: { code: "not_found" } });
   });
 
+  // [DOMAIN] A session started for an interview knows its stage: that
+  // stage's records lead, an earlier stage's follow, and the view says which
+  // stage it was resolved for. Another stage can be asked for by its place.
+  it("resolves for the stage the session was started for, and for another when asked", async () => {
+    const person = await member("view-stage");
+    const profile = await seedMatrixProfile(fx, fx.tenantA, person.id, {
+      matrix: MATRIX,
+    });
+    await fx.owner.query(
+      "UPDATE interview.interviews SET notes = $1 WHERE id = $2",
+      ["Go: the first round's line on Go.", person.interview],
+    );
+    const second = await fx.one(
+      `INSERT INTO interview.interviews(tenant_id,candidacy_id,ordinal,kind,label,notes)
+       VALUES($1,$2,2,'technical','Round 2',$3) RETURNING id`,
+      [fx.tenantA, person.candidacy, "Go: the second round's line on Go."],
+    );
+    as(person);
+    const started = await post("", {
+      ...START,
+      candidacyId: person.candidacy,
+      interviewId: second,
+      profile: { id: profile.id },
+    });
+    expect(started.status).toBe(201);
+    const id = ((await started.json()) as { session: { id: string } }).session
+      .id;
+    const ask = async (query: string) =>
+      viewOf(
+        await view(
+          id,
+          `?projection=inspect&q=${encodeURIComponent("Have you used Go?")}${query}`,
+        ),
+      );
+    const prepOf = (seen: Awaited<ReturnType<typeof ask>>) =>
+      seen.selected
+        .filter((fact) => fact.slot === "prep")
+        .map((fact) => [fact.stage, fact.text]);
+
+    const own = await ask("");
+    expect(own.stage).toEqual({
+      id: second,
+      ordinal: 2,
+      label: "Round 2",
+      kind: "technical",
+    });
+    expect(own.stages?.map((stage) => [stage.ordinal, stage.label])).toEqual([
+      [1, "Round 1"],
+      [2, "Round 2"],
+    ]);
+    expect(prepOf(own)).toEqual([
+      [2, "Go: the second round's line on Go."],
+      [1, "Go: the first round's line on Go."],
+    ]);
+    expect(own.digest).toMatch(/\+stage:2$/);
+    expect(own.sources.slice(-2)).toEqual([
+      {
+        id: `stage:${person.interview}:notes`,
+        revision: expect.stringMatching(/^[0-9a-f]{16}$/),
+        kind: "candidate-notes",
+        stage: 1,
+        records: 1,
+        sendable: true,
+      },
+      {
+        id: `stage:${second}:notes`,
+        revision: expect.stringMatching(/^[0-9a-f]{16}$/),
+        kind: "candidate-notes",
+        stage: 2,
+        records: 1,
+        sendable: true,
+      },
+    ]);
+
+    // The first stage does not read the second's notes: left out, and said.
+    const first = await ask("&stage=1");
+    expect(first.stage).toMatchObject({ ordinal: 1 });
+    expect(prepOf(first)).toEqual([[1, "Go: the first round's line on Go."]]);
+    expect(
+      first.excluded
+        .filter((fact) => fact.reason === "scope")
+        .map((fact) => [fact.stage, fact.slot, fact.text]),
+    ).toEqual([[2, "prep", "Go: the second round's line on Go."]]);
+    expect(first.records).toBe(own.records);
+
+    // Every stage, none leading; a place the application does not have.
+    const whole = await ask("&stage=all");
+    expect(whole.stage).toBeNull();
+    expect(
+      prepOf(whole)
+        .map(([stage]) => stage)
+        .sort(),
+    ).toEqual([1, 2]);
+    expect((await ask("&stage=9")).stage).toBeNull();
+    for (const bad of ["0", "-1", "1.5", "two"]) {
+      const refused = await view(id, `?stage=${bad}`);
+      expect(refused.status, bad).toBe(400);
+      expect(await refused.json(), bad).toEqual({
+        error: { code: "invalid_input" },
+      });
+    }
+  });
+
   it("returns the view of the owner's material for a question, and asks no model", async () => {
     const owner = await prepared("view-ok");
     const before = modelCalls;
@@ -1957,12 +2069,14 @@ describe("the projection view (ADR-0038)", () => {
       "slots",
       "sources",
       "spoken",
+      "stage",
+      "stages",
       "terms",
     ]);
     expect(seen).toMatchObject({
       projection: "inspect",
       spoken: "Have you used Go?",
-      terms: "used go",
+      terms: "go",
       digest: expect.stringMatching(/^[0-9a-f]{8,}$/),
       sources: [
         { id: `matrix:${owner.profile.id}`, revision: "1" },
@@ -1988,8 +2102,9 @@ describe("the projection view (ADR-0038)", () => {
       ["employer.role", "Principal Engineer"],
     ]);
     const ranked = seen.selected.filter((fact) => !fact.exact);
+    // An achievement is given whole: who, where, when and what.
     expect(ranked.map((fact) => fact.text)).toContain(
-      "Rewrote the berth scheduler in Go for the harbour pilots",
+      "At Harbourline (2022 to 2025, Staff Engineer): Rewrote the berth scheduler in Go for the harbour pilots. Stack: Go, PostgreSQL, Kafka.",
     );
     for (const fact of ranked) {
       expect(fact.id).toMatch(/^role:harbourline:staff-engineer/);
@@ -2000,8 +2115,8 @@ describe("the projection view (ADR-0038)", () => {
     expect(seen.excluded).toContainEqual({
       id: expect.stringMatching(/^role:tidewater-labs:engineer:proof_points:/),
       pointer: "/roles/2/proof_points/0",
-      text: "Shipped a Rails booking flow for ferry crews",
-      kind: "candidate-evidence",
+      text: "At Tidewater Labs (Engineer): Shipped a Rails booking flow for ferry crews. Stack: Ruby, Rails.",
+      kind: "candidate-achievement",
       about: "candidate",
       slot: "evidence",
       reason: "relevance",
@@ -2023,10 +2138,12 @@ describe("the projection view (ADR-0038)", () => {
       "employer",
       "prep",
     ]);
+    // The role's five achievements: a metric its proof point states is
+    // part of that proof point.
     expect(seen.slots).toContainEqual({
       slot: "evidence",
       state: "covered",
-      count: 6,
+      count: 5,
     });
     expect(seen.slots).toContainEqual({
       slot: "preferences",
@@ -2067,7 +2184,9 @@ describe("the projection view (ADR-0038)", () => {
       ).toContainEqual(["Five years of NestJS in production", "employer"]);
     }
     expect(digests.size).toBe(3);
-    expect(evidence).toEqual({ coach: 6, answer: 9, inspect: 9 });
+    // The coach has four places for evidence and an answer six, over two
+    // roles; the inspecting view shows all that bears on the question.
+    expect(evidence).toEqual({ coach: 4, answer: 6, inspect: 8 });
   });
 
   it("gives the same view for the same question, and another for another", async () => {
@@ -2132,7 +2251,7 @@ describe("the projection view (ADR-0038)", () => {
     expect(seen).toMatchObject({
       projection: "inspect",
       spoken: "Have you used Go",
-      terms: "used go",
+      terms: "go",
       records: 0,
       selected: [],
       excluded: [],

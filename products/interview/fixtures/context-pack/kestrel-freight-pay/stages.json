@@ -1,0 +1,125 @@
+{
+  "candidacyId": "00000000-0000-4000-8000-00000000b001",
+  "stages": [
+    {
+      "id": "00000000-0000-4000-8000-00000000a001",
+      "ordinal": 1,
+      "kind": "hiring_manager",
+      "label": "Hiring manager",
+      "scheduledAt": "2026-03-03T14:00:00.000Z",
+      "durationMinutes": 60,
+      "format": "video",
+      "notes": "Rota onboarding: shadow for two weeks, then paired, then alone with a named backup.\nRelocation: staying in Halifax; travel to the hub is fine.",
+      "notesCarried": false,
+      "outcome": "Imre pressed on data ownership between Settlements and Quoting; expect it again with more depth.",
+      "nextSteps": "Technical round within two weeks; an exercise on idempotent payouts was promised.",
+      "people": [
+        {
+          "name": "Imre Solvang",
+          "title": "Manager, Engineering",
+          "role": "hiring_manager"
+        },
+        {
+          "name": "Mirela Odau",
+          "title": "Talent Partner",
+          "role": "recruiter"
+        }
+      ],
+      "transcripts": [
+        {
+          "id": "00000000-0000-4000-8000-00000000e001",
+          "title": "Hiring manager call",
+          "origin": "recorded",
+          "capturePolicy": "device-only",
+          "occurredAt": "2026-03-03T14:00:00.000Z",
+          "sha256": "614312d9f33496ead9499e8969d4670d4ee9746de7d5a4e70488685eb53b2c5a",
+          "text": "10:02:10 --> 10:02:24\nInterviewer: when two teams both need the same payout record, who should own it\n\n10:02:27 --> 10:02:58\nMe: one team writes it and the other reads it through a contract, at Quotewright the quote state had one owner\n\n10:03:02 --> 10:03:15\nInterviewer: and how would you bring a new engineer into the on-call rota\n\n10:03:18 --> 10:03:40\nMe: shadow for two weeks first, then paired, then alone with a named backup\n\n10:41:05 --> 10:41:20\nInterviewer: the technical round is next, expect a question on idempotent payouts\n"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-00000000a002",
+      "ordinal": 2,
+      "kind": "technical",
+      "label": "Technical",
+      "scheduledAt": "2026-03-12T14:00:00.000Z",
+      "durationMinutes": 120,
+      "format": "video",
+      "notes": "Live coding plan: read the repository's tests first; narrate each step; small commits; say when AI wrote a line.\nData ownership: one writer per table; Settlements owns payout state; Quoting reads it through a contract. Proof: Quotewright, server-owned quote state.\nWhiteboard opener: draw the payout workflow before any box for a service.",
+      "notesCarried": false,
+      "outcome": null,
+      "nextSteps": null,
+      "people": [
+        {
+          "name": "Asta Verhoeven",
+          "title": "Staff Engineer",
+          "role": "interviewer"
+        },
+        {
+          "name": "Joss Canterel",
+          "title": "Senior Engineer",
+          "role": "interviewer"
+        }
+      ],
+      "transcripts": []
+    }
+  ],
+  "employerSaid": [
+    {
+      "id": "00000000-0000-4000-8000-00000000d001",
+      "said": "The technical round is two hours: one hour of live coding on a shared NestJS and React repository, then one hour of system design.",
+      "saidBy": "Mirela Odau",
+      "channel": "email",
+      "saidOn": "2026-02-24",
+      "sha256": "9e573492865681167e7c01cf09126a6fe7f3cf85e45e183a1709b2ae834ec215"
+    },
+    {
+      "id": "00000000-0000-4000-8000-00000000d002",
+      "said": "References are taken only after an offer is agreed.",
+      "saidBy": "Mirela Odau",
+      "channel": "call",
+      "saidOn": "2026-02-26",
+      "sha256": "27ca2447dd375c0e27f8087e538b5268cbdf800e4f2ba56f8408878d300f2043"
+    },
+    {
+      "id": "00000000-0000-4000-8000-00000000d003",
+      "said": "The panel cares most about correctness under retries.",
+      "saidBy": null,
+      "channel": null,
+      "saidOn": null,
+      "sha256": "bff29f964d961276ebe674f69bb0ec8823bc67d65fc2ba577c712686e17f517d"
+    }
+  ],
+  "research": [
+    {
+      "id": "00000000-0000-4000-8000-00000000c001",
+      "scope": "application",
+      "title": "Settlements engineering notes",
+      "origin": "pasted",
+      "originRef": null,
+      "sha256": "49a8b5b1ecd808503fc56301332f4583bd0db7e079b4e4b2a92e7bde9b657d2b",
+      "text": "# Settlements engineering notes\nThe settlement ledger is append-only and balanced nightly against bank files.\nPayout batches close at 16:00 Atlantic on business days.\n\nOn-call rotates weekly across the six engineers.",
+      "carried": false
+    },
+    {
+      "id": "00000000-0000-4000-8000-00000000c002",
+      "scope": "company",
+      "title": "Carrier payment index, autumn issue",
+      "origin": "url",
+      "originRef": "https://example.invalid/kestrel/carrier-payment-index",
+      "sha256": "f90e1069602b8f3ca997ed0bd8ef37d6ce54226411f165df0c3f8aa0ed12c78c",
+      "text": "Median days to pay a carrier fell from 31 to 27 across the brokers surveyed.\nFactoring fees held at about 3% of invoice value.",
+      "carried": false
+    },
+    {
+      "id": "00000000-0000-4000-8000-00000000c003",
+      "scope": "application",
+      "title": "Panel backgrounds",
+      "origin": "file",
+      "originRef": "panel.md",
+      "sha256": "30a0e215aa388108a7d8a4b1e85ca8c9561334c5c23019022ff6886330951372",
+      "text": "Imre Solvang managed the reconciliation team before Settlements.\nAsta Verhoeven wrote the idempotency layer for partner webhooks.",
+      "carried": false
+    }
+  ]
+}

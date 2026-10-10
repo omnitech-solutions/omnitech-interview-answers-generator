@@ -2,4 +2,4 @@
 
 _Source: `packages/interview-contracts/src/documents.test.ts` (header-comment fallback)_
 
-_No leading comment block found._
+The first generic experience is always there; later ones may not be.

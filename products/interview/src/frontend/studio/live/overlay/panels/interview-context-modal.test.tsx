@@ -28,6 +28,14 @@ vi.mock("../../../documents/documents-client", () => ({
   documentJson,
   postJson,
 }));
+// The stages, "Employer said" and "Research" are the form's own (its suite is
+// interview-brief-form.test.tsx): here it is only seen to be mounted for the
+// application once there is one.
+vi.mock("../../../interview-brief/interview-brief-form", () => ({
+  InterviewBriefForm: ({ candidacyId }: { candidacyId: string }) => (
+    <section data-testid="ib-form-stub">{candidacyId}</section>
+  ),
+}));
 
 const ID = "22222222-2222-4222-8222-222222222222";
 const BRIEF: EmployerBrief = {
@@ -117,6 +125,8 @@ describe("adding an interview", () => {
     expect(within(modal).getByText("Add an interview")).toBeInTheDocument();
     // Nothing is read for a new interview, and Save waits for company and role.
     expect(documentJson).not.toHaveBeenCalled();
+    // Stages belong to a saved application: none are offered before it is.
+    expect(screen.queryByTestId("ib-form-stub")).toBeNull();
     expect(screen.getByTestId("pn-context-save")).toBeDisabled();
     expect(screen.getByTestId("pn-context-clean")).toBeDisabled();
     type("pn-context-company", " Example Corp ");
@@ -146,6 +156,8 @@ describe("adding an interview", () => {
       notes: "Met Sam",
     });
     expect(onSaved).toHaveBeenCalledWith(saved);
+    // Now it exists, its stages, employer-said entries and research are here.
+    expect(screen.getByTestId("ib-form-stub")).toHaveTextContent(ID);
     // Saved once: the company is fixed and a second Save updates, not creates.
     expect(screen.getByTestId("pn-context-company")).toBeDisabled();
     documentJson.mockResolvedValueOnce(saved);
@@ -188,6 +200,8 @@ describe("editing an interview", () => {
     expect(screen.getByTestId("pn-context-role")).toHaveValue("Staff Engineer");
     expect(screen.getByTestId("pn-context-spec")).toHaveValue("Old posting");
     expect(screen.getByTestId("pn-context-notes")).toHaveValue("Old notes");
+    // An existing application opens with its stages.
+    expect(screen.getByTestId("ib-form-stub")).toHaveTextContent(ID);
     expect(screen.getByTestId("pn-context-clean")).toHaveTextContent(
       "Clean up with AI",
     );

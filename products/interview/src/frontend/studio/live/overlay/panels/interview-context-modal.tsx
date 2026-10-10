@@ -20,6 +20,7 @@ import type {
 } from "@omnitech/interview-contracts";
 import { useEffect, useState } from "react";
 import { documentJson, postJson } from "../../../documents/documents-client";
+import { InterviewBriefForm } from "../../../interview-brief/interview-brief-form";
 
 type Draft = {
   companyName: string;
@@ -237,7 +238,7 @@ export function InterviewContextModal({
           )}
           <Textarea
             label="Your notes"
-            description="What you know about the team, the interviewer, the process."
+            description="What you know about the team and the process. Notes for one round belong to its stage, below."
             rows={4}
             value={draft.notes}
             onChange={(notes) => setDraft({ ...draft, notes })}
@@ -260,6 +261,9 @@ export function InterviewContextModal({
               {error}
             </p>
           )}
+          {/* The interview's stages, what the employer said and the research:
+              kept per application, so they appear once it is saved. */}
+          {current && <InterviewBriefForm candidacyId={current.id} />}
         </div>
         <ModalFooter>
           <Button

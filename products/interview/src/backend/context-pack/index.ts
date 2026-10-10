@@ -1,7 +1,20 @@
 export {
+  BRIEF_SOURCE_KINDS,
+  type BriefSource,
+  briefSources,
+  piecesOf,
+  remoteSources,
+  scopeToStage,
+  sessionBriefSources,
+  sourceMayLeaveDevice,
+  stageOf,
+  withStageBrief,
+} from "./brief-sources";
+export {
   type ContextEngine,
   type ContextPack,
   ContextPackError,
+  contextSources,
   type PackFact,
   type PackView,
   prepareContextPack,
@@ -17,3 +30,9 @@ export {
   type ProjectionId,
 } from "./recipe";
 export { briefSource, matrixSource, preferencesSource } from "./sources";
+export {
+  prepareStagePack,
+  type StagePack,
+  stageFor,
+  stagesOf,
+} from "./stage";

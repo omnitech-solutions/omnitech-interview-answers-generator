@@ -2,5 +2,5 @@
 
 _Source: `products/interview/src/backend/documents/api.test.ts` (header-comment fallback)_
 
-The model is the provider boundary: it records what the product asked for
-and answers every field of the schema it was given.
+A scripted model, for the tests that need the model to say particular
+things: it is given the keys it was asked for and the whole request.

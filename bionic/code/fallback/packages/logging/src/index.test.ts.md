@@ -2,4 +2,4 @@
 
 _Source: `packages/logging/src/index.test.ts` (header-comment fallback)_
 
-_No leading comment block found._
+A count of tokens is a number, not a credential.

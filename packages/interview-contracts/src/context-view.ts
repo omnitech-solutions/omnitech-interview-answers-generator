@@ -18,7 +18,17 @@ const fact = {
   // the person wants.
   about: z.enum(["candidate", "employer", "preference"]),
   slot: z.string(),
+  // The stage it belongs to, by its place in the application (1 is the
+  // first); absent for a fact of the whole application or of the person.
+  stage: z.number().int().min(1).optional(),
 };
+// A stage of the application the material is for.
+const stage = z.object({
+  id: z.uuid(),
+  ordinal: z.number().int().min(1),
+  label: z.string(),
+  kind: z.string(),
+});
 
 export const contextViewSchema = z.object({
   projection: z.enum(CONTEXT_PROJECTIONS),
@@ -36,6 +46,8 @@ export const contextViewSchema = z.object({
         "over-limit",
         "limit",
         "budget",
+        // It belongs to a later stage than the one resolved for.
+        "scope",
       ]),
     }),
   ),
@@ -54,7 +66,25 @@ export const contextViewSchema = z.object({
   ),
   // Reproduces the selection: same digest, same facts.
   digest: z.string(),
-  sources: z.array(z.object({ id: z.string(), revision: z.string() })),
+  sources: z.array(
+    z.object({
+      id: z.string(),
+      revision: z.string(),
+      // What kind of source it is ("transcript", "research", …), the stage
+      // it belongs to, how many records it gave, and whether it may be sent
+      // to a model that does not run on this machine. Absent: older server.
+      kind: z.string().optional(),
+      stage: z.number().int().min(1).optional(),
+      records: z.number().int().nonnegative().optional(),
+      sendable: z.boolean().optional(),
+    }),
+  ),
+  // [DOMAIN] The stage the selection was resolved for: that stage's records
+  // lead their slot, an earlier stage's follow, a later stage's are left out.
+  // Null: the whole application, no stage leading. Absent: older server.
+  stage: stage.nullable().optional(),
+  // Every stage of the application, in order, for the picker.
+  stages: z.array(stage).optional(),
 });
 export const contextViewResponseSchema = z.object({ view: contextViewSchema });
 

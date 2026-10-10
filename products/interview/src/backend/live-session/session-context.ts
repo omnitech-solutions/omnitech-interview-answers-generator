@@ -21,9 +21,15 @@ import {
   candidateMatrixSchema,
   type EmployerBrief,
   employerBriefSchema,
+  employerSaidLine,
 } from "@omnitech/interview-contracts";
 import { sql } from "drizzle-orm";
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
+import {
+  BriefError,
+  type BriefMaterial,
+  readBriefMaterial,
+} from "../brief/repository";
 import {
   buildContextSnapshot,
   type ContextSnapshot,
@@ -35,6 +41,9 @@ import { firstRow, inOwnerScope, type OwnerScope } from "./scope";
 import { readSession } from "./session-record";
 
 const BRIEF_LINE_CHARS = 360;
+// The most research text the snapshot takes from the research documents, so a
+// long document cannot crowd the person's own record out of it.
+const SNAPSHOT_RESEARCH_CHARS = 20_000;
 
 const textOrUndefined = (value: unknown): string | undefined =>
   typeof value === "string" && value.trim() !== "" ? value : undefined;
@@ -96,7 +105,21 @@ export type SessionContext = {
     brief: (EmployerBrief & { candidacyId: string }) | null;
     candidatePreferences: string | null;
     draftRevision: number | null;
+    // [DOMAIN] The interview brief of the application the session was started
+    // for (its stages, employer-said entries and research, with their words),
+    // and the stage it was started for when it was started for an interview.
+    // Absent or null: no application, or one that is not the owner's.
+    interviewBrief?: BriefMaterial | null;
+    stage?: SessionStage | null;
   };
+};
+// A stage of the session's application: its id, its place (1 is the first),
+// and what the person calls it.
+export type SessionStage = {
+  id: string;
+  ordinal: number;
+  label: string;
+  kind: string;
 };
 
 export type ContextUnavailableCode =
@@ -192,6 +215,61 @@ export async function loadSessionContext(
       }
     }
 
+    // The application's interview brief, read in the same owner-scoped
+    // transaction: forced row security gives only the owner's own transcripts,
+    // employer-said entries and research. An application that is not the
+    // owner's own has none.
+    let interviewBrief: BriefMaterial | null = null;
+    if (record.candidacyId)
+      interviewBrief = await readBriefMaterial(
+        tx,
+        scope,
+        record.candidacyId,
+      ).catch((error: unknown) => {
+        if (error instanceof BriefError) return null;
+        throw error;
+      });
+    const stageRow = interviewBrief?.stages.find(
+      (each) => each.id === record.interviewId,
+    );
+    const stage: SessionStage | null = stageRow
+      ? {
+          id: stageRow.id,
+          ordinal: stageRow.ordinal,
+          label: stageRow.label,
+          kind: stageRow.kind,
+        }
+      : null;
+    if (candidacy && interviewBrief) {
+      // [DOMAIN] Notes moved onto a stage, and research kept as documents,
+      // still reach the answers that read the snapshot: the stage's own notes
+      // and the earlier stages' (every stage when the session has none), what
+      // the employer said, and the research, each beside the old field it
+      // came from. A transcript is never added here: the snapshot is read by
+      // models that do not run on this machine.
+      const notes = interviewBrief.stages
+        .filter(
+          (each) =>
+            !each.notesCarried && (!stage || each.ordinal <= stage.ordinal),
+        )
+        .flatMap((each) => (each.notes ? [each.notes] : []));
+      const said = interviewBrief.employerSaid.map(employerSaidLine);
+      candidacy.employerNotes = textOrUndefined(
+        [candidacy.employerNotes ?? "", ...notes, ...said]
+          .filter(Boolean)
+          .join("\n"),
+      );
+      const documents = interviewBrief.research
+        .filter((each) => !each.carried)
+        .map((each) => each.text);
+      candidacy.research = textOrUndefined(
+        [candidacy.research ?? "", ...documents]
+          .filter(Boolean)
+          .join("\n")
+          .slice(0, SNAPSHOT_RESEARCH_CHARS),
+      );
+    }
+
     // The linked briefing draft: employer material (untrusted) and the
     // candidate's own preferences. A draft that is gone, or has no briefing,
     // simply adds no context.
@@ -251,6 +329,8 @@ export async function loadSessionContext(
         brief: cleanBrief,
         candidatePreferences: candidatePreferences ?? null,
         draftRevision: draftRevision ?? null,
+        interviewBrief,
+        stage,
       },
       snapshot: buildContextSnapshot({
         matrix,

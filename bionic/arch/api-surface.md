@@ -2,7 +2,7 @@
 
 _Static route scan (Express/Fastify verb calls + NestJS decorators, labeling GraphQL resolvers as a residual rather than reading them); the app is not executed._
 
-## Routes (95)
+## Routes (97)
 
 | method | path | handler |
 |---|---|---|
@@ -56,6 +56,7 @@ _Static route scan (Express/Fastify verb calls + NestJS decorators, labeling Gra
 | GET | `/presentation/v1/images` | — |
 | GET | `/presentation/v1/shared/:token` | — |
 | GET | `/presentation/v1/themes` | — |
+| GET | `/roles/0/proof_points/0` | — |
 | GET | `/sign-in` | — |
 | GET | `/unrelated` | — |
 | PATCH | `/api/v1/playground-control` | — |
@@ -80,6 +81,7 @@ _Static route scan (Express/Fastify verb calls + NestJS decorators, labeling Gra
 | POST | `/api/v1/run` | — |
 | POST | `/api/v1/run-all` | — |
 | POST | `/api/v1/syntax-check` | — |
+| POST | `/candidacies` | — |
 | POST | `/platform/v1/agent-jobs` | — |
 | POST | `/platform/v1/agent-jobs/:id/resume` | — |
 | POST | `/presentation/v1/documents` | — |
@@ -104,4 +106,4 @@ _Static route scan (Express/Fastify verb calls + NestJS decorators, labeling Gra
 
 ## Residuals
 
-- 10 route declarations dropped: the path is composed at runtime and has no static value, and the application is not executed, so no path is rendered for them (a named residual) — `products/interview/src/backend/live-session/hardening/cross-user.test.ts` lines 118, 123, 141, 142, 154, 208, 211, 217, 247; `products/interview/src/backend/live-session/hardening/world.ts` line 178.
+- 25 route declarations dropped: the path is composed at runtime and has no static value, and the application is not executed, so no path is rendered for them (a named residual) — `products/interview/src/backend/brief/api.test.ts` lines 1660, 1675, 1681, 1686, 1738, 1743, 1747, 1753, 1755, 1763, 1776, 1782, 1792, 1807, 1820; `products/interview/src/backend/live-session/hardening/cross-user.test.ts` lines 118, 123, 141, 142, 154, 208, 211, 217, 247; `products/interview/src/backend/live-session/hardening/world.ts` line 178.

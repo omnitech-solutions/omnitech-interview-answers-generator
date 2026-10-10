@@ -10,6 +10,7 @@ export default defineConfig({
     "../../products/interview/src/backend/db/studio.ts",
     "../../products/interview/src/backend/db/schema.ts",
     "../../products/interview/src/backend/db/documents.ts",
+    "../../products/interview/src/backend/db/brief.ts",
     "../../products/interview/src/backend/db/live-session.ts",
   ],
   out: "./drizzle",
